@@ -6,6 +6,7 @@ using Backend.Business.Usuarios;
 using Backend.Business.Usuarios.Models;
 using Backend.Data.Context;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -130,6 +131,8 @@ public static class AuthConfig
                 };
             });
 
+        services.AddSingleton<IAuthorizationMiddlewareResultHandler, RespostaDeAutorizacao>();
+
         return services;
     }
 
@@ -140,7 +143,7 @@ public static class AuthConfig
     /// Sem isto o ASP.NET responde 401 com corpo vazio, e o cliente precisa de um caminho de
     /// tratamento só para esses dois status. Um contrato de erro, não dois.
     /// </remarks>
-    private static Task EscreverProblema(HttpContext contexto, int status, string codigo, string titulo)
+    internal static Task EscreverProblema(HttpContext contexto, int status, string codigo, string titulo)
     {
         if (contexto.Response.HasStarted)
             return Task.CompletedTask;

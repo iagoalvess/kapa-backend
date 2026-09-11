@@ -12,6 +12,8 @@ using Backend.Business.Common;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Services;
 using Backend.Business.Emails.Settings;
+using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Formaturas.Services;
 using Backend.Business.Usuarios.Interfaces;
 using Backend.Business.Usuarios.Services;
 using FluentValidation;
@@ -127,6 +129,7 @@ public static class DependenciasBusiness
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IContaService, ContaService>();
         services.AddScoped<IEmailsDeConta, EmailsDeConta>();
+        services.AddScoped<IFormaturaService, FormaturaService>();
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IAdminService, AdminService>();
         services.AddScoped<IEmailService, EmailService>();

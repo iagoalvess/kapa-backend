@@ -1,4 +1,5 @@
 using System.Globalization;
+using Backend.Business.Abstractions;
 using Backend.Data.Context;
 using Backend.Data.Seed;
 using Microsoft.AspNetCore.Hosting;
@@ -37,6 +38,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     private readonly string _diretorioDeArquivos = Path.Combine(Path.GetTempPath(), $"backend-arquivos-{Guid.CreateVersion7():N}");
 
+    private DbContextOptions<AppDbContext> _opcoes = null!;
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine")
         .WithDatabase("backend_testes")
         .WithUsername("testes")
@@ -61,9 +64,28 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         using var escopo = Services.CreateScope();
 
+        _opcoes = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_postgres.GetConnectionString()).UseSnakeCaseNamingConvention().Options;
+
         await escopo.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
         await SeedInicial.AplicarAsync(escopo.ServiceProvider);
     }
+
+    /// <summary>
+    /// Abre um contexto de dados enxergando a formatura informada.
+    /// </summary>
+    /// <remarks>
+    /// A formatura é passada no construtor, e não obtida de um token: a semeadura do teste
+    /// precisa gravar e consultar linhas isoladas <b>sem</b> requisição HTTP em curso. Passar
+    /// <c>null</c> devolve um contexto sem formatura selecionada — o estado do worker e da CLI
+    /// do EF Core, em que o filtro global não casa com linha nenhuma.
+    /// <para>
+    /// As opções são montadas aqui, e não tomadas emprestadas do container da aplicação: as do
+    /// container carregam uma referência ao provedor do escopo que as resolveu, e usá-las depois
+    /// que aquele escopo fecha estoura <c>ObjectDisposedException</c>.
+    /// </para>
+    /// </remarks>
+    /// <param name="formaturaId">Formatura que o contexto vai enxergar, ou nulo para nenhuma.</param>
+    public AppDbContext ContextoDe(Guid? formaturaId) => new(_opcoes, new FormaturaFixa(formaturaId));
 
     /// <inheritdoc />
     protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.UseEnvironment("Testing");
@@ -118,6 +140,16 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         if (Directory.Exists(_diretorioDeArquivos))
             Directory.Delete(_diretorioDeArquivos, recursive: true);
     }
+}
+
+/// <summary>
+/// Formatura selecionada por decisão do teste, em vez de vir de uma claim.
+/// </summary>
+/// <param name="id">Formatura a enxergar, ou nulo para nenhuma.</param>
+public sealed class FormaturaFixa(Guid? id) : IFormaturaAtual
+{
+    /// <inheritdoc />
+    public Guid? Id => id;
 }
 
 /// <summary>

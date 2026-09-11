@@ -29,6 +29,41 @@ public static class ClienteExtensions
         return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(ct))!;
     }
 
+    /// <summary>
+    /// Registra uma conta com e-mail conhecido, para poder logar de novo depois.
+    /// </summary>
+    /// <remarks>
+    /// <c>RegistrarUsuarioComum</c> sorteia o e-mail e não o devolve — serve para quem só precisa
+    /// de um token, não para quem precisa exercitar um segundo login.
+    /// </remarks>
+    /// <param name="cliente">Cliente HTTP da API de teste.</param>
+    /// <param name="email">E-mail da conta.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    public static async Task<TokenResponseDTO> RegistrarComEmail(this HttpClient cliente, string email, CancellationToken ct)
+    {
+        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/registrar", new RegistrarRequestDTO("Usuário de Teste", email, SenhaPadrao), ct);
+
+        resposta.EnsureSuccessStatusCode();
+
+        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(ct))!;
+    }
+
+    /// <summary>Autentica uma conta registrada por <see cref="RegistrarComEmail"/>.</summary>
+    /// <param name="cliente">Cliente HTTP da API de teste.</param>
+    /// <param name="email">E-mail da conta.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    public static async Task<TokenResponseDTO> AutenticarCom(this HttpClient cliente, string email, CancellationToken ct)
+    {
+        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, SenhaPadrao), ct);
+
+        resposta.EnsureSuccessStatusCode();
+
+        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(ct))!;
+    }
+
+    /// <summary>Senha usada por todas as contas de teste.</summary>
+    private const string SenhaPadrao = "Senha@Teste123";
+
     /// <summary>Autentica como o administrador criado pelo seed.</summary>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
     /// <param name="ct">Token de cancelamento.</param>

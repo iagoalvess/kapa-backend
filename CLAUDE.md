@@ -81,7 +81,7 @@ Ele viaja em cookie `HttpOnly` (`CookieDeSessao`). Devolvê-lo no corpo anularia
 chamaria `/auth/refresh` e leria o token novo. Pelo mesmo motivo, no modo cookie o corpo da
 requisição é **ignorado**, nunca usado como alternativa.
 
-Endpoint novo que emita sessão usa `ResponderComSessao` do `AuthController`. Não monte
+Endpoint novo que emita sessão usa `RespostaDeSessao.Preparar` (`Api/Configuration/`). Não monte
 `TokenResponseDTO` com refresh token na mão.
 
 ### E-mail nunca sai na requisição
@@ -104,6 +104,22 @@ responde 404, nunca 403.
 `[RegistrarEvento("recurso.acao")]` marca ação de negócio. Tráfego HTTP bruto já está nos traces e
 nos logs — não duplique numa tabela. Registrar evento nunca bloqueia e nunca lança; fila cheia
 descarta.
+
+### Isolamento por formatura é convenção, não lembrança
+
+Entidade que pertence a uma formatura herda de `EntidadeDaFormatura`. O `AppDbContext` varre o
+modelo, aplica `HasQueryFilter` e o índice de `FormaturaId`, e carimba a coluna no
+`SaveChangesAsync`. **Nenhum service atribui `FormaturaId`** — o setter é privado.
+
+A formatura da sessão vem da claim `formatura_id` do access token, nunca de cabeçalho ou de
+rota. Endpoint de domínio declara `[Authorize(Policy = Politicas.FormaturaSelecionada)]`.
+
+Quem tem **um** vínculo ativo já entra com a formatura escolhida (`AuthService.EmitirSessao`).
+Nenhum ou vários mantêm o token sem a claim: o primeiro precisa de onboarding, o segundo de uma
+escolha — decidir por qualquer um dos dois seria chutar.
+
+A saída de emergência é `IgnoreQueryFilters()`, e só dentro de método com sufixo
+`DeTodasAsFormaturas`. Fora disso é rejeitado em review: `grep -rn "IgnoreQueryFilters" src/`.
 
 ### Datas em UTC
 

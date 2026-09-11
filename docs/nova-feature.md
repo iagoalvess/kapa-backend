@@ -35,6 +35,14 @@ public sealed record CriarProduto(string Nome, decimal Preco);
 
 > Entidade herda de `Entity` (id UUIDv7 + datas de auditoria). Modelo de leitura é `record`.
 
+> **A entidade pertence a uma formatura?** Então herda de `EntidadeDaFormatura`, não de `Entity`.
+> É a única coisa a fazer: o `AppDbContext` aplica o filtro global, cria o índice de
+> `FormaturaId` e carimba a coluna na gravação, sem nenhuma linha por entidade. Herdar de
+> `Entity` por engano não quebra nada no build — só faz a turma A enxergar o dado da turma B.
+>
+> Ficam fora da convenção o que é global (`Usuario`, `Arquivo`, `Evento`, `EmailNaFila`) e o que
+> precisa ser lido antes de haver formatura selecionada (`Formatura`, `VinculoDeFormatura`).
+
 ---
 
 ## 2. Interfaces
@@ -224,7 +232,11 @@ build; só aparece como endpoint aberto em produção.
 
 ## Checklist
 
-- [ ] Entidade herda de `Entity`; modelos de leitura são `record`
+- [ ] Entidade herda de `Entity` — ou de `EntidadeDaFormatura`, se pertencer a uma formatura
+- [ ] Nenhum service atribui `FormaturaId`; quem carimba é o `AppDbContext`
+- [ ] `IgnoreQueryFilters()` só em método com sufixo `DeTodasAsFormaturas`
+- [ ] Endpoint de domínio com `[Authorize(Policy = Politicas.FormaturaSelecionada)]`
+- [ ] Modelos de leitura são `record`
 - [ ] Repositório declarado em `Business/`, implementado em `Data/`
 - [ ] Nenhum `SaveChanges` no repositório — só `IUnitOfWork` no service
 - [ ] Todo método público do service devolve `Result` / `Result<T>`

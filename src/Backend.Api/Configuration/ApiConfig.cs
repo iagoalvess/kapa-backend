@@ -3,12 +3,14 @@ using Asp.Versioning;
 using Backend.Api.Analytics;
 using Backend.Api.Extensions;
 using Backend.Api.Middleware;
+using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Settings;
 using Backend.Business.Eventos.Interfaces;
 using Mapster;
 using MapsterMapper;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Backend.Api.Configuration;
 
@@ -40,6 +42,7 @@ public static class ApiConfig
 
         services.AddHttpContextAccessor();
         services.AddScoped<IUsuarioAtual, UsuarioAtual>();
+        services.Replace(ServiceDescriptor.Scoped<IFormaturaAtual, FormaturaAtual>());
 
         services.AddEventos();
         services.AddLimitesDeUpload(configuration);

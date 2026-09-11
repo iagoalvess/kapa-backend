@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Backend.Api.DTOs.Auth;
 using Backend.IntegrationTests.Infra;
+using Microsoft.AspNetCore.Mvc;
 using Shouldly;
 
 namespace Backend.IntegrationTests.Auth;
@@ -44,14 +45,15 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
     }
 
     [Fact]
-    public async Task Registrar_com_senha_fraca_devolve_400_com_o_motivo()
+    public async Task Registrar_com_senha_fraca_devolve_400_com_o_motivo_no_campo_senha()
     {
         var corpo = new RegistrarRequestDTO("Fraco", $"fraco-{Guid.CreateVersion7():N}@testes.local", "123");
 
         var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/auth/registrar", corpo, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        (await resposta.Content.ReadAsStringAsync(Ct)).ShouldContain("senha", Case.Insensitive);
+        var problema = await resposta.Content.ReadFromJsonAsync<ValidationProblemDetails>(Ct);
+        problema!.Errors.ShouldContainKey("senha");
     }
 
     [Fact]

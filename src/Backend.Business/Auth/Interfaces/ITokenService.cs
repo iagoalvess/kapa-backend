@@ -11,7 +11,9 @@ public interface ITokenService
     /// <summary>Emite um access token assinado para o usuário.</summary>
     /// <param name="usuario">Usuário autenticado.</param>
     /// <param name="perfis">Perfis do usuário, que viram claims de papel.</param>
-    AccessTokenGerado GerarAccessToken(Usuario usuario, IReadOnlyList<string> perfis);
+    /// <param name="formaturaId">Formatura selecionada, quando houver. Vira a claim <c>formatura_id</c>.</param>
+    /// <param name="papel">Papel do usuário na formatura selecionada. Vira a claim <c>papel</c>.</param>
+    AccessTokenGerado GerarAccessToken(Usuario usuario, IReadOnlyList<string> perfis, Guid? formaturaId = null, string? papel = null);
 
     /// <summary>Gera um refresh token aleatório, devolvendo o valor e o hash a persistir.</summary>
     RefreshTokenGerado GerarRefreshToken();

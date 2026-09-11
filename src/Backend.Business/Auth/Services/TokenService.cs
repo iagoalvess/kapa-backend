@@ -23,6 +23,12 @@ public sealed class TokenService : ITokenService
     /// <summary>Nome da claim que carrega os perfis. Precisa bater com o <c>RoleClaimType</c> configurado na API.</summary>
     public const string ClaimDePerfil = "role";
 
+    /// <summary>Nome da claim que carrega a formatura selecionada na sessão.</summary>
+    public const string ClaimDeFormatura = "formatura_id";
+
+    /// <summary>Nome da claim que carrega o papel do usuário na formatura selecionada.</summary>
+    public const string ClaimDePapel = "papel";
+
     private readonly JwtSettings _settings;
     private readonly SigningCredentials _credenciaisDeAssinatura;
     private readonly JsonWebTokenHandler _handler = new();
@@ -38,7 +44,12 @@ public sealed class TokenService : ITokenService
     }
 
     /// <inheritdoc />
-    public AccessTokenGerado GerarAccessToken(Usuario usuario, IReadOnlyList<string> perfis)
+    /// <remarks>
+    /// Token <b>sem</b> <c>formatura_id</c> continua válido: é o que serve para o login, a
+    /// listagem de formaturas, o cadastro e o aceite de convite. Endpoint de domínio exige a
+    /// claim pela política <c>FormaturaSelecionada</c>.
+    /// </remarks>
+    public AccessTokenGerado GerarAccessToken(Usuario usuario, IReadOnlyList<string> perfis, Guid? formaturaId = null, string? papel = null)
     {
         var agora = DateTime.UtcNow;
         var expiraEm = agora.AddMinutes(_settings.MinutosDeValidadeDoAccessToken);
@@ -52,6 +63,12 @@ public sealed class TokenService : ITokenService
         };
 
         claims.AddRange(perfis.Select(perfil => new Claim(ClaimDePerfil, perfil)));
+
+        if (formaturaId is not null)
+            claims.Add(new Claim(ClaimDeFormatura, formaturaId.Value.ToString()));
+
+        if (!string.IsNullOrWhiteSpace(papel))
+            claims.Add(new Claim(ClaimDePapel, papel));
 
         var descritor = new SecurityTokenDescriptor
         {

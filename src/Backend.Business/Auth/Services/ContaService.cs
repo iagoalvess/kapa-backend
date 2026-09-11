@@ -143,6 +143,12 @@ public sealed class ContaService(
     /// endpoint seria o caminho sem lockout para adivinhar a senha de quem deixou a sessão aberta.
     /// Só a senha errada conta: senha nova fraca é erro do próprio dono e não pode bloqueá-lo.
     /// </para>
+    /// <para>
+    /// E o bloqueio é <b>conferido</b> antes da troca: o <c>ChangePasswordAsync</c> não olha o
+    /// lockout, então contar a falha sem barrar o palpite seguinte deixaria o endpoint aceitando
+    /// tentativas — e a certa — com a conta já bloqueada. 403, e não 401, porque a sessão é
+    /// válida: um 401 mandaria o cliente renovar o token à toa.
+    /// </para>
     /// </remarks>
     public async Task<Result> AlterarSenha(Guid usuarioId, AlterarSenha dados, CancellationToken ct = default)
     {
@@ -153,6 +159,11 @@ public sealed class ContaService(
         var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
         if (usuario is null)
             return Result.Falha(Erro.NaoEncontrado("usuario.nao_encontrado", "Usuário não encontrado."));
+
+        if (await userManager.IsLockedOutAsync(usuario))
+            return Result.Falha(
+                Erro.Proibido("auth.conta_bloqueada", "Conta temporariamente bloqueada por excesso de tentativas. Tente mais tarde.")
+            );
 
         var troca = await userManager.ChangePasswordAsync(usuario, dados.SenhaAtual, dados.NovaSenha);
 
@@ -186,13 +197,23 @@ public sealed class ContaService(
     /// <remarks>
     /// São dois problemas com soluções opostas: token inválido significa "peça um link novo";
     /// senha fraca significa "escolha outra senha". Devolver a mesma mensagem para os dois deixa
-    /// o usuário tentando a coisa errada.
+    /// o usuário tentando a coisa errada. Pelo mesmo motivo, a senha atual errada aponta para
+    /// <c>senhaAtual</c>, e não para o campo da senha nova.
     /// </remarks>
     private static IReadOnlyList<Erro> TraduzirFalha(IdentityResult resultado)
     {
         if (resultado.Errors.Any(e => e.Code.Contains("Token", StringComparison.Ordinal)))
             return [LinkInvalido];
 
-        return [.. resultado.Errors.Select(erro => Erro.Validacao($"identity.{erro.Code}", erro.Description, "novaSenha"))];
+        return
+        [
+            .. resultado.Errors.Select(erro =>
+                Erro.Validacao(
+                    $"identity.{erro.Code}",
+                    erro.Description,
+                    erro.Code == nameof(IdentityErrorDescriber.PasswordMismatch) ? "senhaAtual" : "novaSenha"
+                )
+            ),
+        ];
     }
 }

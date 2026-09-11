@@ -112,34 +112,12 @@ public sealed class AuthController(
         return Responder(resultado);
     }
 
-    /// <summary>
-    /// De onde o refresh token é lido.
-    /// </summary>
-    /// <remarks>
-    /// No modo cookie o corpo é <b>ignorado</b>, e não usado como alternativa: aceitar os dois
-    /// devolveria ao atacante o caminho que o cookie fechou — bastaria mandar no corpo um token
-    /// obtido de outro jeito.
-    /// </remarks>
-    /// <param name="requisicao">Corpo recebido, possivelmente ausente.</param>
-    private string TokenRecebido(RefreshRequestDTO? requisicao) =>
-        Cookie.Habilitado ? Request.LerRefreshToken(Cookie, OrigensPermitidas) ?? string.Empty : requisicao?.RefreshToken ?? string.Empty;
+    private string TokenRecebido(RefreshRequestDTO? requisicao) => Request.RefreshTokenRecebido(Cookie, OrigensPermitidas, requisicao?.RefreshToken);
 
     /// <summary>
     /// Devolve o par de tokens, mandando o refresh pelo cookie quando o modo está ligado.
     /// </summary>
     /// <param name="resultado">Resultado devolvido pelo service.</param>
-    private IActionResult ResponderComSessao(Result<ParDeTokens> resultado)
-    {
-        if (resultado.Falhou)
-            return Responder(resultado.Map(_ => new TokenResponseDTO(string.Empty, default, null)));
-
-        var par = resultado.Valor;
-
-        if (!Cookie.Habilitado)
-            return Responder(Result.Ok(new TokenResponseDTO(par.AccessToken, par.ExpiraEm, par.RefreshToken)));
-
-        Response.Gravar(par.RefreshToken, Cookie, jwtOptions.Value);
-
-        return Responder(Result.Ok(new TokenResponseDTO(par.AccessToken, par.ExpiraEm, null)));
-    }
+    private IActionResult ResponderComSessao(Result<ParDeTokens> resultado) =>
+        Responder(RespostaDeSessao.Preparar(resultado, Response, Cookie, jwtOptions.Value));
 }

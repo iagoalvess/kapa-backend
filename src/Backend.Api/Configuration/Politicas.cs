@@ -1,3 +1,4 @@
+using Backend.Business.Auth.Services;
 using Backend.Business.Usuarios.Models;
 using Microsoft.AspNetCore.Authorization;
 
@@ -30,6 +31,16 @@ public static class Politicas
     public const string Autenticado = nameof(Autenticado);
 
     /// <summary>
+    /// Exige que a sessão tenha uma formatura selecionada.
+    /// </summary>
+    /// <remarks>
+    /// É a política de todo endpoint de domínio da formatura. Sem ela, um token válido porém
+    /// sem <c>formatura_id</c> chegaria ao repositório, o filtro global não casaria com linha
+    /// nenhuma e o usuário veria uma tela vazia em vez de ser mandado para a seleção.
+    /// </remarks>
+    public const string FormaturaSelecionada = nameof(FormaturaSelecionada);
+
+    /// <summary>
     /// Aceita qualquer um dos perfis informados, e sempre o administrador.
     /// </summary>
     /// <param name="builder">Construtor da política.</param>
@@ -44,7 +55,8 @@ public static class Politicas
         services
             .AddAuthorizationBuilder()
             .AddPolicy(Autenticado, politica => politica.RequireAuthenticatedUser())
-            .AddPolicy(SomenteAdministrador, politica => politica.RequireAuthenticatedUser().ExigirPerfil());
+            .AddPolicy(SomenteAdministrador, politica => politica.RequireAuthenticatedUser().ExigirPerfil())
+            .AddPolicy(FormaturaSelecionada, politica => politica.RequireAuthenticatedUser().RequireClaim(TokenService.ClaimDeFormatura));
 
         return services;
     }

@@ -34,6 +34,15 @@ public class RefreshToken : Entity
     /// <summary>Endereço de origem do pedido que gerou o token, para auditoria.</summary>
     public string? CriadoPorIp { get; set; }
 
+    /// <summary>
+    /// Formatura selecionada nesta sessão. Nulo enquanto o usuário não escolheu uma.
+    /// </summary>
+    /// <remarks>
+    /// Fica aqui, e não só no access token, porque a renovação precisa saber para qual turma
+    /// reemitir. Sem isso, o usuário voltaria para a tela de seleção a cada quinze minutos.
+    /// </remarks>
+    public Guid? FormaturaId { get; set; }
+
     /// <summary>Indica se o token ainda pode ser usado.</summary>
     public bool Ativo(DateTime agoraUtc) => RevogadoEm is null && agoraUtc < ExpiraEm;
 }

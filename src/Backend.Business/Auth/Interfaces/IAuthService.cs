@@ -28,6 +28,29 @@ public interface IAuthService
     /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ParDeTokens>> Renovar(string refreshToken, string? ipDeOrigem, CancellationToken ct = default);
 
+    /// <summary>
+    /// Emite uma sessão já apontando para uma formatura.
+    /// </summary>
+    /// <remarks>
+    /// Quem confere o vínculo é o <c>IFormaturaService</c>; aqui a formatura já chega
+    /// verificada. A emissão mora neste service para não existirem dois lugares gravando
+    /// refresh token — e divergindo no dia em que a rotação mudar.
+    /// </remarks>
+    /// <param name="usuarioId">Usuário autenticado.</param>
+    /// <param name="formaturaId">Formatura cujo vínculo já foi verificado.</param>
+    /// <param name="papel">Papel do usuário nessa formatura.</param>
+    /// <param name="refreshTokenAtual">Refresh token da sessão atual, obrigatório e revogado em favor do novo.</param>
+    /// <param name="ipDeOrigem">IP do solicitante, registrado para auditoria.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    Task<Result<ParDeTokens>> EmitirSessaoDeFormatura(
+        Guid usuarioId,
+        Guid formaturaId,
+        string papel,
+        string refreshTokenAtual,
+        string? ipDeOrigem,
+        CancellationToken ct = default
+    );
+
     /// <summary>Revoga um refresh token — o logout desta sessão.</summary>
     /// <param name="refreshToken">Token a revogar.</param>
     /// <param name="ct">Token de cancelamento.</param>

@@ -117,6 +117,26 @@ public static class CookieDeSessao
     }
 
     /// <summary>
+    /// De onde o refresh token é lido.
+    /// </summary>
+    /// <remarks>
+    /// No modo cookie o corpo é <b>ignorado</b>, e não usado como alternativa: aceitar os dois
+    /// devolveria ao atacante o caminho que o cookie fechou — bastaria mandar no corpo um token
+    /// obtido de outro jeito.
+    /// </remarks>
+    /// <param name="requisicao">Requisição recebida.</param>
+    /// <param name="cookie">Configuração do cookie.</param>
+    /// <param name="origensPermitidas">Origens declaradas em <c>Cors:Origens</c>.</param>
+    /// <param name="doCorpo">Token enviado no corpo, usado só com o modo cookie desligado.</param>
+    /// <returns>O token, ou vazio se não houver.</returns>
+    public static string RefreshTokenRecebido(
+        this HttpRequest requisicao,
+        CookieDeSessaoSettings cookie,
+        IReadOnlyList<string> origensPermitidas,
+        string? doCorpo
+    ) => cookie.Habilitado ? requisicao.LerRefreshToken(cookie, origensPermitidas) ?? string.Empty : doCorpo ?? string.Empty;
+
+    /// <summary>
     /// Monta os atributos do cookie.
     /// </summary>
     /// <remarks>

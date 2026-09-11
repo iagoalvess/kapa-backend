@@ -7,6 +7,7 @@ using Backend.Business.Usuarios.Models;
 using Backend.Data.Context;
 using Backend.IntegrationTests.Infra;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -313,6 +314,27 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
             .PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("SenhaErrada@123", SenhaNova), Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var problema = await resposta.Content.ReadFromJsonAsync<ValidationProblemDetails>(Ct);
+        problema!.Errors.ShouldContainKey("senhaAtual");
+    }
+
+    /// <summary>
+    /// O <c>ChangePasswordAsync</c> não olha o lockout. Sem a checagem, a conta bloqueada para o
+    /// login continuaria aceitando palpites aqui — inclusive o certo.
+    /// </summary>
+    [Fact]
+    public async Task Alterar_senha_com_a_conta_bloqueada_e_recusado_mesmo_com_a_senha_certa()
+    {
+        var (_, tokens, _) = await CriarConta();
+        var cliente = fabrica.CreateClient().ComToken(tokens.AccessToken);
+
+        for (var tentativa = 0; tentativa < 5; tentativa++)
+            await cliente.PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("SenhaErrada@123", SenhaNova), Ct);
+
+        var resposta = await cliente.PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("Senha@Teste123", SenhaNova), Ct);
+
+        resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await resposta.Content.ReadAsStringAsync(Ct)).ShouldContain("auth.conta_bloqueada");
     }
 
     [Fact]
