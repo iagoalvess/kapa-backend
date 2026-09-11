@@ -1,0 +1,27 @@
+# Build
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+.vs/
+.vscode/
+.idea/
+
+# Segredos: nunca versionados. Use .env.example como referência.
+.env
+*.env.local
+appsettings.*.local.json
+
+# Armazenamento local de arquivos (provedor Local, desenvolvimento)
+src/Backend.Api/arquivos/
+
+# Teste
+TestResults/
+coverage/
+*.coverage
+*.trx
+
+# Ferramentas
+.husky/_/

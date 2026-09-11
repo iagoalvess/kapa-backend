@@ -1,0 +1,4 @@
+# Código gerado pelo dotnet ef — reformatar produziria diff a cada migration.
+src/Backend.Data/Migrations/
+**/bin/
+**/obj/

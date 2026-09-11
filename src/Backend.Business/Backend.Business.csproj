@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Camada de regra de negócio. NÃO referencia nenhum outro projeto da solução.
+    Nada de EF Core e nada de ASP.NET aqui: as interfaces de repositório são declaradas
+    nesta camada e implementadas em Backend.Data.
+
+    A exceção é o Identity: Microsoft.Extensions.Identity.* traz UserManager, IdentityUser e
+    o hash de senha, que são regra de autenticação — não persistência. O store (EF Core)
+    continua em Backend.Data.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Stores" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+  </ItemGroup>
+</Project>

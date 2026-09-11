@@ -1,0 +1,6 @@
+# 150 colunas em vez das 100 padrão: assinaturas com construtor primário e vários
+# parâmetros injetados ficam legíveis em uma linha em vez de quebrar em sete.
+printWidth: 150
+useTabs: false
+tabWidth: 4
+endOfLine: lf

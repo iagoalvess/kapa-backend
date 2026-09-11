@@ -1,0 +1,11 @@
+# Reduz o contexto enviado ao daemon e impede que artefato local vaze para a imagem.
+**/bin/
+**/obj/
+**/TestResults/
+.git/
+.vs/
+.vscode/
+.idea/
+.env
+docs/
+*.md

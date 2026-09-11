@@ -1,0 +1,13 @@
+{
+  "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
+  "tasks": [
+    {
+      "name": "formatar",
+      "group": "pre-commit",
+      "command": "dotnet",
+      "args": ["csharpier", "format", "${staged}"],
+      "include": ["**/*.cs"],
+      "exclude": ["**/Migrations/**", "**/bin/**", "**/obj/**"]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+<Project>
+  <!-- Propriedades compartilhadas por todos os projetos da solução.
+       Alterar aqui vale para src/ e tests/ de uma vez. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!-- A convenção do projeto é documentar com /// <summary>; 1591 exigiria
+         doc em absolutamente tudo (inclusive DTOs), o que vira ruído. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+
+    <!-- O xUnit v3 roda na Microsoft Testing Platform. O SDK 10 removeu o caminho antigo
+         (VSTest), e sem este opt-in o "dotnet test" falha antes de executar qualquer teste. -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+</Project>

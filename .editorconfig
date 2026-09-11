@@ -1,0 +1,159 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = true
+
+[*.{cs,csx}]
+indent_size = 4
+
+[*.{csproj,props,targets,json,yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+# ---------------------------------------------------------------------------
+# C#: estilo
+# A formatação é aplicada pelo CSharpier no pre-commit; o que está aqui são as
+# escolhas que o CSharpier não decide (organização de using, var, this).
+# ---------------------------------------------------------------------------
+[*.cs]
+csharp_using_directive_placement = outside_namespace:error
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+csharp_style_namespace_declarations = file_scoped:error
+
+dotnet_style_qualification_for_field = false:error
+dotnet_style_qualification_for_property = false:error
+dotnet_style_qualification_for_method = false:error
+
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_properties = true:suggestion
+
+csharp_style_prefer_primary_constructors = true:suggestion
+csharp_style_prefer_pattern_matching = true:suggestion
+csharp_style_throw_expression = true:suggestion
+
+dotnet_style_prefer_collection_expression = true:suggestion
+dotnet_style_readonly_field = true:warning
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:error
+
+# Nomenclatura de campo. A ordem importa: vale a PRIMEIRA regra cujo símbolo casa, então as
+# específicas (const, static readonly) vêm antes da geral — senão a geral as engole e o projeto
+# inteiro passa a avisar sobre `Intervalo`, `CapacidadeMaxima` e todo `static readonly Erro`,
+# que estão certos. `_` é para campo de instância mutável; constante e estático são PascalCase,
+# como na BCL.
+
+# 1. Constante: PascalCase, em qualquer acessibilidade.
+dotnet_naming_rule.constantes_em_pascal.severity = warning
+dotnet_naming_rule.constantes_em_pascal.symbols = campo_constante
+dotnet_naming_rule.constantes_em_pascal.style = pascal
+
+dotnet_naming_symbols.campo_constante.applicable_kinds = field
+dotnet_naming_symbols.campo_constante.applicable_accessibilities = *
+dotnet_naming_symbols.campo_constante.required_modifiers = const
+
+# 2. Campo estático somente-leitura: PascalCase. É constante na prática.
+dotnet_naming_rule.estaticos_readonly_em_pascal.severity = warning
+dotnet_naming_rule.estaticos_readonly_em_pascal.symbols = campo_estatico_readonly
+dotnet_naming_rule.estaticos_readonly_em_pascal.style = pascal
+
+dotnet_naming_symbols.campo_estatico_readonly.applicable_kinds = field
+dotnet_naming_symbols.campo_estatico_readonly.applicable_accessibilities = *
+dotnet_naming_symbols.campo_estatico_readonly.required_modifiers = static, readonly
+
+# 3. O resto dos campos privados: _camelCase — a convenção usada onde não cabe construtor primário.
+dotnet_naming_rule.campos_privados_com_underscore.severity = warning
+dotnet_naming_rule.campos_privados_com_underscore.symbols = campo_privado
+dotnet_naming_rule.campos_privados_com_underscore.style = underscore_camel
+
+dotnet_naming_symbols.campo_privado.applicable_kinds = field
+dotnet_naming_symbols.campo_privado.applicable_accessibilities = private
+dotnet_naming_symbols.campo_privado.required_modifiers =
+
+dotnet_naming_style.pascal.capitalization = pascal_case
+
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+dotnet_naming_style.underscore_camel.required_prefix = _
+
+# ---------------------------------------------------------------------------
+# Analisadores: o que vira erro de build
+#
+# Regra: só é erro o que indica bug ou risco de segurança. Preferência de
+# estilo que o CSharpier já resolve não precisa quebrar o build de ninguém.
+# ---------------------------------------------------------------------------
+
+# Nomenclatura. Fica no build, e não só na IDE, para o que o editor sublinha e o que o CI
+# aprova serem a mesma coisa — regra que só a IDE vê vira ruído que todo mundo aprende a ignorar.
+dotnet_diagnostic.IDE1006.severity = warning
+
+# Comparação de string sensível a cultura é fonte clássica de bug em pt-BR.
+dotnet_diagnostic.CA1304.severity = error
+dotnet_diagnostic.CA1305.severity = error
+dotnet_diagnostic.CA1310.severity = error
+dotnet_diagnostic.CA1862.severity = error
+
+# Async mal escrito: método async sem await, void async, falta de CancellationToken.
+dotnet_diagnostic.CS1998.severity = error
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.CA2016.severity = error
+
+# Descarte de IDisposable.
+dotnet_diagnostic.CA2000.severity = warning
+
+# Segurança.
+dotnet_diagnostic.CA5350.severity = error
+dotnet_diagnostic.CA5351.severity = error
+dotnet_diagnostic.CA5359.severity = error
+dotnet_diagnostic.CA5364.severity = error
+
+# --- Desligadas de propósito ---
+
+# CA1848 exigiria um delegate LoggerMessage para cada linha de log. O ganho é
+# real em caminho quentíssimo e irrelevante no resto; o custo é boilerplate em
+# todo service. Ligue pontualmente no arquivo onde medir que importa.
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+
+# Método estático de fábrica em tipo genérico (PaginaDe<T>.Vazia) é idiomático.
+dotnet_diagnostic.CA1000.severity = none
+
+# Exigir sufixo/estrutura de nome que a convenção em português não segue.
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1716.severity = none
+
+# Documentação XML é convenção do projeto, não obrigação do compilador.
+dotnet_diagnostic.CS1591.severity = none
+
+# ---------------------------------------------------------------------------
+# Código gerado: as migrations são escritas pelo "dotnet ef", não por pessoas.
+# Exigir estilo delas só produziria um build vermelho a cada migration nova.
+# ---------------------------------------------------------------------------
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.CA1861.severity = none
+csharp_style_namespace_declarations = block_scoped:none
+
+[tests/**/*.cs]
+# Teste pode ter classe estática, nome longo e literal repetida sem cerimônia.
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA1515.severity = none
+
+# CA2000 aqui é ruído: o HttpClient descarta o HttpContent da requisição depois de
+# enviá-la, e envolver cada conteúdo de multipart em "using" só polui o teste.
+dotnet_diagnostic.CA2000.severity = none
+
+# CA1859 pede tipo concreto por desempenho. Em helper de teste não há desempenho a
+# ganhar, e o tipo abstrato é o que descreve a intenção.
+dotnet_diagnostic.CA1859.severity = none

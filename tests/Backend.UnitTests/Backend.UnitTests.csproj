@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Projeto de teste do xUnit v3 é um executável: ele hospeda a Microsoft Testing
+         Platform em vez de ser carregado por um runner externo. -->
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="NSubstitute" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- O Backend.Api usa o SDK Web, cuja referência ao framework do ASP.NET não é propagada
+         para um projeto de teste com o SDK comum. Sem isto, ForwardedHeadersOptions e
+         companhia não são encontrados aqui. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Backend.Business\Backend.Business.csproj" />
+    <ProjectReference Include="..\..\src\Backend.Api\Backend.Api.csproj" />
+    <ProjectReference Include="..\..\src\Backend.Worker\Backend.Worker.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

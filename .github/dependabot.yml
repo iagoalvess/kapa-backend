@@ -1,0 +1,29 @@
+version: 2
+
+# Template envelhece sozinho. Sem isto, daqui a oito meses ninguém sabe o que dá para subir.
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # Um PR por família. Os pacotes da Microsoft saem em lote e com a mesma versão do
+      # runtime: subir Identity sem subir EF Core quebra por incompatibilidade de assembly,
+      # e o CI não explica qual dos dois foi.
+      dotnet:
+        patterns: ['Microsoft.AspNetCore.*', 'Microsoft.Extensions.*', 'Microsoft.EntityFrameworkCore*']
+      persistencia:
+        patterns: ['Npgsql*', 'EFCore.NamingConventions', 'AspNetCore.HealthChecks.*']
+      observabilidade:
+        patterns: ['OpenTelemetry*']
+      testes:
+        patterns: ['xunit*', 'Shouldly', 'NSubstitute', 'Testcontainers*', 'Microsoft.AspNetCore.Mvc.Testing']
+      restante:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

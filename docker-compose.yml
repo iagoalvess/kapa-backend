@@ -1,0 +1,88 @@
+# Ambiente completo para desenvolvimento: banco, migrations, API e worker.
+#
+#   docker compose up --build
+#
+# A API sobe em http://localhost:8080 e a documentação em http://localhost:8080/scalar.
+#
+# Para rodar só o banco e depurar a API pela IDE (o fluxo mais comum no dia a dia):
+#   docker compose up postgres
+
+name: backend
+
+# Âncora YAML: a string de conexão aparece em três serviços; definida uma vez aqui.
+x-conexao: &conexao >-
+  Host=postgres;Port=5432;Database=${POSTGRES_DB:-backend};Username=${POSTGRES_USER:-backend};Password=${POSTGRES_PASSWORD:-backend}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-backend}
+      POSTGRES_USER: ${POSTGRES_USER:-backend}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-backend}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-dados:/var/lib/postgresql/data
+    healthcheck:
+      # Sem isto, a API sobe antes de o banco aceitar conexão e morre no primeiro acesso.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-backend} -d ${POSTGRES_DB:-backend}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrations:
+    build:
+      context: .
+      target: migrations
+    environment:
+      ConnectionStrings__Postgres: *conexao
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Postgres: *conexao
+      Jwt__ChaveSecreta: ${JWT_CHAVE_SECRETA:?defina JWT_CHAVE_SECRETA no .env}
+      Documentacao__Habilitada: "true"
+      Seed__AoIniciar: "true"
+      Seed__AdminEmail: ${ADMIN_EMAIL:-admin@localhost}
+      Seed__AdminSenha: ${ADMIN_SENHA:?defina ADMIN_SENHA no .env}
+      Armazenamento__CaminhoLocal: /app/arquivos
+      Aplicacao__Nome: ${APP_NOME:-Backend}
+      Aplicacao__UrlDoFrontend: ${APP_URL_FRONTEND:-http://localhost:3000}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    volumes:
+      # Provedor Local guarda no disco do container; o volume faz os arquivos
+      # sobreviverem ao restart. Em produção o provedor é o S3.
+      - arquivos-dados:/app/arquivos
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: .
+      target: worker
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__Postgres: *conexao
+      Jwt__ChaveSecreta: ${JWT_CHAVE_SECRETA:?defina JWT_CHAVE_SECRETA no .env}
+      Aplicacao__Nome: ${APP_NOME:-Backend}
+      Aplicacao__UrlDoFrontend: ${APP_URL_FRONTEND:-http://localhost:3000}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-dados:
+  arquivos-dados:
