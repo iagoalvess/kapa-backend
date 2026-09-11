@@ -28,7 +28,7 @@ jobs:
           global-json-file: global.json
 
       - name: Cache do NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           # Directory.Packages.props concentra todas as versões, então é a única
