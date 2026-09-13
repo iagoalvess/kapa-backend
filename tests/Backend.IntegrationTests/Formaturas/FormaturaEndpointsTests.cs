@@ -41,6 +41,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
         minhas.Select(f => f.Id).ShouldContain(ativa);
         minhas.Select(f => f.Id).ShouldNotContain(inativa);
         minhas.Single(f => f.Id == ativa).Papel.ShouldBe(PapelNaFormatura.Tesoureiro);
+        minhas.Single(f => f.Id == ativa).Semestre.ShouldBe(1);
     }
 
     [Fact]
@@ -272,7 +273,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
     {
         await using var contexto = fabrica.ContextoDe(null);
 
-        var formatura = new Formatura { Nome = $"Turma {Guid.CreateVersion7():N}" };
+        var formatura = FormaturaDeTeste.NovaFormatura();
 
         contexto.Formaturas.Add(formatura);
         contexto.Vinculos.Add(

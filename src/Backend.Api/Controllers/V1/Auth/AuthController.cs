@@ -1,10 +1,12 @@
 using Asp.Versioning;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Auth;
+using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
 using Backend.Business.Auth.Settings;
+using Backend.Business.Legal.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -25,6 +27,7 @@ namespace Backend.Api.Controllers.V1.Auth;
 /// </para>
 /// </remarks>
 /// <param name="authService">Regras de autenticação.</param>
+/// <param name="usuarioAtual">IP e navegador da requisição, gravados no consentimento do cadastro.</param>
 /// <param name="cookieOptions">Configuração do cookie de sessão.</param>
 /// <param name="jwtOptions">Configuração de JWT, que define a validade do cookie.</param>
 /// <param name="configuration">Configuração da aplicação, de onde saem as origens permitidas.</param>
@@ -34,19 +37,25 @@ namespace Backend.Api.Controllers.V1.Auth;
 [EnableRateLimiting(RateLimitConfig.Autenticacao)]
 public sealed class AuthController(
     IAuthService authService,
+    IUsuarioAtual usuarioAtual,
     IOptions<CookieDeSessaoSettings> cookieOptions,
     IOptions<JwtSettings> jwtOptions,
     IConfiguration configuration
 ) : MainController
 {
-    private string? IpDeOrigem => HttpContext.Connection.RemoteIpAddress?.ToString();
+    private string? IpDeOrigem => usuarioAtual.EnderecoIp;
 
     private CookieDeSessaoSettings Cookie => cookieOptions.Value;
 
     private string[] OrigensPermitidas => configuration.GetSection(ApiConfig.SecaoDeOrigens).Get<string[]>() ?? [];
 
-    /// <summary>Cria uma conta e já devolve a sessão.</summary>
-    /// <param name="requisicao">Nome, e-mail e senha.</param>
+    /// <summary>Cria uma conta, registra o aceite dos documentos legais e já devolve a sessão.</summary>
+    /// <remarks>
+    /// Sem o aceite de cada documento vigente, responde 400 <c>legal.aceite_obrigatorio</c> e a
+    /// conta não é criada. Versão que deixou de ser a vigente responde 409
+    /// <c>legal.versao_desatualizada</c>.
+    /// </remarks>
+    /// <param name="requisicao">Nome, e-mail, senha e as versões aceitas.</param>
     /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("registrar")]
     [ProducesResponseType(typeof(TokenResponseDTO), StatusCodes.Status200OK)]
@@ -54,7 +63,14 @@ public sealed class AuthController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Registrar([FromBody] RegistrarRequestDTO requisicao, CancellationToken ct)
     {
-        var resultado = await authService.Registrar(new RegistrarUsuario(requisicao.Nome, requisicao.Email, requisicao.Senha), IpDeOrigem, ct);
+        var dados = new RegistrarUsuario(
+            requisicao.Nome,
+            requisicao.Email,
+            requisicao.Senha,
+            [.. (requisicao.Aceites ?? []).OfType<AceiteDeDocumentoDTO>().Select(aceite => new AceiteDeDocumento(aceite.Tipo, aceite.Versao))]
+        );
+
+        var resultado = await authService.Registrar(dados, new OrigemDoAceite(usuarioAtual.EnderecoIp, usuarioAtual.UserAgent), ct);
 
         return ResponderComSessao(resultado);
     }

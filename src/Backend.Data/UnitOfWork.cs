@@ -27,6 +27,11 @@ public sealed class UnitOfWork(AppDbContext db) : IUnitOfWork
     /// Se já existir transação aberta, apenas executa dentro dela — chamadas aninhadas não
     /// criam transação nova nem commitam a de fora.
     /// </para>
+    /// <para>
+    /// Operação que devolve um <see cref="Result"/> de falha <b>não</b> é commitada: falha
+    /// prevista não lança exceção, então sem esta checagem os passos anteriores a ela seriam
+    /// gravados — o cadastro deixaria a conta criada quando o aceite fosse recusado.
+    /// </para>
     /// </remarks>
     public async Task<T> EmTransacaoAsync<T>(Func<CancellationToken, Task<T>> operacao, CancellationToken ct = default)
     {
@@ -41,6 +46,12 @@ public sealed class UnitOfWork(AppDbContext db) : IUnitOfWork
                 await using var transacao = await db.Database.BeginTransactionAsync(token);
 
                 var resultado = await operacao(token);
+
+                if (resultado is Result { Falhou: true })
+                {
+                    await transacao.RollbackAsync(token);
+                    return resultado;
+                }
 
                 await db.SaveChangesAsync(token);
                 await transacao.CommitAsync(token);

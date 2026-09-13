@@ -69,7 +69,7 @@ public static class AuthConfig
             {
                 opcoes.User.RequireUniqueEmail = true;
 
-                opcoes.Password.RequiredLength = 10;
+                opcoes.Password.RequiredLength = 8;
                 opcoes.Password.RequireDigit = true;
                 opcoes.Password.RequireLowercase = true;
                 opcoes.Password.RequireUppercase = true;

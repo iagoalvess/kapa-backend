@@ -46,7 +46,7 @@ public sealed class CapturaDeEventosTests(ApiFactory fabrica)
 
         evento.ShouldNotBeNull();
         evento.UsuarioId.ShouldBe(administrador!.Id);
-        evento.Rota!.ShouldContain($"/api/v1/usuarios/{usuarioAlvo.Id}/perfis");
+        evento.Rota.ShouldBe("PUT /api/v{version:apiVersion}/usuarios/{id:guid}/perfis");
         evento.Dados.ShouldNotBeNull();
         evento.Dados!.ShouldContain(usuarioAlvo.Id.ToString());
     }

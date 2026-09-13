@@ -16,7 +16,13 @@ public sealed record LoginRequestDTO(string Email, string Senha);
 /// <param name="Nome">Nome de exibição.</param>
 /// <param name="Email">E-mail, que também é o login.</param>
 /// <param name="Senha">Senha.</param>
-public sealed record RegistrarRequestDTO(string Nome, string Email, string Senha);
+/// <param name="Aceites">Versão vigente de cada documento legal, obtida em <c>GET /legal/vigentes</c>.</param>
+public sealed record RegistrarRequestDTO(string Nome, string Email, string Senha, IReadOnlyList<AceiteDeDocumentoDTO>? Aceites);
+
+/// <summary>Versão de documento legal que o usuário leu e aceitou.</summary>
+/// <param name="Tipo"><c>TermosDeUso</c> ou <c>PoliticaDePrivacidade</c>.</param>
+/// <param name="Versao">Rótulo da versão lida.</param>
+public sealed record AceiteDeDocumentoDTO(string Tipo, string Versao);
 
 /// <summary>
 /// Corpo dos pedidos de renovação e de logout.
@@ -24,12 +30,6 @@ public sealed record RegistrarRequestDTO(string Nome, string Email, string Senha
 /// <remarks>
 /// Opcional: com <c>CookieDeSessao:Habilitado</c> ligado — o padrão — o token vem do cookie e o
 /// corpo é ignorado. Continua existindo para o cliente que não é navegador.
-/// </remarks>
-/// <remarks>
-/// <b>O campo é anulável de propósito.</b> Sendo <c>string</c> não-anulável, a validação
-/// automática do <c>[ApiController]</c> o trata como obrigatório e responde 400 a um corpo
-/// <c>{}</c> — que é exatamente o que o cliente manda no modo cookie, onde não há token a
-/// enviar.
 /// </remarks>
 /// <param name="RefreshToken">Refresh token recebido no login. Nulo no modo cookie.</param>
 public sealed record RefreshRequestDTO(string? RefreshToken);

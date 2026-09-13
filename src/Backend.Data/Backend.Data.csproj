@@ -15,4 +15,10 @@
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Texto jurídico versionado junto com o código: embutido no assembly para a migration
+         que publica cada versão não depender do diretório de trabalho do deploy. -->
+    <EmbeddedResource Include="Seed\legal\*.md" LogicalName="legal/%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>

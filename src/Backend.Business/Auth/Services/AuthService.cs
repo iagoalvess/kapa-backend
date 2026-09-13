@@ -4,6 +4,8 @@ using Backend.Business.Auth.Models;
 using Backend.Business.Auth.Settings;
 using Backend.Business.Common.Texto;
 using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Legal.Interfaces;
+using Backend.Business.Legal.Models;
 using Backend.Business.Usuarios.Models;
 using FluentValidation;
 using Microsoft.AspNetCore.Identity;
@@ -20,6 +22,7 @@ namespace Backend.Business.Auth.Services;
 /// <param name="refreshTokenRepository">Persistência dos refresh tokens.</param>
 /// <param name="vinculoRepository">Consulta do vínculo com a formatura da sessão.</param>
 /// <param name="emailsDeConta">Montagem e envio das mensagens de conta.</param>
+/// <param name="legalService">Registro do consentimento dado no cadastro.</param>
 /// <param name="registrarValidator">Validador dos dados de registro.</param>
 /// <param name="credenciaisValidator">Validador das credenciais de login.</param>
 /// <param name="contaOptions">Regras do ciclo de vida da conta.</param>
@@ -31,6 +34,7 @@ public sealed class AuthService(
     IRefreshTokenRepository refreshTokenRepository,
     IVinculoRepository vinculoRepository,
     IEmailsDeConta emailsDeConta,
+    ILegalService legalService,
     IValidator<RegistrarUsuario> registrarValidator,
     IValidator<Credenciais> credenciaisValidator,
     IOptions<ContaSettings> contaOptions,
@@ -43,7 +47,12 @@ public sealed class AuthService(
     private static readonly Erro SessaoInvalida = Erro.NaoAutenticado("auth.sessao_invalida", "Sessão expirada. Faça login novamente.");
 
     /// <inheritdoc />
-    public async Task<Result<ParDeTokens>> Registrar(RegistrarUsuario dados, string? ipDeOrigem, CancellationToken ct = default)
+    /// <remarks>
+    /// Conta e consentimento nascem na <b>mesma transação</b>: conta criada sem consentimento é
+    /// conta que não deveria existir, e duas chamadas separadas garantem que uma hora uma delas
+    /// falhe no meio. Qualquer passo que falhe — Identity, aceite, sessão — desfaz os anteriores.
+    /// </remarks>
+    public async Task<Result<ParDeTokens>> Registrar(RegistrarUsuario dados, OrigemDoAceite origem, CancellationToken ct = default)
     {
         var validacao = registrarValidator.Validar(dados);
         if (validacao.Falhou)
@@ -54,25 +63,12 @@ public sealed class AuthService(
         if (await userManager.FindByEmailAsync(email) is not null)
             return Erro.Conflito("usuario.email_em_uso", "Já existe uma conta com este e-mail.");
 
-        var usuario = new Usuario
-        {
-            Nome = dados.Nome.Trim(),
-            Email = email,
-            UserName = email,
-        };
+        var resultado = await unitOfWork.EmTransacaoAsync(token => CriarConta(dados, email, origem, token), ct);
 
-        var criacao = await userManager.CreateAsync(usuario, dados.Senha);
-        if (!criacao.Succeeded)
-            return Result.Falha<ParDeTokens>(TraduzirErrosDoIdentity(criacao));
+        if (resultado.Sucesso)
+            logger.LogInformation("Conta criada para {Email}.", TextoUtils.MascararEmail(email));
 
-        await userManager.AddToRoleAsync(usuario, PerfisPadrao.Usuario);
-
-        var confirmacao = await userManager.GenerateEmailConfirmationTokenAsync(usuario);
-        await emailsDeConta.EnfileirarConfirmacao(usuario, confirmacao, ct);
-
-        logger.LogInformation("Conta criada para {Email}.", TextoUtils.MascararEmail(email));
-
-        return await EmitirSessao(usuario, ipDeOrigem, formaturaId: null, papel: null, substituido: null, ct);
+        return resultado;
     }
 
     /// <inheritdoc />
@@ -99,8 +95,9 @@ public sealed class AuthService(
 
         if (await userManager.IsLockedOutAsync(usuario))
         {
+            QueimarTempoDeHash(credenciais.Senha);
             logger.LogWarning("Login recusado para {Email}: conta bloqueada por tentativas.", emailMascarado);
-            return Erro.NaoAutenticado("auth.conta_bloqueada", "Conta temporariamente bloqueada por excesso de tentativas. Tente mais tarde.");
+            return CredenciaisInvalidas;
         }
 
         if (!await userManager.CheckPasswordAsync(usuario, credenciais.Senha))
@@ -247,6 +244,43 @@ public sealed class AuthService(
         await unitOfWork.SalvarAsync(ct);
 
         return Result.Ok();
+    }
+
+    /// <summary>
+    /// Os passos do cadastro que precisam acontecer juntos ou não acontecer.
+    /// </summary>
+    /// <remarks>
+    /// Roda dentro de <c>EmTransacaoAsync</c>, que desfaz tudo quando o resultado é de falha.
+    /// O usuário é instanciado aqui dentro porque a estratégia de execução pode repetir a
+    /// operação inteira.
+    /// </remarks>
+    /// <param name="dados">Dados do cadastro, já validados.</param>
+    /// <param name="email">E-mail normalizado.</param>
+    /// <param name="origem">IP e navegador, gravados no consentimento e no refresh token.</param>
+    /// <param name="ct">Token de cancelamento da tentativa.</param>
+    private async Task<Result<ParDeTokens>> CriarConta(RegistrarUsuario dados, string email, OrigemDoAceite origem, CancellationToken ct)
+    {
+        var usuario = new Usuario
+        {
+            Nome = dados.Nome.Trim(),
+            Email = email,
+            UserName = email,
+        };
+
+        var criacao = await userManager.CreateAsync(usuario, dados.Senha);
+        if (!criacao.Succeeded)
+            return Result.Falha<ParDeTokens>(TraduzirErrosDoIdentity(criacao));
+
+        await userManager.AddToRoleAsync(usuario, PerfisPadrao.Usuario);
+
+        var aceite = await legalService.RegistrarAceites(usuario.Id, dados.Aceites, origem, ct);
+        if (aceite.Falhou)
+            return Result.Falha<ParDeTokens>(aceite.Erros);
+
+        var confirmacao = await userManager.GenerateEmailConfirmationTokenAsync(usuario);
+        await emailsDeConta.EnfileirarConfirmacao(usuario, confirmacao, ct);
+
+        return await EmitirSessao(usuario, origem.EnderecoIp, formaturaId: null, papel: null, substituido: null, ct);
     }
 
     /// <summary>

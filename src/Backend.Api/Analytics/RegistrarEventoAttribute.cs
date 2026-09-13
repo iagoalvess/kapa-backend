@@ -26,6 +26,11 @@ namespace Backend.Api.Analytics;
 /// Só grava em resposta 2xx: uma tentativa recusada por validação não é um produto criado, e
 /// contá-la inflaria a métrica justamente nos períodos em que algo estava quebrado.
 /// </para>
+/// <para>
+/// <c>Rota</c> guarda o <b>modelo</b> da rota, não o caminho: <c>/convites/{token}/aceitar</c>
+/// com o token real ficaria 180 dias numa tabela de analytics, anulando o "só o hash no banco".
+/// O que precisa do valor vai em <see cref="CamposDaRota"/>, escolhido um a um.
+/// </para>
 /// </remarks>
 /// <param name="nome">Nome do evento, no formato <c>recurso.acao</c>.</param>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
@@ -57,7 +62,7 @@ public sealed class RegistrarEventoAttribute(string nome) : Attribute, IAsyncAct
                 Nome = Nome,
                 UsuarioId = usuario?.Autenticado == true ? usuario.Id : null,
                 OcorridoEm = DateTime.UtcNow,
-                Rota = $"{context.HttpContext.Request.Method} {context.HttpContext.Request.Path}",
+                Rota = $"{context.HttpContext.Request.Method} /{context.ActionDescriptor.AttributeRouteInfo?.Template}",
                 Dados = MontarDados(context),
             }
         );

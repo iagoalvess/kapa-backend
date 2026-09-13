@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using Backend.Api.DTOs.Auth;
+using Backend.Api.DTOs.Legal;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Backend.IntegrationTests.Infra;
@@ -11,6 +12,36 @@ namespace Backend.IntegrationTests.Infra;
 /// </summary>
 public static class ClienteExtensions
 {
+    /// <summary>
+    /// Monta o corpo do cadastro aceitando as versões vigentes, como o front faz.
+    /// </summary>
+    /// <remarks>
+    /// Lê as vigentes a cada chamada, e não uma constante: um teste publica versão nova dos
+    /// termos, e todo cadastro depois dele precisa aceitar a nova.
+    /// </remarks>
+    /// <param name="cliente">Cliente HTTP da API de teste.</param>
+    /// <param name="nome">Nome da conta.</param>
+    /// <param name="email">E-mail da conta.</param>
+    /// <param name="senha">Senha da conta.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    public static async Task<RegistrarRequestDTO> CorpoDeCadastro(
+        this HttpClient cliente,
+        string nome,
+        string email,
+        string senha,
+        CancellationToken ct
+    )
+    {
+        var vigentes = await cliente.GetFromJsonAsync<DocumentoLegalDTO[]>("/api/v1/legal/vigentes", ct);
+
+        return new RegistrarRequestDTO(
+            nome,
+            email,
+            senha,
+            [.. vigentes!.Select(documento => new AceiteDeDocumentoDTO(documento.Tipo, documento.Versao))]
+        );
+    }
+
     /// <summary>Registra uma conta nova com e-mail aleatório e devolve os tokens.</summary>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
     /// <param name="ct">Token de cancelamento.</param>
@@ -20,7 +51,7 @@ public static class ClienteExtensions
 
         var resposta = await cliente.PostAsJsonAsync(
             "/api/v1/auth/registrar",
-            new RegistrarRequestDTO("Usuário de Teste", email, "Senha@Teste123"),
+            await cliente.CorpoDeCadastro("Usuário de Teste", email, "Senha@Teste123", ct),
             ct
         );
 
@@ -41,7 +72,11 @@ public static class ClienteExtensions
     /// <param name="ct">Token de cancelamento.</param>
     public static async Task<TokenResponseDTO> RegistrarComEmail(this HttpClient cliente, string email, CancellationToken ct)
     {
-        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/registrar", new RegistrarRequestDTO("Usuário de Teste", email, SenhaPadrao), ct);
+        var resposta = await cliente.PostAsJsonAsync(
+            "/api/v1/auth/registrar",
+            await cliente.CorpoDeCadastro("Usuário de Teste", email, SenhaPadrao, ct),
+            ct
+        );
 
         resposta.EnsureSuccessStatusCode();
 
@@ -95,7 +130,7 @@ public static class ClienteExtensions
 
         var resposta = await cliente.PostAsJsonAsync(
             "/api/v1/auth/registrar",
-            new RegistrarRequestDTO("Usuário de Teste", email, "Senha@Teste123"),
+            await cliente.CorpoDeCadastro("Usuário de Teste", email, "Senha@Teste123", ct),
             ct
         );
 

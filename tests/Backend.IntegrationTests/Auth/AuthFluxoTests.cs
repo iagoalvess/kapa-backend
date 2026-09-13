@@ -35,7 +35,7 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
     {
         var cliente = fabrica.CreateClient();
         var email = $"repetido-{Guid.CreateVersion7():N}@testes.local";
-        var corpo = new RegistrarRequestDTO("Primeiro", email, "Senha@Teste123");
+        var corpo = await cliente.CorpoDeCadastro("Primeiro", email, "Senha@Teste123", Ct);
 
         (await cliente.PostAsJsonAsync("/api/v1/auth/registrar", corpo, Ct)).EnsureSuccessStatusCode();
 
@@ -47,9 +47,10 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
     [Fact]
     public async Task Registrar_com_senha_fraca_devolve_400_com_o_motivo_no_campo_senha()
     {
-        var corpo = new RegistrarRequestDTO("Fraco", $"fraco-{Guid.CreateVersion7():N}@testes.local", "123");
+        var cliente = fabrica.CreateClient();
+        var corpo = await cliente.CorpoDeCadastro("Fraco", $"fraco-{Guid.CreateVersion7():N}@testes.local", "123", Ct);
 
-        var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/auth/registrar", corpo, Ct);
+        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/registrar", corpo, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var problema = await resposta.Content.ReadFromJsonAsync<ValidationProblemDetails>(Ct);
@@ -92,6 +93,41 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
     }
 
     /// <summary>
+    /// "Conta bloqueada" também diria ao atacante que o e-mail tem conta: depois de cinco senhas
+    /// erradas, até a senha certa responde como credencial inválida.
+    /// </summary>
+    [Fact]
+    public async Task Conta_bloqueada_responde_igual_a_credencial_invalida()
+    {
+        var cliente = fabrica.CreateClient();
+        var email = $"bloqueada-{Guid.CreateVersion7():N}@testes.local";
+        var cadastro = await cliente.CorpoDeCadastro("Bloqueada", email, "Senha@Teste123", Ct);
+        (await cliente.PostAsJsonAsync("/api/v1/auth/registrar", cadastro, Ct)).EnsureSuccessStatusCode();
+
+        for (var tentativa = 0; tentativa < 5; tentativa++)
+            await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Errada@123"), Ct);
+
+        var comSenhaCerta = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Senha@Teste123"), Ct);
+
+        comSenhaCerta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await comSenhaCerta.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("codigo").GetString().ShouldBe("auth.credenciais_invalidas");
+    }
+
+    /// <summary>
+    /// Corpo sem os campos chega ao validador do <c>Business</c>, e não ao <c>[Required]</c>
+    /// implícito do MVC — que respondia em inglês e sem <c>codigo</c>.
+    /// </summary>
+    [Fact]
+    public async Task Corpo_vazio_devolve_400_com_codigo_de_validacao()
+    {
+        var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/auth/login", new { }, Ct);
+
+        resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var codigo = (await resposta.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("codigo").GetString() ?? "";
+        codigo.ShouldContain('.');
+    }
+
+    /// <summary>
     /// O refresh token sai em cookie <c>HttpOnly</c> e <b>não</b> no corpo.
     /// </summary>
     /// <remarks>
@@ -106,7 +142,7 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
 
         var resposta = await cliente.PostAsJsonAsync(
             "/api/v1/auth/registrar",
-            new RegistrarRequestDTO("Cookie", $"cookie-{Guid.CreateVersion7():N}@testes.local", "Senha@Teste123"),
+            await cliente.CorpoDeCadastro("Cookie", $"cookie-{Guid.CreateVersion7():N}@testes.local", "Senha@Teste123", Ct),
             Ct
         );
 

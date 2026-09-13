@@ -1,12 +1,18 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Admin.Interfaces;
 using Backend.Business.Arquivos.Interfaces;
+using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Auth.Interfaces;
+using Backend.Business.Convites.Interfaces;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Legal.Interfaces;
 using Backend.Business.Usuarios.Interfaces;
 using Backend.Data.Context;
+using Backend.Data.Criptografia;
+using Backend.Data.Provedores;
 using Backend.Data.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -38,10 +44,37 @@ public static class DependenciasData
             opcoes.UseNpgsql(conexao, npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 3)).UseSnakeCaseNamingConvention()
         );
 
+        services
+            .AddOptions<CriptografiaSettings>()
+            .Bind(configuration.GetSection(CriptografiaSettings.Secao))
+            .Validate(settings => settings.ChaveValida(), $"'{CriptografiaSettings.Secao}:ChaveDeDados' precisa ser uma chave de 32 bytes em Base64.")
+            .ValidateOnStart();
+        services.AddSingleton<CifraDeCampo>();
+
         services.AddFormaturaAtualPadrao();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-        return services.AdicionarRepositorios();
+        return services.AdicionarRepositorios().AdicionarProvedorDeAssinatura();
+    }
+
+    /// <summary>
+    /// Registra o PSP da licença conforme <c>Assinaturas:Provedor</c>.
+    /// </summary>
+    /// <remarks>
+    /// Singleton: o provedor não guarda estado por requisição (o fake guarda as sessões dele, que
+    /// precisam sobreviver entre o checkout e o pagamento).
+    /// <para>
+    /// ponytail: só existe o fake, então não há o que escolher. Com o PSP real, entra a chave
+    /// <c>Assinaturas:Provedor</c> e um <c>switch</c> sobre ela aqui — nada fora deste método muda.
+    /// </para>
+    /// </remarks>
+    /// <param name="services">Coleção de serviços.</param>
+    private static IServiceCollection AdicionarProvedorDeAssinatura(this IServiceCollection services)
+    {
+        services.AddSingleton<ProvedorFake>();
+        services.AddSingleton<IProvedorDeAssinatura>(sp => sp.GetRequiredService<ProvedorFake>());
+
+        return services;
     }
 
     /// <summary>
@@ -71,6 +104,11 @@ public static class DependenciasData
         services.AddScoped<IEventoRepository, EventoRepository>();
         services.AddScoped<IArquivoRepository, ArquivoRepository>();
         services.AddScoped<IVinculoRepository, VinculoRepository>();
+        services.AddScoped<IConviteRepository, ConviteRepository>();
+        services.AddScoped<IFormaturaRepository, FormaturaRepository>();
+        services.AddScoped<ILegalRepository, LegalRepository>();
+        services.AddScoped<IAssinaturaRepository, AssinaturaRepository>();
+        services.AddScoped<IPerfilRepository, PerfilRepository>();
 
         return services;
     }

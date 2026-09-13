@@ -1,4 +1,6 @@
 using Backend.Business.Auth.Models;
+using Backend.Business.Legal.Models;
+using Backend.Business.Legal.Validators;
 using FluentValidation;
 
 namespace Backend.Business.Auth.Validators;
@@ -45,5 +47,10 @@ public sealed class RegistrarUsuarioValidator : AbstractValidator<RegistrarUsuar
             .WithMessage("O e-mail deve ter no máximo 256 caracteres.");
 
         RuleFor(x => x.Senha).NotEmpty().WithMessage("A senha é obrigatória.");
+
+        RuleFor(x => x.Aceites)
+            .Must(aceites => aceites is not null && TipoDeDocumento.Todos.All(tipo => aceites.Any(a => TipoDeDocumento.Normalizar(a.Tipo) == tipo)))
+            .WithErrorCode(RegistrarAceiteValidator.AceiteObrigatorio)
+            .WithMessage("É preciso aceitar os Termos de Uso e a Política de Privacidade para criar a conta.");
     }
 }

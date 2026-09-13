@@ -50,7 +50,7 @@ public sealed class DependenciasWorkerTests
     {
         using var provider = Construir(Configuracao);
 
-        provider.GetServices<IHostedService>().Count().ShouldBe(3);
+        provider.GetServices<IHostedService>().Count().ShouldBe(4);
     }
 
     /// <summary>

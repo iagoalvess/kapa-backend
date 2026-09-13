@@ -236,6 +236,7 @@ build; só aparece como endpoint aberto em produção.
 - [ ] Nenhum service atribui `FormaturaId`; quem carimba é o `AppDbContext`
 - [ ] `IgnoreQueryFilters()` só em método com sufixo `DeTodasAsFormaturas`
 - [ ] Endpoint de domínio com `[Authorize(Policy = Politicas.FormaturaSelecionada)]`
+- [ ] Endpoint de **escrita** de domínio com `[Authorize(Policy = Politicas.ExigeFormaturaAtiva)]` também
 - [ ] Modelos de leitura são `record`
 - [ ] Repositório declarado em `Business/`, implementado em `Data/`
 - [ ] Nenhum `SaveChanges` no repositório — só `IUnitOfWork` no service

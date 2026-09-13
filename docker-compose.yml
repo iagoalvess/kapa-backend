@@ -50,6 +50,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Postgres: *conexao
       Jwt__ChaveSecreta: ${JWT_CHAVE_SECRETA:?defina JWT_CHAVE_SECRETA no .env}
+      Criptografia__ChaveDeDados: ${CRIPTOGRAFIA_CHAVE:?defina CRIPTOGRAFIA_CHAVE no .env}
       Documentacao__Habilitada: "true"
       Seed__AoIniciar: "true"
       Seed__AdminEmail: ${ADMIN_EMAIL:-admin@localhost}
@@ -76,6 +77,7 @@ services:
       DOTNET_ENVIRONMENT: Development
       ConnectionStrings__Postgres: *conexao
       Jwt__ChaveSecreta: ${JWT_CHAVE_SECRETA:?defina JWT_CHAVE_SECRETA no .env}
+      Criptografia__ChaveDeDados: ${CRIPTOGRAFIA_CHAVE:?defina CRIPTOGRAFIA_CHAVE no .env}
       Aplicacao__Nome: ${APP_NOME:-Backend}
       Aplicacao__UrlDoFrontend: ${APP_URL_FRONTEND:-http://localhost:3000}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}

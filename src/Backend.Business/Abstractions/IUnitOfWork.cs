@@ -29,6 +29,7 @@ public interface IUnitOfWork
     /// <summary>
     /// Executa a operação dentro de uma transação explícita, com retry para falhas transitórias.
     /// Use quando houver mais de um <see cref="SalvarAsync"/> ou escrita fora do contexto.
+    /// Se a operação devolver um <see cref="Result"/> de falha, a transação é desfeita.
     /// </summary>
     /// <typeparam name="T">Tipo devolvido pela operação.</typeparam>
     /// <param name="operacao">Trabalho a executar; recebe o token de cancelamento da tentativa.</param>

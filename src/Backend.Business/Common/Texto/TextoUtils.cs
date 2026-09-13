@@ -55,4 +55,10 @@ public static class TextoUtils
 
         return construtor.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant();
     }
+
+    /// <summary>Corta o texto no tamanho da coluna. Para dado de auditoria que vem do cliente (User-Agent).</summary>
+    /// <remarks>Navegador embutido (Instagram, Facebook) manda User-Agent de 600+ caracteres: gravar inteiro estoura a coluna e recusa a operação.</remarks>
+    /// <param name="texto">Texto de origem.</param>
+    /// <param name="maximo">Tamanho máximo.</param>
+    public static string? Truncar(string? texto, int maximo) => texto is null || texto.Length <= maximo ? texto : texto[..maximo];
 }

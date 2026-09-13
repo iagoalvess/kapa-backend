@@ -1,11 +1,16 @@
 using System.Reflection;
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Models;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Auth.Models;
+using Backend.Business.Convites.Models;
 using Backend.Business.Emails.Models;
 using Backend.Business.Eventos.Models;
+using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Legal.Models;
 using Backend.Business.Usuarios.Models;
+using Backend.Data.Criptografia;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,7 +35,9 @@ namespace Backend.Data.Context;
 /// </remarks>
 /// <param name="options">Opções de configuração do contexto.</param>
 /// <param name="formaturaAtual">Formatura da requisição em curso.</param>
-public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtual formaturaAtual) : IdentityDbContext<Usuario, Perfil, Guid>(options)
+/// <param name="cifra">Cifra das colunas sensíveis, entregue ao mapeamento que a usa.</param>
+public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtual formaturaAtual, CifraDeCampo cifra)
+    : IdentityDbContext<Usuario, Perfil, Guid>(options)
 {
     /// <summary>Refresh tokens emitidos.</summary>
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -50,8 +57,35 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Vínculos entre usuário e formatura.</summary>
     public DbSet<VinculoDeFormatura> Vinculos => Set<VinculoDeFormatura>();
 
+    /// <summary>Convites para entrar numa formatura.</summary>
+    public DbSet<Convite> Convites => Set<Convite>();
+
+    /// <summary>Registro de quem entrou por qual convite.</summary>
+    public DbSet<AceiteDeConvite> AceitesDeConvite => Set<AceiteDeConvite>();
+
     /// <summary>Recados do mural de cada formatura.</summary>
     public DbSet<Aviso> Avisos => Set<Aviso>();
+
+    /// <summary>Catálogo de planos da licença.</summary>
+    public DbSet<Plano> Planos => Set<Plano>();
+
+    /// <summary>Assinaturas da licença, por formatura.</summary>
+    public DbSet<Assinatura> Assinaturas => Set<Assinatura>();
+
+    /// <summary>Eventos recebidos do provedor de assinatura.</summary>
+    public DbSet<EventoDeCobranca> EventosDeCobranca => Set<EventoDeCobranca>();
+
+    /// <summary>Versões publicadas dos documentos legais da plataforma.</summary>
+    public DbSet<DocumentoLegal> DocumentosLegais => Set<DocumentoLegal>();
+
+    /// <summary>Registros de aceite e revogação dos documentos legais.</summary>
+    public DbSet<ConsentimentoRegistrado> Consentimentos => Set<ConsentimentoRegistrado>();
+
+    /// <summary>Cadastros dos formandos, um por vínculo.</summary>
+    public DbSet<PerfilDoFormando> PerfisDeFormandos => Set<PerfilDoFormando>();
+
+    /// <summary>Correções feitas pela comissão no cadastro de um formando.</summary>
+    public DbSet<CorrecaoDePerfil> CorrecoesDePerfil => Set<CorrecaoDePerfil>();
 
     /// <summary>
     /// Formatura que os filtros globais enxergam.
@@ -65,11 +99,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     public Guid? FormaturaAtualId => formaturaAtual.Id;
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A cifra do CPF é a única configuração que mora aqui: ela precisa da chave, e os mappings
+    /// são instanciados pela varredura sem parâmetro. O modelo é montado uma vez por processo,
+    /// então o conversor guarda a cifra da primeira instância — a chave é a mesma para o processo
+    /// inteiro, e é isso que se quer.
+    /// </remarks>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
 
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+        builder.Entity<PerfilDoFormando>().Property(p => p.Cpf).HasConversion(cifra.Conversor());
 
         AplicarIsolamentoPorFormatura(builder);
     }

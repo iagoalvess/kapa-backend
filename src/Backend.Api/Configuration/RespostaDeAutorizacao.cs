@@ -35,8 +35,28 @@ public sealed class RespostaDeAutorizacao : IAuthorizationMiddlewareResultHandle
                 "Nenhuma formatura selecionada."
             );
 
+        if (authorizeResult.Forbidden && SoFaltouFormaturaAtiva(authorizeResult.AuthorizationFailure))
+            return AuthConfig.EscreverProblema(
+                context,
+                StatusCodes.Status403Forbidden,
+                "formatura.inativa",
+                "Esta formatura não está ativa. A turma está em modo leitura."
+            );
+
         return _padrao.HandleAsync(next, context, policy, authorizeResult);
     }
+
+    /// <summary>
+    /// A única coisa que faltou foi a formatura estar ativa.
+    /// </summary>
+    /// <remarks>
+    /// Se o papel também faltou, a resposta é <c>auth.sem_permissao</c>: o formando barrado numa
+    /// escrita de tesouraria não ganharia nada sabendo que a turma está suspensa — mesmo ativa ele
+    /// não passaria.
+    /// </remarks>
+    /// <param name="falha">Falha de autorização.</param>
+    private static bool SoFaltouFormaturaAtiva(AuthorizationFailure? falha) =>
+        falha?.FailedRequirements.Any() == true && falha.FailedRequirements.All(requisito => requisito is FormaturaEmStatusRequirement);
 
     private static bool FaltouFormatura(AuthorizationFailure? falha) =>
         falha?.FailedRequirements.OfType<ClaimsAuthorizationRequirement>().Any(requisito => requisito.ClaimType == TokenService.ClaimDeFormatura)

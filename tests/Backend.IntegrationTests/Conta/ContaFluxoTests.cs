@@ -35,7 +35,11 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         var email = $"conta-{Guid.CreateVersion7():N}@testes.local";
 
-        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/registrar", new RegistrarRequestDTO("Fulano", email, "Senha@Teste123"), Ct);
+        var resposta = await cliente.PostAsJsonAsync(
+            "/api/v1/auth/registrar",
+            await cliente.CorpoDeCadastro("Fulano", email, "Senha@Teste123", Ct),
+            Ct
+        );
         resposta.EnsureSuccessStatusCode();
 
         return (email, (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Ct))!, resposta.RefreshTokenDoCookie()!);

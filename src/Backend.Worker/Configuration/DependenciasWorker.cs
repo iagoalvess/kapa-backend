@@ -38,6 +38,7 @@ public static class DependenciasWorker
         builder.Services.AddHostedService<EnvioDeEmailJob>();
         builder.Services.AddHostedService<LimpezaRefreshTokensJob>();
         builder.Services.AddHostedService<RetencaoDeEventosJob>();
+        builder.Services.AddHostedService<ConciliacaoDeAssinaturasJob>();
 
         return builder;
     }

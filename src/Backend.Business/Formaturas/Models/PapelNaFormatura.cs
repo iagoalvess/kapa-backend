@@ -6,7 +6,8 @@ namespace Backend.Business.Formaturas.Models;
 /// <remarks>
 /// Não é role do Identity. Role do Identity é o nível plataforma (<c>Administrador</c>,
 /// <c>Usuario</c>); o papel aqui é por turma, e a mesma pessoa pode ser tesoureira de uma e
-/// formanda de outra. A matriz de permissões por papel é a Sprint 1.
+/// formanda de outra. A matriz de permissões por papel vive nas políticas da Api
+/// (<c>SomentePresidente</c>, <c>Tesouraria</c>, <c>Gestao</c>, <c>MembroDaFormatura</c>).
 /// </remarks>
 public static class PapelNaFormatura
 {

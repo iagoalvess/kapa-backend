@@ -25,12 +25,17 @@ public static class ApiConfig
     private const string PoliticaDeCors = "PadraoDaAplicacao";
 
     /// <summary>Registra os serviços da borda HTTP.</summary>
+    /// <remarks>
+    /// Sem <c>SuppressImplicitRequired…</c>, todo <c>string</c> não-anulável de DTO vira
+    /// <c>[Required]</c> implícito: corpo sem o campo leva um 400 do framework, em inglês e sem
+    /// <c>codigo</c>, antes do validador. Validação vive uma vez — no validador do <c>Business</c>.
+    /// </remarks>
     /// <param name="services">Coleção de serviços.</param>
     /// <param name="configuration">Configuração da aplicação.</param>
     public static IServiceCollection AddApi(this IServiceCollection services, IConfiguration configuration)
     {
         services
-            .AddControllers()
+            .AddControllers(opcoes => opcoes.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true)
             .AddJsonOptions(opcoes =>
             {
                 opcoes.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
@@ -57,6 +62,11 @@ public static class ApiConfig
     }
 
     /// <summary>Monta o pipeline de requisição, na ordem em que ele precisa rodar.</summary>
+    /// <remarks>
+    /// O limitador vem <b>depois</b> da autenticação: antes dela o <c>User</c> ainda é anônimo, e
+    /// toda partição caía no IP — uma turma inteira no Wi-Fi da faculdade dividindo a mesma cota.
+    /// E vem antes da autorização, para a requisição recusada não pagar a consulta de vínculo.
+    /// </remarks>
     /// <param name="app">Aplicação web.</param>
     public static WebApplication UseApi(this WebApplication app)
     {
@@ -69,8 +79,8 @@ public static class ApiConfig
         app.UseHttpsRedirection();
         app.UseRouting();
         app.UseCors(PoliticaDeCors);
-        app.UseRateLimiter();
         app.UseAuthentication();
+        app.UseRateLimiter();
         app.UseAuthorization();
         app.MapControllers();
 

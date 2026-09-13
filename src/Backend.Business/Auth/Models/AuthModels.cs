@@ -1,3 +1,5 @@
+using Backend.Business.Legal.Models;
+
 namespace Backend.Business.Auth.Models;
 
 /// <summary>Credenciais apresentadas no login.</summary>
@@ -9,7 +11,8 @@ public sealed record Credenciais(string Email, string Senha);
 /// <param name="Nome">Nome de exibição.</param>
 /// <param name="Email">E-mail, que também é o login.</param>
 /// <param name="Senha">Senha em texto puro.</param>
-public sealed record RegistrarUsuario(string Nome, string Email, string Senha);
+/// <param name="Aceites">Versões dos documentos legais aceitas no cadastro — uma por documento.</param>
+public sealed record RegistrarUsuario(string Nome, string Email, string Senha, IReadOnlyList<AceiteDeDocumento> Aceites);
 
 /// <summary>
 /// Par de tokens devolvido ao cliente após autenticar ou renovar.

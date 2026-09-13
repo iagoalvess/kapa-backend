@@ -5,10 +5,15 @@ using Mapster;
 namespace Backend.Api.Mapping;
 
 /// <summary>
-/// Mapeamento dos modelos de leitura de formatura para os DTOs.
+/// Mapeamento entre os modelos de formatura e os DTOs.
 /// </summary>
 public sealed class RegistroDeMapeamentosFormaturas : IRegister
 {
     /// <inheritdoc />
-    public void Register(TypeAdapterConfig config) => config.NewConfig<FormaturaDoUsuario, FormaturaDoUsuarioDTO>();
+    public void Register(TypeAdapterConfig config)
+    {
+        config.NewConfig<FormaturaDoUsuario, FormaturaDoUsuarioDTO>();
+        config.NewConfig<FormaturaDetalhe, FormaturaDetalheDTO>();
+        config.NewConfig<DadosDaFormaturaRequestDTO, DadosDaFormatura>();
+    }
 }

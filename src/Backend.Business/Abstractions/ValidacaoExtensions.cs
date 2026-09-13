@@ -26,9 +26,16 @@ public static class ValidacaoExtensions
     }
 
     /// <summary>Converte as falhas do FluentValidation em erros do domínio.</summary>
+    /// <remarks>
+    /// Regra sem <c>WithErrorCode</c> sai com o nome do validador (<c>NotEmptyValidator</c>), que
+    /// não é contrato de ninguém: vira <c>validacao.invalido</c>. Só código no formato
+    /// <c>recurso.motivo</c> passa adiante.
+    /// </remarks>
     /// <param name="resultado">Resultado de validação.</param>
     public static IReadOnlyList<Erro> ParaErros(this ValidationResult resultado) =>
-        [.. resultado.Errors.Select(falha => Erro.Validacao(falha.ErrorCode ?? "validacao", falha.ErrorMessage, ParaCamelCase(falha.PropertyName)))];
+        [.. resultado.Errors.Select(falha => Erro.Validacao(CodigoDe(falha), falha.ErrorMessage, ParaCamelCase(falha.PropertyName)))];
+
+    private static string CodigoDe(ValidationFailure falha) => falha.ErrorCode?.Contains('.') == true ? falha.ErrorCode : "validacao.invalido";
 
     private static string ParaCamelCase(string propriedade)
     {

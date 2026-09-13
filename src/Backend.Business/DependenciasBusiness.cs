@@ -5,15 +5,24 @@ using Backend.Business.Admin.Services;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Services;
 using Backend.Business.Arquivos.Settings;
+using Backend.Business.Assinaturas.Interfaces;
+using Backend.Business.Assinaturas.Services;
+using Backend.Business.Assinaturas.Settings;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Services;
 using Backend.Business.Auth.Settings;
 using Backend.Business.Common;
+using Backend.Business.Convites.Interfaces;
+using Backend.Business.Convites.Services;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Services;
 using Backend.Business.Emails.Settings;
+using Backend.Business.Formandos.Interfaces;
+using Backend.Business.Formandos.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Services;
+using Backend.Business.Legal.Interfaces;
+using Backend.Business.Legal.Services;
 using Backend.Business.Usuarios.Interfaces;
 using Backend.Business.Usuarios.Services;
 using FluentValidation;
@@ -44,6 +53,7 @@ public static class DependenciasBusiness
         services.AddOptions<ContaSettings>().Bind(configuration.GetSection(ContaSettings.Secao));
         services.AddOptions<AplicacaoSettings>().Bind(configuration.GetSection(AplicacaoSettings.Secao));
         services.AddOptions<ArmazenamentoSettings>().Bind(configuration.GetSection(ArmazenamentoSettings.Secao));
+        services.AddOptions<AssinaturaSettings>().Bind(configuration.GetSection(AssinaturaSettings.Secao));
 
         services.AddValidatorsFromAssembly(typeof(DependenciasBusiness).Assembly, ServiceLifetime.Singleton);
 
@@ -130,10 +140,17 @@ public static class DependenciasBusiness
         services.AddScoped<IContaService, ContaService>();
         services.AddScoped<IEmailsDeConta, EmailsDeConta>();
         services.AddScoped<IFormaturaService, FormaturaService>();
+        services.AddScoped<IMembroService, MembroService>();
+        services.AddScoped<IConviteService, ConviteService>();
+        services.AddScoped<IPerfilService, PerfilService>();
+        services.AddScoped<ILegalService, LegalService>();
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IAdminService, AdminService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IArquivoService, ArquivoService>();
+        services.AddScoped<IAssinaturaService, AssinaturaService>();
+        services.AddScoped<IWebhookService, WebhookService>();
+        services.AddScoped<EmailsDeAssinatura>();
 
         return services;
     }

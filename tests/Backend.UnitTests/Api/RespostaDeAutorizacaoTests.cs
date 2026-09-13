@@ -1,9 +1,13 @@
 using Backend.Api.Configuration;
 using Backend.Business.Auth.Services;
+using Backend.Business.Formaturas.Models;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using Shouldly;
 
 namespace Backend.UnitTests.Api;
@@ -37,5 +41,41 @@ public sealed class RespostaDeAutorizacaoTests
         contexto.Response.Body.Position = 0;
         var corpo = await new StreamReader(contexto.Response.Body).ReadToEndAsync(TestContext.Current.CancellationToken);
         corpo.ShouldContain("formatura.nao_selecionada");
+    }
+
+    [Fact]
+    public async Task Faltar_so_a_formatura_ativa_responde_inativa()
+    {
+        var requisito = new FormaturaEmStatusRequirement(StatusDaFormatura.Ativa);
+
+        var corpo = await Responder(requisito);
+
+        corpo.ShouldContain("formatura.inativa");
+    }
+
+    /// <summary>Sem papel, a turma estar suspensa é irrelevante: nem ativa ele passaria.</summary>
+    [Fact]
+    public async Task Faltar_papel_e_formatura_ativa_nao_responde_inativa()
+    {
+        var corpo = await Responder(new FormaturaEmStatusRequirement(StatusDaFormatura.Ativa), new PapelNaFormaturaRequirement([]));
+
+        corpo.ShouldNotContain("formatura.inativa");
+    }
+
+    private static async Task<string> Responder(params IAuthorizationRequirement[] falharam)
+    {
+        var contexto = new DefaultHttpContext
+        {
+            Response = { Body = new MemoryStream() },
+            RequestServices = new ServiceCollection().AddSingleton(Substitute.For<IAuthenticationService>()).BuildServiceProvider(),
+        };
+        var politica = new AuthorizationPolicyBuilder().AddRequirements(falharam).Build();
+        var resultado = PolicyAuthorizationResult.Forbid(AuthorizationFailure.Failed(falharam));
+
+        await new RespostaDeAutorizacao().HandleAsync(_ => Task.CompletedTask, contexto, politica, resultado);
+
+        contexto.Response.Body.Position = 0;
+
+        return await new StreamReader(contexto.Response.Body).ReadToEndAsync(TestContext.Current.CancellationToken);
     }
 }

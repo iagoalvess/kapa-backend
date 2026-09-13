@@ -114,6 +114,16 @@ modelo, aplica `HasQueryFilter` e o índice de `FormaturaId`, e carimba a coluna
 A formatura da sessão vem da claim `formatura_id` do access token, nunca de cabeçalho ou de
 rota. Endpoint de domínio declara `[Authorize(Policy = Politicas.FormaturaSelecionada)]`.
 
+Escrita de domínio soma uma política de status à política de papel (403 `formatura.inativa` fora
+dela); leitura segue livre em qualquer status:
+
+- `ExigeFormaturaAtiva` — o padrão, o dia a dia da turma.
+- `ExigeFormaturaEditavel` — montar a comissão (convites, papéis), desde o rascunho: contratar é
+  decisão da comissão. Convite de Formando continua exigindo `Ativa`, no service.
+- `ExigeFormaturaAberta` — o dado do próprio titular (`/formandos/eu`), menos turma encerrada.
+
+Status muda só por `Formatura.Transicionar` — o setter é privado.
+
 Quem tem **um** vínculo ativo já entra com a formatura escolhida (`AuthService.EmitirSessao`).
 Nenhum ou vários mantêm o token sem a claim: o primeiro precisa de onboarding, o segundo de uma
 escolha — decidir por qualquer um dos dois seria chutar.

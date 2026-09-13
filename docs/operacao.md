@@ -55,8 +55,14 @@ dotnet user-secrets set "Jwt:ChaveSecreta" "$(openssl rand -base64 48)" --projec
 
 # Docker / produção: variável de ambiente, com "__" no lugar de ":"
 export Jwt__ChaveSecreta="..."
+export Criptografia__ChaveDeDados="$(openssl rand -base64 32)"
 export ConnectionStrings__Postgres="Host=...;Database=...;Username=...;Password=..."
 ```
+
+`Criptografia:ChaveDeDados` é a chave AES-256 (32 bytes em Base64) que cifra o CPF na coluna.
+A API e o worker não sobem sem ela. Diferente da chave do JWT, **perdê-la não se resolve
+trocando**: todo CPF gravado fica ilegível. Guarde no secret manager, com backup. A rotação
+(recifrar as linhas com a chave nova) entra no runbook de produção.
 
 Gere uma chave **por ambiente**. Chave compartilhada entre homologação e produção significa que
 um token emitido em homologação vale em produção.

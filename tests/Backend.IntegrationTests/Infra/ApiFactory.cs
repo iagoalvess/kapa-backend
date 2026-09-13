@@ -1,6 +1,7 @@
 using System.Globalization;
 using Backend.Business.Abstractions;
 using Backend.Data.Context;
+using Backend.Data.Criptografia;
 using Backend.Data.Seed;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -32,6 +33,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     /// <summary>Senha do administrador de teste.</summary>
     public const string AdminSenha = "Admin@Testes123";
+
+    /// <summary>Segredo do HMAC do webhook de assinatura nos testes.</summary>
+    public const string SegredoDoWebhook = "segredo-do-webhook-de-teste";
+
+    /// <summary>Chave AES dos testes, para conferir a cifra decifrando direto da coluna.</summary>
+    public const string ChaveDeDados = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
 
     /// <summary>Quantidade de arquivos por usuário nos testes, baixa para a cota ser alcançável.</summary>
     public const int LimiteDeArquivos = 3;
@@ -85,7 +92,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// </para>
     /// </remarks>
     /// <param name="formaturaId">Formatura que o contexto vai enxergar, ou nulo para nenhuma.</param>
-    public AppDbContext ContextoDe(Guid? formaturaId) => new(_opcoes, new FormaturaFixa(formaturaId));
+    public AppDbContext ContextoDe(Guid? formaturaId) => new(_opcoes, new FormaturaFixa(formaturaId), Services.GetRequiredService<CifraDeCampo>());
 
     /// <inheritdoc />
     protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.UseEnvironment("Testing");
@@ -113,6 +120,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     ["Jwt:ChaveSecreta"] = "chave-de-teste-com-mais-de-32-caracteres-ok",
                     ["Jwt:MinutosDeValidadeDoAccessToken"] = "15",
                     ["Jwt:DiasDeValidadeDoRefreshToken"] = "7",
+                    ["Criptografia:ChaveDeDados"] = ChaveDeDados,
                     ["RateLimit:PadraoPorMinuto"] = "100000",
                     ["RateLimit:AutenticacaoPorMinuto"] = "100000",
                     ["Armazenamento:Provedor"] = "Local",
@@ -121,6 +129,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     // duzentos arquivos. Cada teste registra um usuário novo, então o limite
                     // por usuário não atrapalha quem só envia um.
                     ["Armazenamento:MaximoDeArquivosPorUsuario"] = LimiteDeArquivos.ToString(CultureInfo.InvariantCulture),
+                    ["Assinaturas:SegredoDoWebhook"] = SegredoDoWebhook,
                     ["Seed:AoIniciar"] = "false",
                     ["Seed:AdminEmail"] = AdminEmail,
                     ["Seed:AdminSenha"] = AdminSenha,

@@ -29,6 +29,18 @@ public interface IUsuarioAtual
 
     /// <summary>Indica se o usuário é administrador.</summary>
     bool EhAdministrador { get; }
+
+    /// <summary>
+    /// IP do cliente.
+    /// </summary>
+    /// <remarks>
+    /// Atrás de proxy, só é o do cliente com <c>Rede:ProxiesConfiaveis</c> configurado — sem isso é
+    /// o do load balancer (ver <c>RedeConfig</c>).
+    /// </remarks>
+    string? EnderecoIp { get; }
+
+    /// <summary>Cabeçalho <c>User-Agent</c> da requisição.</summary>
+    string? UserAgent { get; }
 }
 
 /// <summary>
@@ -53,4 +65,10 @@ public sealed class UsuarioAtual(IHttpContextAccessor accessor) : IUsuarioAtual
 
     /// <inheritdoc />
     public bool EhAdministrador => Perfis.Contains(PerfisPadrao.Administrador, StringComparer.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public string? EnderecoIp => accessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
+
+    /// <inheritdoc />
+    public string? UserAgent => accessor.HttpContext?.Request.Headers.UserAgent.ToString();
 }

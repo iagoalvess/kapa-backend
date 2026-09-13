@@ -111,8 +111,8 @@ public sealed class IsolamentoPorFormaturaTests(ApiFactory fabrica)
     {
         await using var contexto = fabrica.ContextoDe(null);
 
-        var a = new Formatura { Nome = $"Turma A {Guid.CreateVersion7():N}" };
-        var b = new Formatura { Nome = $"Turma B {Guid.CreateVersion7():N}" };
+        var a = FormaturaDeTeste.NovaFormatura();
+        var b = FormaturaDeTeste.NovaFormatura();
 
         contexto.Formaturas.AddRange(a, b);
         await contexto.SaveChangesAsync(Ct);

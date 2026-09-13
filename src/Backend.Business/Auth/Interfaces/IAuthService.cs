@@ -1,5 +1,6 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Auth.Models;
+using Backend.Business.Legal.Models;
 
 namespace Backend.Business.Auth.Interfaces;
 
@@ -8,11 +9,11 @@ namespace Backend.Business.Auth.Interfaces;
 /// </summary>
 public interface IAuthService
 {
-    /// <summary>Cria uma conta e já devolve a sessão.</summary>
-    /// <param name="dados">Nome, e-mail e senha.</param>
-    /// <param name="ipDeOrigem">IP do solicitante, registrado para auditoria.</param>
+    /// <summary>Cria uma conta com o consentimento aos documentos legais e já devolve a sessão.</summary>
+    /// <param name="dados">Nome, e-mail, senha e as versões aceitas.</param>
+    /// <param name="origem">IP e navegador do solicitante, gravados no consentimento e na sessão.</param>
     /// <param name="ct">Token de cancelamento.</param>
-    Task<Result<ParDeTokens>> Registrar(RegistrarUsuario dados, string? ipDeOrigem, CancellationToken ct = default);
+    Task<Result<ParDeTokens>> Registrar(RegistrarUsuario dados, OrigemDoAceite origem, CancellationToken ct = default);
 
     /// <summary>Autentica por e-mail e senha.</summary>
     /// <param name="credenciais">E-mail e senha.</param>
