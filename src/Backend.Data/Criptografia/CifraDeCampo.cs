@@ -54,10 +54,16 @@ public sealed class CifraDeCampo(IOptions<CriptografiaSettings> options)
     private const int TamanhoDoNonce = 12;
     private const int TamanhoDaTag = 16;
 
-    private readonly Lazy<byte[]> _chave = new(() =>
-        options.Value.ChaveValida()
-            ? Convert.FromBase64String(options.Value.ChaveDeDados)
-            : throw new InvalidOperationException($"'{CriptografiaSettings.Secao}:ChaveDeDados' precisa ser uma chave de 32 bytes em Base64.")
+    private readonly Lazy<byte[]> _chave = new(() => LerChave(options.Value));
+
+    /// <summary>
+    /// Chave do HMAC, derivada da chave de dados por HKDF com um rótulo próprio — a mesma chave em
+    /// dois algoritmos é o que a separação de chaves existe para evitar, e derivar não pede um segredo
+    /// novo no cofre. <c>ponytail:</c> girar a chave de dados muda todos os HMACs; a rotação recalcula
+    /// a coluna junto com a recifragem.
+    /// </summary>
+    private readonly Lazy<byte[]> _chaveDoHmac = new(() =>
+        HKDF.DeriveKey(HashAlgorithmName.SHA256, LerChave(options.Value), 32, info: "kapa:hmac-de-campo"u8.ToArray())
     );
 
     /// <summary>Conversor do EF Core que cifra ao gravar e decifra ao ler.</summary>
@@ -98,4 +104,19 @@ public sealed class CifraDeCampo(IOptions<CriptografiaSettings> options)
 
         return Encoding.UTF8.GetString(claro);
     }
+
+    /// <summary>
+    /// HMAC-SHA256 do texto, em hexadecimal: o mesmo valor sempre dá o mesmo resultado.
+    /// </summary>
+    /// <remarks>
+    /// É o par pesquisável da cifra: a coluna cifrada não admite busca (nonce aleatório), a do HMAC
+    /// admite, e sem a chave não se volta do HMAC ao CPF — nem por força bruta sobre os 10⁹ CPFs.
+    /// </remarks>
+    /// <param name="texto">Valor em claro, já normalizado (CPF só com dígitos).</param>
+    public string Hmac(string texto) => Convert.ToHexStringLower(HMACSHA256.HashData(_chaveDoHmac.Value, Encoding.UTF8.GetBytes(texto)));
+
+    private static byte[] LerChave(CriptografiaSettings settings) =>
+        settings.ChaveValida()
+            ? Convert.FromBase64String(settings.ChaveDeDados)
+            : throw new InvalidOperationException($"'{CriptografiaSettings.Secao}:ChaveDeDados' precisa ser uma chave de 32 bytes em Base64.");
 }

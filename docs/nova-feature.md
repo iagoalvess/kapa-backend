@@ -235,7 +235,7 @@ build; só aparece como endpoint aberto em produção.
 - [ ] Entidade herda de `Entity` — ou de `EntidadeDaFormatura`, se pertencer a uma formatura
 - [ ] Nenhum service atribui `FormaturaId`; quem carimba é o `AppDbContext`
 - [ ] `IgnoreQueryFilters()` só em método com sufixo `DeTodasAsFormaturas`
-- [ ] Endpoint de domínio com `[Authorize(Policy = Politicas.FormaturaSelecionada)]`
+- [ ] Endpoint de domínio com a política de papel que o recorte pede — `MembroDaFormatura` no piso
 - [ ] Endpoint de **escrita** de domínio com `[Authorize(Policy = Politicas.ExigeFormaturaAtiva)]` também
 - [ ] Modelos de leitura são `record`
 - [ ] Repositório declarado em `Business/`, implementado em `Data/`

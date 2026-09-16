@@ -9,7 +9,10 @@ public sealed record AtualizarPerfilRequestDTO(DadosPessoaisDTO? Pessoais, Dados
 /// <summary>Seção de dados pessoais.</summary>
 /// <param name="NomeCompleto">Nome civil completo.</param>
 /// <param name="NomeNoDiploma">Nome como sai no diploma.</param>
-/// <param name="Cpf">CPF, com ou sem máscara. Sai só com os dígitos.</param>
+/// <param name="Cpf">
+/// CPF, com ou sem máscara. Sai só com os dígitos para o titular e mascarado para a comissão
+/// (<c>***.982.247-**</c>). Na correção pela comissão, é ignorado.
+/// </param>
 /// <param name="Rg">RG.</param>
 /// <param name="Matricula">Matrícula na instituição.</param>
 /// <param name="Telefone">Telefone com DDD ou em E.164. Sai sempre em E.164.</param>
@@ -76,23 +79,5 @@ public sealed record PerfilDoFormandoDTO(
     Guid? FotoArquivoId,
     int Completude,
     IReadOnlyList<string> Faltando,
-    bool EssencialPendente
-);
-
-/// <summary>Um formando na lista da comissão.</summary>
-/// <param name="UsuarioId">Usuário, o id do detalhe e da correção.</param>
-/// <param name="Nome">Nome de exibição da conta.</param>
-/// <param name="Email">E-mail da conta.</param>
-/// <param name="Papel">Papel na formatura.</param>
-/// <param name="NomeCompleto">Nome civil, se já informado.</param>
-/// <param name="Completude">Percentual preenchido, de 0 a 100.</param>
-/// <param name="EssencialPendente">Se falta nome completo, CPF ou telefone.</param>
-public sealed record FormandoResumoDTO(
-    Guid UsuarioId,
-    string Nome,
-    string Email,
-    string Papel,
-    string? NomeCompleto,
-    int Completude,
     bool EssencialPendente
 );

@@ -30,7 +30,6 @@ namespace Backend.Api.Controllers.V1.Legal;
 public sealed class LegalController(ILegalService legalService, IUsuarioAtual usuarioAtual) : MainController
 {
     /// <summary>A versão vigente de cada documento, com o texto em markdown.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("vigentes")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(IReadOnlyList<DocumentoLegalDTO>), StatusCodes.Status200OK)]
@@ -44,7 +43,6 @@ public sealed class LegalController(ILegalService legalService, IUsuarioAtual us
     /// <summary>Uma versão específica de um documento, vigente ou não.</summary>
     /// <param name="tipo"><c>TermosDeUso</c> ou <c>PoliticaDePrivacidade</c>, em qualquer caixa.</param>
     /// <param name="versao">Rótulo da versão.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("{tipo}/{versao}")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(DocumentoLegalDTO), StatusCodes.Status200OK)]
@@ -58,7 +56,6 @@ public sealed class LegalController(ILegalService legalService, IUsuarioAtual us
 
     /// <summary>Registra o aceite de uma ou mais versões vigentes.</summary>
     /// <param name="requisicao">Versões aceitas.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("aceites")]
     [Authorize(Policy = Politicas.Autenticado)]
     [RegistrarEvento("legal.aceite_registrado")]
@@ -79,7 +76,6 @@ public sealed class LegalController(ILegalService legalService, IUsuarioAtual us
     }
 
     /// <summary>Histórico de consentimento do usuário e as versões vigentes que ele ainda não aceitou.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("meus-aceites")]
     [Authorize(Policy = Politicas.Autenticado)]
     [ProducesResponseType(typeof(MeusAceitesDTO), StatusCodes.Status200OK)]

@@ -18,12 +18,10 @@ public interface IUsuarioRepository
     /// <summary>Lista usuários paginados, filtrando por nome ou e-mail.</summary>
     /// <param name="paginacao">Página e tamanho já normalizados.</param>
     /// <param name="busca">Termo livre aplicado a nome e e-mail. Nulo lista todos.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<PaginaDe<UsuarioResumo>> Listar(PaginacaoRequest paginacao, string? busca, CancellationToken ct = default);
 
     /// <summary>Obtém o detalhe de um usuário, incluindo seus perfis.</summary>
     /// <param name="id">Identificador do usuário.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     /// <returns>O detalhe, ou nulo se não existir.</returns>
     Task<UsuarioDetalhe?> ObterDetalhe(Guid id, CancellationToken ct = default);
 
@@ -35,6 +33,5 @@ public interface IUsuarioRepository
     /// projetam direto no <c>SELECT</c>. Só quem vai escrever paga o custo do rastreamento.
     /// </remarks>
     /// <param name="id">Identificador do usuário.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Usuario?> ObterParaEdicao(Guid id, CancellationToken ct = default);
 }

@@ -24,6 +24,7 @@ public sealed class FormaturaRepository(AppDbContext db) : IFormaturaRepository
                 f.Ano,
                 f.Semestre,
                 f.PrevisaoDeColacao,
+                f.PrevisaoDaFesta,
                 f.QuantidadeEstimadaDeFormandos,
                 f.Status,
                 f.CriadoEm,

@@ -5,7 +5,13 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Backend.Data.Mappings;
 
-/// <summary>Mapeamento do catálogo de planos.</summary>
+/// <summary>
+/// Mapeamento do catálogo de planos.
+/// </summary>
+/// <remarks>
+/// <c>Modulos</c> é <c>text[]</c> do Npgsql, e não tabela filha: lista fechada, curta, sempre lida
+/// junto do plano e nunca consultada sozinha — uma filha só custaria um join.
+/// </remarks>
 public sealed class PlanoMapping : IEntityTypeConfiguration<Plano>
 {
     /// <inheritdoc />
@@ -17,6 +23,8 @@ public sealed class PlanoMapping : IEntityTypeConfiguration<Plano>
 
         builder.Property(p => p.Codigo).IsRequired().HasMaxLength(40);
         builder.Property(p => p.Nome).IsRequired().HasMaxLength(80);
+        builder.Property(p => p.Descricao).IsRequired().HasMaxLength(160);
+        builder.Property(p => p.Modulos).IsRequired().HasColumnType("text[]");
         builder.Property(p => p.Ciclo).HasConversion<string>().HasMaxLength(20);
 
         builder.HasIndex(p => p.Codigo).IsUnique();

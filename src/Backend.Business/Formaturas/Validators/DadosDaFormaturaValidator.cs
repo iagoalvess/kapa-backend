@@ -33,8 +33,6 @@ public sealed class DadosDaFormaturaValidator : AbstractValidator<DadosDaFormatu
             .Must(ano => ano >= DateTime.UtcNow.Year && ano <= DateTime.UtcNow.Year + AnosAFrente)
             .WithMessage($"O ano deve estar entre o ano corrente e os próximos {AnosAFrente} anos.");
 
-        RuleFor(x => x.QuantidadeEstimadaDeFormandos)
-            .InclusiveBetween(1, 2000)
-            .WithMessage("A quantidade estimada de formandos deve estar entre 1 e 2000.");
+        RuleFor(x => x.QuantidadeEstimadaDeFormandos).InclusiveBetween(1, 2000).WithMessage("Informe o número de formandos.");
     }
 }

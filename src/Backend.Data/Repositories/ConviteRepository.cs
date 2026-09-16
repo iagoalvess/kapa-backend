@@ -30,9 +30,14 @@ public sealed class ConviteRepository(AppDbContext db) : IConviteRepository
                 c.UsosMaximos,
                 c.UsosFeitos,
                 Convite.Situacao(c.RevogadoEm, c.UsosMaximos, c.UsosFeitos, c.ExpiraEm, agoraUtc),
-                c.CriadoEm
+                c.CriadoEm,
+                c.Token
             ))
             .ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Convite>> ListarLinksNaoRevogadosParaEdicao(CancellationToken ct = default) =>
+        await db.Convites.Where(c => c.Email == null && c.RevogadoEm == null).ToListAsync(ct);
 
     /// <inheritdoc />
     public Task<Convite?> ObterParaEdicao(Guid conviteId, CancellationToken ct = default) =>

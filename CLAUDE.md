@@ -16,8 +16,8 @@ enquanto escreve — ele traz o uso correto de cada padrão do projeto, com exem
 dotnet tool restore
 dotnet csharpier format .
 dotnet build --warnaserror
-dotnet test tests/Backend.UnitTests
-dotnet test tests/Backend.IntegrationTests     # exige Docker
+dotnet test tests/Backend.UnitTests --no-build         # sem --no-build o SDK 10.0.4xx não executa nada
+dotnet test tests/Backend.IntegrationTests --no-build  # exige Docker
 
 dotnet ef migrations add Nome --project src/Backend.Data --startup-project src/Backend.Api
 dotnet ef database update    --project src/Backend.Data --startup-project src/Backend.Api
@@ -48,8 +48,15 @@ Nenhum controller tem `try/catch`. Nenhum service lança exceção para sinaliza
 `SaveChangesAsync` só através de `IUnitOfWork.SalvarAsync()`, chamado pelo **service**.
 Repositório monta consulta e marca mudança.
 
-Exceção documentada: `RemoverInativosAnterioresA` usa `ExecuteDeleteAsync` (limpeza em massa do
-worker, sem nada a compor) e as APIs do `UserManager`, que persistem por conta própria.
+Exceções, todas justificadas no `<remarks>` do próprio método — não abra outra sem escrever o
+porquê lá:
+
+- `RefreshTokenRepository.RemoverInativosAnterioresA` e `EventoRepository.RemoverAnterioresA` —
+  `ExecuteDeleteAsync`, limpeza em massa do worker, sem nada a compor.
+- `ConviteRepository.ConsumirUsoDeTodasAsFormaturas` — `ExecuteUpdateAsync` condicional, porque a
+  checagem precisa acontecer sob a trava da linha.
+- `EventoRepository.GravarLote` — quem chama é a descarga da fila, fora de qualquer requisição.
+- As APIs do `UserManager`, que persistem por conta própria.
 
 ### Sem repositório genérico
 
@@ -60,6 +67,18 @@ não crie `ObterTodos()`.
 
 Use as exceções da BCL. O `GlobalExceptionHandler` mapeia para status HTTP. Não defina
 `StatusCode` na mão no controller.
+
+### O contrato HTTP é snake_case
+
+Campo de corpo, query e formulário, na ida e na volta — inclusive as chaves de `errors` e o
+`trace_id`. Não acompanham: valor de enum (é dado, e vários são gravados como texto no banco),
+segmento de rota (kebab-case) e corpo de webhook recebido (o formato é de quem envia).
+
+A política do JSON cobre só o corpo; query e multipart passam pelo model binder, e quem os traduz
+é `ValoresEmSnakeCase`. Nome novo em código continua em PascalCase — a conversão é na borda.
+
+**Campo nulo é escrito**, nunca omitido: ausente quer dizer removido do contrato. Detalhes e as
+unidades (dinheiro em centavos, percentual base 10.000) em `docs/contrato.md`.
 
 ### Sem caminho qualificado inline
 
@@ -80,6 +99,10 @@ por e-mail.
 Ele viaja em cookie `HttpOnly` (`CookieDeSessao`). Devolvê-lo no corpo anularia o cookie: um XSS
 chamaria `/auth/refresh` e leria o token novo. Pelo mesmo motivo, no modo cookie o corpo da
 requisição é **ignorado**, nunca usado como alternativa.
+
+O campo `refresh_token` existe no corpo e vem `null` no modo cookie — desde que nulo passou a ser
+escrito, campo ausente quer dizer "removido do contrato". Nulo ali é a resposta correta: neste modo
+não há token no corpo. O que não pode é vir preenchido.
 
 Endpoint novo que emita sessão usa `RespostaDeSessao.Preparar` (`Api/Configuration/`). Não monte
 `TokenResponseDTO` com refresh token na mão.
@@ -112,7 +135,9 @@ modelo, aplica `HasQueryFilter` e o índice de `FormaturaId`, e carimba a coluna
 `SaveChangesAsync`. **Nenhum service atribui `FormaturaId`** — o setter é privado.
 
 A formatura da sessão vem da claim `formatura_id` do access token, nunca de cabeçalho ou de
-rota. Endpoint de domínio declara `[Authorize(Policy = Politicas.FormaturaSelecionada)]`.
+rota. Endpoint de domínio declara a política de papel do seu recorte — `MembroDaFormatura`,
+`Gestao`, `Tesouraria` ou `SomentePresidente`. Todas exigem a claim e conferem o vínculo ativo no
+banco; `MembroDaFormatura` é o piso, e não existe política que peça só a claim.
 
 Escrita de domínio soma uma política de status à política de papel (403 `formatura.inativa` fora
 dela); leitura segue livre em qualquer status:

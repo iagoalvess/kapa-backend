@@ -6,17 +6,23 @@ namespace Backend.Api.DTOs.Assinaturas;
 /// <param name="Id">Identificador.</param>
 /// <param name="Codigo">Código enviado no checkout.</param>
 /// <param name="Nome">Nome do plano.</param>
+/// <param name="Descricao">Para que turma o plano serve, em uma linha.</param>
 /// <param name="PrecoEmCentavos">Preço de um ciclo, em centavos — <c>34990</c> é R$ 349,90.</param>
+/// <param name="PrecoCheioEmCentavos">Preço sem desconto, em centavos — o valor riscado. Nulo quando não há desconto.</param>
 /// <param name="Ciclo"><c>Mensal</c> ou <c>Anual</c>.</param>
 /// <param name="LimiteDeFormandos">Quantos formandos cabem.</param>
+/// <param name="Modulos">Módulos incluídos, na ordem de exibição.</param>
 /// <param name="Recomendado">Destacado na tela.</param>
 public sealed record PlanoDTO(
     Guid Id,
     string Codigo,
     string Nome,
+    string Descricao,
     long PrecoEmCentavos,
+    long? PrecoCheioEmCentavos,
     CicloDeCobranca Ciclo,
     int LimiteDeFormandos,
+    IReadOnlyList<string> Modulos,
     bool Recomendado
 );
 

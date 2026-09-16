@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Asp.Versioning;
 using Backend.Api.Analytics;
@@ -29,18 +30,51 @@ public static class ApiConfig
     /// Sem <c>SuppressImplicitRequired…</c>, todo <c>string</c> não-anulável de DTO vira
     /// <c>[Required]</c> implícito: corpo sem o campo leva um 400 do framework, em inglês e sem
     /// <c>codigo</c>, antes do validador. Validação vive uma vez — no validador do <c>Business</c>.
+    /// <para>
+    /// <b>O corpo JSON é snake_case</b>, na ida e na volta. <c>DictionaryKeyPolicy</c> vai junto
+    /// porque as chaves que o cliente lê não são só propriedades: <c>errors</c> do
+    /// <c>ValidationProblemDetails</c> e as extensões do <c>ProblemDetails</c> são dicionários, e
+    /// sem ela o erro de validação sairia com o campo em camelCase no meio de um corpo snake_case.
+    /// </para>
+    /// <para>
+    /// <b>Valor de enum não acompanha.</b> Continua <c>Pendente</c>, <c>Buffet</c>, <c>Turma</c>:
+    /// vários deles são persistidos como texto (<c>HasConversion&lt;string&gt;</c>), e mudar a
+    /// serialização deixaria o JSON discordando da coluna. Nome de campo é contrato de transporte;
+    /// valor de enum é dado.
+    /// </para>
+    /// <para>
+    /// <b>Nulo é escrito.</b> Omitir o campo nulo faz o cliente tipado receber <c>undefined</c>, que
+    /// é indistinguível de "a API não manda mais esse campo" — e o mock de teste com <c>null</c>
+    /// esconde a diferença até alguém tropeçar nela em produção. Campo declarado no contrato
+    /// aparece sempre; ausente quer dizer removido.
+    /// </para>
     /// </remarks>
     /// <param name="services">Coleção de serviços.</param>
     /// <param name="configuration">Configuração da aplicação.</param>
     public static IServiceCollection AddApi(this IServiceCollection services, IConfiguration configuration)
     {
         services
-            .AddControllers(opcoes => opcoes.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true)
+            .AddControllers(opcoes =>
+            {
+                opcoes.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+                opcoes.ValueProviderFactories.Add(new ValoresEmSnakeCase());
+            })
             .AddJsonOptions(opcoes =>
             {
-                opcoes.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+                opcoes.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+                opcoes.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower;
                 opcoes.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
+
+        // O MVC e o `WriteAsJsonAsync` do `HttpResponse` leem opções diferentes: a primeira serve
+        // aos controllers, a segunda ao que escreve na resposta por fora deles — o limitador de
+        // taxa, o GlobalExceptionHandler e o 401 do JWT. Sem as duas, metade da API fala snake_case.
+        services.ConfigureHttpJsonOptions(opcoes =>
+        {
+            opcoes.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+            opcoes.SerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower;
+            opcoes.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
 
         services.AddProblemDetails();
         services.AddExceptionHandler<GlobalExceptionHandler>();

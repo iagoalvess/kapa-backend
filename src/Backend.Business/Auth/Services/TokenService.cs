@@ -47,7 +47,7 @@ public sealed class TokenService : ITokenService
     /// <remarks>
     /// Token <b>sem</b> <c>formatura_id</c> continua válido: é o que serve para o login, a
     /// listagem de formaturas, o cadastro e o aceite de convite. Endpoint de domínio exige a
-    /// claim pela política <c>FormaturaSelecionada</c>.
+    /// claim pelas políticas de papel (<c>MembroDaFormatura</c> e as mais estritas).
     /// </remarks>
     public AccessTokenGerado GerarAccessToken(Usuario usuario, IReadOnlyList<string> perfis, Guid? formaturaId = null, string? papel = null)
     {

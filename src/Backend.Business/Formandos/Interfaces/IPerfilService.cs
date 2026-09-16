@@ -16,22 +16,24 @@ public interface IPerfilService
     /// <summary>O cadastro do membro, vazio se ele ainda não preencheu nada.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Membro.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<PerfilDetalhe>> Obter(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>O cadastro de um formando como a comissão o vê: com o CPF mascarado.</summary>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Formando.</param>
+    Task<Result<PerfilDetalhe>> ObterParaComissao(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
 
     /// <summary>O formando altera o próprio cadastro.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Usuário do token.</param>
     /// <param name="dados">Seções a gravar.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<PerfilDetalhe>> Atualizar(Guid formaturaId, Guid usuarioId, AtualizarPerfil dados, CancellationToken ct = default);
 
-    /// <summary>A comissão corrige o cadastro de um formando, com registro do autor.</summary>
+    /// <summary>A comissão corrige o cadastro de um formando, com registro do autor. O CPF fica como está.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Formando corrigido.</param>
     /// <param name="autorId">Quem corrige.</param>
     /// <param name="dados">Seções a gravar.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<PerfilDetalhe>> Corrigir(Guid formaturaId, Guid usuarioId, Guid autorId, AtualizarPerfil dados, CancellationToken ct = default);
 
     /// <summary>Troca a foto do formando por uma imagem nova, redimensionada no servidor.</summary>
@@ -39,24 +41,10 @@ public interface IPerfilService
     /// <param name="usuarioId">Usuário do token.</param>
     /// <param name="conteudo">Bytes enviados. Quem chama é dono do descarte.</param>
     /// <param name="tamanho">Tamanho declarado do envio, em bytes.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<PerfilDetalhe>> EnviarFoto(Guid formaturaId, Guid usuarioId, Stream conteudo, long tamanho, CancellationToken ct = default);
 
     /// <summary>A foto de um formando da turma, para a comissão ver.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Formando.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ArquivoParaDownload>> BaixarFoto(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
-
-    /// <summary>Uma página dos membros ativos com a completude do cadastro.</summary>
-    /// <param name="formaturaId">Formatura da sessão.</param>
-    /// <param name="paginacao">Página pedida.</param>
-    /// <param name="filtro">Busca e situação.</param>
-    /// <param name="ct">Token de cancelamento.</param>
-    Task<Result<PaginaDe<FormandoResumo>>> Listar(
-        Guid formaturaId,
-        PaginacaoRequest paginacao,
-        FiltroDeFormandos filtro,
-        CancellationToken ct = default
-    );
 }

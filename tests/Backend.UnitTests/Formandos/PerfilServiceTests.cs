@@ -73,6 +73,23 @@ public sealed class PerfilServiceTests
             .RegistrarCorrecao(Arg.Is<CorrecaoDePerfil>(c => c.PerfilId == perfil.Id && c.AutorUsuarioId == autor && c.Secoes == "pessoais"), Ct);
     }
 
+    /// <summary>O formulário da comissão devolve a máscara; ela não pode virar erro nem apagar o CPF.</summary>
+    [Fact]
+    public async Task Correcao_da_comissao_ignora_o_cpf_enviado_e_devolve_mascarado()
+    {
+        // Arrange
+        var perfil = new PerfilDoFormando { VinculoId = Membro.VinculoId };
+        perfil.Aplicar(ComCpf("529.982.247-25"));
+        _perfis.ObterParaEdicao(Membro.VinculoId, Ct).Returns(perfil);
+
+        // Act
+        var resultado = await Servico.Corrigir(FormaturaId, UsuarioId, Guid.CreateVersion7(), ComCpf("***.982.247-**"), Ct);
+
+        // Assert
+        resultado.Valor.Pessoais.Cpf.ShouldBe("***.982.247-**");
+        perfil.Cpf.ShouldBe("52998224725");
+    }
+
     [Fact]
     public async Task Membro_sem_vinculo_ativo_na_formatura_devolve_404()
     {

@@ -21,7 +21,7 @@ public class Formatura : Entity
         [StatusDaFormatura.Descartada] = [],
     };
 
-    /// <summary>Nome pelo qual a turma se identifica. Ex.: "Medicina 2027.1 — UFPR".</summary>
+    /// <summary>Nome pelo qual a turma se identifica. Ex.: "Medicina 2027".</summary>
     public string Nome { get; set; } = string.Empty;
 
     /// <summary>Instituição de ensino.</summary>
@@ -38,6 +38,9 @@ public class Formatura : Entity
 
     /// <summary>Data prevista da colação de grau, se já houver.</summary>
     public DateOnly? PrevisaoDeColacao { get; set; }
+
+    /// <summary>Data prevista da festa (baile), se já houver.</summary>
+    public DateOnly? PrevisaoDaFesta { get; set; }
 
     /// <summary>Quantos formandos a comissão espera.</summary>
     public int QuantidadeEstimadaDeFormandos { get; set; }

@@ -9,12 +9,13 @@ using Microsoft.Extensions.Options;
 namespace Backend.Business.Arquivos.Services;
 
 /// <summary>
-/// Envio, download, listagem e remoção de arquivos.
+/// Envio, download e remoção de arquivos.
 /// </summary>
 /// <param name="arquivoRepository">Metadados dos arquivos.</param>
 /// <param name="armazenamento">Provedor que guarda os bytes.</param>
 /// <param name="validator">Validador do pedido de envio.</param>
 /// <param name="options">Limites e cotas configurados.</param>
+/// <param name="urls">Conferência das URLs temporárias do provedor local.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class ArquivoService(
@@ -22,6 +23,7 @@ public sealed class ArquivoService(
     IArmazenamentoDeArquivos armazenamento,
     IValidator<NovoArquivo> validator,
     IOptions<ArmazenamentoSettings> options,
+    UrlTemporariaLocal urls,
     IUnitOfWork unitOfWork,
     ILogger<ArquivoService> logger
 ) : IArquivoService
@@ -57,12 +59,21 @@ public sealed class ArquivoService(
     /// se o commit falhar depois de gravar, sobra um objeto órfão no provedor — desperdício de
     /// espaço, e não um arquivo listado que não abre. Entre os dois erros possíveis, este é o
     /// barato.
+    /// <para>
+    /// Os primeiros bytes são conferidos contra a extensão <b>aqui</b>, e não em cada chamador: é
+    /// o ponto único por onde todo arquivo do sistema passa, e uma defesa que mora numa feature só
+    /// é uma defesa que as outras três esqueceram.
+    /// </para>
     /// </remarks>
     public async Task<Result<ArquivoResumo>> Enviar(NovoArquivo dados, Guid enviadoPorId, CancellationToken ct = default)
     {
         var validacao = validator.Validar(dados);
         if (validacao.Falhou)
             return Result.Falha<ArquivoResumo>(validacao.Erros);
+
+        var conteudo = await ConferirConteudo(dados, ct);
+        if (conteudo.Falhou)
+            return Result.Falha<ArquivoResumo>(conteudo.Erros);
 
         var cota = await ConferirCota(dados.Tamanho, enviadoPorId, ct);
         if (cota.Falhou)
@@ -114,26 +125,45 @@ public sealed class ArquivoService(
     }
 
     /// <inheritdoc />
+    /// <remarks>Mesma regra de acesso do <see cref="Baixar"/>: arquivo de terceiro responde como o que não existe.</remarks>
+    public async Task<Result<string>> GerarUrlTemporaria(Guid id, SolicitanteDeArquivo solicitante, TimeSpan validade, CancellationToken ct = default)
+    {
+        var arquivo = await arquivoRepository.ObterPorId(id, ct);
+
+        if (arquivo is null || !PodeAcessar(arquivo, solicitante))
+            return NaoEncontrado;
+
+        return await armazenamento.GerarUrlTemporariaAsync(arquivo.Chave, arquivo.Nome, arquivo.ContentType, validade);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Assinatura adulterada e prazo vencido respondem igual ao objeto inexistente: o endpoint é
+    /// anônimo, e distinguir os casos só ensinaria a quem tenta.
+    /// </remarks>
+    public async Task<Result<ArquivoParaDownload>> AbrirPorUrlTemporaria(ObjetoTemporario objeto, CancellationToken ct = default)
+    {
+        if (!urls.Conferir(objeto, DateTimeOffset.UtcNow))
+            return NaoEncontrado;
+
+        try
+        {
+            return new ArquivoParaDownload(await armazenamento.AbrirLeituraAsync(objeto.Chave!, ct), objeto.Nome!, objeto.Tipo!);
+        }
+        catch (FileNotFoundException excecao)
+        {
+            logger.LogError(excecao, "URL temporária válida para o objeto {Chave}, que não existe no provedor.", objeto.Chave);
+
+            return Erro.NaoEncontrado("arquivo.conteudo_indisponivel", "O conteúdo deste arquivo não está disponível.");
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<Result<ArquivoResumo>> ObterPorId(Guid id, SolicitanteDeArquivo solicitante, CancellationToken ct = default)
     {
         var arquivo = await arquivoRepository.ObterPorId(id, ct);
 
         return arquivo is null || !PodeAcessar(arquivo, solicitante) ? NaoEncontrado : Result.Ok(ParaResumo(arquivo));
-    }
-
-    /// <inheritdoc />
-    public async Task<Result<PaginaDe<ArquivoResumo>>> Listar(
-        PaginacaoRequest paginacao,
-        string? categoria,
-        SolicitanteDeArquivo solicitante,
-        CancellationToken ct = default
-    )
-    {
-        var dono = solicitante.EhAdministrador ? (Guid?)null : solicitante.Id;
-
-        var pagina = await arquivoRepository.Listar(paginacao.Normalizar(), categoria?.Trim().ToLowerInvariant(), dono, ct);
-
-        return Result.Ok(pagina);
     }
 
     /// <inheritdoc />
@@ -179,6 +209,29 @@ public sealed class ArquivoService(
         $"{arquivo.Categoria}/{arquivo.CriadoEm:yyyy/MM}/{arquivo.Id:N}{Path.GetExtension(nome).ToLowerInvariant()}";
 
     /// <summary>
+    /// Recusa o arquivo cujos primeiros bytes não são do tipo que a extensão promete.
+    /// </summary>
+    /// <remarks>
+    /// Roda depois do validador — que já conferiu a extensão contra a lista de permissão — e antes
+    /// da cota, para o arquivo recusado não custar uma consulta. O fluxo volta ao começo, então
+    /// quem grava depois lê o arquivo inteiro.
+    /// </remarks>
+    /// <param name="dados">Pedido de envio já validado na forma.</param>
+    private static async Task<Result> ConferirConteudo(NovoArquivo dados, CancellationToken ct)
+    {
+        if (await ConteudoDeArquivo.ConfereAsync(dados.Nome, dados.Conteudo, ct))
+            return Result.Ok();
+
+        return Result.Falha(
+            Erro.Validacao(
+                "arquivo.conteudo_invalido",
+                "O conteúdo do arquivo não é do tipo que a extensão diz. Envie o arquivo original.",
+                "arquivo"
+            )
+        );
+    }
+
+    /// <summary>
     /// Recusa o envio que estouraria a cota do usuário.
     /// </summary>
     /// <remarks>
@@ -194,7 +247,6 @@ public sealed class ArquivoService(
     /// </remarks>
     /// <param name="tamanho">Tamanho do arquivo que está entrando.</param>
     /// <param name="enviadoPorId">Dono do envio.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     private async Task<Result> ConferirCota(long tamanho, Guid enviadoPorId, CancellationToken ct)
     {
         var settings = options.Value;

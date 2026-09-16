@@ -32,3 +32,34 @@ public sealed class SemFormaturaSelecionada : IFormaturaAtual
     /// <inheritdoc />
     public Guid? Id => null;
 }
+
+/// <summary>
+/// A formatura que o worker está processando neste escopo.
+/// </summary>
+/// <remarks>
+/// O worker não tem requisição HTTP e, portanto, não tem claim: com
+/// <see cref="SemFormaturaSelecionada"/>, o filtro global não casa com linha nenhuma — que é o
+/// padrão correto e seguro. Um job que precisa ler os dados de uma turma (o balancete da Sprint 12)
+/// aponta o escopo para ela antes, e o isolamento continua valendo dentro dele.
+/// <para>
+/// <b>Um escopo por formatura, sempre.</b> Reaproveitar o escopo entre duas turmas apontaria o
+/// mesmo <c>DbContext</c> — com o cache de entidades já povoado — para outra turma. Quem abre o
+/// escopo é o job; esta classe só guarda o valor.
+/// </para>
+/// </remarks>
+public sealed class FormaturaDoProcessamento : IFormaturaAtual
+{
+    /// <inheritdoc />
+    public Guid? Id { get; private set; }
+
+    /// <summary>Aponta o escopo para uma formatura. Chamado uma vez, antes da primeira consulta.</summary>
+    /// <param name="formaturaId">Formatura a processar.</param>
+    /// <exception cref="InvalidOperationException">Se o escopo já estiver apontado para outra formatura.</exception>
+    public void Apontar(Guid formaturaId)
+    {
+        if (Id is { } atual && atual != formaturaId)
+            throw new InvalidOperationException("O escopo já está apontado para outra formatura. Abra um escopo novo.");
+
+        Id = formaturaId;
+    }
+}

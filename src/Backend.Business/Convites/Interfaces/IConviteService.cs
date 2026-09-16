@@ -15,28 +15,24 @@ namespace Backend.Business.Convites.Interfaces;
 public interface IConviteService
 {
     /// <summary>
-    /// Cria o convite e, se for nominal, enfileira o e-mail. Devolve o link uma única vez.
+    /// Cria o convite e, se for nominal, enfileira o e-mail. Link da turma novo revoga o vigente.
     /// </summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Autor, cujo papel decide se pode oferecer papel de comissão.</param>
     /// <param name="dados">E-mail, papel, validade e limite.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ConviteCriado>> Criar(Guid formaturaId, Guid usuarioId, CriarConvite dados, CancellationToken ct = default);
 
-    /// <summary>Os convites mais recentes da formatura da sessão.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
+    /// <summary>Os convites mais recentes da formatura da sessão, com o link da turma vigente.</summary>
     Task<Result<IReadOnlyList<ConviteResumo>>> Listar(CancellationToken ct = default);
 
     /// <summary>Revoga um convite da formatura da sessão.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Autor da revogação.</param>
     /// <param name="conviteId">Convite.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result> Revogar(Guid formaturaId, Guid usuarioId, Guid conviteId, CancellationToken ct = default);
 
     /// <summary>Turma, instituição e papel de um convite utilizável.</summary>
     /// <param name="token">Token do link.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ConvitePublico>> ObterPublico(string token, CancellationToken ct = default);
 
     /// <summary>
@@ -46,6 +42,5 @@ public interface IConviteService
     /// <param name="token">Token do link.</param>
     /// <param name="refreshTokenAtual">Refresh token da sessão, rotacionado na troca de formatura.</param>
     /// <param name="origem">IP e navegador, gravados no registro do aceite.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ParDeTokens>> Aceitar(Guid usuarioId, string token, string refreshTokenAtual, OrigemDoAceite origem, CancellationToken ct = default);
 }

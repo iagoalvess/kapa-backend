@@ -20,7 +20,7 @@ A Kapa é uma plataforma de software (SaaS) para organizar a formatura de uma tu
 
 - cadastre a formatura e convide os formandos;
 - configure as contribuições da turma e o termo de adesão;
-- gere cobranças por PIX e acompanhe a baixa dos pagamentos;
+- informe a chave PIX da turma, gere o código PIX de cada parcela e confirme os pagamentos recebidos;
 - registre despesas, fornecedores e o fluxo de caixa;
 - publique avisos e documentos no mural da turma;
 - ofereça aos formandos transparência sobre o caixa e a adimplência da turma.
@@ -41,8 +41,8 @@ Uma mesma conta pode participar de mais de uma formatura, com um papel diferente
 
 Cada formatura é um espaço isolado: o que é lançado em uma turma não é visível para outra. Dentro de uma formatura, cada pessoa tem um papel, que define o que ela pode fazer:
 
-- **Presidente:** administra a formatura, a assinatura da Kapa, os membros e os papéis. Pode tudo o que os demais papéis podem.
-- **Tesoureiro:** configura cobranças, lança despesas e fornecedores, registra baixas manuais e renegociações.
+- **Presidente:** administra a formatura, a assinatura da Kapa, a chave PIX de recebimento da turma, os membros e os papéis. Pode tudo o que os demais papéis podem.
+- **Tesoureiro:** configura cobranças, confirma pagamentos, lança despesas e fornecedores e registra baixas manuais e renegociações.
 - **Comissão:** consulta o extrato dos formandos e publica avisos e documentos.
 - **Formando:** acompanha o próprio extrato, as próprias cobranças e os indicadores gerais da turma.
 
@@ -59,15 +59,15 @@ Remover um membro desativa o acesso dele à formatura, mas preserva o histórico
 
 ## 5. Dinheiro da turma e pagamentos
 
-**O dinheiro da turma nunca transita por contas da Kapa.** As contribuições pagas pelos formandos são recebidas diretamente em uma conta (subconta) de titularidade da comissão ou da pessoa jurídica da turma, mantida junto a um provedor de pagamentos (PSP) regulado pelo Banco Central do Brasil. A Kapa não é instituição financeira nem instituição de pagamento, não custodia valores e não é parte na relação entre a comissão e os formandos.
+**O dinheiro da turma nunca transita pela Kapa.** Os formandos pagam as contribuições por PIX diretamente para a conta indicada pela comissão, identificada pela chave PIX que ela cadastra na plataforma. A Kapa não é instituição financeira nem instituição de pagamento: não recebe, não custodia e não repassa valores, não tem acesso à conta da comissão e não é parte na relação entre a comissão e os formandos.
 
-A abertura dessa conta depende da análise cadastral (KYC) feita pelo provedor de pagamentos, segundo as regras dele. A Kapa não garante a aprovação nem o prazo dessa análise.
+A comissão é responsável pela chave PIX que informa e pela conta a que ela pertence. A plataforma recomenda que a comissão confira a chave com um pagamento de teste antes de a turma começar a pagar, e toda troca de chave é avisada por e-mail aos membros da comissão. Antes de confirmar um pagamento no aplicativo do banco, confira se o nome do recebedor é o que a plataforma mostra.
 
-A plataforma gera as cobranças PIX e registra automaticamente os pagamentos confirmados pelo provedor. Pagamentos feitos fora da plataforma (dinheiro, transferência) podem ser baixados manualmente pela tesouraria, e toda baixa manual fica registrada com autor, data e hora.
+A plataforma gera, para cada parcela, um código PIX (QR Code e "copia e cola") com a chave, o valor e a identificação da parcela. Como a Kapa não enxerga a conta da comissão, **quem confirma o pagamento é a tesouraria**, a partir do extrato do banco: o formando pode avisar na plataforma que pagou, e a parcela passa a constar como paga depois dessa confirmação. Pagamentos feitos por outros meios (dinheiro, transferência) também são registrados pela tesouraria. Toda confirmação e toda baixa manual ficam registradas com autor, data e hora.
 
 Valores, parcelas, vencimentos, multas e juros das contribuições são definidos pela comissão no termo de adesão da turma, que é um contrato entre o formando e a comissão, distinto destes Termos. Devoluções, estornos e reembolsos de contribuições são tratados entre o formando e a comissão.
 
-As informações de pagamento podem atrasar ou divergir temporariamente do extrato do provedor, por fatores fora do controle da Kapa.
+A situação das parcelas na plataforma segue as confirmações da tesouraria e pode levar algum tempo para acompanhar o extrato do banco.
 
 ## 6. Assinatura da Kapa, preços e renovação
 
@@ -127,9 +127,9 @@ As informações e os arquivos que você e sua comissão inserem na plataforma c
 A Kapa responde, nos termos da lei, pelos serviços que presta. A Kapa não é responsável por:
 
 - decisões da comissão sobre o dinheiro da turma, a contratação de fornecedores ou a realização dos eventos da formatura;
-- a exatidão das informações lançadas pelos usuários, inclusive baixas manuais;
+- a exatidão das informações lançadas pelos usuários, inclusive a chave PIX de recebimento, as confirmações de pagamento e as baixas manuais;
 - o inadimplemento de formandos, de fornecedores ou da comissão;
-- indisponibilidade, atrasos ou erros do provedor de pagamentos, das instituições financeiras ou do sistema PIX;
+- indisponibilidade, atrasos ou erros das instituições financeiras, do sistema PIX ou do provedor de pagamentos da assinatura;
 - indisponibilidades temporárias para manutenção, que buscaremos programar e comunicar para minimizar o impacto;
 - caso fortuito, força maior ou culpa exclusiva do usuário ou de terceiros (art. 14, § 3º, do Código de Defesa do Consumidor).
 

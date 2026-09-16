@@ -13,11 +13,9 @@ namespace Backend.Business.Assinaturas.Interfaces;
 public interface IAssinaturaService
 {
     /// <summary>Planos contratáveis.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<IReadOnlyList<PlanoResumo>>> ListarPlanos(CancellationToken ct = default);
 
     /// <summary>A assinatura mais recente da formatura da sessão.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<AssinaturaDetalhe>> ObterAtual(CancellationToken ct = default);
 
     /// <summary>
@@ -25,11 +23,9 @@ public interface IAssinaturaService
     /// </summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="dados">Plano escolhido.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     /// <returns>A sessão, com a URL para onde o navegador vai.</returns>
     Task<Result<SessaoDeCheckout>> IniciarCheckout(Guid formaturaId, IniciarCheckout dados, CancellationToken ct = default);
 
     /// <summary>Cancela a renovação. A vigência paga continua até o fim.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<AssinaturaDetalhe>> Cancelar(CancellationToken ct = default);
 }

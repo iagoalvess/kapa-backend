@@ -313,7 +313,6 @@ public sealed class AuthService(
     /// <param name="formaturaId">Formatura já decidida pelo chamador, quando houver.</param>
     /// <param name="papel">Papel correspondente a essa formatura.</param>
     /// <param name="substituido">Refresh token ativo que o novo substitui, quando houver.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     private async Task<Result<ParDeTokens>> EmitirSessao(
         Usuario usuario,
         string? ipDeOrigem,
@@ -363,7 +362,11 @@ public sealed class AuthService(
     private static IReadOnlyList<Erro> TraduzirErrosDoIdentity(IdentityResult resultado) =>
         [
             .. resultado.Errors.Select(erro =>
-                Erro.Validacao($"identity.{erro.Code}", erro.Description, erro.Code.StartsWith("Password", StringComparison.Ordinal) ? "senha" : null)
+                Erro.Validacao(
+                    $"identity.{TextoUtils.ParaSnakeCase(erro.Code)}",
+                    erro.Description,
+                    erro.Code.StartsWith("Password", StringComparison.Ordinal) ? "senha" : null
+                )
             ),
         ];
 }

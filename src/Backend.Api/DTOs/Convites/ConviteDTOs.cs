@@ -3,13 +3,15 @@ using Backend.Business.Convites.Models;
 namespace Backend.Api.DTOs.Convites;
 
 /// <summary>Corpo da criação de convite.</summary>
+/// <remarks>
+/// Validade e limite não se escolhem: o nominal vale 7 dias e um uso; o link da turma, 30 dias e o
+/// número estimado de formandos.
+/// </remarks>
 /// <param name="Email">E-mail do convite nominal; ausente cria o link da turma.</param>
 /// <param name="Papel">Papel oferecido; ausente é <c>Formando</c>. Outros exigem Presidente.</param>
-/// <param name="DiasDeValidade">Validade em dias (1 a 180); ausente é 7 no nominal e 30 no link.</param>
-/// <param name="UsosMaximos">Limite de entradas do link; ausente é ilimitado até expirar. Ignorado no nominal.</param>
-public sealed record CriarConviteRequestDTO(string? Email, string? Papel, int? DiasDeValidade, int? UsosMaximos);
+public sealed record CriarConviteRequestDTO(string? Email, string? Papel);
 
-/// <summary>Convite recém-criado. O link não é devolvido de novo em nenhum outro endpoint.</summary>
+/// <summary>Convite recém-criado. O link do nominal não volta em nenhum outro endpoint; o da turma volta na listagem enquanto valer.</summary>
 /// <param name="Id">Identificador, usado na revogação.</param>
 /// <param name="Link">Endereço de aceite, com o token.</param>
 /// <param name="ExpiraEm">Validade, em UTC.</param>
@@ -24,6 +26,7 @@ public sealed record ConviteCriadoDTO(Guid Id, string Link, DateTime ExpiraEm);
 /// <param name="UsosFeitos">Quantas pessoas entraram por ele.</param>
 /// <param name="Status"><c>Pendente</c>, <c>Aceito</c>, <c>Expirado</c> ou <c>Revogado</c>.</param>
 /// <param name="CriadoEm">Criação, em UTC.</param>
+/// <param name="Link">Endereço do link da turma vigente, para copiar de novo. Ausente no nominal e no link que já não vale.</param>
 public sealed record ConviteResumoDTO(
     Guid Id,
     string? Email,
@@ -32,7 +35,8 @@ public sealed record ConviteResumoDTO(
     int? UsosMaximos,
     int UsosFeitos,
     StatusDoConvite Status,
-    DateTime CriadoEm
+    DateTime CriadoEm,
+    string? Link
 );
 
 /// <summary>O que o convidado vê antes de entrar: nada além disto.</summary>

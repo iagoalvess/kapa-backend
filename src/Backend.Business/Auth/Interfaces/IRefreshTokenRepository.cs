@@ -10,12 +10,10 @@ public interface IRefreshTokenRepository
 {
     /// <summary>Marca um token para inclusão.</summary>
     /// <param name="token">Token a incluir.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task Adicionar(RefreshToken token, CancellationToken ct = default);
 
     /// <summary>Busca um token pelo hash, rastreado para alteração.</summary>
     /// <param name="hash">Hash SHA-256 do token apresentado.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<RefreshToken?> ObterPorHash(string hash, CancellationToken ct = default);
 
     /// <summary>
@@ -24,7 +22,6 @@ public interface IRefreshTokenRepository
     /// </summary>
     /// <param name="usuarioId">Dono dos tokens.</param>
     /// <param name="agoraUtc">Momento a registrar como revogação.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task RevogarTodosDoUsuario(Guid usuarioId, DateTime agoraUtc, CancellationToken ct = default);
 
     /// <summary>
@@ -32,7 +29,6 @@ public interface IRefreshTokenRepository
     /// sem isso a tabela cresce para sempre.
     /// </summary>
     /// <param name="limiteUtc">Só remove registros anteriores a este instante.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     /// <returns>Quantidade de registros removidos.</returns>
     Task<int> RemoverInativosAnterioresA(DateTime limiteUtc, CancellationToken ct = default);
 }

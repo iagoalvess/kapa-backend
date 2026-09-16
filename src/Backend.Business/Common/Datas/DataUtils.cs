@@ -34,6 +34,13 @@ public static class DataUtils
     public static DateTime ParaUtc(DateTime local) =>
         TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), FusoDeExibicao);
 
+    /// <summary>O dia de hoje no fuso de exibição — o dia do calendário de quem paga e de quem cobra.</summary>
+    /// <remarks>
+    /// Vencimento é <see cref="DateOnly"/> e compara com o dia daqui, não com o de UTC: das 21h à
+    /// meia-noite, UTC já está no dia seguinte, e a parcela que vence hoje apareceria vencida.
+    /// </remarks>
+    public static DateOnly Hoje() => DateOnly.FromDateTime(ParaExibicao(DateTime.UtcNow));
+
     /// <summary>Primeiro instante (UTC) do dia informado no fuso de exibição.</summary>
     /// <param name="local">Dia desejado, no fuso de exibição.</param>
     public static DateTime InicioDoDiaEmUtc(DateOnly local) => ParaUtc(local.ToDateTime(TimeOnly.MinValue));

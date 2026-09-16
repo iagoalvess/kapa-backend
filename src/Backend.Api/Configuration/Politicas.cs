@@ -32,16 +32,6 @@ public static class Politicas
     public const string Autenticado = nameof(Autenticado);
 
     /// <summary>
-    /// Exige que a sessão tenha uma formatura selecionada.
-    /// </summary>
-    /// <remarks>
-    /// É a política de todo endpoint de domínio da formatura. Sem ela, um token válido porém
-    /// sem <c>formatura_id</c> chegaria ao repositório, o filtro global não casaria com linha
-    /// nenhuma e o usuário veria uma tela vazia em vez de ser mandado para a seleção.
-    /// </remarks>
-    public const string FormaturaSelecionada = nameof(FormaturaSelecionada);
-
-    /// <summary>
     /// Só o Presidente da formatura selecionada: dados da turma, assinatura, membros e papéis.
     /// </summary>
     public const string SomentePresidente = nameof(SomentePresidente);
@@ -56,8 +46,9 @@ public static class Politicas
     /// Qualquer vínculo ativo na formatura selecionada: dashboard público e o próprio extrato.
     /// </summary>
     /// <remarks>
-    /// Mais estrita que <see cref="FormaturaSelecionada"/>: além da claim, confere no banco que o
-    /// vínculo continua ativo — membro removido perde o acesso na requisição seguinte.
+    /// É o piso de todo endpoint de domínio: além de exigir a claim <c>formatura_id</c>, confere no
+    /// banco que o vínculo continua ativo — membro removido perde o acesso na requisição seguinte.
+    /// Não existe política que peça só a claim, porque não existe endpoint a quem ela bastasse.
     /// </remarks>
     public const string MembroDaFormatura = nameof(MembroDaFormatura);
 
@@ -140,7 +131,6 @@ public static class Politicas
             .AddAuthorizationBuilder()
             .AddPolicy(Autenticado, politica => politica.RequireAuthenticatedUser())
             .AddPolicy(SomenteAdministrador, politica => politica.RequireAuthenticatedUser().ExigirPerfil())
-            .AddPolicy(FormaturaSelecionada, politica => politica.RequireAuthenticatedUser().RequireClaim(TokenService.ClaimDeFormatura))
             .AddPolicy(SomentePresidente, politica => politica.RequireAuthenticatedUser().ExigirPapel())
             .AddPolicy(Tesouraria, politica => politica.RequireAuthenticatedUser().ExigirPapel(PapelNaFormatura.Tesoureiro))
             .AddPolicy(Gestao, politica => politica.RequireAuthenticatedUser().ExigirPapel(PapelNaFormatura.Tesoureiro, PapelNaFormatura.Comissao))

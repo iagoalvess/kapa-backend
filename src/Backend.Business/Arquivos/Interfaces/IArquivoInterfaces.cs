@@ -19,71 +19,73 @@ public interface IArmazenamentoDeArquivos
     /// <param name="chave">Caminho do objeto no provedor.</param>
     /// <param name="conteudo">Fluxo com os bytes.</param>
     /// <param name="contentType">Tipo do conteúdo.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task GravarAsync(string chave, Stream conteudo, string contentType, CancellationToken ct = default);
 
     /// <summary>Abre o conteúdo para leitura.</summary>
     /// <param name="chave">Caminho do objeto no provedor.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     /// <returns>Fluxo de leitura; quem chama é dono do descarte.</returns>
     /// <exception cref="FileNotFoundException">Se o objeto não existir no provedor.</exception>
     Task<Stream> AbrirLeituraAsync(string chave, CancellationToken ct = default);
 
     /// <summary>Remove o objeto. Não falha se ele já não existir.</summary>
     /// <param name="chave">Caminho do objeto no provedor.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task RemoverAsync(string chave, CancellationToken ct = default);
+
+    /// <summary>
+    /// Uma URL que baixa o objeto sem credencial até expirar.
+    /// </summary>
+    /// <remarks>
+    /// Quem pode receber a URL é decisão de quem chama — ela vale para quem a tiver em mãos até o
+    /// prazo. Por isso o prazo é de minutos, e ela é emitida só depois de a autorização passar.
+    /// </remarks>
+    /// <param name="chave">Caminho do objeto no provedor.</param>
+    /// <param name="nome">Nome sugerido para o arquivo baixado.</param>
+    /// <param name="contentType">Tipo do conteúdo.</param>
+    /// <param name="validade">Por quanto tempo a URL vale.</param>
+    /// <returns>A URL — absoluta no S3, relativa à API no provedor local.</returns>
+    Task<string> GerarUrlTemporariaAsync(string chave, string nome, string contentType, TimeSpan validade);
 }
 
 /// <summary>
-/// Envio, download, listagem e remoção de arquivos.
+/// Envio, download e remoção de arquivos.
 /// </summary>
 /// <remarks>
-/// O download passa pela API em vez de devolver uma URL assinada do provedor. É mais tráfego,
-/// e mantém a autorização em um lugar só: URL assinada, uma vez emitida, vale para quem a tiver
-/// em mãos, independentemente de o usuário ter perdido o acesso no meio do caminho.
-/// <para>
-/// O teto disso é conhecido: arquivo muito grande ocupa a conexão da API pelo tempo da
-/// transferência. Se isso virar problema, o ponto de mudança é acrescentar a emissão de URL
-/// temporária ao <see cref="IArmazenamentoDeArquivos"/> — e aceitar a troca de autorização.
-/// </para>
+/// O download padrão (<see cref="Baixar"/>) passa pela API: é mais tráfego, e mantém a autorização
+/// em um lugar só. <see cref="GerarUrlTemporaria"/> é a alternativa para o acervo da Sprint 11 —
+/// a API autoriza e redireciona para uma URL assinada de minutos, e os bytes não passam por ela. A
+/// troca aceita é a de sempre: URL emitida vale para quem a tiver até expirar, mesmo que o usuário
+/// perca o acesso no meio do caminho.
 /// </remarks>
 public interface IArquivoService
 {
     /// <summary>Envia um arquivo.</summary>
     /// <param name="dados">Nome, tipo, tamanho, conteúdo e categoria.</param>
     /// <param name="enviadoPorId">Usuário autenticado que está enviando.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ArquivoResumo>> Enviar(NovoArquivo dados, Guid enviadoPorId, CancellationToken ct = default);
 
     /// <summary>Abre um arquivo para download.</summary>
     /// <param name="id">Identificador do arquivo.</param>
     /// <param name="solicitante">Quem está pedindo.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ArquivoParaDownload>> Baixar(Guid id, SolicitanteDeArquivo solicitante, CancellationToken ct = default);
+
+    /// <summary>Uma URL assinada que baixa o arquivo sem credencial, pelo prazo informado.</summary>
+    /// <param name="id">Identificador do arquivo.</param>
+    /// <param name="solicitante">Quem está pedindo.</param>
+    /// <param name="validade">Por quanto tempo a URL vale — minutos, não horas.</param>
+    Task<Result<string>> GerarUrlTemporaria(Guid id, SolicitanteDeArquivo solicitante, TimeSpan validade, CancellationToken ct = default);
+
+    /// <summary>Abre o objeto de uma URL temporária do provedor local, se ela saiu daqui e ainda vale.</summary>
+    /// <param name="objeto">O que veio na query string.</param>
+    Task<Result<ArquivoParaDownload>> AbrirPorUrlTemporaria(ObjetoTemporario objeto, CancellationToken ct = default);
 
     /// <summary>Obtém os metadados de um arquivo.</summary>
     /// <param name="id">Identificador do arquivo.</param>
     /// <param name="solicitante">Quem está pedindo.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ArquivoResumo>> ObterPorId(Guid id, SolicitanteDeArquivo solicitante, CancellationToken ct = default);
-
-    /// <summary>Lista arquivos paginados.</summary>
-    /// <param name="paginacao">Página e tamanho.</param>
-    /// <param name="categoria">Filtro por categoria. Nulo lista todas.</param>
-    /// <param name="solicitante">Quem está pedindo.</param>
-    /// <param name="ct">Token de cancelamento.</param>
-    Task<Result<PaginaDe<ArquivoResumo>>> Listar(
-        PaginacaoRequest paginacao,
-        string? categoria,
-        SolicitanteDeArquivo solicitante,
-        CancellationToken ct = default
-    );
 
     /// <summary>Remove um arquivo e o objeto correspondente no provedor.</summary>
     /// <param name="id">Identificador do arquivo.</param>
     /// <param name="solicitante">Quem está pedindo.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result> Remover(Guid id, SolicitanteDeArquivo solicitante, CancellationToken ct = default);
 }
 
@@ -106,12 +108,10 @@ public interface IArquivoRepository
 {
     /// <summary>Marca um arquivo para inclusão.</summary>
     /// <param name="arquivo">Metadados do arquivo.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task Adicionar(Arquivo arquivo, CancellationToken ct = default);
 
     /// <summary>Obtém um arquivo pelo identificador, rastreado para alteração ou remoção.</summary>
     /// <param name="id">Identificador do arquivo.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Arquivo?> ObterPorId(Guid id, CancellationToken ct = default);
 
     /// <summary>Marca um arquivo para remoção.</summary>
@@ -124,13 +124,5 @@ public interface IArquivoRepository
     /// para conferir uma cota é uma a mais do que o necessário.
     /// </remarks>
     /// <param name="enviadoPorId">Dono dos arquivos.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<UsoDeArmazenamento> ObterUsoDoUsuario(Guid enviadoPorId, CancellationToken ct = default);
-
-    /// <summary>Lista arquivos paginados, opcionalmente restritos a um dono e a uma categoria.</summary>
-    /// <param name="paginacao">Página e tamanho já normalizados.</param>
-    /// <param name="categoria">Filtro por categoria. Nulo lista todas.</param>
-    /// <param name="enviadoPorId">Restringe a um dono. Nulo lista de todos.</param>
-    /// <param name="ct">Token de cancelamento.</param>
-    Task<PaginaDe<ArquivoResumo>> Listar(PaginacaoRequest paginacao, string? categoria, Guid? enviadoPorId, CancellationToken ct = default);
 }

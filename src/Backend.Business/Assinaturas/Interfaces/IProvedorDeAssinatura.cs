@@ -21,7 +21,6 @@ public interface IProvedorDeAssinatura
 {
     /// <summary>Cria a sessão de pagamento hospedada no provedor.</summary>
     /// <param name="pedido">Plano, valor, referência e URL de retorno.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<SessaoDeCheckout>> CriarCheckout(PedidoDeCheckout pedido, CancellationToken ct = default);
 
     /// <summary>
@@ -29,7 +28,6 @@ public interface IProvedorDeAssinatura
     /// paga não é estornada.
     /// </summary>
     /// <param name="idExterno">Id da assinatura ou da sessão de checkout no provedor.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result> Cancelar(string idExterno, CancellationToken ct = default);
 
     /// <summary>
@@ -52,6 +50,5 @@ public interface IProvedorDeAssinatura
     /// </remarks>
     /// <param name="assinaturaId">Referência enviada no checkout.</param>
     /// <param name="idExterno">Id da sessão ou assinatura no provedor.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<EventoDoProvedor?>> ConsultarPagamento(Guid assinaturaId, string? idExterno, CancellationToken ct = default);
 }

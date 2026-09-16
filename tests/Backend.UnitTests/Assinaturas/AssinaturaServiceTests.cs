@@ -218,7 +218,7 @@ public sealed class AssinaturaServiceTests
 
         var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("ouro"), Ct);
 
-        resultado.Erros.ShouldHaveSingleItem().Campo.ShouldBe("planoCodigo");
+        resultado.Erros.ShouldHaveSingleItem().Campo.ShouldBe("plano_codigo");
     }
 
     [Fact]

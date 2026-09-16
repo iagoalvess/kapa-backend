@@ -1,14 +1,22 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Admin.Interfaces;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Auth.Interfaces;
+using Backend.Business.Cobrancas.Interfaces;
+using Backend.Business.Comunicacao.Interfaces;
 using Backend.Business.Convites.Interfaces;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Legal.Interfaces;
+using Backend.Business.Notificacoes.Interfaces;
+using Backend.Business.Pagamentos.Interfaces;
+using Backend.Business.Recebimentos.Interfaces;
+using Backend.Business.Relatorios.Interfaces;
 using Backend.Business.Usuarios.Interfaces;
 using Backend.Data.Context;
 using Backend.Data.Criptografia;
@@ -109,6 +117,20 @@ public static class DependenciasData
         services.AddScoped<ILegalRepository, LegalRepository>();
         services.AddScoped<IAssinaturaRepository, AssinaturaRepository>();
         services.AddScoped<IPerfilRepository, PerfilRepository>();
+        services.AddScoped<IPlanoDeCobrancaRepository, PlanoDeCobrancaRepository>();
+        services.AddScoped<IParcelaRepository, ParcelaRepository>();
+        services.AddScoped<IAdesaoRepository, AdesaoRepository>();
+        services.AddScoped<IContaDeRecebimentoRepository, ContaDeRecebimentoRepository>();
+        services.AddScoped<IInformeRepository, InformeRepository>();
+        services.AddScoped<IRecebimentoRepository, RecebimentoRepository>();
+        services.AddScoped<IFornecedorRepository, FornecedorRepository>();
+        services.AddScoped<IDespesaRepository, DespesaRepository>();
+        services.AddScoped<ICaixaRepository, CaixaRepository>();
+        services.AddScoped<IRelatorioRepository, RelatorioRepository>();
+        services.AddScoped<ISolicitacaoDeRelatorioRepository, SolicitacaoDeRelatorioRepository>();
+        services.AddScoped<IAvisoRepository, AvisoRepository>();
+        services.AddScoped<INotificacaoRepository, NotificacaoRepository>();
+        services.AddScoped<IDocumentoRepository, DocumentoRepository>();
 
         return services;
     }

@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Backend.Api.DTOs.Comum;
+using Backend.Api.DTOs.Formandos;
 using Backend.Api.DTOs.Formaturas;
 using Backend.Business.Formaturas.Models;
 using Backend.IntegrationTests.Infra;
@@ -20,6 +22,8 @@ namespace Backend.IntegrationTests.Formaturas;
 [Collection(ColecaoDeApi.Nome)]
 public sealed class MembroEndpointsTests(ApiFactory fabrica)
 {
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
+
     private const string Rota = "/api/v1/formaturas/atual/membros";
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -65,7 +69,7 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
         await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Formando, Ct);
         (await presidente.Cliente.DeleteAsync($"{Rota}/{removido.UsuarioId}", Ct)).EnsureSuccessStatusCode();
 
-        var contagens = await presidente.Cliente.GetFromJsonAsync<List<ContagemDeMembrosDTO>>($"{Rota}/resumo", Ct);
+        var contagens = await presidente.Cliente.GetFromJsonAsync<List<ContagemDeMembrosDTO>>($"{Rota}/resumo", Json, Ct);
 
         contagens.ShouldNotBeNull();
         contagens.ShouldBe(
@@ -102,7 +106,12 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
         var ator = await fabrica.NovoMembro(formaturaId, papel, Ct);
         var alvo = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
 
-        var resposta = await ator.Cliente.PutAsJsonAsync($"{Rota}/{alvo.UsuarioId}/papel", new AlterarPapelRequestDTO(PapelNaFormatura.Comissao), Ct);
+        var resposta = await ator.Cliente.PutAsJsonAsync(
+            $"{Rota}/{alvo.UsuarioId}/papel",
+            new AlterarPapelRequestDTO(PapelNaFormatura.Comissao),
+            Json,
+            Ct
+        );
 
         resposta.StatusCode.ShouldBe(esperado);
     }
@@ -172,6 +181,7 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
         var resposta = await presidente.Cliente.PutAsJsonAsync(
             $"{Rota}/{presidente.UsuarioId}/papel",
             new AlterarPapelRequestDTO(PapelNaFormatura.Formando),
+            Json,
             Ct
         );
 
@@ -222,6 +232,7 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
         var resposta = await presidente.Cliente.PutAsJsonAsync(
             $"{Rota}/{formando.UsuarioId}/papel",
             new AlterarPapelRequestDTO(PapelNaFormatura.Tesoureiro),
+            Json,
             Ct
         );
 
@@ -237,7 +248,7 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
         var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
 
-        var resposta = await presidente.Cliente.PutAsJsonAsync($"{Rota}/{formando.UsuarioId}/papel", new AlterarPapelRequestDTO("Rei"), Ct);
+        var resposta = await presidente.Cliente.PutAsJsonAsync($"{Rota}/{formando.UsuarioId}/papel", new AlterarPapelRequestDTO("Rei"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await resposta.Codigo(Ct)).ShouldBe("membro.papel_invalido");
@@ -308,6 +319,35 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
         soAtivos.Itens.ShouldAllBe(m => m.Ativo);
     }
 
+    /// <summary>Quem nunca abriu o cadastro aparece como pendente — é quem a comissão quer achar.</summary>
+    [Fact]
+    public async Task Lista_traz_o_cadastro_de_quem_nao_preencheu_e_filtra_por_ele()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var preencheu = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+        var pessoais = new AtualizarPerfilRequestDTO(
+            new DadosPessoaisDTO("Ana Sônia Souza", null, "529.982.247-25", null, null, "(41) 99876-5432", null, null),
+            null,
+            null
+        );
+        (await preencheu.Cliente.PutAsJsonAsync("/api/v1/formandos/eu", pessoais, Json, Ct)).EnsureSuccessStatusCode();
+
+        var todos = await Pagina(presidente, Rota);
+        var pendentes = await Pagina(presidente, $"{Rota}?cadastro=Pendente");
+        var porNomeCivil = await Pagina(presidente, $"{Rota}?busca=souza");
+        var semAcento = await Pagina(presidente, $"{Rota}?busca=sonia");
+
+        var linha = todos.Itens.Single(m => m.UsuarioId == preencheu.UsuarioId);
+        linha.Completude.ShouldBe(30);
+        linha.NomeCompleto.ShouldBe("Ana Sônia Souza");
+        linha.EssencialPendente.ShouldBeFalse();
+        todos.Itens.Single(m => m.UsuarioId == presidente.UsuarioId).Completude.ShouldBe(0);
+        pendentes.Itens.Select(m => m.UsuarioId).ShouldBe([presidente.UsuarioId]);
+        porNomeCivil.Itens.Select(m => m.UsuarioId).ShouldBe([preencheu.UsuarioId]);
+        semAcento.Itens.Select(m => m.UsuarioId).ShouldBe([preencheu.UsuarioId]);
+    }
+
     /// <summary>
     /// O papel é conferido no vínculo, não na claim: rebaixado, o tesoureiro perde a gestão na
     /// requisição seguinte, com o mesmo access token ainda válido.
@@ -320,7 +360,12 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
         var tesoureiro = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Tesoureiro, Ct);
         (await tesoureiro.Cliente.GetAsync(Rota, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        await presidente.Cliente.PutAsJsonAsync($"{Rota}/{tesoureiro.UsuarioId}/papel", new AlterarPapelRequestDTO(PapelNaFormatura.Formando), Ct);
+        await presidente.Cliente.PutAsJsonAsync(
+            $"{Rota}/{tesoureiro.UsuarioId}/papel",
+            new AlterarPapelRequestDTO(PapelNaFormatura.Formando),
+            Json,
+            Ct
+        );
 
         var depois = await tesoureiro.Cliente.GetAsync(Rota, Ct);
         depois.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -360,8 +405,8 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
             var rebaixar = new AlterarPapelRequestDTO(PapelNaFormatura.Formando);
 
             var respostas = await Task.WhenAll(
-                a.Cliente.PutAsJsonAsync($"{Rota}/{b.UsuarioId}/papel", rebaixar, Ct),
-                b.Cliente.PutAsJsonAsync($"{Rota}/{a.UsuarioId}/papel", rebaixar, Ct)
+                a.Cliente.PutAsJsonAsync($"{Rota}/{b.UsuarioId}/papel", rebaixar, Json, Ct),
+                b.Cliente.PutAsJsonAsync($"{Rota}/{a.UsuarioId}/papel", rebaixar, Json, Ct)
             );
 
             respostas.Count(r => r.StatusCode == HttpStatusCode.NoContent).ShouldBe(1);
@@ -375,7 +420,7 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
     }
 
     private static async Task<PaginaDTO<MembroDaFormaturaDTO>> Pagina(MembroDeTeste membro, string rota) =>
-        (await membro.Cliente.GetFromJsonAsync<PaginaDTO<MembroDaFormaturaDTO>>(rota, Ct))!;
+        (await membro.Cliente.GetFromJsonAsync<PaginaDTO<MembroDaFormaturaDTO>>(rota, Json, Ct))!;
 
     private async Task<string> EmailDe(Guid usuarioId)
     {

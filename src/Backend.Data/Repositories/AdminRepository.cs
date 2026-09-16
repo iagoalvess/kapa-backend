@@ -31,7 +31,7 @@ public sealed class AdminRepository(AppDbContext db) : IAdminRepository
                 Ativos = grupo.LongCount(u => u.Ativo),
                 Recentes = grupo.LongCount(u => u.CriadoEm >= limiteDeCadastro),
             })
-            .FirstOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(ct);
 
         var administradores = await ConsultarAdministradoresAtivos().LongCountAsync(ct);
 

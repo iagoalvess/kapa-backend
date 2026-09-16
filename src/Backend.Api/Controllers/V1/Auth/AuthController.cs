@@ -56,7 +56,6 @@ public sealed class AuthController(
     /// <c>legal.versao_desatualizada</c>.
     /// </remarks>
     /// <param name="requisicao">Nome, e-mail, senha e as versões aceitas.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("registrar")]
     [ProducesResponseType(typeof(TokenResponseDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -77,7 +76,6 @@ public sealed class AuthController(
 
     /// <summary>Autentica por e-mail e senha.</summary>
     /// <param name="requisicao">Credenciais.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("login")]
     [ProducesResponseType(typeof(TokenResponseDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -99,7 +97,6 @@ public sealed class AuthController(
     /// mesma renovação fadada a falhar a cada carga da página.
     /// </remarks>
     /// <param name="requisicao">Refresh token, quando o modo cookie está desligado.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("refresh")]
     [ProducesResponseType(typeof(TokenResponseDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -115,7 +112,6 @@ public sealed class AuthController(
 
     /// <summary>Encerra a sessão associada ao refresh token informado.</summary>
     /// <param name="requisicao">Refresh token, quando o modo cookie está desligado.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("logout")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Logout([FromBody] RefreshRequestDTO? requisicao, CancellationToken ct)

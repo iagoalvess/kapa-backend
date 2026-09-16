@@ -17,13 +17,11 @@ public interface IWebhookService
     /// </summary>
     /// <param name="corpo">Corpo cru da requisição.</param>
     /// <param name="assinaturaHmac">Assinatura do corpo, do cabeçalho configurado.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ReciboDeWebhook>> Receber(string corpo, string? assinaturaHmac, CancellationToken ct = default);
 
     /// <summary>
     /// Uma rodada da conciliação: pendentes paradas, vencimentos e avisos.
     /// </summary>
     /// <param name="agoraUtc">Relógio da rodada — parâmetro para o teste controlar o tempo.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ResumoDaConciliacao>> Conciliar(DateTime agoraUtc, CancellationToken ct = default);
 }

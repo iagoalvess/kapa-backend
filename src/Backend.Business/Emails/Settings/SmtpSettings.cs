@@ -41,6 +41,21 @@ public sealed class SmtpSettings
     /// <summary>Nome de exibição do remetente.</summary>
     public string RemetenteNome { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Caixa que recebe <b>tudo</b> no lugar do destinatário real. Vazio, cada um recebe o seu.
+    /// </summary>
+    /// <remarks>
+    /// Para desenvolver: a régua de cobrança de uma turma de teste dispara dezenas de mensagens para
+    /// endereços inventados, e sem isto não há como ler nenhuma delas. O destinatário original vai no
+    /// assunto e no log, para a mensagem continuar identificável.
+    /// <para>
+    /// <b>Nunca preencha em produção.</b> Mora em <c>appsettings.Development.json</c>, que não é
+    /// carregado lá; se algum dia aparecer preenchido num ambiente real, todo e-mail da plataforma
+    /// para de chegar a quem devia — e o log diz, a cada envio, para onde foi.
+    /// </para>
+    /// </remarks>
+    public string RedirecionarPara { get; init; } = string.Empty;
+
     /// <summary>Quantos e-mails o worker reserva por rodada.</summary>
     public int TamanhoDoLote { get; init; } = 20;
 

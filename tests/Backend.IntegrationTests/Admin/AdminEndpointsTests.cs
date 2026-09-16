@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Backend.Api.DTOs.Admin;
 using Backend.Business.Usuarios.Models;
 using Backend.IntegrationTests.Infra;
@@ -14,6 +15,8 @@ namespace Backend.IntegrationTests.Admin;
 [Collection(ColecaoDeApi.Nome)]
 public sealed class AdminEndpointsTests(ApiFactory fabrica)
 {
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -41,7 +44,7 @@ public sealed class AdminEndpointsTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         var tokens = await cliente.AutenticarComoAdministrador(Ct);
 
-        var resumo = await cliente.ComToken(tokens.AccessToken).GetFromJsonAsync<ResumoAdminDTO>("/api/v1/admin/resumo", Ct);
+        var resumo = await cliente.ComToken(tokens.AccessToken).GetFromJsonAsync<ResumoAdminDTO>("/api/v1/admin/resumo", Json, Ct);
 
         resumo.ShouldNotBeNull();
         resumo.UsuariosTotal.ShouldBe(resumo.UsuariosAtivos + resumo.UsuariosInativos);
@@ -56,7 +59,7 @@ public sealed class AdminEndpointsTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         var tokens = await cliente.AutenticarComoAdministrador(Ct);
 
-        var perfis = await cliente.ComToken(tokens.AccessToken).GetFromJsonAsync<string[]>("/api/v1/admin/perfis", Ct);
+        var perfis = await cliente.ComToken(tokens.AccessToken).GetFromJsonAsync<string[]>("/api/v1/admin/perfis", Json, Ct);
 
         perfis.ShouldBe([PerfisPadrao.Administrador, PerfisPadrao.Usuario], ignoreOrder: true);
     }

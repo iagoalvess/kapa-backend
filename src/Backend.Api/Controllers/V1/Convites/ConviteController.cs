@@ -23,21 +23,19 @@ namespace Backend.Api.Controllers.V1.Convites;
 /// </remarks>
 /// <param name="conviteService">Criação e revogação.</param>
 /// <param name="usuarioAtual">Quem está fazendo a requisição.</param>
-/// <param name="formaturaAtual">Formatura da sessão.</param>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/formaturas/atual/convites")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class ConviteController(IConviteService conviteService, IUsuarioAtual usuarioAtual, IFormaturaAtual formaturaAtual) : MainController
+public sealed class ConviteController(IConviteService conviteService, IUsuarioAtual usuarioAtual) : MainController
 {
-    /// <summary>A política garante a claim; o <c>Guid.Empty</c> nunca chega a ser consultado.</summary>
-    private Guid FormaturaId => formaturaAtual.Id ?? Guid.Empty;
-
     /// <summary>
-    /// Cria o convite — nominal, com e-mail, ou o link aberto da turma — e devolve o link uma única vez.
+    /// Cria o convite — nominal, com e-mail, ou o link aberto da turma — e devolve o link.
     /// </summary>
-    /// <remarks>O banco guarda só o hash do token: não há como mostrar o link de novo depois.</remarks>
+    /// <remarks>
+    /// O link nominal só aparece aqui. O da turma volta na listagem enquanto valer, e gerar outro
+    /// revoga o vigente: a turma tem um link por vez.
+    /// </remarks>
     /// <param name="requisicao">E-mail, papel, validade e limite de entradas.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost]
     [Authorize(Policy = Politicas.Gestao)]
     [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]
@@ -52,8 +50,7 @@ public sealed class ConviteController(IConviteService conviteService, IUsuarioAt
         return Responder(resultado.Map(criado => criado.Adapt<ConviteCriadoDTO>()));
     }
 
-    /// <summary>Os convites mais recentes, com situação e quantas pessoas entraram por cada um.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
+    /// <summary>Os convites mais recentes, com situação, quantas pessoas entraram e o link da turma vigente.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.Gestao)]
     [ProducesResponseType(typeof(IReadOnlyList<ConviteResumoDTO>), StatusCodes.Status200OK)]
@@ -67,7 +64,6 @@ public sealed class ConviteController(IConviteService conviteService, IUsuarioAt
 
     /// <summary>Revoga o convite: o link para de funcionar na hora. Quem já entrou continua.</summary>
     /// <param name="id">Convite.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpDelete("{id:guid}")]
     [Authorize(Policy = Politicas.Gestao)]
     [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]

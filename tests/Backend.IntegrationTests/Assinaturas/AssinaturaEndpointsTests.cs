@@ -27,7 +27,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
 
     private const string Assinatura = "/api/v1/formaturas/atual/assinatura";
 
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -69,7 +69,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
         var resposta = await Checkout(presidente);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var checkout = (await resposta.Content.ReadFromJsonAsync<CheckoutDTO>(Ct))!;
+        var checkout = (await resposta.Content.ReadFromJsonAsync<CheckoutDTO>(Json, Ct))!;
         checkout.Url.ShouldContain("/api/v1/provedor-fake/checkout/fake_");
         (await StatusDa(formaturaId)).ShouldBe(StatusDaFormatura.AguardandoPagamento);
 
@@ -85,7 +85,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
         var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Rascunho, Ct);
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
 
-        var checkout = (await (await Checkout(presidente)).Content.ReadFromJsonAsync<CheckoutDTO>(Ct))!;
+        var checkout = (await (await Checkout(presidente)).Content.ReadFromJsonAsync<CheckoutDTO>(Json, Ct))!;
 
         Fake.ObterSessao(checkout.Url.Split('/')[^1])!.Pedido.PrecoEmCentavos.ShouldBe(34990);
         (await presidente.Cliente.GetFromJsonAsync<AssinaturaDTO>(Assinatura, Json, Ct))!.Plano.PrecoEmCentavos.ShouldBe(34990);
@@ -146,7 +146,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
 
         primeira.StatusCode.ShouldBe(HttpStatusCode.OK);
         segunda.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await segunda.Content.ReadFromJsonAsync<ReciboDeWebhookDTO>(Ct))!.Duplicado.ShouldBeTrue();
+        (await segunda.Content.ReadFromJsonAsync<ReciboDeWebhookDTO>(Json, Ct))!.Duplicado.ShouldBeTrue();
         (await AssinaturaDe(assinaturaId)).VigenteAte.ShouldBe(vigenciaDepoisDaPrimeira);
         (await StatusDa(formaturaId)).ShouldBe(StatusDaFormatura.Ativa);
 
@@ -274,7 +274,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
     {
         var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Rascunho, Ct);
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
-        var checkout = (await (await Checkout(presidente)).Content.ReadFromJsonAsync<CheckoutDTO>(Ct))!;
+        var checkout = (await (await Checkout(presidente)).Content.ReadFromJsonAsync<CheckoutDTO>(Json, Ct))!;
         var navegador = fabrica.CreateClient(new() { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
 
         var pagina = await navegador.GetStringAsync(checkout.Url, Ct);
@@ -287,16 +287,16 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
     }
 
     /// <summary>
-    /// Pediu o Essencial, depois o Ampliado: a sessão do Essencial não paga mais nada. Sem isso,
-    /// pagá-la ativava o Ampliado (400 formandos) pelo preço do Essencial.
+    /// Pediu o Essencial, depois o Turma Grande: a sessão do Essencial não paga mais nada. Sem
+    /// isso, pagá-la ativava o Turma Grande (400 formandos) pelo preço do Essencial.
     /// </summary>
     [Fact]
     public async Task Trocar_de_plano_invalida_a_sessao_do_plano_anterior()
     {
         var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Rascunho, Ct);
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
-        var barato = (await (await Checkout(presidente, "essencial")).Content.ReadFromJsonAsync<CheckoutDTO>(Ct))!;
-        (await Checkout(presidente, "ampliado")).EnsureSuccessStatusCode();
+        var barato = (await (await Checkout(presidente, "essencial")).Content.ReadFromJsonAsync<CheckoutDTO>(Json, Ct))!;
+        (await Checkout(presidente, "turma-grande")).EnsureSuccessStatusCode();
         var navegador = fabrica.CreateClient(new() { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
 
         var pagamento = await navegador.PostAsync($"{barato.Url}/pagar", null, Ct);
@@ -306,7 +306,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
     }
 
     private static Task<HttpResponseMessage> Checkout(MembroDeTeste membro, string plano = "completo") =>
-        membro.Cliente.PostAsJsonAsync($"{Assinatura}/checkout", new IniciarCheckoutRequestDTO(plano), Ct);
+        membro.Cliente.PostAsJsonAsync($"{Assinatura}/checkout", new IniciarCheckoutRequestDTO(plano), Json, Ct);
 
     /// <summary>Formatura no status pedido, com Presidente, depois do checkout.</summary>
     private async Task<(Guid FormaturaId, Guid AssinaturaId)> FormaturaComCheckout(StatusDaFormatura status)
@@ -335,7 +335,18 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
         return assinatura.Id;
     }
 
-    private static string Corpo(EventoDoProvedor evento) => JsonSerializer.Serialize(evento, Json);
+    /// <summary>
+    /// O corpo do webhook como o provedor o manda — em camelCase, não no snake_case da nossa API.
+    /// </summary>
+    /// <remarks>
+    /// Quem define o formato de um webhook é quem o envia. A convenção de nomes do Kapa vale para o
+    /// que o Kapa responde; o que chega de fora tem o formato do PSP, e o <c>WebhookController</c> o
+    /// lê cru justamente porque reserializar mudaria os bytes e derrubaria o HMAC.
+    /// </remarks>
+    /// <param name="evento">Evento a serializar.</param>
+    private static string Corpo(EventoDoProvedor evento) => JsonSerializer.Serialize(evento, JsonDoProvedor);
+
+    private static readonly JsonSerializerOptions JsonDoProvedor = new(JsonSerializerDefaults.Web);
 
     private Task<HttpResponseMessage> EnviarEvento(string tipo, Guid assinaturaId)
     {

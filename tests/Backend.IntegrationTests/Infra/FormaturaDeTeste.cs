@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using Backend.Api.DTOs.Auth;
 using Backend.Business.Formaturas.Models;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,8 @@ public sealed record MembroDeTeste(HttpClient Cliente, Guid UsuarioId);
 /// </remarks>
 public static class FormaturaDeTeste
 {
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
+
     private static readonly Dictionary<StatusDaFormatura, StatusDaFormatura[]> Caminhos = new()
     {
         [StatusDaFormatura.Rascunho] = [],
@@ -60,13 +63,11 @@ public static class FormaturaDeTeste
 
     /// <summary>Cria uma formatura ativa, sem membros.</summary>
     /// <param name="fabrica">API de teste.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static Task<Guid> CriarFormatura(this ApiFactory fabrica, CancellationToken ct) => fabrica.CriarFormatura(StatusDaFormatura.Ativa, ct);
 
     /// <summary>Cria uma formatura no status pedido, sem membros.</summary>
     /// <param name="fabrica">API de teste.</param>
     /// <param name="status">Status da formatura.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static async Task<Guid> CriarFormatura(this ApiFactory fabrica, StatusDaFormatura status, CancellationToken ct)
     {
         await using var contexto = fabrica.ContextoDe(null);
@@ -83,7 +84,6 @@ public static class FormaturaDeTeste
     /// <param name="fabrica">API de teste.</param>
     /// <param name="formaturaId">Formatura do vínculo.</param>
     /// <param name="papel">Papel do membro.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static async Task<MembroDeTeste> NovoMembro(this ApiFactory fabrica, Guid formaturaId, string papel, CancellationToken ct)
     {
         var cliente = fabrica.CreateClient();
@@ -107,7 +107,7 @@ public static class FormaturaDeTeste
         var resposta = await cliente.ComToken(tokens.AccessToken).PostAsync($"/api/v1/formaturas/{formaturaId}/selecionar", null, ct);
         resposta.EnsureSuccessStatusCode();
 
-        var selecionados = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(ct))!;
+        var selecionados = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, ct))!;
 
         return new MembroDeTeste(cliente.ComToken(selecionados.AccessToken), usuarioId);
     }
@@ -115,7 +115,6 @@ public static class FormaturaDeTeste
     /// <summary>Marca o e-mail da conta como confirmado, como se o link do e-mail tivesse sido aberto.</summary>
     /// <param name="fabrica">API de teste.</param>
     /// <param name="email">E-mail da conta.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static async Task ConfirmarEmail(this ApiFactory fabrica, string email, CancellationToken ct)
     {
         await using var contexto = fabrica.ContextoDe(null);
@@ -130,10 +129,9 @@ public static class FormaturaDeTeste
 
     /// <summary>Código estável do erro devolvido pela API.</summary>
     /// <param name="resposta">Resposta de falha.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static async Task<string?> Codigo(this HttpResponseMessage resposta, CancellationToken ct)
     {
-        var problema = await resposta.Content.ReadFromJsonAsync<Dictionary<string, object>>(ct);
+        var problema = await resposta.Content.ReadFromJsonAsync<Dictionary<string, object>>(Json, ct);
 
         return problema?.GetValueOrDefault("codigo")?.ToString();
     }

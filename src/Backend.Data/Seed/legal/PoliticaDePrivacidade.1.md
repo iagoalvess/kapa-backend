@@ -24,11 +24,11 @@ Pedidos sobre dados da formatura podem ser feitos diretamente à comissão ou à
 
 **Dados de cadastro na formatura:** informados por você ou pela comissão, como nome completo, CPF, telefone, endereço, curso, número de matrícula, foto e demais dados necessários à organização da formatura. O CPF é armazenado criptografado.
 
-**Dados financeiros da formatura:** contribuições, parcelas, vencimentos, pagamentos, baixas manuais e comprovantes, renegociações e o registro da adesão ao termo da turma.
+**Dados financeiros da formatura:** contribuições, parcelas, vencimentos, pagamentos, avisos de pagamento, confirmações, baixas manuais e comprovantes, renegociações e o registro da adesão ao termo da turma.
 
-**Dados de pagamento via PIX:** valor, data, identificador da transação e os dados do pagador informados pelo provedor de pagamentos ao confirmar o pagamento.
+**Dados de pagamento via PIX:** a Kapa não recebe dados de pagamento de bancos. Registra o que o formando informa ao avisar que pagou (data, valor e, se ele quiser, o comprovante) e o que a tesouraria confirma.
 
-**Dados da comissão para o recebimento:** dados cadastrais e documentos do responsável pela conta de recebimento da turma, exigidos pelo provedor de pagamentos para a análise cadastral (KYC).
+**Dados da conta de recebimento da turma:** a chave PIX, o nome do titular e a cidade da conta, informados pela comissão. Quando a chave é um CPF, e-mail ou telefone, ela é dado pessoal do titular da conta e é mostrada aos membros da turma, que precisam dela para pagar.
 
 **Conteúdos enviados:** avisos, documentos e arquivos publicados no mural e no acervo da formatura.
 
@@ -42,7 +42,7 @@ Pedidos sobre dados da formatura podem ser feitos diretamente à comissão ou à
 
 - **Criar e manter sua conta e autenticar seu acesso** — execução de contrato (art. 7º, V).
 - **Organizar a formatura: cadastro, adesão, cobranças, baixa de pagamentos, despesas, caixa e prestação de contas** — execução de contrato entre o formando e a comissão (art. 7º, V), sob controle da comissão.
-- **Gerar cobranças PIX e abrir a conta de recebimento da turma** — execução de contrato (art. 7º, V) e cumprimento de obrigação legal e regulatória do provedor de pagamentos (art. 7º, II).
+- **Gerar o código PIX das parcelas com a chave informada pela comissão e mostrá-lo aos formandos** — execução de contrato entre o formando e a comissão (art. 7º, V), sob controle da comissão.
 - **Cobrar a assinatura da Kapa e emitir notas fiscais** — execução de contrato (art. 7º, V) e cumprimento de obrigação legal (art. 7º, II).
 - **Guardar registros de acesso** — cumprimento de obrigação legal (art. 15 do Marco Civil da Internet).
 - **Registrar e comprovar seu aceite a estes documentos e as operações financeiras da turma** — exercício regular de direitos (art. 7º, VI).
@@ -53,15 +53,15 @@ Pedidos sobre dados da formatura podem ser feitos diretamente à comissão ou à
 
 ## 5. Quem vê seus dados dentro da formatura
 
-- **Presidente, Tesoureiro e Comissão** veem o cadastro e o extrato dos formandos da turma, para administrá-la.
-- **Formandos** veem apenas os próprios dados e os indicadores consolidados da turma.
+- **Presidente, Tesoureiro e Comissão** veem o cadastro e o extrato dos formandos da turma, para administrá-la — com o CPF mascarado. O número completo aparece só para o próprio formando e no termo de adesão que ele assina.
+- **Formandos** veem apenas os próprios dados, os indicadores consolidados da turma e a chave PIX e o nome do titular da conta de recebimento, para pagar.
 - Pessoas de uma formatura **não** veem dados de outra formatura.
 
 ## 6. Compartilhamento
 
 A Kapa **não vende** dados pessoais e não os compartilha para publicidade de terceiros. Compartilhamos dados apenas com:
 
-- **Provedor de pagamentos (PSP):** para gerar cobranças PIX, confirmar pagamentos, abrir e manter a conta de recebimento da turma e cobrar a assinatura da Kapa.
+- **Provedor de pagamentos (PSP):** apenas para cobrar a assinatura da Kapa. Os pagamentos dos formandos à comissão não passam por ele nem pela Kapa.
 - **Provedores de infraestrutura:** hospedagem, banco de dados e armazenamento de arquivos em nuvem.
 - **Provedor de envio de e-mail:** para mensagens de conta, cobranças e avisos.
 - **Autoridades públicas:** quando exigido por lei ou por ordem judicial.
@@ -105,7 +105,7 @@ Você pode corrigir seus dados de cadastro diretamente na plataforma. Os demais 
 
 ## 11. Decisões automatizadas
 
-A baixa de pagamentos PIX e os lembretes de vencimento são automáticos: seguem o status das cobranças e as regras definidas pela comissão, sem análise de perfil. Se discordar de uma baixa ou de uma cobrança, fale com a comissão da sua formatura ou com o Encarregado da Kapa.
+Os lembretes de vencimento são automáticos: seguem a situação das parcelas e as regras definidas pela comissão, sem análise de perfil. A confirmação de pagamentos não é automática — é feita pela tesouraria da turma. Se discordar de uma cobrança ou de uma confirmação, fale com a comissão da sua formatura ou com o Encarregado da Kapa.
 
 ## 12. Menores de idade
 
@@ -117,10 +117,10 @@ Adotamos medidas técnicas e administrativas para proteger seus dados, entre ela
 
 - tráfego protegido por criptografia (TLS);
 - senhas guardadas com hash irreversível e tokens de sessão guardados apenas como hash;
-- CPF armazenado criptografado;
+- CPF armazenado criptografado e mostrado mascarado para a comissão;
 - sessão em cookie inacessível a scripts;
 - isolamento dos dados de cada formatura e controle de acesso por papel;
-- registro das operações financeiras sensíveis, como baixas manuais e alterações de papel.
+- registro das operações financeiras sensíveis, como confirmações de pagamento, baixas manuais, trocas da chave PIX e alterações de papel.
 
 Nenhum sistema é totalmente seguro, e não podemos garantir que os dados jamais sejam alvo de acessos não autorizados obtidos por meios indevidos.
 

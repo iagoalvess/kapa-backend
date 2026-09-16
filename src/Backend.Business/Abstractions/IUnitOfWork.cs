@@ -22,7 +22,6 @@ namespace Backend.Business.Abstractions;
 public interface IUnitOfWork
 {
     /// <summary>Persiste tudo o que foi alterado desde o último commit.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     /// <returns>Número de registros afetados.</returns>
     Task<int> SalvarAsync(CancellationToken ct = default);
 
@@ -33,6 +32,5 @@ public interface IUnitOfWork
     /// </summary>
     /// <typeparam name="T">Tipo devolvido pela operação.</typeparam>
     /// <param name="operacao">Trabalho a executar; recebe o token de cancelamento da tentativa.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<T> EmTransacaoAsync<T>(Func<CancellationToken, Task<T>> operacao, CancellationToken ct = default);
 }

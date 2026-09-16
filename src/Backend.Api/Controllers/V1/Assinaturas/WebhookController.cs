@@ -34,7 +34,6 @@ public sealed class WebhookController(IWebhookService webhookService, IOptions<A
     /// Recebe um evento de assinatura. Repetido responde 200 sem reprocessar; HMAC inválido, 401 sem gravar nada.
     /// </summary>
     /// <remarks>O corpo é lido cru: reserializar mudaria os bytes e o HMAC não conferiria.</remarks>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("assinaturas")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ReciboDeWebhookDTO), StatusCodes.Status200OK)]

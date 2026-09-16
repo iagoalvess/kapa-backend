@@ -83,7 +83,7 @@ public sealed class AssinaturaService(
         var plano = await assinaturaRepository.ObterPlanoAtivo(dados.PlanoCodigo.Trim(), ct);
 
         if (plano is null)
-            return Erro.Validacao("assinatura.plano_invalido", "Plano não encontrado.", campo: "planoCodigo");
+            return Erro.Validacao("assinatura.plano_invalido", "Plano não encontrado.", campo: "plano_codigo");
 
         var pendente = await assinaturaRepository.ObterMaisRecenteParaEdicao(ct) is { Status: StatusDaAssinatura.Pendente } atual ? atual : null;
 

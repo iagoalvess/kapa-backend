@@ -1,7 +1,6 @@
 using Asp.Versioning;
 using Backend.Api.Analytics;
 using Backend.Api.Configuration;
-using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Formandos;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
@@ -26,18 +25,13 @@ namespace Backend.Api.Controllers.V1.Formandos;
 /// </para>
 /// </remarks>
 /// <param name="perfilService">Regras do cadastro.</param>
-/// <param name="formaturaAtual">Formatura da sessão.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/formandos")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class FormandoController(IPerfilService perfilService, IFormaturaAtual formaturaAtual, IUsuarioAtual usuarioAtual) : MainController
+public sealed class FormandoController(IPerfilService perfilService, IUsuarioAtual usuarioAtual) : MainController
 {
-    /// <summary>A política garante a claim; o <c>Guid.Empty</c> nunca chega a ser consultado.</summary>
-    private Guid FormaturaId => formaturaAtual.Id ?? Guid.Empty;
-
     /// <summary>O próprio cadastro, vazio se ainda não foi preenchido.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("eu")]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
     [ProducesResponseType(typeof(PerfilDoFormandoDTO), StatusCodes.Status200OK)]
@@ -47,7 +41,6 @@ public sealed class FormandoController(IPerfilService perfilService, IFormaturaA
 
     /// <summary>Altera o próprio cadastro, seção por seção.</summary>
     /// <param name="requisicao">Seções a gravar; a ausente fica como está.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPut("eu")]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
     [Authorize(Policy = Politicas.ExigeFormaturaAberta)]
@@ -64,7 +57,6 @@ public sealed class FormandoController(IPerfilService perfilService, IFormaturaA
 
     /// <summary>Troca a própria foto. JPEG, PNG ou WebP de até 5 MB; sai em até 512×512.</summary>
     /// <param name="foto">Imagem enviada como <c>multipart/form-data</c>.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("eu/foto")]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
     [Authorize(Policy = Politicas.ExigeFormaturaAberta)]
@@ -81,37 +73,15 @@ public sealed class FormandoController(IPerfilService perfilService, IFormaturaA
         return Responder(resultado.Map(perfil => perfil.Adapt<PerfilDoFormandoDTO>()));
     }
 
-    /// <summary>Os membros ativos, paginados, com a completude do cadastro de cada um.</summary>
-    /// <param name="paginacao">Página e tamanho; o teto é aplicado no servidor.</param>
-    /// <param name="busca">Trecho do nome de exibição, do nome civil ou do e-mail.</param>
-    /// <param name="situacao"><c>Pendente</c> (falta o essencial), <c>Incompleto</c> ou <c>Completo</c>; ausente traz todos.</param>
-    /// <param name="ct">Token de cancelamento.</param>
-    [HttpGet]
-    [Authorize(Policy = Politicas.Gestao)]
-    [ProducesResponseType(typeof(PaginaDTO<FormandoResumoDTO>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> Listar(
-        [FromQuery] PaginacaoRequestDTO paginacao,
-        [FromQuery] string? busca,
-        [FromQuery] SituacaoDoCadastro? situacao,
-        CancellationToken ct
-    )
-    {
-        var resultado = await perfilService.Listar(FormaturaId, paginacao.ParaModelo(), new FiltroDeFormandos(busca, situacao), ct);
-
-        return Responder(resultado.Map(pagina => pagina.ParaDTO(formando => formando.Adapt<FormandoResumoDTO>())));
-    }
-
-    /// <summary>O cadastro de um formando da turma.</summary>
+    /// <summary>O cadastro de um formando da turma, com o CPF mascarado.</summary>
     /// <param name="usuarioId">Formando.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("{usuarioId:guid}")]
     [Authorize(Policy = Politicas.Gestao)]
     [ProducesResponseType(typeof(PerfilDoFormandoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Obter(Guid usuarioId, CancellationToken ct) =>
-        Responder((await perfilService.Obter(FormaturaId, usuarioId, ct)).Map(perfil => perfil.Adapt<PerfilDoFormandoDTO>()));
+        Responder((await perfilService.ObterParaComissao(FormaturaId, usuarioId, ct)).Map(perfil => perfil.Adapt<PerfilDoFormandoDTO>()));
 
     /// <summary>A foto de um formando da turma.</summary>
     /// <remarks>
@@ -119,7 +89,6 @@ public sealed class FormandoController(IPerfilService perfilService, IFormaturaA
     /// JSON. Sem nome de arquivo: vai <c>inline</c>, para exibir, e não como download.
     /// </remarks>
     /// <param name="usuarioId">Formando.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("{usuarioId:guid}/foto")]
     [Authorize(Policy = Politicas.Gestao)]
     [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
@@ -135,10 +104,9 @@ public sealed class FormandoController(IPerfilService perfilService, IFormaturaA
         return File(resultado.Valor.Conteudo, resultado.Valor.ContentType);
     }
 
-    /// <summary>Correção do cadastro pela comissão, registrada com o autor.</summary>
+    /// <summary>Correção do cadastro pela comissão, registrada com o autor. O CPF enviado é ignorado.</summary>
     /// <param name="usuarioId">Formando corrigido.</param>
     /// <param name="requisicao">Seções a gravar; a ausente fica como está.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPut("{usuarioId:guid}")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]

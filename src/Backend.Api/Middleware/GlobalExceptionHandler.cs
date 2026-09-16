@@ -1,3 +1,4 @@
+using Backend.Api.Configuration;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,6 +15,11 @@ namespace Backend.Api.Middleware;
 /// Implementa <see cref="IExceptionHandler"/>, a extensão nativa do ASP.NET Core, em vez de um
 /// middleware próprio com <c>try/catch</c>: encaixa em <c>UseExceptionHandler</c>, participa do
 /// pipeline de diagnóstico e não engole exceção lançada por outro middleware.
+/// </para>
+/// <para>
+/// O detalhe técnico, só em Development, vai na extensão <c>excecao</c> — nunca em <c>detail</c>.
+/// <c>detail</c> é a mensagem para o usuário (o <c>MainController</c> a preenche nas falhas de
+/// negócio) e o front a exibe; o stack trace ali acabava na tela.
 /// </para>
 /// </remarks>
 /// <param name="ambiente">Ambiente de execução, que decide se o detalhe técnico é exposto.</param>
@@ -44,12 +50,15 @@ public sealed class GlobalExceptionHandler(IHostEnvironment ambiente, ILogger<Gl
         {
             Status = status,
             Title = titulo,
-            Type = $"https://httpstatuses.io/{status}",
+            Type = DocDeErros.Para(httpContext, DocDeErros.Inesperado),
             Instance = $"{httpContext.Request.Method} {httpContext.Request.Path}",
-            Detail = ambiente.IsDevelopment() ? exception.ToString() : null,
         };
 
-        problema.Extensions["traceId"] = httpContext.TraceIdentifier;
+        problema.Extensions["codigo"] = DocDeErros.Inesperado;
+        problema.Extensions["trace_id"] = httpContext.TraceIdentifier;
+
+        if (ambiente.IsDevelopment())
+            problema.Extensions["excecao"] = exception.ToString();
 
         httpContext.Response.StatusCode = status;
         await httpContext.Response.WriteAsJsonAsync(problema, cancellationToken);

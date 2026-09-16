@@ -24,7 +24,10 @@ namespace Backend.Business.Formandos.Models;
 /// </remarks>
 public class PerfilDoFormando : EntidadeDaFormatura
 {
-    /// <summary>O que a comissão precisa para emitir cobrança. Falta um destes, a turma é avisada.</summary>
+    /// <summary>
+    /// Nome e CPF identificam quem assina o termo de adesão; o telefone é como a comissão fala com a
+    /// pessoa. Falta um destes, a turma é avisada.
+    /// </summary>
     public static readonly IReadOnlyList<string> Essenciais = [ItensDoCadastro.NomeCompleto, ItensDoCadastro.Cpf, ItensDoCadastro.Telefone];
 
     /// <summary>Vínculo dono do cadastro. Um cadastro por vínculo.</summary>

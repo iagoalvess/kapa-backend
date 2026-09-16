@@ -1,4 +1,7 @@
+using System.Security.Claims;
+using Backend.Api.Configuration;
 using Backend.Business.Abstractions;
+using Backend.Business.Auth.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,6 +27,20 @@ namespace Backend.Api.Controllers;
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
 public abstract class MainController : ControllerBase
 {
+    /// <summary>
+    /// Formatura da sessão, lida da claim <c>formatura_id</c> do access token.
+    /// </summary>
+    /// <remarks>
+    /// Aqui, e não injetada em cada controller: eram doze cópias da mesma linha e doze dependências
+    /// que só existiam para ela. A claim já está no <c>User</c> da requisição.
+    /// <para>
+    /// Vem <see cref="Guid.Empty"/> quando a sessão não tem formatura escolhida. Não é caso a
+    /// tratar: todo endpoint que usa esta propriedade declara uma política de papel, e nenhuma
+    /// delas passa sem a claim — o <c>Guid.Empty</c> nunca chega a ser consultado.
+    /// </para>
+    /// </remarks>
+    protected Guid FormaturaId => Guid.TryParse(User.FindFirstValue(TokenService.ClaimDeFormatura), out var id) ? id : Guid.Empty;
+
     /// <summary>Responde 200 com o valor, ou o problema correspondente à falha.</summary>
     /// <typeparam name="T">Tipo do corpo de resposta.</typeparam>
     /// <param name="resultado">Resultado devolvido pelo service.</param>
@@ -52,10 +69,10 @@ public abstract class MainController : ControllerBase
                 : new ProblemDetails { Title = erro.Mensagem };
 
         problema.Status = status;
-        problema.Type = $"https://httpstatuses.io/{status}";
+        problema.Type = DocDeErros.Para(HttpContext, erro.Codigo);
         problema.Instance = $"{Request.Method} {Request.Path}";
         problema.Extensions["codigo"] = erro.Codigo;
-        problema.Extensions["traceId"] = HttpContext.TraceIdentifier;
+        problema.Extensions["trace_id"] = HttpContext.TraceIdentifier;
 
         if (erro.Tipo is not ETipoErro.Validacao)
             problema.Detail = erro.Mensagem;

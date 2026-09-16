@@ -14,7 +14,6 @@ public interface IEmailSender
 {
     /// <summary>Entrega a mensagem.</summary>
     /// <param name="mensagem">Mensagem a enviar.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     /// <exception cref="Exception">Qualquer falha de conexão, autenticação ou recusa do servidor.</exception>
     Task EnviarAsync(MensagemDeEmail mensagem, CancellationToken ct = default);
 }
@@ -31,7 +30,6 @@ public interface IEmailService
 {
     /// <summary>Coloca um e-mail na fila de envio.</summary>
     /// <param name="dados">Destinatário, assunto, corpo e prioridade.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     /// <returns>O identificador do e-mail na fila.</returns>
     Task<Result<Guid>> Enfileirar(NovoEmail dados, CancellationToken ct = default);
 }
@@ -43,7 +41,6 @@ public interface IEmailFilaRepository
 {
     /// <summary>Marca um e-mail para inclusão na fila.</summary>
     /// <param name="email">E-mail a enfileirar.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task Adicionar(EmailNaFila email, CancellationToken ct = default);
 
     /// <summary>
@@ -56,6 +53,5 @@ public interface IEmailFilaRepository
     /// </remarks>
     /// <param name="tamanho">Quantidade máxima de e-mails.</param>
     /// <param name="agoraUtc">Momento da reserva.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<IReadOnlyList<EmailNaFila>> ReservarLote(int tamanho, DateTime agoraUtc, CancellationToken ct = default);
 }

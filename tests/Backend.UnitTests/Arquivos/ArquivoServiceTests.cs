@@ -35,12 +35,31 @@ public sealed class ArquivoServiceTests
             _armazenamento,
             new NovoArquivoValidator(Options.Create(Settings)),
             Options.Create(Settings),
+            new UrlTemporariaLocal(),
             _unitOfWork,
             NullLogger<ArquivoService>.Instance
         );
 
+    /// <summary>Um pedido de envio cujos bytes batem com a extensão do nome.</summary>
+    /// <remarks>
+    /// Com o conteúdo conferido no envio, um fluxo de texto solto reprovaria em todo teste que só
+    /// quer exercitar outra regra. Use <see cref="NovoComBytes"/> para o caso em que o conteúdo
+    /// é o assunto.
+    /// </remarks>
     private static NovoArquivo Novo(string nome = "relatorio.pdf", long tamanho = 1024, string categoria = "anexos") =>
-        new(nome, tamanho, new MemoryStream(Encoding.UTF8.GetBytes("conteúdo")), categoria);
+        NovoComBytes(CabecalhoDe(nome), nome, tamanho, categoria);
+
+    private static NovoArquivo NovoComBytes(byte[] bytes, string nome = "relatorio.pdf", long? tamanho = null, string categoria = "anexos") =>
+        new(nome, tamanho ?? bytes.Length, new MemoryStream(bytes), categoria);
+
+    /// <summary>Os primeiros bytes que a extensão promete; texto solto para o que não tem assinatura.</summary>
+    private static byte[] CabecalhoDe(string nome) =>
+        Path.GetExtension(nome).ToLowerInvariant() switch
+        {
+            ".pdf" => "%PDF-1.7\n"u8.ToArray(),
+            ".png" => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+            _ => Encoding.UTF8.GetBytes("conteúdo"),
+        };
 
     private static SolicitanteDeArquivo Dono(Guid id) => new(id, EhAdministrador: false);
 
@@ -69,7 +88,6 @@ public sealed class ArquivoServiceTests
     [Theory]
     [InlineData("relatorio.pdf", "application/pdf")]
     [InlineData("foto.PNG", "image/png")]
-    [InlineData("desconhecido.xyz", "application/octet-stream")]
     public async Task O_tipo_do_conteudo_vem_da_extensao_e_nao_do_cliente(string nome, string esperado)
     {
         Arquivo? registrado = null;
@@ -157,6 +175,55 @@ public sealed class ArquivoServiceTests
         registrado.Chave.ShouldStartWith("anexos/");
         registrado.Chave.ShouldEndWith(".pdf");
         registrado.Nome.ShouldBe("senha.pdf");
+    }
+
+    /// <summary>
+    /// Um executável renomeado para <c>.pdf</c> passa pela extensão e pelo <c>Content-Type</c> —
+    /// os dois são texto que o cliente escolhe. Quem o barra são os primeiros bytes.
+    /// </summary>
+    /// <remarks>
+    /// A conferência vive aqui, e não em cada feature que envia arquivo: este é o ponto único por
+    /// onde comprovante, documento do acervo, foto e envio avulso passam.
+    /// </remarks>
+    [Fact]
+    public async Task Executavel_renomeado_para_pdf_e_recusado_sem_tocar_no_provedor()
+    {
+        byte[] executavel = [0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00];
+
+        var resultado = await Criar().Enviar(NovoComBytes(executavel), Guid.CreateVersion7(), Ct);
+
+        resultado.Falhou.ShouldBeTrue();
+        resultado.PrimeiroErro.Codigo.ShouldBe("arquivo.conteudo_invalido");
+        resultado.PrimeiroErro.Campo.ShouldBe("arquivo");
+
+        await _armazenamento.DidNotReceive().GravarAsync(Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _repositorio.DidNotReceive().Adicionar(Arg.Any<Arquivo>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Texto puro não tem assinatura para contradizer a extensão, então passa.</summary>
+    [Fact]
+    public async Task Texto_puro_passa_porque_nao_tem_assinatura_a_conferir()
+    {
+        var resultado = await Criar().Enviar(NovoComBytes(Encoding.UTF8.GetBytes("a;b;c"), "planilha.txt"), Guid.CreateVersion7(), Ct);
+
+        resultado.Sucesso.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Extensão liberada na configuração mas sem assinatura mapeada é recusada — de propósito.
+    /// </summary>
+    /// <remarks>
+    /// Falhar alto no primeiro envio é melhor que aceitar em silêncio um formato que ninguém
+    /// consegue conferir. Quem acrescenta uma extensão à lista de permissão acrescenta a
+    /// assinatura dela em <c>ConteudoDeArquivo</c> junto.
+    /// </remarks>
+    [Fact]
+    public async Task Extensao_liberada_sem_assinatura_conhecida_e_recusada()
+    {
+        var resultado = await Criar().Enviar(Novo("desconhecido.xyz"), Guid.CreateVersion7(), Ct);
+
+        resultado.Falhou.ShouldBeTrue();
+        resultado.PrimeiroErro.Codigo.ShouldBe("arquivo.conteudo_invalido");
     }
 
     [Fact]
@@ -252,30 +319,5 @@ public sealed class ArquivoServiceTests
         resultado.Sucesso.ShouldBeTrue();
         _repositorio.Received(1).Remover(arquivo);
         await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Usuario_comum_so_lista_os_proprios_arquivos()
-    {
-        var usuario = Guid.CreateVersion7();
-        _repositorio
-            .Listar(Arg.Any<PaginacaoRequest>(), Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
-            .Returns(PaginaDe<ArquivoResumo>.Vazia(new PaginacaoRequest()));
-
-        await Criar().Listar(new PaginacaoRequest(), categoria: null, Dono(usuario), Ct);
-
-        await _repositorio.Received(1).Listar(Arg.Any<PaginacaoRequest>(), null, usuario, Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task O_administrador_lista_os_arquivos_de_todos()
-    {
-        _repositorio
-            .Listar(Arg.Any<PaginacaoRequest>(), Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
-            .Returns(PaginaDe<ArquivoResumo>.Vazia(new PaginacaoRequest()));
-
-        await Criar().Listar(new PaginacaoRequest(), null, new SolicitanteDeArquivo(Guid.CreateVersion7(), EhAdministrador: true), Ct);
-
-        await _repositorio.Received(1).Listar(Arg.Any<PaginacaoRequest>(), null, null, Arg.Any<CancellationToken>());
     }
 }

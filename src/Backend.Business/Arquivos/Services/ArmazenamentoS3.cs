@@ -59,5 +59,27 @@ public sealed class ArmazenamentoS3(IAmazonS3 cliente, IOptions<ArmazenamentoSet
     public async Task RemoverAsync(string chave, CancellationToken ct = default) =>
         await cliente.DeleteObjectAsync(_settings.Bucket, ComPrefixo(chave), ct);
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// URL pré-assinada do S3, com o nome e o tipo sobrescritos na resposta: o objeto é baixado com o
+    /// nome original, e não com a chave interna. É o front que segue o redirecionamento, então o
+    /// bucket precisa de CORS liberando a origem do app (ver <c>docs/operacao.md</c>).
+    /// </remarks>
+    public Task<string> GerarUrlTemporariaAsync(string chave, string nome, string contentType, TimeSpan validade) =>
+        cliente.GetPreSignedURLAsync(
+            new GetPreSignedUrlRequest
+            {
+                BucketName = _settings.Bucket,
+                Key = ComPrefixo(chave),
+                Verb = HttpVerb.GET,
+                Expires = DateTime.UtcNow.Add(validade),
+                ResponseHeaderOverrides =
+                {
+                    ContentType = contentType,
+                    ContentDisposition = $"attachment; filename*=UTF-8''{Uri.EscapeDataString(nome)}",
+                },
+            }
+        );
+
     private string ComPrefixo(string chave) => string.IsNullOrWhiteSpace(_settings.Prefixo) ? chave : $"{_settings.Prefixo.TrimEnd('/')}/{chave}";
 }

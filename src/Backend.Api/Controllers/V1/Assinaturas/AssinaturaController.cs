@@ -20,17 +20,12 @@ namespace Backend.Api.Controllers.V1.Assinaturas;
 /// suspensa voltar. Cancelar exige: só se cancela a renovação do que está valendo.
 /// </remarks>
 /// <param name="assinaturaService">Contratação e cancelamento.</param>
-/// <param name="formaturaAtual">Formatura da sessão.</param>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/formaturas/atual/assinatura")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class AssinaturaController(IAssinaturaService assinaturaService, IFormaturaAtual formaturaAtual) : MainController
+public sealed class AssinaturaController(IAssinaturaService assinaturaService) : MainController
 {
-    /// <summary>A política garante a claim; o <c>Guid.Empty</c> nunca chega a ser consultado.</summary>
-    private Guid FormaturaId => formaturaAtual.Id ?? Guid.Empty;
-
     /// <summary>Status, plano, vigência e próxima cobrança. É o que a tela de retorno consulta enquanto espera.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet]
     [Authorize(Policy = Politicas.Gestao)]
     [ProducesResponseType(typeof(AssinaturaDTO), StatusCodes.Status200OK)]
@@ -47,7 +42,6 @@ public sealed class AssinaturaController(IAssinaturaService assinaturaService, I
     /// </summary>
     /// <remarks>Não ativa nada: quem ativa é o webhook, quando o pagamento confirma.</remarks>
     /// <param name="requisicao">Plano escolhido.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("checkout")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [RegistrarEvento("assinatura.checkout_iniciado")]
@@ -64,7 +58,6 @@ public sealed class AssinaturaController(IAssinaturaService assinaturaService, I
     }
 
     /// <summary>Cancela a renovação. A vigência paga é respeitada; depois dela, a turma vira leitura.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("cancelar")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]

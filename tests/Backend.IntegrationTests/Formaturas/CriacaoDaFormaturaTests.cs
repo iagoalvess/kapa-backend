@@ -26,10 +26,19 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     /// <summary>A API manda enum como texto; o cliente de teste precisa ler do mesmo jeito.</summary>
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
 
     private static DadosDaFormaturaRequestDTO Dados(string nome = "Medicina 2027.1 — UFPR") =>
-        new(nome, "UFPR", "Medicina", DateTime.UtcNow.Year + 1, 1, new DateOnly(DateTime.UtcNow.Year + 1, 7, 15), 80);
+        new(
+            nome,
+            "UFPR",
+            "Medicina",
+            DateTime.UtcNow.Year + 1,
+            1,
+            new DateOnly(DateTime.UtcNow.Year + 1, 7, 15),
+            new DateOnly(DateTime.UtcNow.Year + 1, 7, 18),
+            80
+        );
 
     [Fact]
     public async Task Criar_grava_rascunho_com_vinculo_de_presidente_e_devolve_tokens_na_formatura()
@@ -41,11 +50,11 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
         cliente.ComToken(tokensDoCadastro.AccessToken);
 
         // Act
-        var resposta = await cliente.PostAsJsonAsync(Rota, Dados(), Ct);
+        var resposta = await cliente.PostAsJsonAsync(Rota, Dados(), Json, Ct);
 
         // Assert
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var tokens = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Ct))!;
+        var tokens = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, Ct))!;
         var formaturaId = Guid.Parse(Claim(tokens.AccessToken, TokenService.ClaimDeFormatura)!);
         Claim(tokens.AccessToken, TokenService.ClaimDePapel).ShouldBe(PapelNaFormatura.Presidente);
 
@@ -53,6 +62,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
         var formatura = await contexto.Formaturas.SingleAsync(f => f.Id == formaturaId, Ct);
         formatura.Status.ShouldBe(StatusDaFormatura.Rascunho);
         formatura.CriadoPorUsuarioId.ShouldBe(usuarioId);
+        formatura.PrevisaoDaFesta.ShouldBe(new DateOnly(DateTime.UtcNow.Year + 1, 7, 18));
         var vinculo = await contexto.Vinculos.SingleAsync(v => v.FormaturaId == formaturaId, Ct);
         vinculo.UsuarioId.ShouldBe(usuarioId);
         vinculo.Papel.ShouldBe(PapelNaFormatura.Presidente);
@@ -63,9 +73,9 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
     {
         var cliente = fabrica.CreateClient();
         cliente.ComToken((await cliente.RegistrarUsuarioComum(Ct)).AccessToken);
-        (await cliente.PostAsJsonAsync(Rota, Dados(), Ct)).EnsureSuccessStatusCode();
+        (await cliente.PostAsJsonAsync(Rota, Dados(), Json, Ct)).EnsureSuccessStatusCode();
 
-        var resposta = await cliente.PostAsJsonAsync(Rota, Dados("Outra turma"), Ct);
+        var resposta = await cliente.PostAsJsonAsync(Rota, Dados("Outra turma"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await resposta.Codigo(Ct)).ShouldBe("formatura.rascunho_pendente");
@@ -84,7 +94,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
             .CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false, BaseAddress = new Uri("https://localhost") })
             .ComToken(tokens.AccessToken);
 
-        var resposta = await semCookie.PostAsJsonAsync(Rota, Dados(), Ct);
+        var resposta = await semCookie.PostAsJsonAsync(Rota, Dados(), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         await using var contexto = fabrica.ContextoDe(null);
@@ -98,11 +108,11 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         cliente.ComToken((await cliente.RegistrarUsuarioComum(Ct)).AccessToken);
 
-        var resposta = await cliente.PostAsJsonAsync(Rota, new DadosDaFormaturaRequestDTO("AB", "", "", 1999, 3, null, 0), Ct);
+        var resposta = await cliente.PostAsJsonAsync(Rota, new DadosDaFormaturaRequestDTO("AB", "", "", 1999, 3, null, null, 0), Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var corpo = await resposta.Content.ReadAsStringAsync(Ct);
-        foreach (var campo in new[] { "nome", "instituicao", "curso", "ano", "semestre", "quantidadeEstimadaDeFormandos" })
+        foreach (var campo in new[] { "nome", "instituicao", "curso", "ano", "semestre", "quantidade_estimada_de_formandos" })
             corpo.ShouldContain($"\"{campo}\"");
     }
 
@@ -115,7 +125,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
     {
         var membro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), papel, Ct);
 
-        var resposta = await membro.Cliente.PutAsJsonAsync($"{Rota}/atual", Dados("Nome novo"), Ct);
+        var resposta = await membro.Cliente.PutAsJsonAsync($"{Rota}/atual", Dados("Nome novo"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(esperado);
     }
@@ -125,7 +135,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
     {
         var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(StatusDaFormatura.Rascunho, Ct), PapelNaFormatura.Presidente, Ct);
 
-        var resposta = await presidente.Cliente.PutAsJsonAsync($"{Rota}/atual", Dados("  Nome novo  "), Ct);
+        var resposta = await presidente.Cliente.PutAsJsonAsync($"{Rota}/atual", Dados("  Nome novo  "), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
         (await resposta.Content.ReadFromJsonAsync<FormaturaDetalheDTO>(Json, Ct))!.Nome.ShouldBe("Nome novo");
@@ -138,7 +148,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
     {
         var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(status, Ct), PapelNaFormatura.Presidente, Ct);
 
-        var resposta = await presidente.Cliente.PutAsJsonAsync($"{Rota}/atual", Dados(), Ct);
+        var resposta = await presidente.Cliente.PutAsJsonAsync($"{Rota}/atual", Dados(), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await resposta.Codigo(Ct)).ShouldBe("formatura.inativa");
@@ -179,7 +189,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
         await using var contexto = fabrica.ContextoDe(null);
         (await contexto.Formaturas.SingleAsync(f => f.Id == formaturaId, Ct)).Status.ShouldBe(StatusDaFormatura.Descartada);
         (await contexto.Vinculos.AnyAsync(v => v.FormaturaId == formaturaId && v.Ativo, Ct)).ShouldBeFalse();
-        (await comissao.Cliente.GetFromJsonAsync<List<FormaturaDoUsuarioDTO>>($"{Rota}/minhas", Ct))!.ShouldBeEmpty();
+        (await comissao.Cliente.GetFromJsonAsync<List<FormaturaDoUsuarioDTO>>($"{Rota}/minhas", Json, Ct))!.ShouldBeEmpty();
     }
 
     [Fact]

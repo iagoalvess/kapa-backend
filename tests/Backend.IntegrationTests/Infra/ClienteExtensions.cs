@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using Backend.Api.DTOs.Auth;
 using Backend.Api.DTOs.Legal;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -12,6 +13,8 @@ namespace Backend.IntegrationTests.Infra;
 /// </summary>
 public static class ClienteExtensions
 {
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
+
     /// <summary>
     /// Monta o corpo do cadastro aceitando as versões vigentes, como o front faz.
     /// </summary>
@@ -23,7 +26,6 @@ public static class ClienteExtensions
     /// <param name="nome">Nome da conta.</param>
     /// <param name="email">E-mail da conta.</param>
     /// <param name="senha">Senha da conta.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static async Task<RegistrarRequestDTO> CorpoDeCadastro(
         this HttpClient cliente,
         string nome,
@@ -32,7 +34,7 @@ public static class ClienteExtensions
         CancellationToken ct
     )
     {
-        var vigentes = await cliente.GetFromJsonAsync<DocumentoLegalDTO[]>("/api/v1/legal/vigentes", ct);
+        var vigentes = await cliente.GetFromJsonAsync<DocumentoLegalDTO[]>("/api/v1/legal/vigentes", Json, ct);
 
         return new RegistrarRequestDTO(
             nome,
@@ -44,7 +46,6 @@ public static class ClienteExtensions
 
     /// <summary>Registra uma conta nova com e-mail aleatório e devolve os tokens.</summary>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static async Task<TokenResponseDTO> RegistrarUsuarioComum(this HttpClient cliente, CancellationToken ct)
     {
         var email = $"usuario-{Guid.CreateVersion7():N}@testes.local";
@@ -52,12 +53,13 @@ public static class ClienteExtensions
         var resposta = await cliente.PostAsJsonAsync(
             "/api/v1/auth/registrar",
             await cliente.CorpoDeCadastro("Usuário de Teste", email, "Senha@Teste123", ct),
+            Json,
             ct
         );
 
         resposta.EnsureSuccessStatusCode();
 
-        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(ct))!;
+        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, ct))!;
     }
 
     /// <summary>
@@ -69,31 +71,30 @@ public static class ClienteExtensions
     /// </remarks>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
     /// <param name="email">E-mail da conta.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static async Task<TokenResponseDTO> RegistrarComEmail(this HttpClient cliente, string email, CancellationToken ct)
     {
         var resposta = await cliente.PostAsJsonAsync(
             "/api/v1/auth/registrar",
             await cliente.CorpoDeCadastro("Usuário de Teste", email, SenhaPadrao, ct),
+            Json,
             ct
         );
 
         resposta.EnsureSuccessStatusCode();
 
-        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(ct))!;
+        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, ct))!;
     }
 
     /// <summary>Autentica uma conta registrada por <see cref="RegistrarComEmail"/>.</summary>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
     /// <param name="email">E-mail da conta.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static async Task<TokenResponseDTO> AutenticarCom(this HttpClient cliente, string email, CancellationToken ct)
     {
-        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, SenhaPadrao), ct);
+        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, SenhaPadrao), Json, ct);
 
         resposta.EnsureSuccessStatusCode();
 
-        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(ct))!;
+        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, ct))!;
     }
 
     /// <summary>Senha usada por todas as contas de teste.</summary>
@@ -101,14 +102,18 @@ public static class ClienteExtensions
 
     /// <summary>Autentica como o administrador criado pelo seed.</summary>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static async Task<TokenResponseDTO> AutenticarComoAdministrador(this HttpClient cliente, CancellationToken ct)
     {
-        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(ApiFactory.AdminEmail, ApiFactory.AdminSenha), ct);
+        var resposta = await cliente.PostAsJsonAsync(
+            "/api/v1/auth/login",
+            new LoginRequestDTO(ApiFactory.AdminEmail, ApiFactory.AdminSenha),
+            Json,
+            ct
+        );
 
         resposta.EnsureSuccessStatusCode();
 
-        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(ct))!;
+        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, ct))!;
     }
 
     /// <summary>Passa a enviar o token no cabeçalho <c>Authorization</c>.</summary>
@@ -123,7 +128,6 @@ public static class ClienteExtensions
 
     /// <summary>Registra uma conta nova e devolve os tokens junto do refresh token do cookie.</summary>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static async Task<(TokenResponseDTO Tokens, string Refresh)> RegistrarCapturandoCookie(this HttpClient cliente, CancellationToken ct)
     {
         var email = $"usuario-{Guid.CreateVersion7():N}@testes.local";
@@ -131,12 +135,13 @@ public static class ClienteExtensions
         var resposta = await cliente.PostAsJsonAsync(
             "/api/v1/auth/registrar",
             await cliente.CorpoDeCadastro("Usuário de Teste", email, "Senha@Teste123", ct),
+            Json,
             ct
         );
 
         resposta.EnsureSuccessStatusCode();
 
-        return ((await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(ct))!, resposta.RefreshTokenDoCookie()!);
+        return ((await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, ct))!, resposta.RefreshTokenDoCookie()!);
     }
 
     /// <summary>
@@ -170,7 +175,6 @@ public static class ClienteExtensions
     /// </remarks>
     /// <param name="fabrica">API de teste.</param>
     /// <param name="refreshToken">Token a apresentar.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static Task<HttpResponseMessage> RenovarComCookie(this ApiFactory fabrica, string refreshToken, CancellationToken ct)
     {
         var cliente = fabrica.CreateClient(
@@ -193,13 +197,11 @@ public static class ClienteExtensions
     /// <c>{}</c> do cliente real leva 400 e o teste continuaria verde.
     /// </remarks>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static Task<HttpResponseMessage> RenovarComCorpoVazio(this HttpClient cliente, CancellationToken ct) =>
         cliente.PostAsync("/api/v1/auth/refresh", new StringContent("{}", Encoding.UTF8, "application/json"), ct);
 
     /// <summary>Faz logout mandando um corpo <c>{}</c> literal, como o front.</summary>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static Task<HttpResponseMessage> SairComCorpoVazio(this HttpClient cliente, CancellationToken ct) =>
         cliente.PostAsync("/api/v1/auth/logout", new StringContent("{}", Encoding.UTF8, "application/json"), ct);
 

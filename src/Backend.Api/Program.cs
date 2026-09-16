@@ -25,6 +25,7 @@ if (app.Configuration.GetValue<bool>("Seed:AoIniciar"))
 {
     using var escopo = app.Services.CreateScope();
     await SeedInicial.AplicarAsync(escopo.ServiceProvider);
+    await SeedDePlanos.AplicarAsync(escopo.ServiceProvider);
 }
 
 await app.RunAsync();

@@ -29,7 +29,6 @@ namespace Backend.Api.Controllers.V1.Formaturas;
 /// </remarks>
 /// <param name="formaturaService">Criação, seleção e ciclo de vida da formatura.</param>
 /// <param name="usuarioAtual">Quem está fazendo a requisição.</param>
-/// <param name="formaturaAtual">Formatura da sessão.</param>
 /// <param name="cookieOptions">Configuração do cookie de sessão.</param>
 /// <param name="jwtOptions">Configuração de JWT, que define a validade do cookie.</param>
 /// <param name="configuration">Configuração da aplicação, de onde saem as origens permitidas.</param>
@@ -39,16 +38,12 @@ namespace Backend.Api.Controllers.V1.Formaturas;
 public sealed class FormaturaController(
     IFormaturaService formaturaService,
     IUsuarioAtual usuarioAtual,
-    IFormaturaAtual formaturaAtual,
     IOptions<CookieDeSessaoSettings> cookieOptions,
     IOptions<JwtSettings> jwtOptions,
     IConfiguration configuration
 ) : MainController
 {
     private string? IpDeOrigem => HttpContext.Connection.RemoteIpAddress?.ToString();
-
-    /// <summary>A política garante a claim; o <c>Guid.Empty</c> nunca chega a ser consultado.</summary>
-    private Guid FormaturaId => formaturaAtual.Id ?? Guid.Empty;
 
     /// <summary>
     /// Cria a formatura em rascunho, com quem criou como Presidente.
@@ -58,7 +53,6 @@ public sealed class FormaturaController(
     /// ida ao servidor e evita o estado esquisito de "criei a turma mas ainda não estou dentro dela".
     /// </remarks>
     /// <param name="requisicao">Dados cadastrais.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost]
     [Authorize(Policy = Politicas.Autenticado)]
     [RegistrarEvento("formatura.criada")]
@@ -74,7 +68,6 @@ public sealed class FormaturaController(
     }
 
     /// <summary>Detalhe da formatura selecionada, com o status. Leitura: vale em qualquer status.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("atual")]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
     [ProducesResponseType(typeof(FormaturaDetalheDTO), StatusCodes.Status200OK)]
@@ -88,7 +81,6 @@ public sealed class FormaturaController(
 
     /// <summary>Edita os dados cadastrais. Recusa em formatura suspensa ou encerrada.</summary>
     /// <param name="requisicao">Dados novos.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPut("atual")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [RegistrarEvento("formatura.atualizada")]
@@ -103,7 +95,6 @@ public sealed class FormaturaController(
     }
 
     /// <summary>Encerra a formatura. Nada é apagado: leitura e exportação continuam.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("atual/encerrar")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [RegistrarEvento("formatura.encerrada")]
@@ -121,7 +112,6 @@ public sealed class FormaturaController(
     /// Descarta um rascunho que nunca foi pago. A turma some da lista de todos os membros; o
     /// cliente renova a sessão em seguida para sair dela.
     /// </summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("atual/descartar")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [RegistrarEvento("formatura.descartada")]
@@ -138,7 +128,6 @@ public sealed class FormaturaController(
     private string[] OrigensPermitidas => configuration.GetSection(ApiConfig.SecaoDeOrigens).Get<string[]>() ?? [];
 
     /// <summary>Lista as formaturas em que o usuário tem vínculo ativo.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("minhas")]
     [Authorize(Policy = Politicas.Autenticado)]
     [ProducesResponseType(typeof(IReadOnlyList<FormaturaDoUsuarioDTO>), StatusCodes.Status200OK)]
@@ -159,7 +148,6 @@ public sealed class FormaturaController(
     /// </remarks>
     /// <param name="id">Formatura pretendida.</param>
     /// <param name="requisicao">Refresh token atual, quando o modo cookie está desligado.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("{id:guid}/selecionar")]
     [Authorize(Policy = Politicas.Autenticado)]
     [RegistrarEvento("formatura.selecionada", CamposDaRota = ["id"])]

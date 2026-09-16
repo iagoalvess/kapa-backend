@@ -38,36 +38,4 @@ public sealed class ArquivoRepository(AppDbContext db) : IArquivoRepository
 
         return uso is null ? new UsoDeArmazenamento(0, 0) : new UsoDeArmazenamento(uso.Quantidade, uso.Bytes ?? 0);
     }
-
-    /// <inheritdoc />
-    public async Task<PaginaDe<ArquivoResumo>> Listar(
-        PaginacaoRequest paginacao,
-        string? categoria,
-        Guid? enviadoPorId,
-        CancellationToken ct = default
-    )
-    {
-        var consulta = db.Arquivos.AsNoTracking();
-
-        if (enviadoPorId is not null)
-            consulta = consulta.Where(a => a.EnviadoPorId == enviadoPorId);
-
-        if (!string.IsNullOrWhiteSpace(categoria))
-            consulta = consulta.Where(a => a.Categoria == categoria);
-
-        var total = await consulta.LongCountAsync(ct);
-
-        if (total == 0)
-            return PaginaDe<ArquivoResumo>.Vazia(paginacao);
-
-        var itens = await consulta
-            .OrderByDescending(a => a.CriadoEm)
-            .ThenBy(a => a.Id)
-            .Skip(paginacao.Pular)
-            .Take(paginacao.Tamanho)
-            .Select(a => new ArquivoResumo(a.Id, a.Nome, a.ContentType, a.Tamanho, a.Categoria, a.EnviadoPorId, a.CriadoEm))
-            .ToListAsync(ct);
-
-        return new PaginaDe<ArquivoResumo>(itens, paginacao.Pagina, paginacao.Tamanho, total);
-    }
 }

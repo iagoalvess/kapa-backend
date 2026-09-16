@@ -33,8 +33,8 @@ dotnet run --project src/Backend.Api
 ```bash
 dotnet csharpier check .                        # formatação
 dotnet build --warnaserror                      # compilação, aviso é erro
-dotnet test tests/Backend.UnitTests             # rápido, sem I/O
-dotnet test tests/Backend.IntegrationTests      # sobe Postgres em container — exige Docker
+dotnet test tests/Backend.UnitTests --no-build        # rápido, sem I/O
+dotnet test tests/Backend.IntegrationTests --no-build # sobe Postgres em container — exige Docker
 ```
 
 ---

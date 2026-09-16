@@ -23,6 +23,7 @@ public sealed class ConviteMapping : IEntityTypeConfiguration<Convite>
         builder.HasKey(c => c.Id);
 
         builder.Property(c => c.TokenHash).IsRequired().HasMaxLength(64);
+        builder.Property(c => c.Token).HasMaxLength(64);
         builder.Property(c => c.Email).HasMaxLength(256);
         builder.Property(c => c.Papel).IsRequired().HasMaxLength(20);
 

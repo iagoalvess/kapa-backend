@@ -1,5 +1,7 @@
 using Amazon;
 using Amazon.S3;
+using Backend.Business.Adesoes.Interfaces;
+using Backend.Business.Adesoes.Services;
 using Backend.Business.Admin.Interfaces;
 using Backend.Business.Admin.Services;
 using Backend.Business.Arquivos.Interfaces;
@@ -11,18 +13,33 @@ using Backend.Business.Assinaturas.Settings;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Services;
 using Backend.Business.Auth.Settings;
+using Backend.Business.Canais;
+using Backend.Business.Cobrancas.Interfaces;
+using Backend.Business.Cobrancas.Services;
 using Backend.Business.Common;
+using Backend.Business.Comunicacao.Interfaces;
+using Backend.Business.Comunicacao.Services;
 using Backend.Business.Convites.Interfaces;
 using Backend.Business.Convites.Services;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Services;
 using Backend.Business.Emails.Settings;
+using Backend.Business.Financeiro.Interfaces;
+using Backend.Business.Financeiro.Services;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formandos.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Services;
 using Backend.Business.Legal.Interfaces;
 using Backend.Business.Legal.Services;
+using Backend.Business.Notificacoes.Interfaces;
+using Backend.Business.Notificacoes.Services;
+using Backend.Business.Pagamentos.Interfaces;
+using Backend.Business.Pagamentos.Services;
+using Backend.Business.Recebimentos.Interfaces;
+using Backend.Business.Recebimentos.Services;
+using Backend.Business.Relatorios.Interfaces;
+using Backend.Business.Relatorios.Services;
 using Backend.Business.Usuarios.Interfaces;
 using Backend.Business.Usuarios.Services;
 using FluentValidation;
@@ -104,6 +121,8 @@ public static class DependenciasBusiness
     {
         var armazenamento = configuration.GetSection(ArmazenamentoSettings.Secao).Get<ArmazenamentoSettings>() ?? new ArmazenamentoSettings();
 
+        services.AddSingleton<UrlTemporariaLocal>();
+
         if (armazenamento.Provedor is not EProvedorDeArmazenamento.S3)
         {
             services.AddSingleton<IArmazenamentoDeArquivos, ArmazenamentoLocal>();
@@ -143,6 +162,27 @@ public static class DependenciasBusiness
         services.AddScoped<IMembroService, MembroService>();
         services.AddScoped<IConviteService, ConviteService>();
         services.AddScoped<IPerfilService, PerfilService>();
+        services.AddScoped<ICobrancaService, PlanoDeCobrancaService>();
+        services.AddScoped<IGeracaoDeParcelasService, GeracaoDeParcelasService>();
+        services.AddScoped<ITermoService, TermoService>();
+        services.AddScoped<IAdesaoService, AdesaoService>();
+        services.AddScoped<EmailsDeAdesao>();
+        services.AddScoped<IContaDeRecebimentoService, ContaDeRecebimentoService>();
+        services.AddScoped<EmailsDeRecebimento>();
+        services.AddScoped<IFornecedorService, FornecedorService>();
+        services.AddScoped<IDespesaService, DespesaService>();
+        services.AddScoped<ICaixaService, CaixaService>();
+        services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IRelatorioService, RelatorioService>();
+        services.AddScoped<IGeracaoDeRelatoriosService, GeracaoDeRelatoriosService>();
+        services.AddScoped<IAvisoService, AvisoService>();
+        services.AddScoped<IDocumentoService, DocumentoService>();
+        services.AddScoped<IPagamentoService, PagamentoService>();
+        services.AddScoped<INotificacaoService, NotificacaoService>();
+        services.AddScoped<IReguaService, ReguaService>();
+        services.AddScoped<ICanalDeNotificacao, CanalDeEmail>();
+        services.AddScoped<BaixaService>();
+        services.AddScoped<EmailsDePagamento>();
         services.AddScoped<ILegalService, LegalService>();
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IAdminService, AdminService>();

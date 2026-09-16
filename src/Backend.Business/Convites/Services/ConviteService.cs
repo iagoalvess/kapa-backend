@@ -70,8 +70,18 @@ public sealed class ConviteService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// Token de 32 bytes de CSPRNG em Base64Url, e só o SHA-256 vai para o banco — o mesmo padrão do
-    /// refresh token. Não é JWT: convite precisa ser revogável, e revogar exige o banco de qualquer forma.
+    /// Token de 32 bytes de CSPRNG em Base64Url, buscado pelo SHA-256 — o mesmo padrão do refresh
+    /// token. Não é JWT: convite precisa ser revogável, e revogar exige o banco de qualquer forma.
+    /// <para>
+    /// Validade e limite são fixos: 7 dias e um uso no nominal; no link da turma, 30 dias e o número
+    /// estimado de formandos de agora — o que fecha a porta para o link vazado. Turma que passou da
+    /// estimativa gera um link novo (ou corrige a estimativa antes).
+    /// </para>
+    /// <para>
+    /// Link da turma novo revoga o vigente na mesma transação: um link por turma, e é ele que a
+    /// listagem mostra para copiar. <c>ponytail:</c> dois cliques no mesmo instante deixam dois
+    /// vigentes; o próximo link gerado revoga os dois. Trava por turma se isso aparecer.
+    /// </para>
     /// </remarks>
     public async Task<Result<ConviteCriado>> Criar(Guid formaturaId, Guid usuarioId, CriarConvite dados, CancellationToken ct = default)
     {
@@ -94,6 +104,7 @@ public sealed class ConviteService(
                 "Contrate um plano para convidar formandos. Antes disso, dá para convidar a comissão."
             );
 
+        var agora = DateTime.UtcNow;
         var email = dados.Email?.Trim();
         var nominal = email is not null;
         var token = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
@@ -101,12 +112,22 @@ public sealed class ConviteService(
         var convite = new Convite
         {
             TokenHash = tokenService.CalcularHash(token),
+            Token = nominal ? null : token,
             Email = email,
             Papel = papel,
-            ExpiraEm = DateTime.UtcNow.AddDays(dados.DiasDeValidade ?? (nominal ? Convite.DiasDeValidadeDoNominal : Convite.DiasDeValidadeDoLink)),
-            UsosMaximos = nominal ? 1 : dados.UsosMaximos,
+            ExpiraEm = agora.AddDays(nominal ? Convite.DiasDeValidadeDoNominal : Convite.DiasDeValidadeDoLink),
+            UsosMaximos = nominal ? 1 : formatura.QuantidadeEstimadaDeFormandos,
             CriadoPorUsuarioId = usuarioId,
         };
+
+        if (!nominal)
+        {
+            foreach (var anterior in await conviteRepository.ListarLinksNaoRevogadosParaEdicao(ct))
+            {
+                if (anterior.StatusEm(agora) == StatusDoConvite.Pendente)
+                    anterior.Revogar(agora);
+            }
+        }
 
         var link = MontarLink(token);
 
@@ -121,8 +142,15 @@ public sealed class ConviteService(
     }
 
     /// <inheritdoc />
-    public async Task<Result<IReadOnlyList<ConviteResumo>>> Listar(CancellationToken ct = default) =>
-        Result.Ok(await conviteRepository.ListarRecentes(DateTime.UtcNow, LimiteDaListagem, ct));
+    /// <remarks>Expirado ou esgotado sai sem link: copiar um link que não abre só gera reclamação no grupo.</remarks>
+    public async Task<Result<IReadOnlyList<ConviteResumo>>> Listar(CancellationToken ct = default)
+    {
+        var convites = await conviteRepository.ListarRecentes(DateTime.UtcNow, LimiteDaListagem, ct);
+
+        return Result.Ok<IReadOnlyList<ConviteResumo>>([
+            .. convites.Select(c => c with { Link = c.Status == StatusDoConvite.Pendente && c.Link is { } t ? MontarLink(t) : null }),
+        ]);
+    }
 
     /// <inheritdoc />
     public async Task<Result> Revogar(Guid formaturaId, Guid usuarioId, Guid conviteId, CancellationToken ct = default)
@@ -264,7 +292,6 @@ public sealed class ConviteService(
     /// </remarks>
     /// <param name="token">Token recebido.</param>
     /// <param name="agoraUtc">Momento que decide a validade.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     private async Task<(Convite Convite, FormaturaDetalhe Formatura)?> ObterUtilizavel(string token, DateTime agoraUtc, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(token))
@@ -299,7 +326,6 @@ public sealed class ConviteService(
     /// </remarks>
     /// <param name="usuarioId">Quem está aceitando.</param>
     /// <param name="emailConvidado">E-mail do convite.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     /// <returns>O erro, ou <c>null</c> se a conta é dona do e-mail.</returns>
     private async Task<Erro?> ConferirDono(Guid usuarioId, string emailConvidado, CancellationToken ct)
     {
@@ -324,7 +350,6 @@ public sealed class ConviteService(
     /// <param name="papel">Papel do convite.</param>
     /// <param name="usuarioId">Autor.</param>
     /// <param name="formaturaId">Formatura da sessão.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     private async Task<bool> PodeTratarDoPapel(string papel, Guid usuarioId, Guid formaturaId, CancellationToken ct) =>
         papel == PapelNaFormatura.Formando || await vinculoRepository.ObterPapelAtivo(usuarioId, formaturaId, ct) == PapelNaFormatura.Presidente;
 

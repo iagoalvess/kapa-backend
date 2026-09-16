@@ -114,7 +114,6 @@ public sealed class LegalService(ILegalRepository legalRepository, IValidator<Re
     /// </remarks>
     /// <param name="aceite">Versão informada pelo usuário.</param>
     /// <param name="vigentes">Versões vigentes agora.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     private async Task<Result<VersaoDeDocumento>> ConferirVigente(
         AceiteDeDocumento aceite,
         IReadOnlyList<VersaoDeDocumento> vigentes,

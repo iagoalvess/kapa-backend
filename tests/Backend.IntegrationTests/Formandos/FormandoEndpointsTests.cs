@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using Backend.Api.DTOs.Comum;
+using System.Text.Json;
 using Backend.Api.DTOs.Formandos;
 using Backend.Business.Formaturas.Models;
 using Backend.Data.Criptografia;
@@ -24,6 +24,8 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
 
     private const string CpfValido = "529.982.247-25";
 
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static AtualizarPerfilRequestDTO Pessoais(string? cpf = CpfValido, string? telefone = "(41) 99876-5432") =>
@@ -35,7 +37,7 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
     {
         var formando = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Formando, Ct);
 
-        (await formando.Cliente.PutAsJsonAsync($"{Rota}/eu", Pessoais(), Ct)).EnsureSuccessStatusCode();
+        (await formando.Cliente.PutAsJsonAsync($"{Rota}/eu", Pessoais(), Json, Ct)).EnsureSuccessStatusCode();
 
         await using var contexto = fabrica.ContextoDe(null);
         var bruto = await contexto
@@ -61,7 +63,7 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
     {
         var membro = await fabrica.NovoMembro(await fabrica.CriarFormatura(status, Ct), PapelNaFormatura.Presidente, Ct);
 
-        var resposta = await membro.Cliente.PutAsJsonAsync($"{Rota}/eu", Pessoais(), Ct);
+        var resposta = await membro.Cliente.PutAsJsonAsync($"{Rota}/eu", Pessoais(), Json, Ct);
 
         resposta.StatusCode.ShouldBe(esperado);
     }
@@ -71,10 +73,10 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
     {
         var formando = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Formando, Ct);
 
-        var resposta = await formando.Cliente.PutAsJsonAsync($"{Rota}/eu", Pessoais(cpf: "529.982.247-24"), Ct);
+        var resposta = await formando.Cliente.PutAsJsonAsync($"{Rota}/eu", Pessoais(cpf: "529.982.247-24"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        var problema = await resposta.Content.ReadFromJsonAsync<ProblemaDeValidacao>(Ct);
+        var problema = await resposta.Content.ReadFromJsonAsync<ProblemaDeValidacao>(Json, Ct);
         problema!.Codigo.ShouldBe("perfil.cpf_invalido");
         problema.Errors.Keys.ShouldBe(["pessoais.cpf"]);
     }
@@ -87,9 +89,9 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
         var ana = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
         var bruno = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
 
-        (await ana.Cliente.PutAsJsonAsync($"{Rota}/eu", Pessoais(), Ct)).EnsureSuccessStatusCode();
-        var deBruno = await bruno.Cliente.GetFromJsonAsync<PerfilDoFormandoDTO>($"{Rota}/eu", Ct);
-        var deAna = await ana.Cliente.GetFromJsonAsync<PerfilDoFormandoDTO>($"{Rota}/eu", Ct);
+        (await ana.Cliente.PutAsJsonAsync($"{Rota}/eu", Pessoais(), Json, Ct)).EnsureSuccessStatusCode();
+        var deBruno = await bruno.Cliente.GetFromJsonAsync<PerfilDoFormandoDTO>($"{Rota}/eu", Json, Ct);
+        var deAna = await ana.Cliente.GetFromJsonAsync<PerfilDoFormandoDTO>($"{Rota}/eu", Json, Ct);
 
         deAna!.UsuarioId.ShouldBe(ana.UsuarioId);
         deAna.Pessoais.Cpf.ShouldBe("52998224725");
@@ -103,13 +105,12 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
     [InlineData(PapelNaFormatura.Tesoureiro, HttpStatusCode.OK)]
     [InlineData(PapelNaFormatura.Comissao, HttpStatusCode.OK)]
     [InlineData(PapelNaFormatura.Formando, HttpStatusCode.Forbidden)]
-    public async Task Lista_e_detalhe_seguem_a_politica_de_gestao(string papel, HttpStatusCode esperado)
+    public async Task Detalhe_segue_a_politica_de_gestao(string papel, HttpStatusCode esperado)
     {
         var formaturaId = await fabrica.CriarFormatura(Ct);
         var ator = await fabrica.NovoMembro(formaturaId, papel, Ct);
         var outro = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
 
-        (await ator.Cliente.GetAsync(Rota, Ct)).StatusCode.ShouldBe(esperado);
         (await ator.Cliente.GetAsync($"{Rota}/{outro.UsuarioId}", Ct)).StatusCode.ShouldBe(esperado);
     }
 
@@ -124,7 +125,7 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
         var ator = await fabrica.NovoMembro(formaturaId, papel, Ct);
         var alvo = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
 
-        var resposta = await ator.Cliente.PutAsJsonAsync($"{Rota}/{alvo.UsuarioId}", Pessoais(), Ct);
+        var resposta = await ator.Cliente.PutAsJsonAsync($"{Rota}/{alvo.UsuarioId}", Pessoais(), Json, Ct);
 
         resposta.StatusCode.ShouldBe(esperado);
     }
@@ -136,13 +137,32 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
         var alvo = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
 
-        (await presidente.Cliente.PutAsJsonAsync($"{Rota}/{alvo.UsuarioId}", Pessoais(), Ct)).EnsureSuccessStatusCode();
+        (await presidente.Cliente.PutAsJsonAsync($"{Rota}/{alvo.UsuarioId}", Pessoais(), Json, Ct)).EnsureSuccessStatusCode();
 
         await using var contexto = fabrica.ContextoDe(formaturaId);
         var perfil = await contexto.PerfisDeFormandos.SingleAsync(p => p.NomeCompleto == "Ana Souza", Ct);
         var correcao = await contexto.CorrecoesDePerfil.SingleAsync(c => c.PerfilId == perfil.Id, Ct);
         correcao.AutorUsuarioId.ShouldBe(presidente.UsuarioId);
         correcao.Secoes.ShouldBe("pessoais");
+    }
+
+    /// <summary>O CPF inteiro é só do titular: a comissão lê mascarado, e a correção não o toca.</summary>
+    [Fact]
+    public async Task Comissao_ve_o_cpf_mascarado_e_a_correcao_nao_o_altera()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+        (await formando.Cliente.PutAsJsonAsync($"{Rota}/eu", Pessoais(), Json, Ct)).EnsureSuccessStatusCode();
+
+        var visto = await presidente.Cliente.GetFromJsonAsync<PerfilDoFormandoDTO>($"{Rota}/{formando.UsuarioId}", Json, Ct);
+        var correcao = await presidente.Cliente.PutAsJsonAsync($"{Rota}/{formando.UsuarioId}", Pessoais(cpf: visto!.Pessoais.Cpf), Json, Ct);
+        var doTitular = await formando.Cliente.GetFromJsonAsync<PerfilDoFormandoDTO>($"{Rota}/eu", Json, Ct);
+
+        visto.Pessoais.Cpf.ShouldBe("***.982.247-**");
+        correcao.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await correcao.Content.ReadFromJsonAsync<PerfilDoFormandoDTO>(Json, Ct))!.Pessoais.Cpf.ShouldBe("***.982.247-**");
+        doTitular!.Pessoais.Cpf.ShouldBe("52998224725");
     }
 
     /// <summary>A formatura vem do token: formando de outra turma não existe aqui.</summary>
@@ -156,25 +176,6 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await resposta.Codigo(Ct)).ShouldBe("formando.nao_encontrado");
-    }
-
-    /// <summary>Quem nunca abriu o cadastro aparece como pendente — é quem a comissão quer achar.</summary>
-    [Fact]
-    public async Task Lista_traz_quem_nao_preencheu_e_filtra_por_situacao()
-    {
-        var formaturaId = await fabrica.CriarFormatura(Ct);
-        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
-        var preencheu = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
-        (await preencheu.Cliente.PutAsJsonAsync($"{Rota}/eu", Pessoais(), Ct)).EnsureSuccessStatusCode();
-
-        var todos = await Pagina(presidente, Rota);
-        var pendentes = await Pagina(presidente, $"{Rota}?situacao=Pendente");
-        var porNomeCivil = await Pagina(presidente, $"{Rota}?busca=souza");
-
-        todos.Total.ShouldBe(2);
-        todos.Itens.Single(f => f.UsuarioId == preencheu.UsuarioId).Completude.ShouldBe(30);
-        pendentes.Itens.Select(f => f.UsuarioId).ShouldBe([presidente.UsuarioId]);
-        porNomeCivil.Itens.Select(f => f.UsuarioId).ShouldBe([preencheu.UsuarioId]);
     }
 
     [Fact]
@@ -195,7 +196,7 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
         var resposta = await EnviarFoto(formando, Png(1600, 1200), "foto.png");
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var perfil = await resposta.Content.ReadFromJsonAsync<PerfilDoFormandoDTO>(Ct);
+        var perfil = await resposta.Content.ReadFromJsonAsync<PerfilDoFormandoDTO>(Json, Ct);
         var bytes = await formando.Cliente.GetByteArrayAsync($"/api/v1/arquivos/{perfil!.FotoArquivoId}/conteudo", Ct);
         using var imagem = SKBitmap.Decode(bytes);
         (imagem.Width, imagem.Height).ShouldBe((512, 384));
@@ -309,9 +310,6 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
 
         return membro.Cliente.PostAsync($"{Rota}/eu/foto", new MultipartFormDataContent { { arquivo, "foto", nome } }, Ct);
     }
-
-    private static async Task<PaginaDTO<FormandoResumoDTO>> Pagina(MembroDeTeste membro, string rota) =>
-        (await membro.Cliente.GetFromJsonAsync<PaginaDTO<FormandoResumoDTO>>(rota, Ct))!;
 
     private sealed record ProblemaDeValidacao(string Codigo, Dictionary<string, string[]> Errors);
 }

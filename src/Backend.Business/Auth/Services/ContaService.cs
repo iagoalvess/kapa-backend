@@ -209,9 +209,9 @@ public sealed class ContaService(
         [
             .. resultado.Errors.Select(erro =>
                 Erro.Validacao(
-                    $"identity.{erro.Code}",
+                    $"identity.{TextoUtils.ParaSnakeCase(erro.Code)}",
                     erro.Description,
-                    erro.Code == nameof(IdentityErrorDescriber.PasswordMismatch) ? "senhaAtual" : "novaSenha"
+                    erro.Code == nameof(IdentityErrorDescriber.PasswordMismatch) ? "senha_atual" : "nova_senha"
                 )
             ),
         ];

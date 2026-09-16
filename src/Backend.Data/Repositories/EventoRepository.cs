@@ -27,6 +27,9 @@ public sealed class EventoRepository(AppDbContext db) : IEventoRepository
     }
 
     /// <inheritdoc />
+    public async Task Adicionar(Evento evento, CancellationToken ct = default) => await db.Eventos.AddAsync(evento, ct);
+
+    /// <inheritdoc />
     public Task<int> RemoverAnterioresA(DateTime limiteUtc, CancellationToken ct = default) =>
         db.Eventos.Where(e => e.OcorridoEm < limiteUtc).ExecuteDeleteAsync(ct);
 }

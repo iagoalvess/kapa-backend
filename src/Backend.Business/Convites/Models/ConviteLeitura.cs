@@ -17,7 +17,7 @@ namespace Backend.Business.Convites.Models;
 /// </param>
 public sealed record ConvitePublico(string Turma, string Instituicao, string Papel, string? EmailMascarado);
 
-/// <summary>Um convite como a comissão o acompanha. Sem token: ele só existe na criação.</summary>
+/// <summary>Um convite como a comissão o acompanha.</summary>
 /// <param name="Id">Identificador, usado na revogação.</param>
 /// <param name="Email">E-mail convidado; nulo no link da turma.</param>
 /// <param name="Papel">Papel oferecido.</param>
@@ -26,6 +26,7 @@ public sealed record ConvitePublico(string Turma, string Instituicao, string Pap
 /// <param name="UsosFeitos">Quantas pessoas entraram por ele.</param>
 /// <param name="Status">Situação agora.</param>
 /// <param name="CriadoEm">Criação, em UTC.</param>
+/// <param name="Link">Endereço do link da turma vigente, para copiar de novo. Nulo no nominal e no link que já não vale.</param>
 public sealed record ConviteResumo(
     Guid Id,
     string? Email,
@@ -34,17 +35,16 @@ public sealed record ConviteResumo(
     int? UsosMaximos,
     int UsosFeitos,
     StatusDoConvite Status,
-    DateTime CriadoEm
+    DateTime CriadoEm,
+    string? Link
 );
 
-/// <summary>Pedido de convite.</summary>
+/// <summary>Pedido de convite. Validade e limite de entradas são fixos por tipo (<see cref="Convite"/>).</summary>
 /// <param name="Email">E-mail para o convite nominal; nulo cria o link da turma.</param>
 /// <param name="Papel">Papel oferecido; nulo é Formando.</param>
-/// <param name="DiasDeValidade">Validade em dias; nulo usa o padrão de cada tipo.</param>
-/// <param name="UsosMaximos">Limite de aceites do link; ignorado no nominal, que é sempre um.</param>
-public sealed record CriarConvite(string? Email, string? Papel, int? DiasDeValidade, int? UsosMaximos);
+public sealed record CriarConvite(string? Email, string? Papel);
 
-/// <summary>Convite recém-criado, com o link — a única vez que ele aparece.</summary>
+/// <summary>Convite recém-criado, com o link. No nominal, é a única vez que ele aparece.</summary>
 /// <param name="Id">Identificador.</param>
 /// <param name="Link">Endereço de aceite, com o token.</param>
 /// <param name="ExpiraEm">Validade, em UTC.</param>

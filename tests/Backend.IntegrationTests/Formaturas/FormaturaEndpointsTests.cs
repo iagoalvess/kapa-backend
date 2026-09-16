@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Backend.Api.DTOs.Auth;
 using Backend.Api.DTOs.Formaturas;
 using Backend.Business.Auth.Services;
@@ -19,6 +20,8 @@ namespace Backend.IntegrationTests.Formaturas;
 [Collection(ColecaoDeApi.Nome)]
 public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
 {
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -34,7 +37,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
         await CriarFormaturaCom(await OutroUsuario(), PapelNaFormatura.Presidente, ativo: true);
 
         // Act
-        var minhas = await cliente.ComToken(tokens.AccessToken).GetFromJsonAsync<FormaturaDoUsuarioDTO[]>("/api/v1/formaturas/minhas", Ct);
+        var minhas = await cliente.ComToken(tokens.AccessToken).GetFromJsonAsync<FormaturaDoUsuarioDTO[]>("/api/v1/formaturas/minhas", Json, Ct);
 
         // Assert
         minhas.ShouldNotBeNull();
@@ -85,7 +88,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
 
         var resposta = await cliente.RenovarComCorpoVazio(Ct);
         resposta.EnsureSuccessStatusCode();
-        var renovados = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Ct))!;
+        var renovados = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, Ct))!;
 
         Claim(renovados.AccessToken, TokenService.ClaimDeFormatura).ShouldBe(formaturaId.ToString());
         Claim(renovados.AccessToken, TokenService.ClaimDePapel).ShouldBe(PapelNaFormatura.Comissao);
@@ -108,7 +111,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
 
         var resposta = await cliente.RenovarComCorpoVazio(Ct);
         resposta.EnsureSuccessStatusCode();
-        var renovados = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Ct))!;
+        var renovados = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, Ct))!;
 
         Claim(renovados.AccessToken, TokenService.ClaimDeFormatura).ShouldBeNull();
     }
@@ -257,7 +260,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
 
         resposta.EnsureSuccessStatusCode();
 
-        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Ct))!;
+        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, Ct))!;
     }
 
     /// <summary>
@@ -303,7 +306,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
 
     private static async Task<string?> Codigo(HttpResponseMessage resposta)
     {
-        var problema = await resposta.Content.ReadFromJsonAsync<Dictionary<string, object>>(Ct);
+        var problema = await resposta.Content.ReadFromJsonAsync<Dictionary<string, object>>(Json, Ct);
 
         return problema?.GetValueOrDefault("codigo")?.ToString();
     }

@@ -17,9 +17,9 @@ namespace Backend.UnitTests.Api;
 /// para a seleção, e o outro não se resolve de jeito nenhum.
 /// </summary>
 /// <remarks>
-/// Unitário porque nenhum endpoint usa <c>FormaturaSelecionada</c> ainda. O outro lado — sem
-/// formatura, barrado por política de administrador, responde <c>auth.sem_permissao</c> — está
-/// nos testes de integração, onde o <c>OnForbidden</c> do JWT roda de verdade.
+/// Unitário porque aqui se monta a falha de autorização à mão, sem subir o host. O outro lado —
+/// sem formatura, barrado por política de administrador, responde <c>auth.sem_permissao</c> —
+/// está nos testes de integração, onde o <c>OnForbidden</c> do JWT roda de verdade.
 /// </remarks>
 public sealed class RespostaDeAutorizacaoTests
 {

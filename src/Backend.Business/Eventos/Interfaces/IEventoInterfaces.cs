@@ -34,8 +34,18 @@ public interface IEventoRepository
     /// clique não escala. A gravação acontece fora do caminho da requisição.
     /// </remarks>
     /// <param name="eventos">Eventos a gravar.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task GravarLote(IReadOnlyList<Evento> eventos, CancellationToken ct = default);
+
+    /// <summary>
+    /// Marca um evento para gravar junto com a operação que o originou, no <c>SalvarAsync</c> dela.
+    /// </summary>
+    /// <remarks>
+    /// Para auditoria, e não para analytics: a troca da chave PIX não pode acontecer sem deixar
+    /// rastro, e a fila de <see cref="IRegistradorDeEventos"/> descarta quando está cheia. Aqui o
+    /// evento e a troca ficam os dois, ou nenhum.
+    /// </remarks>
+    /// <param name="evento">Evento a gravar.</param>
+    Task Adicionar(Evento evento, CancellationToken ct = default);
 
     /// <summary>
     /// Apaga eventos anteriores ao limite.
@@ -45,7 +55,6 @@ public interface IEventoRepository
     /// mais cresce, porque registra atividade e não estado.
     /// </remarks>
     /// <param name="limiteUtc">Só remove eventos anteriores a este instante.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     /// <returns>Quantidade de eventos removidos.</returns>
     Task<int> RemoverAnterioresA(DateTime limiteUtc, CancellationToken ct = default);
 }

@@ -1,0 +1,356 @@
+using Backend.Business.Abstractions;
+using Backend.Business.Adesoes.Interfaces;
+using Backend.Business.Adesoes.Models;
+using Backend.Business.Adesoes.Services;
+using Backend.Business.Adesoes.Validators;
+using Backend.Business.Cobrancas.Interfaces;
+using Backend.Business.Cobrancas.Models;
+using Backend.Business.Common;
+using Backend.Business.Common.Datas;
+using Backend.Business.Emails.Interfaces;
+using Backend.Business.Emails.Models;
+using Backend.Business.Formandos.Interfaces;
+using Backend.Business.Formandos.Models;
+using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Formaturas.Models;
+using Backend.Business.Legal.Models;
+using Backend.Business.Usuarios.Models;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using NSubstitute;
+using Shouldly;
+
+namespace Backend.UnitTests.Adesoes;
+
+/// <summary>
+/// O aceite do termo: cada recusa da sprint na ordem certa, e que recusar não grava nem gera nada.
+/// </summary>
+public sealed class AdesaoServiceTests
+{
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    private static readonly Guid FormaturaId = Guid.CreateVersion7();
+    private static readonly Guid UsuarioId = Guid.CreateVersion7();
+    private static readonly Guid VinculoId = Guid.CreateVersion7();
+    private static readonly OrigemDoAceite Origem = new("203.0.113.7", "Navegador de teste");
+
+    /// <summary>Os seis dígitos que o <c>UserManager</c> substituto aceita.</summary>
+    private const string CodigoCerto = "123456";
+
+    private readonly IAdesaoRepository _adesoes = Substitute.For<IAdesaoRepository>();
+    private readonly IPlanoDeCobrancaRepository _planos = Substitute.For<IPlanoDeCobrancaRepository>();
+    private readonly IPerfilRepository _perfis = Substitute.For<IPerfilRepository>();
+    private readonly IFormaturaRepository _formaturas = Substitute.For<IFormaturaRepository>();
+    private readonly IGeracaoDeParcelasService _geracao = Substitute.For<IGeracaoDeParcelasService>();
+    private readonly IEmailService _email = Substitute.For<IEmailService>();
+    private readonly UserManager<Usuario> _userManager = Substitute.For<UserManager<Usuario>>(
+        Substitute.For<IUserStore<Usuario>>(),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+    );
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+
+    private readonly VersaoDoTermo _termo = new(Guid.CreateVersion7(), 1, "# Termo\n\nTexto do termo.", DateTime.UtcNow);
+    private readonly PlanoDeCobranca _plano = PlanoVigente();
+
+    public AdesaoServiceTests()
+    {
+        _adesoes.ObterTermoVigente(Arg.Any<CancellationToken>()).Returns(_termo);
+        _planos.ObterVigente(Arg.Any<CancellationToken>()).Returns(_plano);
+        _perfis
+            .ObterMembro(FormaturaId, UsuarioId, Arg.Any<CancellationToken>())
+            .Returns(new MembroDoPerfil(VinculoId, UsuarioId, "Ana", "ana@kapa.dev", PapelNaFormatura.Formando));
+        _perfis.ObterDoVinculo(VinculoId, Arg.Any<CancellationToken>()).Returns(Perfil());
+        _geracao.Gerar(VinculoId, Arg.Any<PlanoDeCobranca>(), Arg.Any<CancellationToken>()).Returns(Result.Ok(24));
+
+        _userManager.FindByIdAsync(UsuarioId.ToString()).Returns(new Usuario { Id = UsuarioId, Email = "ana@kapa.dev" });
+        _userManager
+            .GenerateUserTokenAsync(Arg.Any<Usuario>(), TokenOptions.DefaultEmailProvider, AdesaoService.FinalidadeDoCodigo)
+            .Returns(CodigoCerto);
+        _userManager
+            .VerifyUserTokenAsync(Arg.Any<Usuario>(), TokenOptions.DefaultEmailProvider, AdesaoService.FinalidadeDoCodigo, CodigoCerto)
+            .Returns(true);
+    }
+
+    private AdesaoService Servico =>
+        new(
+            _adesoes,
+            _planos,
+            _perfis,
+            _formaturas,
+            _geracao,
+            new EmailsDeAdesao(_email, Options.Create(new AplicacaoSettings())),
+            _userManager,
+            new AderirAoTermoValidator(),
+            _unitOfWork,
+            NullLogger<AdesaoService>.Instance
+        );
+
+    private static PlanoDeCobranca PlanoVigente()
+    {
+        var plano = new PlanoDeCobranca { Nome = "Plano 2027" };
+        plano.Itens.Add(ItemDeCobranca.Novo(plano.Id, new DadosDoItem(TipoDeCobranca.Mensalidade, null, 840_000, 24, 10, new DateOnly(2027, 3, 1))));
+        plano.Vigorar(DateTime.UtcNow);
+
+        return plano;
+    }
+
+    private static PerfilDoFormando Perfil(string? nome = "Ana Souza", string? cpf = "52998224725", DateOnly? nascimento = null)
+    {
+        var perfil = new PerfilDoFormando { VinculoId = VinculoId };
+        perfil.Aplicar(
+            new AtualizarPerfil(new DadosPessoais(nome, null, cpf, null, null, null, nascimento ?? new DateOnly(2000, 5, 20), null), null, null)
+        );
+
+        return perfil;
+    }
+
+    private string HashCerto => AdesaoDoFormando.CalcularHash(_termo.Conteudo, SnapshotDoPlano.De(_plano).ParaJson());
+
+    private Task<Result<AdesaoDetalhe>> Aderir(string? hash = null, string codigo = CodigoCerto) =>
+        Servico.Aderir(FormaturaId, UsuarioId, new AderirAoTermo(hash ?? HashCerto, codigo), Origem, Ct);
+
+    [Fact]
+    public async Task Aceite_grava_prova_plano_congelado_parcelas_e_email_num_so_commit()
+    {
+        // Act
+        var resultado = await Aderir();
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        await _adesoes
+            .Received(1)
+            .Adicionar(
+                Arg.Is<AdesaoDoFormando>(a =>
+                    a.VinculoId == VinculoId
+                    && a.TermoId == _termo.Id
+                    && a.Versao == 1
+                    && a.HashDoConteudo == HashCerto
+                    && a.EnderecoIp == "203.0.113.7"
+                    && a.UserAgent == "Navegador de teste"
+                    && a.NomeCompleto == "Ana Souza"
+                    && a.Cpf == "52998224725"
+                    && a.EmailDoAceite == "ana@kapa.dev"
+                    && a.LerPlano().TotalEmCentavos == 840_000
+                ),
+                Ct
+            );
+        await _geracao.Received(1).Gerar(VinculoId, _plano, Ct);
+        await _email.Received(1).Enfileirar(Arg.Is<NovoEmail>(e => e.Para == "ana@kapa.dev"), Ct);
+        await _unitOfWork.Received(1).SalvarAsync(Ct);
+    }
+
+    [Fact]
+    public async Task Sem_termo_publicado_devolve_conflito()
+    {
+        _adesoes.ObterTermoVigente(Arg.Any<CancellationToken>()).Returns((VersaoDoTermo?)null);
+
+        (await Aderir(new string('a', 64))).PrimeiroErro.Codigo.ShouldBe("adesao.sem_termo_publicado");
+    }
+
+    [Fact]
+    public async Task Sem_plano_vigente_devolve_conflito()
+    {
+        _planos.ObterVigente(Arg.Any<CancellationToken>()).Returns((PlanoDeCobranca?)null);
+
+        (await Aderir(new string('a', 64))).PrimeiroErro.Codigo.ShouldBe("adesao.sem_plano_vigente");
+    }
+
+    [Fact]
+    public async Task Aderir_de_novo_a_mesma_versao_devolve_conflito()
+    {
+        _adesoes.JaAderiu(VinculoId, _termo.Id, Arg.Any<CancellationToken>()).Returns(true);
+
+        (await Aderir()).PrimeiroErro.Codigo.ShouldBe("adesao.ja_aderiu");
+        await NadaFoiGravado();
+    }
+
+    /// <summary>O hash cobre o plano: mudar o plano enquanto a pessoa lê invalida o que ela viu.</summary>
+    [Fact]
+    public async Task Hash_do_plano_anterior_devolve_termo_desatualizado_e_nao_gera_parcela()
+    {
+        var hashVisto = HashCerto;
+        _plano.PercentualDeMulta = 200;
+
+        (await Aderir(hashVisto)).PrimeiroErro.Codigo.ShouldBe("adesao.termo_desatualizado");
+        await NadaFoiGravado();
+    }
+
+    [Theory]
+    [InlineData(null, "52998224725")]
+    [InlineData("Ana Souza", null)]
+    public async Task Sem_nome_ou_cpf_no_cadastro_devolve_cadastro_incompleto(string? nome, string? cpf)
+    {
+        _perfis.ObterDoVinculo(VinculoId, Arg.Any<CancellationToken>()).Returns(Perfil(nome, cpf));
+
+        (await Aderir()).PrimeiroErro.Codigo.ShouldBe("adesao.cadastro_incompleto");
+        await NadaFoiGravado();
+    }
+
+    [Fact]
+    public async Task Cadastro_nunca_aberto_lista_as_tres_pendencias()
+    {
+        _perfis.ObterDoVinculo(VinculoId, Arg.Any<CancellationToken>()).Returns((PerfilDoFormando?)null);
+
+        var minha = (await Servico.ObterMinha(FormaturaId, UsuarioId, Ct)).Valor;
+
+        minha.Pendencias.ShouldBe(["nomeCompleto", "cpf", "dataDeNascimento"]);
+        minha.Adesao.ShouldBeNull();
+    }
+
+    /// <summary>Decisão de 14/09/2026: menor de 18 adere com a comissão, fora da plataforma.</summary>
+    [Fact]
+    public async Task Menor_de_18_anos_nao_adere()
+    {
+        var dezessete = DataUtils.Hoje().AddYears(-18).AddDays(1);
+        _perfis.ObterDoVinculo(VinculoId, Arg.Any<CancellationToken>()).Returns(Perfil(nascimento: dezessete));
+
+        (await Aderir()).PrimeiroErro.Codigo.ShouldBe("adesao.menor_de_idade");
+        (await Servico.ObterMinha(FormaturaId, UsuarioId, Ct)).Valor.MenorDeIdade.ShouldBeTrue();
+        await NadaFoiGravado();
+    }
+
+    [Fact]
+    public async Task Quem_faz_18_hoje_adere()
+    {
+        _perfis.ObterDoVinculo(VinculoId, Arg.Any<CancellationToken>()).Returns(Perfil(nascimento: DataUtils.Hoje().AddYears(-18)));
+
+        (await Aderir()).Sucesso.ShouldBeTrue();
+    }
+
+    /// <summary>Decisão de 14/09/2026: o mesmo CPF não adere duas vezes na turma.</summary>
+    [Fact]
+    public async Task Cpf_ja_usado_por_outro_vinculo_devolve_conflito()
+    {
+        _adesoes.CpfEmUsoPorOutro("52998224725", VinculoId, Arg.Any<CancellationToken>()).Returns(true);
+
+        (await Aderir()).PrimeiroErro.Codigo.ShouldBe("adesao.cpf_em_uso");
+        await NadaFoiGravado();
+    }
+
+    /// <summary>Sem o código do e-mail não há aceite: é ele que separa a sessão aberta de quem tem a caixa de entrada.</summary>
+    [Fact]
+    public async Task Codigo_que_nao_confere_nao_grava_adesao_nem_gera_parcela()
+    {
+        (await Aderir(codigo: "000000")).PrimeiroErro.Codigo.ShouldBe("adesao.codigo_invalido");
+        await NadaFoiGravado();
+    }
+
+    /// <summary>O código é conferido por último: o cadastro incompleto aparece antes de a janela começar a correr.</summary>
+    [Fact]
+    public async Task Cadastro_incompleto_e_recusado_antes_de_conferir_o_codigo()
+    {
+        _perfis.ObterDoVinculo(VinculoId, Arg.Any<CancellationToken>()).Returns(Perfil(cpf: null));
+
+        (await Aderir(codigo: "000000")).PrimeiroErro.Codigo.ShouldBe("adesao.cadastro_incompleto");
+    }
+
+    [Fact]
+    public async Task Codigo_solicitado_vai_por_email_com_o_destino_mascarado()
+    {
+        var resultado = await Servico.SolicitarCodigo(FormaturaId, UsuarioId, Ct);
+
+        resultado.Valor.Email.ShouldBe("an*@kapa.dev");
+        await _email
+            .Received(1)
+            .Enfileirar(
+                Arg.Is<NovoEmail>(e =>
+                    e.Para == "ana@kapa.dev"
+                    && e.Assunto.Contains(CodigoCerto, StringComparison.Ordinal)
+                    && e.CorpoHtml.Contains(CodigoCerto, StringComparison.Ordinal)
+                ),
+                Ct
+            );
+        await _unitOfWork.Received(1).SalvarAsync(Ct);
+    }
+
+    /// <summary>Quem já aderiu não recebe código: seria um código para uma tela que recusa o aceite.</summary>
+    [Fact]
+    public async Task Codigo_nao_e_enviado_a_quem_ja_aderiu()
+    {
+        _adesoes.JaAderiu(VinculoId, _termo.Id, Arg.Any<CancellationToken>()).Returns(true);
+
+        (await Servico.SolicitarCodigo(FormaturaId, UsuarioId, Ct)).PrimeiroErro.Codigo.ShouldBe("adesao.ja_aderiu");
+        await _email.DidNotReceiveWithAnyArgs().Enfileirar(default!, Ct);
+    }
+
+    /// <summary>Se a geração recusa, nada é salvo: sem parcela não há adesão.</summary>
+    [Fact]
+    public async Task Geracao_recusada_nao_salva_a_adesao()
+    {
+        _geracao
+            .Gerar(VinculoId, Arg.Any<PlanoDeCobranca>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Falha<int>(Erro.Conflito("cobranca.sem_plano_vigente", "Sem plano.")));
+
+        (await Aderir()).Falhou.ShouldBeTrue();
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
+    }
+
+    [Fact]
+    public async Task Pdf_de_outro_formando_nao_existe_para_quem_nao_e_da_gestao()
+    {
+        var adesao = AdesaoGravada(vinculoId: Guid.CreateVersion7());
+
+        var resultado = await Servico.ObterPdf(FormaturaId, adesao.Adesao.Id, UsuarioId, Ct);
+
+        resultado.PrimeiroErro.Codigo.ShouldBe("adesao.nao_encontrada");
+    }
+
+    [Theory]
+    [InlineData(PapelNaFormatura.Comissao)]
+    [InlineData(PapelNaFormatura.Tesoureiro)]
+    [InlineData(PapelNaFormatura.Presidente)]
+    public async Task Gestao_baixa_o_pdf_de_qualquer_formando(string papel)
+    {
+        var adesao = AdesaoGravada(vinculoId: Guid.CreateVersion7());
+        _perfis
+            .ObterMembro(FormaturaId, UsuarioId, Arg.Any<CancellationToken>())
+            .Returns(new MembroDoPerfil(VinculoId, UsuarioId, "Ana", "ana@kapa.dev", papel));
+
+        (await Servico.ObterPdf(FormaturaId, adesao.Adesao.Id, UsuarioId, Ct)).Sucesso.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Lembrete_para_quem_ja_aderiu_a_versao_vigente_devolve_conflito()
+    {
+        _adesoes.JaAderiu(VinculoId, _termo.Id, Arg.Any<CancellationToken>()).Returns(true);
+
+        (await Servico.Lembrar(FormaturaId, UsuarioId, Ct)).PrimeiroErro.Codigo.ShouldBe("adesao.ja_aderiu");
+        await _email.DidNotReceiveWithAnyArgs().Enfileirar(default!, Ct);
+    }
+
+    private AdesaoComTermo AdesaoGravada(Guid vinculoId)
+    {
+        var adesao = new AdesaoComTermo(
+            new AdesaoDoFormando
+            {
+                VinculoId = vinculoId,
+                TermoId = _termo.Id,
+                Versao = 1,
+                HashDoConteudo = HashCerto,
+                AceitoEm = DateTime.UtcNow,
+                NomeCompleto = "Bruno Lima",
+                Cpf = "11144477735",
+                PlanoAceito = SnapshotDoPlano.De(_plano).ParaJson(),
+            },
+            _termo.Conteudo
+        );
+        _adesoes.Obter(adesao.Adesao.Id, Arg.Any<CancellationToken>()).Returns(adesao);
+
+        return adesao;
+    }
+
+    private async Task NadaFoiGravado()
+    {
+        await _adesoes.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+        await _geracao.DidNotReceiveWithAnyArgs().Gerar(default, default!, Ct);
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
+    }
+}

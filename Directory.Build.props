@@ -9,9 +9,13 @@
     <InvariantGlobalization>false</InvariantGlobalization>
 
     <!-- A convenção do projeto é documentar com /// <summary>; 1591 exigiria
-         doc em absolutamente tudo (inclusive DTOs), o que vira ruído. -->
+         doc em absolutamente tudo (inclusive DTOs), o que vira ruído.
+         1573 pelo mesmo motivo: quase todo método do projeto recebe um
+         CancellationToken chamado "ct", sempre com o mesmo significado.
+         Documentá-lo um por um eram 400 linhas dizendo a mesma coisa, e é o
+         tipo de comentário que treina quem lê a pular o bloco inteiro. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591</NoWarn>
+    <NoWarn>$(NoWarn);1591;1573</NoWarn>
 
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest-recommended</AnalysisLevel>

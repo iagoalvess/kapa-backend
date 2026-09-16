@@ -16,9 +16,6 @@ namespace Backend.Business.Convites.Validators;
 /// </remarks>
 public sealed class CriarConviteValidator : AbstractValidator<CriarConvite>
 {
-    /// <summary>Validade máxima, em dias — o link da turma dura no máximo um semestre.</summary>
-    public const int MaximoDeDias = 180;
-
     /// <summary>Registra as regras de validação.</summary>
     public CriarConviteValidator()
     {
@@ -41,15 +38,5 @@ public sealed class CriarConviteValidator : AbstractValidator<CriarConvite>
             .WithErrorCode("convite.link_so_para_formando")
             .WithMessage("O link da turma só convida formandos. Para a comissão, envie o convite por e-mail.")
             .When(x => x.Email is null && x.Papel is not null && PapelNaFormatura.Todos.Contains(x.Papel, StringComparer.Ordinal));
-
-        RuleFor(x => x.DiasDeValidade)
-            .InclusiveBetween(1, MaximoDeDias)
-            .WithMessage($"A validade vai de 1 a {MaximoDeDias} dias.")
-            .When(x => x.DiasDeValidade is not null);
-
-        RuleFor(x => x.UsosMaximos)
-            .GreaterThan(0)
-            .WithMessage("O limite de entradas precisa ser maior que zero.")
-            .When(x => x.UsosMaximos is not null);
     }
 }

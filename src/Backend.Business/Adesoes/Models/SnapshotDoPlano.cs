@@ -1,0 +1,107 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Backend.Business.Cobrancas.Models;
+using Backend.Business.Common.Texto;
+
+namespace Backend.Business.Adesoes.Models;
+
+/// <summary>
+/// O plano financeiro congelado no instante do aceite: o que exatamente o formando concordou em pagar.
+/// </summary>
+/// <remarks>
+/// O plano muda — a mensalidade sobe em outubro, um item é encerrado. Sem esta cópia, "o que o João
+/// aceitou pagar em março?" não teria resposta, e é a única pergunta que importa quando alguém
+/// contesta a cobrança.
+/// <para>
+/// Gravado como JSON na adesão, com <see cref="VersaoDoEsquema"/>: a leitura ignora campo que não
+/// conhece, e um campo novo no futuro não quebra o snapshot de hoje. Enum sai como texto — reordenar
+/// <see cref="TipoDeCobranca"/> não pode transformar a mensalidade de ontem em rifa.
+/// </para>
+/// </remarks>
+/// <param name="VersaoDoEsquema">Forma deste JSON. Hoje, <see cref="EsquemaAtual"/>.</param>
+/// <param name="PlanoId">Plano de origem.</param>
+/// <param name="NomeDoPlano">Nome do plano no dia do aceite.</param>
+/// <param name="PercentualDeMulta">Multa por atraso, base 10.000.</param>
+/// <param name="PercentualDeJurosAoMes">Juros de mora ao mês, base 10.000.</param>
+/// <param name="CarenciaEmDias">Dias depois do vencimento sem multa nem juros.</param>
+/// <param name="PercentualDeDescontoPorAntecipacao">Desconto por pagamento antecipado, base 10.000.</param>
+/// <param name="Itens">Itens que cobravam, na ordem do plano.</param>
+/// <param name="Parcelas">A grade do formando, por vencimento.</param>
+/// <param name="TotalEmCentavos">Soma das parcelas.</param>
+public sealed record SnapshotDoPlano(
+    int VersaoDoEsquema,
+    Guid PlanoId,
+    string NomeDoPlano,
+    int PercentualDeMulta,
+    int PercentualDeJurosAoMes,
+    int CarenciaEmDias,
+    int PercentualDeDescontoPorAntecipacao,
+    IReadOnlyList<DadosDoItem> Itens,
+    IReadOnlyList<ParcelaSimulada> Parcelas,
+    long TotalEmCentavos
+)
+{
+    /// <summary>Versão atual da forma do JSON.</summary>
+    public const int EsquemaAtual = 1;
+
+    /// <summary>
+    /// Serialização fixa: a mesma entrada produz sempre o mesmo texto, e o hash do aceite é calculado
+    /// sobre ele. Acento sai legível — o texto é lido no <c>psql</c>, nunca posto em HTML.
+    /// </summary>
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
+    /// <summary>Congela o plano vigente.</summary>
+    /// <param name="plano">Plano em vigor, com os itens.</param>
+    public static SnapshotDoPlano De(PlanoDeCobranca plano)
+    {
+        var itens = plano.DadosDosItensAtivos();
+        var parcelas = GradeDeParcelas.DoFormando(itens);
+
+        return new SnapshotDoPlano(
+            EsquemaAtual,
+            plano.Id,
+            plano.Nome,
+            plano.PercentualDeMulta,
+            plano.PercentualDeJurosAoMes,
+            plano.CarenciaEmDias,
+            plano.PercentualDeDescontoPorAntecipacao,
+            itens,
+            parcelas,
+            parcelas.Sum(parcela => parcela.ValorEmCentavos)
+        );
+    }
+
+    /// <summary>Lê um snapshot gravado.</summary>
+    /// <param name="json">Texto como está na adesão.</param>
+    public static SnapshotDoPlano Ler(string json) =>
+        JsonSerializer.Deserialize<SnapshotDoPlano>(json, Json) ?? throw new InvalidOperationException("Snapshot de plano vazio.");
+
+    /// <summary>O texto que vai para a adesão — e para o hash do aceite.</summary>
+    public string ParaJson() => JsonSerializer.Serialize(this, Json);
+
+    /// <summary>As regras de atraso aceitas — as que o valor do dia usa (Sprint 9).</summary>
+    /// <remarks>Método, e não propriedade: propriedade entraria no JSON e mudaria o hash das adesões novas.</remarks>
+    public RegrasDeAtraso Regras() => new(PercentualDeMulta, PercentualDeJurosAoMes, CarenciaEmDias, PercentualDeDescontoPorAntecipacao);
+
+    /// <summary>
+    /// As regras de atraso numa frase — "multa de 2% e juros de 1% ao mês…" —, a mesma no PDF e no e-mail.
+    /// </summary>
+    public string RegrasDeAtrasoPorExtenso()
+    {
+        var atraso =
+            PercentualDeMulta == 0 && PercentualDeJurosAoMes == 0
+                ? "Sem multa nem juros em caso de atraso."
+                : $"Em caso de atraso: multa de {FormatosBrasileiros.Percentual(PercentualDeMulta)} e juros de "
+                    + $"{FormatosBrasileiros.Percentual(PercentualDeJurosAoMes)} ao mês"
+                    + (CarenciaEmDias > 0 ? $", depois de {CarenciaEmDias} dias de carência." : ".");
+
+        return PercentualDeDescontoPorAntecipacao > 0
+            ? $"{atraso} Desconto de {FormatosBrasileiros.Percentual(PercentualDeDescontoPorAntecipacao)} para pagamento antes do vencimento."
+            : atraso;
+    }
+}

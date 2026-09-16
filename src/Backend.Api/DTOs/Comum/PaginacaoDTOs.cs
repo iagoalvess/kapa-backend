@@ -7,10 +7,19 @@ namespace Backend.Api.DTOs.Comum;
 /// </summary>
 /// <param name="Pagina">Página desejada, começando em 1.</param>
 /// <param name="Tamanho">Itens por página. O teto é aplicado no servidor.</param>
-public sealed record PaginacaoRequestDTO(int Pagina = 1, int Tamanho = 20)
+/// <param name="OrdenarPor">Coluna da ordenação, no nome que a tela usa. Coluna que a listagem não aceita é ignorada.</param>
+/// <param name="Descendente">Se a ordenação é decrescente.</param>
+public sealed record PaginacaoRequestDTO(int Pagina = 1, int Tamanho = 20, string? OrdenarPor = null, bool Descendente = false)
 {
     /// <summary>Converte para o modelo de paginação da camada de negócio.</summary>
-    public PaginacaoRequest ParaModelo() => new() { Pagina = Pagina, Tamanho = Tamanho };
+    public PaginacaoRequest ParaModelo() =>
+        new()
+        {
+            Pagina = Pagina,
+            Tamanho = Tamanho,
+            OrdenarPor = OrdenarPor,
+            Descendente = Descendente,
+        };
 }
 
 /// <summary>

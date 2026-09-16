@@ -1,18 +1,27 @@
 using System.Reflection;
 using Backend.Business.Abstractions;
+using Backend.Business.Adesoes.Models;
 using Backend.Business.Arquivos.Models;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Auth.Models;
+using Backend.Business.Cobrancas.Models;
+using Backend.Business.Comunicacao.Models;
 using Backend.Business.Convites.Models;
 using Backend.Business.Emails.Models;
 using Backend.Business.Eventos.Models;
+using Backend.Business.Financeiro.Models;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Legal.Models;
+using Backend.Business.Notificacoes.Models;
+using Backend.Business.Pagamentos.Models;
+using Backend.Business.Recebimentos.Models;
+using Backend.Business.Relatorios.Models;
 using Backend.Business.Usuarios.Models;
 using Backend.Data.Criptografia;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Backend.Data.Context;
 
@@ -87,6 +96,51 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Correções feitas pela comissão no cadastro de um formando.</summary>
     public DbSet<CorrecaoDePerfil> CorrecoesDePerfil => Set<CorrecaoDePerfil>();
 
+    /// <summary>Planos de cobrança de cada formatura.</summary>
+    public DbSet<PlanoDeCobranca> PlanosDeCobranca => Set<PlanoDeCobranca>();
+
+    /// <summary>Itens dos planos de cobrança.</summary>
+    public DbSet<ItemDeCobranca> ItensDeCobranca => Set<ItemDeCobranca>();
+
+    /// <summary>Parcelas devidas pelos formandos, uma por vencimento.</summary>
+    public DbSet<Parcela> Parcelas => Set<Parcela>();
+
+    /// <summary>Versões do termo de adesão de cada formatura.</summary>
+    public DbSet<TermoDaFormatura> TermosDeAdesao => Set<TermoDaFormatura>();
+
+    /// <summary>Aceites do termo de adesão, com o plano congelado.</summary>
+    public DbSet<AdesaoDoFormando> Adesoes => Set<AdesaoDoFormando>();
+
+    /// <summary>A chave PIX de cada formatura, uma por turma.</summary>
+    public DbSet<ContaDeRecebimento> ContasDeRecebimento => Set<ContaDeRecebimento>();
+
+    /// <summary>Avisos de pagamento dos formandos, esperando a tesouraria.</summary>
+    public DbSet<InformeDePagamento> Informes => Set<InformeDePagamento>();
+
+    /// <summary>Entradas no caixa: as parcelas baixadas, com o valor e quem baixou.</summary>
+    public DbSet<Recebimento> Recebimentos => Set<Recebimento>();
+
+    /// <summary>Fornecedores contratados por cada formatura.</summary>
+    public DbSet<Fornecedor> Fornecedores => Set<Fornecedor>();
+
+    /// <summary>Saídas do caixa: o que a turma deve e o que já pagou, uma linha por vencimento.</summary>
+    public DbSet<Despesa> Despesas => Set<Despesa>();
+
+    /// <summary>Acervo de cada formatura: atas, contratos, orçamentos, regulamentos.</summary>
+    public DbSet<Documento> Documentos => Set<Documento>();
+
+    /// <summary>Relatórios pesados pedidos pela gestão, à espera do worker.</summary>
+    public DbSet<SolicitacaoDeRelatorio> SolicitacoesDeRelatorio => Set<SolicitacaoDeRelatorio>();
+
+    /// <summary>Os degraus da régua de cobrança de cada formatura.</summary>
+    public DbSet<RegraDeNotificacao> RegrasDeNotificacao => Set<RegraDeNotificacao>();
+
+    /// <summary>O que a régua já disparou — o histórico, e a trava contra a segunda mensagem.</summary>
+    public DbSet<NotificacaoEnviada> NotificacoesEnviadas => Set<NotificacaoEnviada>();
+
+    /// <summary>O que cada membro escolheu não receber.</summary>
+    public DbSet<PreferenciaDeNotificacao> PreferenciasDeNotificacao => Set<PreferenciaDeNotificacao>();
+
     /// <summary>
     /// Formatura que os filtros globais enxergam.
     /// </summary>
@@ -100,17 +154,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
 
     /// <inheritdoc />
     /// <remarks>
-    /// A cifra do CPF é a única configuração que mora aqui: ela precisa da chave, e os mappings
+    /// A extensão <c>unaccent</c> é declarada aqui porque é do banco, não de uma entidade: é ela que faz
+    /// a busca por nome achar "Júlia" quem digitou "julia" (ver <c>Repositories/Busca</c>).
+    /// <para>
+    /// A cifra do CPF (do perfil e da adesão) é a única configuração que mora aqui: ela precisa da chave, e os mappings
     /// são instanciados pela varredura sem parâmetro. O modelo é montado uma vez por processo,
     /// então o conversor guarda a cifra da primeira instância — a chave é a mesma para o processo
     /// inteiro, e é isso que se quer.
+    /// </para>
     /// </remarks>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
 
+        builder.HasPostgresExtension("unaccent");
+
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         builder.Entity<PerfilDoFormando>().Property(p => p.Cpf).HasConversion(cifra.Conversor());
+        builder.Entity<AdesaoDoFormando>().Property(a => a.Cpf).HasConversion((ValueConverter)cifra.Conversor());
 
         AplicarIsolamentoPorFormatura(builder);
     }

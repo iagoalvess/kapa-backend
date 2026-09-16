@@ -37,10 +37,19 @@ public sealed class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<Smtp
     /// </remarks>
     public async Task EnviarAsync(MensagemDeEmail mensagem, CancellationToken ct = default)
     {
-        using var mime = new MimeMessage { Subject = mensagem.Assunto, Body = new BodyBuilder { HtmlBody = mensagem.CorpoHtml }.ToMessageBody() };
+        var desviado = !string.IsNullOrWhiteSpace(_settings.RedirecionarPara);
+        var destinatario = desviado ? _settings.RedirecionarPara : mensagem.Para;
+
+        using var mime = new MimeMessage
+        {
+            // O destinatário original vai no assunto do desvio: sem ele, a caixa de quem desenvolve
+            // vira uma pilha de mensagens idênticas sem dizer de quem era cada uma.
+            Subject = desviado ? $"[para {mensagem.Para}] {mensagem.Assunto}" : mensagem.Assunto,
+            Body = new BodyBuilder { HtmlBody = mensagem.CorpoHtml }.ToMessageBody(),
+        };
 
         mime.From.Add(new MailboxAddress(_settings.RemetenteNome, _settings.RemetenteEmail));
-        mime.To.Add(MailboxAddress.Parse(mensagem.Para));
+        mime.To.Add(MailboxAddress.Parse(destinatario));
 
         using var cliente = new SmtpClient();
 
@@ -54,6 +63,13 @@ public sealed class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<Smtp
         await cliente.SendAsync(mime, ct);
         await cliente.DisconnectAsync(true, ct);
 
-        logger.LogInformation("E-mail entregue ao servidor SMTP para {Destinatario}.", TextoUtils.MascararEmail(mensagem.Para));
+        if (desviado)
+            logger.LogWarning(
+                "E-mail de {Destinatario} desviado para {Caixa}: Smtp:RedirecionarPara está preenchido.",
+                TextoUtils.MascararEmail(mensagem.Para),
+                TextoUtils.MascararEmail(destinatario)
+            );
+        else
+            logger.LogInformation("E-mail entregue ao servidor SMTP para {Destinatario}.", TextoUtils.MascararEmail(mensagem.Para));
     }
 }

@@ -3,7 +3,7 @@ using Shouldly;
 
 namespace Backend.UnitTests.Formandos;
 
-/// <summary>CPF, telefone, CEP e UF: o que o validator aceita e a forma que a entidade grava.</summary>
+/// <summary>CPF, CNPJ, telefone, CEP e UF: o que o validator aceita e a forma que a entidade grava.</summary>
 public sealed class FormatosBrasileirosTests
 {
     [Theory]
@@ -14,6 +14,27 @@ public sealed class FormatosBrasileirosTests
     [InlineData("5299822472", false)]
     [InlineData("", false)]
     public void Cpf_confere_os_dois_digitos_verificadores(string cpf, bool esperado) => FormatosBrasileiros.CpfValido(cpf).ShouldBe(esperado);
+
+    /// <summary><c>12.ABC.345/01DE-35</c> é o exemplo da Receita para o CNPJ alfanumérico de julho de 2026.</summary>
+    [Theory]
+    [InlineData("11.222.333/0001-81", true)]
+    [InlineData("11222333000181", true)]
+    [InlineData("12.ABC.345/01DE-35", true)]
+    [InlineData("12abc34501de35", true)]
+    [InlineData("11.222.333/0001-82", false)]
+    [InlineData("12.ABC.345/01DE-36", false)]
+    [InlineData("00.000.000/0000-00", false)]
+    [InlineData("1122233300018", false)]
+    [InlineData("12ABC34501DEAB", false)]
+    public void Cnpj_confere_os_dois_verificadores_tambem_no_alfanumerico(string cnpj, bool esperado) =>
+        FormatosBrasileiros.CnpjValido(cnpj).ShouldBe(esperado);
+
+    [Theory]
+    [InlineData("52998224725", "***.982.247-**")]
+    [InlineData("123", "***")]
+    [InlineData(null, null)]
+    public void Cpf_mascarado_mostra_so_os_seis_digitos_do_meio(string? cpf, string? esperado) =>
+        FormatosBrasileiros.MascararCpf(cpf).ShouldBe(esperado);
 
     [Theory]
     [InlineData("(41) 99876-5432", "+5541998765432")]

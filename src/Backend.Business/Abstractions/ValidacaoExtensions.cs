@@ -1,3 +1,4 @@
+using Backend.Business.Common.Texto;
 using FluentValidation;
 using FluentValidation.Results;
 
@@ -33,15 +34,7 @@ public static class ValidacaoExtensions
     /// </remarks>
     /// <param name="resultado">Resultado de validação.</param>
     public static IReadOnlyList<Erro> ParaErros(this ValidationResult resultado) =>
-        [.. resultado.Errors.Select(falha => Erro.Validacao(CodigoDe(falha), falha.ErrorMessage, ParaCamelCase(falha.PropertyName)))];
+        [.. resultado.Errors.Select(falha => Erro.Validacao(CodigoDe(falha), falha.ErrorMessage, TextoUtils.ParaSnakeCase(falha.PropertyName)))];
 
     private static string CodigoDe(ValidationFailure falha) => falha.ErrorCode?.Contains('.') == true ? falha.ErrorCode : "validacao.invalido";
-
-    private static string ParaCamelCase(string propriedade)
-    {
-        if (string.IsNullOrEmpty(propriedade))
-            return propriedade;
-
-        return string.Join('.', propriedade.Split('.').Select(parte => char.ToLowerInvariant(parte[0]) + parte[1..]));
-    }
 }

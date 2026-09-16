@@ -21,8 +21,31 @@ public class Plano : Entity
     /// <summary>Nome exibido no card.</summary>
     public string Nome { get; set; } = string.Empty;
 
+    /// <summary>Uma linha embaixo do nome, no card: para que turma o plano serve.</summary>
+    public string Descricao { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Módulos incluídos, na ordem em que a tela os lista.
+    /// </summary>
+    /// <remarks>
+    /// Texto de vitrine, e não regra de acesso: quem autoriza cada tela continua sendo papel e
+    /// status da formatura. Guardado como <c>text[]</c> — é lista fechada, lida junto com o plano
+    /// e nunca consultada sozinha, então uma tabela filha só custaria um join.
+    /// </remarks>
+    public List<string> Modulos { get; set; } = [];
+
     /// <summary>Preço de um ciclo, em centavos de real.</summary>
     public long PrecoEmCentavos { get; set; }
+
+    /// <summary>
+    /// Preço sem desconto, em centavos — o valor riscado no card. Nulo quando não há desconto.
+    /// </summary>
+    /// <remarks>
+    /// No anual, é o que doze meses avulsos custariam. Fica aqui, e não no front: a porcentagem
+    /// anunciada tem de sair da mesma tabela que cobra, senão a vitrine promete um desconto que a
+    /// cobrança não dá. O front só divide um pelo outro para escrever "economize 15%".
+    /// </remarks>
+    public long? PrecoCheioEmCentavos { get; set; }
 
     /// <summary>Periodicidade da cobrança.</summary>
     public CicloDeCobranca Ciclo { get; set; } = CicloDeCobranca.Mensal;

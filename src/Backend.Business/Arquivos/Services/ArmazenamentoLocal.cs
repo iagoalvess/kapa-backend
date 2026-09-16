@@ -13,7 +13,8 @@ namespace Backend.Business.Arquivos.Services;
 /// produção use <see cref="ArmazenamentoS3"/>.
 /// </remarks>
 /// <param name="options">Configuração de armazenamento.</param>
-public sealed class ArmazenamentoLocal(IOptions<ArmazenamentoSettings> options) : IArmazenamentoDeArquivos
+/// <param name="urls">Quem assina as URLs temporárias.</param>
+public sealed class ArmazenamentoLocal(IOptions<ArmazenamentoSettings> options, UrlTemporariaLocal urls) : IArmazenamentoDeArquivos
 {
     private readonly string _raiz = Path.GetFullPath(options.Value.CaminhoLocal);
 
@@ -52,6 +53,11 @@ public sealed class ArmazenamentoLocal(IOptions<ArmazenamentoSettings> options) 
 
         return Task.CompletedTask;
     }
+
+    /// <inheritdoc />
+    /// <remarks>Relativa à API: o endpoint anônimo de <see cref="UrlTemporariaLocal"/> serve o objeto.</remarks>
+    public Task<string> GerarUrlTemporariaAsync(string chave, string nome, string contentType, TimeSpan validade) =>
+        Task.FromResult(urls.Gerar(chave, nome, contentType, DateTimeOffset.UtcNow.Add(validade)));
 
     /// <summary>
     /// Converte a chave em caminho absoluto, garantindo que ele fique dentro da raiz.

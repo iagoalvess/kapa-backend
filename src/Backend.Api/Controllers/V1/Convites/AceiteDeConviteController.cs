@@ -49,7 +49,6 @@ public sealed class AceiteDeConviteController(
     /// </summary>
     /// <remarks>A URL circula em grupo de WhatsApp: nunca membros, valores ou quem convidou.</remarks>
     /// <param name="token">Token do link.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("{token}")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ConvitePublicoDTO), StatusCodes.Status200OK)]
@@ -70,7 +69,6 @@ public sealed class AceiteDeConviteController(
     /// </remarks>
     /// <param name="token">Token do link.</param>
     /// <param name="requisicao">Refresh token atual, quando o modo cookie está desligado.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("{token}/aceitar")]
     [Authorize(Policy = Politicas.Autenticado)]
     [RegistrarEvento("convite.aceito")]

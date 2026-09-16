@@ -1,0 +1,102 @@
+using Backend.Business.Arquivos.Models;
+using Backend.Business.Financeiro.Models;
+using Backend.Business.Formaturas.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Backend.Data.Mappings;
+
+/// <summary>
+/// Mapeamento dos fornecedores.
+/// </summary>
+/// <remarks>
+/// O índice único <c>(formatura_id, nome)</c> é o "um fornecedor por nome na turma": o service
+/// confere antes, e dois cliques que passem juntos pela conferência esbarram aqui. Chave em
+/// <c>Restrict</c>: excluir fornecedor com despesa é recusado no service (409), e o banco é a
+/// segunda barreira.
+/// </remarks>
+public sealed class FornecedorMapping : IEntityTypeConfiguration<Fornecedor>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<Fornecedor> builder)
+    {
+        builder.ToTable("fornecedores");
+
+        builder.HasKey(f => f.Id);
+
+        builder.Property(f => f.Nome).IsRequired().HasMaxLength(200);
+        builder.Property(f => f.Documento).HasMaxLength(14);
+        builder.Property(f => f.Categoria).HasConversion<string>().HasMaxLength(20);
+        builder.Property(f => f.Telefone).HasMaxLength(20);
+        builder.Property(f => f.Email).HasMaxLength(256);
+        builder.Property(f => f.Observacoes).HasMaxLength(1000);
+
+        builder.HasIndex(f => new { f.FormaturaId, f.Nome }).IsUnique();
+
+        builder.HasOne<Formatura>().WithMany().HasForeignKey(f => f.FormaturaId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+/// <summary>
+/// Mapeamento das despesas.
+/// </summary>
+/// <remarks>
+/// O índice único <c>(formatura_id, fornecedor_id, descricao, vencimento)</c> onde
+/// <c>status &lt;&gt; 'Cancelada'</c> é o "lançar duas vezes cria uma só": o service confere antes, e o
+/// clique duplo que passe junto pela conferência falha no insert. <c>NULLS NOT DISTINCT</c> porque
+/// despesa sem fornecedor também precisa ser barrada — no padrão do Postgres, dois nulos são
+/// diferentes, e a taxa bancária entraria duas vezes. Cancelada fica de fora: relançar o que foi
+/// cancelado é legítimo.
+/// <para>
+/// O índice <c>(formatura_id, lancamento_id)</c> atende as irmãs de uma parcelada: a tela de detalhe
+/// pede as N linhas do lançamento de uma vez. O <c>(formatura_id, status, competencia)</c> é o do
+/// quadro por categoria e do fechamento por mês (risco da sprint). Chaves em <c>Restrict</c>:
+/// dinheiro que saiu não some em cascata.
+/// </para>
+/// </remarks>
+public sealed class DespesaMapping : IEntityTypeConfiguration<Despesa>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<Despesa> builder)
+    {
+        builder.ToTable("despesas");
+
+        builder.HasKey(d => d.Id);
+
+        builder.Property(d => d.Descricao).IsRequired().HasMaxLength(200);
+        builder.Property(d => d.Categoria).HasConversion<string>().HasMaxLength(20);
+        builder.Property(d => d.Status).HasConversion<string>().HasMaxLength(20);
+
+        builder.Ignore(d => d.EmAberto);
+
+        builder
+            .HasIndex(
+                d => new
+                {
+                    d.FormaturaId,
+                    d.FornecedorId,
+                    d.Descricao,
+                    d.Vencimento,
+                },
+                "ix_despesas_lancamento_unico"
+            )
+            .IsUnique()
+            .AreNullsDistinct(false)
+            .HasFilter($"status <> '{nameof(StatusDaDespesa.Cancelada)}'")
+            .HasDatabaseName("ix_despesas_lancamento_unico");
+
+        builder.HasIndex(d => new { d.FormaturaId, d.LancamentoId });
+
+        builder.HasIndex(d => new
+        {
+            d.FormaturaId,
+            d.Status,
+            d.Competencia,
+        });
+        builder.HasIndex(d => new { d.FormaturaId, d.Vencimento });
+
+        builder.HasOne<Fornecedor>().WithMany().HasForeignKey(d => d.FornecedorId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Arquivo>().WithMany().HasForeignKey(d => d.ComprovanteArquivoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Formatura>().WithMany().HasForeignKey(d => d.FormaturaId).OnDelete(DeleteBehavior.Restrict);
+    }
+}

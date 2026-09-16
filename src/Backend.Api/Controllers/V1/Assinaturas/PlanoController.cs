@@ -18,7 +18,6 @@ namespace Backend.Api.Controllers.V1.Assinaturas;
 public sealed class PlanoController(IAssinaturaService assinaturaService) : MainController
 {
     /// <summary>Planos ativos, com preço e limites. Anônimo: é vitrine.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet]
     [AllowAnonymous]
     [ProducesResponseType(typeof(IReadOnlyList<PlanoDTO>), StatusCodes.Status200OK)]

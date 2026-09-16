@@ -15,7 +15,6 @@ public interface IFormaturaService
 {
     /// <summary>Formaturas em que o usuário tem vínculo ativo.</summary>
     /// <param name="usuarioId">Usuário autenticado.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<IReadOnlyList<FormaturaDoUsuario>>> ListarMinhas(Guid usuarioId, CancellationToken ct = default);
 
     /// <summary>
@@ -29,7 +28,6 @@ public interface IFormaturaService
     /// <param name="formaturaId">Formatura pretendida.</param>
     /// <param name="refreshTokenAtual">Refresh token da sessão atual, rotacionado na troca.</param>
     /// <param name="ipDeOrigem">IP do solicitante, registrado para auditoria.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ParDeTokens>> Selecionar(
         Guid usuarioId,
         Guid formaturaId,
@@ -45,7 +43,6 @@ public interface IFormaturaService
     /// <param name="dados">Dados cadastrais.</param>
     /// <param name="refreshTokenAtual">Refresh token da sessão atual, rotacionado na criação.</param>
     /// <param name="ipDeOrigem">IP do solicitante, registrado para auditoria.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<ParDeTokens>> Criar(
         Guid usuarioId,
         DadosDaFormatura dados,
@@ -56,18 +53,15 @@ public interface IFormaturaService
 
     /// <summary>Detalhe da formatura da sessão.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<FormaturaDetalhe>> ObterAtual(Guid formaturaId, CancellationToken ct = default);
 
     /// <summary>Edita os dados cadastrais da formatura da sessão.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="dados">Dados novos.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result<FormaturaDetalhe>> Atualizar(Guid formaturaId, DadosDaFormatura dados, CancellationToken ct = default);
 
     /// <summary>Encerra a formatura da sessão.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result> Encerrar(Guid formaturaId, CancellationToken ct = default);
 
     /// <summary>
@@ -75,6 +69,5 @@ public interface IFormaturaService
     /// lista de todos os membros.
     /// </summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Result> Descartar(Guid formaturaId, CancellationToken ct = default);
 }

@@ -1,3 +1,5 @@
+using Backend.Business.Common.Texto;
+
 namespace Backend.Business.Formandos.Models;
 
 /// <summary>
@@ -24,6 +26,10 @@ public sealed record AtualizarPerfil(DadosPessoais? Pessoais, DadosDeEndereco? E
                 ContatoDeEmergencia is null ? null : "contatoDeEmergencia",
             }.OfType<string>()
         );
+
+    /// <summary>O mesmo pedido com outro CPF na seção pessoal, se ela veio.</summary>
+    /// <param name="cpf">CPF que substitui o informado.</param>
+    public AtualizarPerfil ComCpf(string? cpf) => Pessoais is null ? this : this with { Pessoais = Pessoais with { Cpf = cpf } };
 }
 
 /// <summary>Seção de dados pessoais.</summary>
@@ -102,40 +108,8 @@ public sealed record PerfilDetalhe(
     int Completude,
     IReadOnlyList<string> Faltando,
     bool EssencialPendente
-);
-
-/// <summary>Um formando na lista da comissão.</summary>
-/// <param name="UsuarioId">Usuário, o id das rotas de detalhe e correção.</param>
-/// <param name="Nome">Nome de exibição da conta.</param>
-/// <param name="Email">E-mail da conta.</param>
-/// <param name="Papel">Papel na formatura.</param>
-/// <param name="NomeCompleto">Nome civil, se já informado.</param>
-/// <param name="Completude">Percentual preenchido, de 0 a 100.</param>
-/// <param name="EssencialPendente">Se falta nome completo, CPF ou telefone.</param>
-public sealed record FormandoResumo(
-    Guid UsuarioId,
-    string Nome,
-    string Email,
-    string Papel,
-    string? NomeCompleto,
-    int Completude,
-    bool EssencialPendente
-);
-
-/// <summary>Recorte da lista por situação do cadastro.</summary>
-public enum SituacaoDoCadastro
+)
 {
-    /// <summary>Falta nome completo, CPF ou telefone.</summary>
-    Pendente,
-
-    /// <summary>Falta qualquer item.</summary>
-    Incompleto,
-
-    /// <summary>Tudo preenchido.</summary>
-    Completo,
+    /// <summary>O mesmo cadastro com o CPF mascarado — a forma que a comissão recebe.</summary>
+    public PerfilDetalhe ComCpfMascarado() => this with { Pessoais = Pessoais with { Cpf = FormatosBrasileiros.MascararCpf(Pessoais.Cpf) } };
 }
-
-/// <summary>Filtros da lista de formandos.</summary>
-/// <param name="Busca">Trecho do nome de exibição, do nome civil ou do e-mail.</param>
-/// <param name="Situacao">Situação do cadastro; nulo traz todos.</param>
-public sealed record FiltroDeFormandos(string? Busca, SituacaoDoCadastro? Situacao);

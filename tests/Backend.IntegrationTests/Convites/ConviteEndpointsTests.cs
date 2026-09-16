@@ -26,7 +26,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     private const string Gestao = "/api/v1/formaturas/atual/convites";
     private const string Publico = "/api/v1/convites";
 
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -39,7 +39,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     {
         var membro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), papel, Ct);
 
-        var criacao = await membro.Cliente.PostAsJsonAsync(Gestao, new CriarConviteRequestDTO(null, null, null, null), Ct);
+        var criacao = await membro.Cliente.PostAsJsonAsync(Gestao, new CriarConviteRequestDTO(null, null), Ct);
         var listagem = await membro.Cliente.GetAsync(Gestao, Ct);
 
         criacao.StatusCode.ShouldBe(esperado);
@@ -51,11 +51,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     {
         var comissao = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Comissao, Ct);
 
-        var resposta = await comissao.Cliente.PostAsJsonAsync(
-            Gestao,
-            new CriarConviteRequestDTO("ana@exemplo.com", PapelNaFormatura.Tesoureiro, null, null),
-            Ct
-        );
+        var resposta = await comissao.Cliente.PostAsJsonAsync(Gestao, new CriarConviteRequestDTO("ana@exemplo.com", PapelNaFormatura.Tesoureiro), Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await resposta.Codigo(Ct)).ShouldBe("convite.papel_restrito");
@@ -67,10 +63,11 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     {
         var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(StatusDaFormatura.Rascunho, Ct), PapelNaFormatura.Presidente, Ct);
 
-        var formando = await presidente.Cliente.PostAsJsonAsync(Gestao, new CriarConviteRequestDTO(null, null, null, null), Ct);
+        var formando = await presidente.Cliente.PostAsJsonAsync(Gestao, new CriarConviteRequestDTO(null, null), Ct);
         var tesoureiro = await presidente.Cliente.PostAsJsonAsync(
             Gestao,
-            new CriarConviteRequestDTO("tesoureiro@testes.local", PapelNaFormatura.Tesoureiro, null, null),
+            new CriarConviteRequestDTO("tesoureiro@testes.local", PapelNaFormatura.Tesoureiro),
+            Json,
             Ct
         );
 
@@ -104,24 +101,24 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     {
         var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(StatusDaFormatura.Suspensa, Ct), PapelNaFormatura.Presidente, Ct);
 
-        var resposta = await presidente.Cliente.PostAsJsonAsync(Gestao, new CriarConviteRequestDTO(null, null, null, null), Ct);
+        var resposta = await presidente.Cliente.PostAsJsonAsync(Gestao, new CriarConviteRequestDTO(null, null), Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await resposta.Codigo(Ct)).ShouldBe("formatura.inativa");
     }
 
     [Fact]
-    public async Task O_banco_guarda_so_o_sha256_do_token()
+    public async Task O_banco_guarda_so_o_sha256_do_token_do_nominal()
     {
         var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
 
-        var criado = await Criar(presidente, new CriarConviteRequestDTO("fulano@testes.local", null, null, null));
+        var criado = await Criar(presidente, new CriarConviteRequestDTO("fulano@testes.local", null));
         var token = TokenDo(criado);
 
         await using var contexto = fabrica.ContextoDe(null);
         var hash = await contexto.Convites.IgnoreQueryFilters().Where(c => c.Id == criado.Id).Select(c => c.TokenHash).SingleAsync(Ct);
         hash.ShouldBe(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))));
-        (await contexto.Convites.IgnoreQueryFilters().AnyAsync(c => c.TokenHash == token, Ct)).ShouldBeFalse();
+        (await contexto.Convites.IgnoreQueryFilters().AnyAsync(c => c.TokenHash == token || c.Token == token, Ct)).ShouldBeFalse();
         (await contexto.EmailsFila.AnyAsync(e => e.Para == "fulano@testes.local" && e.CorpoHtml.Contains(token), Ct)).ShouldBeTrue();
     }
 
@@ -130,13 +127,18 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     public async Task Consulta_anonima_devolve_so_turma_instituicao_e_papel()
     {
         var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
-        var token = TokenDo(await Criar(presidente, new CriarConviteRequestDTO(null, null, null, null)));
+        var token = TokenDo(await Criar(presidente, new CriarConviteRequestDTO(null, null)));
 
         var resposta = await fabrica.CreateClient().GetAsync($"{Publico}/{token}", Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var corpo = await resposta.Content.ReadFromJsonAsync<JsonElement>(Ct);
-        corpo.EnumerateObject().Select(p => p.Name).ShouldBe(["turma", "instituicao", "papel"], ignoreOrder: true);
+        var corpo = await resposta.Content.ReadFromJsonAsync<JsonElement>(Json, Ct);
+
+        // O link da turma não é nominal, então não há e-mail a mascarar. O campo aparece como `null`
+        // — a API escreve o nulo em vez de omitir o campo —, e o que importa é que ele venha vazio:
+        // é o e-mail do convidado que não pode escapar por um endpoint anônimo.
+        corpo.EnumerateObject().Select(p => p.Name).ShouldBe(["turma", "instituicao", "papel", "email_mascarado"], ignoreOrder: true);
+        corpo.GetProperty("email_mascarado").ValueKind.ShouldBe(JsonValueKind.Null);
         corpo.GetProperty("papel").GetString().ShouldBe(PapelNaFormatura.Formando);
     }
 
@@ -164,7 +166,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
             foreach (var resposta in new[] { await cliente.GetAsync($"{Publico}/{token}", Ct), await Aceitar(cliente, token) })
             {
                 resposta.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-                var corpo = await resposta.Content.ReadFromJsonAsync<JsonElement>(Ct);
+                var corpo = await resposta.Content.ReadFromJsonAsync<JsonElement>(Json, Ct);
                 corpo.GetProperty("codigo").GetString().ShouldBe("convite.invalido");
                 corpo.GetProperty("title").GetString().ShouldBe("Este convite não está mais disponível. Peça um novo à comissão.");
             }
@@ -226,7 +228,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
         var resposta = await Aceitar(cliente, token);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var sessao = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Ct))!;
+        var sessao = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, Ct))!;
         var claims = new JsonWebTokenHandler().ReadJsonWebToken(sessao.AccessToken).Claims.ToList();
         claims.Single(c => c.Type == "formatura_id").Value.ShouldBe(formaturaId.ToString());
         claims.Single(c => c.Type == "papel").Value.ShouldBe(PapelNaFormatura.Comissao);
@@ -298,7 +300,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     public async Task Revogar_derruba_o_link_na_hora()
     {
         var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
-        var criado = await Criar(presidente, new CriarConviteRequestDTO(null, null, null, null));
+        var criado = await Criar(presidente, new CriarConviteRequestDTO(null, null));
 
         (await presidente.Cliente.DeleteAsync($"{Gestao}/{criado.Id}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
@@ -307,13 +309,34 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
         lista!.ShouldHaveSingleItem().Status.ShouldBe(StatusDoConvite.Revogado);
     }
 
+    /// <summary>Um link por turma: o novo derruba o anterior, e a listagem devolve só o vigente para copiar.</summary>
+    [Fact]
+    public async Task Link_novo_revoga_o_anterior_e_a_listagem_mostra_o_vigente()
+    {
+        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
+        var primeiro = await Criar(presidente, new CriarConviteRequestDTO(null, null));
+        var nominal = await Criar(presidente, new CriarConviteRequestDTO("fulano@testes.local", null));
+
+        var segundo = await Criar(presidente, new CriarConviteRequestDTO(null, null));
+
+        (await fabrica.CreateClient().GetAsync($"{Publico}/{TokenDo(primeiro)}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var lista = (await presidente.Cliente.GetFromJsonAsync<List<ConviteResumoDTO>>(Gestao, Json, Ct))!;
+        lista.Single(c => c.Id == segundo.Id).Link.ShouldBe(segundo.Link);
+        lista
+            .Single(c => c.Id == primeiro.Id)
+            .ShouldSatisfyAllConditions(c => c.Status.ShouldBe(StatusDoConvite.Revogado), c => c.Link.ShouldBeNull());
+        lista
+            .Single(c => c.Id == nominal.Id)
+            .ShouldSatisfyAllConditions(c => c.Status.ShouldBe(StatusDoConvite.Pendente), c => c.Link.ShouldBeNull());
+    }
+
     /// <summary>A formatura vem do token: convite de outra turma não existe aqui.</summary>
     [Fact]
     public async Task Revogar_convite_de_outra_formatura_responde_404()
     {
         var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
         var deOutra = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
-        var alheio = await Criar(deOutra, new CriarConviteRequestDTO(null, null, null, null));
+        var alheio = await Criar(deOutra, new CriarConviteRequestDTO(null, null));
 
         var resposta = await presidente.Cliente.DeleteAsync($"{Gestao}/{alheio.Id}", Ct);
 
@@ -323,10 +346,10 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
 
     private static async Task<ConviteCriadoDTO> Criar(MembroDeTeste membro, CriarConviteRequestDTO pedido)
     {
-        var resposta = await membro.Cliente.PostAsJsonAsync(Gestao, pedido, Ct);
+        var resposta = await membro.Cliente.PostAsJsonAsync(Gestao, pedido, Json, Ct);
         resposta.EnsureSuccessStatusCode();
 
-        return (await resposta.Content.ReadFromJsonAsync<ConviteCriadoDTO>(Ct))!;
+        return (await resposta.Content.ReadFromJsonAsync<ConviteCriadoDTO>(Json, Ct))!;
     }
 
     private static string TokenDo(ConviteCriadoDTO criado) => criado.Link.Split('/').Last();

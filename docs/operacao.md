@@ -117,6 +117,27 @@ orquestrador. Fica fora do rastreamento para não encher a amostragem de traces 
 
 ---
 
+## Download do acervo (URL assinada)
+
+`GET /api/v1/comunicacao/documentos/{id}/download` confere formatura e visibilidade e responde
+**302** para uma URL assinada que vale 5 minutos (`DocumentoService.ValidadeDaUrl`). Quem segue o
+redirecionamento é o `fetch` do front, com o bearer na ida à API e sem ele no destino.
+
+- **Provedor `Local`** (desenvolvimento): a URL é relativa à própria API
+  (`/api/v1/arquivos/temporario?...`), assinada com HMAC por `UrlTemporariaLocal`. A chave é sorteada
+  a cada início do processo — reiniciar a API invalida as URLs já emitidas, e com mais de uma réplica
+  a URL só abre na réplica que a emitiu. Por isso o `Local` não serve para produção.
+- **Provedor `S3`**: a URL é a pré-assinada do próprio bucket. Como o navegador segue o 302 a partir
+  do front, o bucket precisa de **CORS** liberando a origem do app, com credenciais:
+
+  ```json
+  [{ "AllowedOrigins": ["https://app.kapa.com.br"], "AllowedMethods": ["GET"], "AllowedHeaders": ["*"], "MaxAgeSeconds": 600 }]
+  ```
+
+  Sem isso, o download falha no navegador com erro de CORS, e a API mostra 302 normalmente no log.
+
+---
+
 ## Ajuste de capacidade
 
 | Sintoma | Onde olhar |

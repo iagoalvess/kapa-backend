@@ -30,7 +30,6 @@ namespace Backend.Api.Controllers.V1.Admin;
 public sealed class AdminController(IAdminService adminService) : MainController
 {
     /// <summary>Números que alimentam a tela inicial do painel.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("resumo")]
     [ProducesResponseType(typeof(ResumoAdminDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]

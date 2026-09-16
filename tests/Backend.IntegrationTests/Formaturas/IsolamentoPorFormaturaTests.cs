@@ -1,3 +1,4 @@
+using Backend.Business.Comunicacao.Models;
 using Backend.Business.Formaturas.Models;
 using Backend.IntegrationTests.Infra;
 using Microsoft.EntityFrameworkCore;
@@ -33,7 +34,7 @@ public sealed class IsolamentoPorFormaturaTests(ApiFactory fabrica)
 
         // Act
         await using var contexto = fabrica.ContextoDe(a);
-        var avisos = await contexto.Avisos.Where(aviso => aviso.Texto == MesmoTexto).ToListAsync(Ct);
+        var avisos = await contexto.Avisos.Where(aviso => aviso.Titulo == MesmoTexto).ToListAsync(Ct);
 
         // Assert
         avisos.Count.ShouldBe(1);
@@ -64,7 +65,7 @@ public sealed class IsolamentoPorFormaturaTests(ApiFactory fabrica)
     public async Task Gravar_sem_formatura_selecionada_estoura()
     {
         await using var contexto = fabrica.ContextoDe(null);
-        contexto.Avisos.Add(new Aviso { Texto = MesmoTexto });
+        contexto.Avisos.Add(Aviso.Novo(new DadosDoAviso(MesmoTexto, MesmoTexto, Visibilidade.Turma, false, false), Guid.CreateVersion7()));
 
         await Should.ThrowAsync<InvalidOperationException>(() => contexto.SaveChangesAsync(Ct));
     }
@@ -100,8 +101,8 @@ public sealed class IsolamentoPorFormaturaTests(ApiFactory fabrica)
 
         await using var contexto = fabrica.ContextoDe(null);
 
-        var filtrado = await contexto.Avisos.Where(aviso => aviso.Texto == MesmoTexto).CountAsync(Ct);
-        var todos = await contexto.Avisos.IgnoreQueryFilters().Where(aviso => aviso.Texto == MesmoTexto).CountAsync(Ct);
+        var filtrado = await contexto.Avisos.Where(aviso => aviso.Titulo == MesmoTexto).CountAsync(Ct);
+        var todos = await contexto.Avisos.IgnoreQueryFilters().Where(aviso => aviso.Titulo == MesmoTexto).CountAsync(Ct);
 
         filtrado.ShouldBe(0);
         todos.ShouldBeGreaterThanOrEqualTo(2);
@@ -124,7 +125,7 @@ public sealed class IsolamentoPorFormaturaTests(ApiFactory fabrica)
     {
         await using var contexto = fabrica.ContextoDe(formaturaId);
 
-        var aviso = new Aviso { Texto = MesmoTexto };
+        var aviso = Aviso.Novo(new DadosDoAviso(MesmoTexto, MesmoTexto, Visibilidade.Turma, false, false), Guid.CreateVersion7());
         contexto.Avisos.Add(aviso);
         await contexto.SaveChangesAsync(Ct);
 

@@ -78,7 +78,7 @@ public sealed class ConviteServiceTests
         AutorCom(PapelNaFormatura.Comissao);
 
         // Act
-        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", papel, null, null), Ct);
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", papel), Ct);
 
         // Assert
         resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.papel_restrito");
@@ -90,7 +90,7 @@ public sealed class ConviteServiceTests
     {
         AutorCom(PapelNaFormatura.Presidente);
 
-        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", PapelNaFormatura.Tesoureiro, null, null), Ct);
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", PapelNaFormatura.Tesoureiro), Ct);
 
         resultado.Sucesso.ShouldBeTrue();
         await _convites.Received(1).Adicionar(Arg.Is<Convite>(c => c.Papel == PapelNaFormatura.Tesoureiro), Arg.Any<CancellationToken>());
@@ -104,7 +104,7 @@ public sealed class ConviteServiceTests
     {
         AutorCom(PapelNaFormatura.Presidente);
 
-        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite(null, papel, null, null), Ct);
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite(null, papel), Ct);
 
         resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.link_so_para_formando");
         await _convites.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
@@ -117,7 +117,7 @@ public sealed class ConviteServiceTests
         Convite? gravado = null;
         await _convites.Adicionar(Arg.Do<Convite>(c => gravado = c), Arg.Any<CancellationToken>());
 
-        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite(" ana@exemplo.com ", null, null, 50), Ct);
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite(" ana@exemplo.com ", null), Ct);
 
         resultado.Sucesso.ShouldBeTrue();
         var token = resultado.Valor.Link.Split('/').Last();
@@ -135,19 +135,49 @@ public sealed class ConviteServiceTests
         await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Validade e limite fixos: 30 dias e o número estimado de formandos da turma.</summary>
     [Fact]
-    public async Task Link_da_turma_nao_manda_email_e_respeita_o_limite_pedido()
+    public async Task Link_da_turma_nao_manda_email_vale_trinta_dias_e_a_estimativa_de_entradas()
     {
         Convite? gravado = null;
         await _convites.Adicionar(Arg.Do<Convite>(c => gravado = c), Arg.Any<CancellationToken>());
 
-        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite(null, null, 90, 88), Ct);
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite(null, null), Ct);
 
         resultado.Sucesso.ShouldBeTrue();
         gravado!.Email.ShouldBeNull();
-        gravado.UsosMaximos.ShouldBe(88);
-        gravado.ExpiraEm.ShouldBe(DateTime.UtcNow.AddDays(90), TimeSpan.FromMinutes(1));
+        gravado.UsosMaximos.ShouldBe(80);
+        gravado.ExpiraEm.ShouldBe(DateTime.UtcNow.AddDays(Convite.DiasDeValidadeDoLink), TimeSpan.FromMinutes(1));
+        gravado.Token.ShouldBe(resultado.Valor.Link.Split('/').Last());
         await _emails.DidNotReceiveWithAnyArgs().Enfileirar(default!, Ct);
+    }
+
+    /// <summary>Um link vigente por turma: o novo revoga o que vale, e o expirado fica como está.</summary>
+    [Fact]
+    public async Task Link_da_turma_novo_revoga_so_o_vigente()
+    {
+        var vigente = Link();
+        var expirado = Link();
+        expirado.ExpiraEm = DateTime.UtcNow.AddDays(-1);
+        _convites.ListarLinksNaoRevogadosParaEdicao(Arg.Any<CancellationToken>()).Returns([vigente, expirado]);
+
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite(null, null), Ct);
+
+        resultado.Sucesso.ShouldBeTrue();
+        vigente.StatusEm(DateTime.UtcNow).ShouldBe(StatusDoConvite.Revogado);
+        expirado.StatusEm(DateTime.UtcNow).ShouldBe(StatusDoConvite.Expirado);
+    }
+
+    [Fact]
+    public async Task Nominal_nao_grava_o_token_nem_mexe_no_link_da_turma()
+    {
+        Convite? gravado = null;
+        await _convites.Adicionar(Arg.Do<Convite>(c => gravado = c), Arg.Any<CancellationToken>());
+
+        await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", null), Ct);
+
+        gravado!.Token.ShouldBeNull();
+        await _convites.DidNotReceiveWithAnyArgs().ListarLinksNaoRevogadosParaEdicao(Ct);
     }
 
     public static TheoryData<string> Inutilizaveis => ["inexistente", "expirado", "revogado", "esgotado", "turma suspensa"];
@@ -339,7 +369,7 @@ public sealed class ConviteServiceTests
         AutorCom(PapelNaFormatura.Presidente);
         _formaturas.ObterDetalhe(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Formatura(StatusDaFormatura.Rascunho));
 
-        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", papel, null, null), Ct);
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", papel), Ct);
 
         resultado.Sucesso.ShouldBe(aceita);
         if (!aceita)
@@ -402,7 +432,7 @@ public sealed class ConviteServiceTests
     private static Convite Link() => new() { TokenHash = Hash("token"), ExpiraEm = DateTime.UtcNow.AddDays(1) };
 
     private static FormaturaDetalhe Formatura(StatusDaFormatura status) =>
-        new(FormaturaId, "Medicina 2027.1", "UFPR", "Medicina", 2027, 1, null, 80, status, DateTime.UtcNow, null, null);
+        new(FormaturaId, "Medicina 2027.1", "UFPR", "Medicina", 2027, 1, null, null, 80, status, DateTime.UtcNow, null, null);
 
     private static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }

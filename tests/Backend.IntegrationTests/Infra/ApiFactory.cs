@@ -1,5 +1,7 @@
 using System.Globalization;
+using Backend.Business;
 using Backend.Business.Abstractions;
+using Backend.Data;
 using Backend.Data.Context;
 using Backend.Data.Criptografia;
 using Backend.Data.Seed;
@@ -8,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Testcontainers.PostgreSql;
 
@@ -47,6 +50,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     private DbContextOptions<AppDbContext> _opcoes = null!;
 
+    private ServiceProvider _worker = null!;
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17-alpine")
         .WithDatabase("backend_testes")
         .WithUsername("testes")
@@ -75,6 +80,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         await escopo.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
         await SeedInicial.AplicarAsync(escopo.ServiceProvider);
+        await SeedDePlanos.AplicarAsync(escopo.ServiceProvider);
+
+        _worker = ConstruirWorker();
     }
 
     /// <summary>
@@ -93,6 +101,24 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// </remarks>
     /// <param name="formaturaId">Formatura que o contexto vai enxergar, ou nulo para nenhuma.</param>
     public AppDbContext ContextoDe(Guid? formaturaId) => new(_opcoes, new FormaturaFixa(formaturaId), Services.GetRequiredService<CifraDeCampo>());
+
+    /// <summary>
+    /// O assunto e o corpo do e-mail mais recente da fila, concatenados — a caixa de entrada do teste.
+    /// </summary>
+    /// <remarks>
+    /// O worker não roda nos testes: o e-mail fica na fila, que é onde o teste o lê. Serve a quem
+    /// precisa de um valor que só existe dentro da mensagem, como o código de seis dígitos da adesão.
+    /// <para>
+    /// Sem filtro por destinatário porque os testes desta coleção rodam em série: o último da fila é
+    /// o que o teste corrente acabou de provocar.
+    /// </para>
+    /// </remarks>
+    public async Task<string?> UltimoEmailDaFila(CancellationToken ct)
+    {
+        await using var contexto = ContextoDe(null);
+
+        return await contexto.EmailsFila.OrderByDescending(e => e.CriadoEm).Select(e => $"{e.Assunto}\n{e.CorpoHtml}").FirstOrDefaultAsync(ct);
+    }
 
     /// <inheritdoc />
     protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.UseEnvironment("Testing");
@@ -123,6 +149,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     ["Criptografia:ChaveDeDados"] = ChaveDeDados,
                     ["RateLimit:PadraoPorMinuto"] = "100000",
                     ["RateLimit:AutenticacaoPorMinuto"] = "100000",
+                    ["RateLimit:CodigoPorMinuto"] = "100000",
                     ["Armazenamento:Provedor"] = "Local",
                     ["Armazenamento:CaminhoLocal"] = _diretorioDeArquivos,
                     // Baixo de propósito: a cota precisa ser alcançável em teste sem subir
@@ -140,10 +167,56 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         return base.CreateHost(builder);
     }
 
+    /// <summary>
+    /// Um escopo igual ao do worker, apontado para uma formatura.
+    /// </summary>
+    /// <remarks>
+    /// O <c>IFormaturaAtual</c> da API lê a claim do token, e um job não tem requisição HTTP: sem
+    /// este container, um teste de régua resolveria o service com a formatura nula e o filtro global
+    /// não casaria com linha nenhuma. A composição é a mesma de <c>DependenciasWorker</c> —
+    /// <c>AddData</c> + <c>AddBusiness</c> com <c>FormaturaDoProcessamento</c> no lugar da claim.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura a processar.</param>
+    public IServiceScope EscopoDoWorker(Guid formaturaId)
+    {
+        var escopo = _worker.CreateScope();
+
+        escopo.ServiceProvider.GetRequiredService<FormaturaDoProcessamento>().Apontar(formaturaId);
+
+        return escopo;
+    }
+
+    private ServiceProvider ConstruirWorker()
+    {
+        var configuracao = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:Postgres"] = _postgres.GetConnectionString(),
+                    ["Criptografia:ChaveDeDados"] = ChaveDeDados,
+                    ["Jwt:ChaveSecreta"] = "chave-de-teste-com-mais-de-32-caracteres-ok",
+                    ["Aplicacao:Nome"] = "Kapa",
+                    ["Aplicacao:UrlDoFrontend"] = "https://kapa.testes",
+                    ["Armazenamento:Provedor"] = "Local",
+                    ["Armazenamento:CaminhoLocal"] = _diretorioDeArquivos,
+                }
+            )
+            .Build();
+
+        var servicos = new ServiceCollection();
+        servicos.AddLogging();
+        servicos.AddData(configuracao).AddBusiness(configuracao);
+        servicos.AddScoped<FormaturaDoProcessamento>();
+        servicos.Replace(ServiceDescriptor.Scoped<IFormaturaAtual>(sp => sp.GetRequiredService<FormaturaDoProcessamento>()));
+
+        return servicos.BuildServiceProvider();
+    }
+
     /// <inheritdoc />
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
+        await _worker.DisposeAsync();
         await _postgres.DisposeAsync();
 
         if (Directory.Exists(_diretorioDeArquivos))

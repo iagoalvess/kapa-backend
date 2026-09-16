@@ -18,6 +18,19 @@ public sealed record PaginacaoRequest
     /// <summary>Itens por página.</summary>
     public int Tamanho { get; init; } = 20;
 
+    /// <summary>
+    /// Coluna pela qual ordenar, no nome que a tela usa (<c>nome</c>, <c>vencimento</c>).
+    /// </summary>
+    /// <remarks>
+    /// Chega crua da query string e <b>nunca</b> entra numa consulta como texto: cada repositório a
+    /// traduz num <c>switch</c> sobre as colunas que aceita, e o que não estiver lá cai na ordenação
+    /// padrão da listagem. Sem esse desvio, ordenar viraria injeção pela porta da frente.
+    /// </remarks>
+    public string? OrdenarPor { get; init; }
+
+    /// <summary>Se a ordenação é decrescente. Só vale com <see cref="OrdenarPor"/>.</summary>
+    public bool Descendente { get; init; }
+
     /// <summary>Devolve uma cópia com página e tamanho dentro dos limites aceitos.</summary>
     public PaginacaoRequest Normalizar() => this with { Pagina = Math.Max(1, Pagina), Tamanho = Math.Clamp(Tamanho, 1, TamanhoMaximo) };
 

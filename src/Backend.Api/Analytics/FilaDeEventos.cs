@@ -68,7 +68,6 @@ public sealed class FilaDeEventos : IRegistradorDeEventos
     /// de linhas; em marcha lenta, uma gravação de uma linha só.
     /// </remarks>
     /// <param name="tamanhoMaximo">Teto de eventos por lote.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public async Task<IReadOnlyList<Evento>> LerLoteAsync(int tamanhoMaximo, CancellationToken ct)
     {
         if (!await _canal.Reader.WaitToReadAsync(ct))

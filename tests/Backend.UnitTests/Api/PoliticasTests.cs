@@ -21,18 +21,6 @@ namespace Backend.UnitTests.Api;
 /// </remarks>
 public sealed class PoliticasTests
 {
-    private static IAuthorizationService Servico()
-    {
-        var services = new ServiceCollection();
-
-        services.AddLogging(opcoes => opcoes.SetMinimumLevel(LogLevel.None));
-        services.AddSingleton(Substitute.For<IVinculoRepository>());
-        services.AddSingleton(Substitute.For<IFormaturaRepository>());
-        services.AddPoliticas();
-
-        return services.BuildServiceProvider().GetRequiredService<IAuthorizationService>();
-    }
-
     /// <summary>Serviço de autorização cuja formatura, qualquer que seja, está no status informado.</summary>
     /// <param name="status">Status gravado, ou nulo para formatura inexistente.</param>
     private static IAuthorizationService ServicoComStatus(StatusDaFormatura? status)
@@ -82,26 +70,6 @@ public sealed class PoliticasTests
 
     private static ClaimsPrincipal Autenticado(params Claim[] claims) => new(new ClaimsIdentity(claims, "Bearer"));
 
-    [Fact]
-    public async Task Sem_a_claim_de_formatura_a_politica_recusa()
-    {
-        var usuario = Autenticado(new Claim(TokenService.ClaimDePerfil, "Usuario"));
-
-        var resultado = await Servico().AuthorizeAsync(usuario, resource: null, Politicas.FormaturaSelecionada);
-
-        resultado.Succeeded.ShouldBeFalse();
-    }
-
-    [Fact]
-    public async Task Com_a_claim_de_formatura_a_politica_aceita()
-    {
-        var usuario = Autenticado(new Claim(TokenService.ClaimDeFormatura, Guid.CreateVersion7().ToString()));
-
-        var resultado = await Servico().AuthorizeAsync(usuario, resource: null, Politicas.FormaturaSelecionada);
-
-        resultado.Succeeded.ShouldBeTrue();
-    }
-
     /// <summary>
     /// Nem o administrador entra sem escolher turma: não é falta de permissão, é falta de
     /// contexto — e o dado que ele veria seria o de nenhuma formatura.
@@ -111,7 +79,7 @@ public sealed class PoliticasTests
     {
         var usuario = Autenticado(new Claim(TokenService.ClaimDePerfil, "Administrador"));
 
-        var resultado = await Servico().AuthorizeAsync(usuario, resource: null, Politicas.FormaturaSelecionada);
+        var resultado = await ServicoComStatus(StatusDaFormatura.Ativa).AuthorizeAsync(usuario, resource: null, Politicas.ExigeFormaturaAtiva);
 
         resultado.Succeeded.ShouldBeFalse();
     }

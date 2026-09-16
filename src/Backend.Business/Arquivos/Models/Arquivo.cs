@@ -76,3 +76,14 @@ public sealed record NovoArquivo(string Nome, long Tamanho, Stream Conteudo, str
 /// <param name="Nome">Nome original, usado no cabeçalho de download.</param>
 /// <param name="ContentType">Tipo do conteúdo.</param>
 public sealed record ArquivoParaDownload(Stream Conteudo, string Nome, string ContentType);
+
+/// <summary>
+/// Os dados de uma URL temporária do provedor local, como chegam na query string.
+/// </summary>
+/// <remarks>Tudo anulável: a URL é pública, e o que faltar simplesmente não confere.</remarks>
+/// <param name="Chave">Chave do objeto.</param>
+/// <param name="Nome">Nome para o download.</param>
+/// <param name="Tipo">Tipo do conteúdo.</param>
+/// <param name="Expira">Instante de expiração, em segundos Unix.</param>
+/// <param name="Assinatura">HMAC dos quatro acima.</param>
+public sealed record ObjetoTemporario(string? Chave, string? Nome, string? Tipo, long Expira, string? Assinatura);

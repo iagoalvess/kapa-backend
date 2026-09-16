@@ -13,35 +13,28 @@ namespace Backend.Business.Assinaturas.Interfaces;
 public interface IAssinaturaRepository
 {
     /// <summary>Planos contratáveis, do mais barato ao mais caro.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<IReadOnlyList<PlanoResumo>> ListarPlanosAtivos(CancellationToken ct = default);
 
     /// <summary>Plano contratável pelo código, ou nulo.</summary>
     /// <param name="codigo">Código do plano.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Plano?> ObterPlanoAtivo(string codigo, CancellationToken ct = default);
 
     /// <summary>Plano pelo id, contratável ou não — assinatura antiga continua valendo num plano retirado.</summary>
     /// <param name="planoId">Plano.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Plano?> ObterPlano(Guid planoId, CancellationToken ct = default);
 
     /// <summary>A assinatura mais recente da formatura da sessão, com o plano.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<AssinaturaDetalhe?> ObterDetalheDaMaisRecente(CancellationToken ct = default);
 
     /// <summary>A assinatura mais recente da formatura da sessão, rastreada para alteração.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Assinatura?> ObterMaisRecenteParaEdicao(CancellationToken ct = default);
 
     /// <summary>Marca uma assinatura nova para inclusão.</summary>
     /// <param name="assinatura">Assinatura a persistir.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task Adicionar(Assinatura assinatura, CancellationToken ct = default);
 
     /// <summary>Assinatura de qualquer formatura, rastreada. É o webhook que chama: não há sessão.</summary>
     /// <param name="assinaturaId">Assinatura.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Assinatura?> ObterParaEdicaoDeTodasAsFormaturas(Guid assinaturaId, CancellationToken ct = default);
 
     /// <summary>
@@ -54,7 +47,6 @@ public interface IAssinaturaRepository
     /// <param name="atualizadasAntesDe">Parada há pelo menos este tempo.</param>
     /// <param name="atualizadasDepoisDe">Mas não há mais que este.</param>
     /// <param name="limite">Máximo de linhas.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<IReadOnlyList<Assinatura>> ListarPendentesDeTodasAsFormaturas(
         DateTime atualizadasAntesDe,
         DateTime atualizadasDepoisDe,
@@ -66,7 +58,6 @@ public interface IAssinaturaRepository
     /// <remarks>Alimenta o vencimento e os avisos: quem vence até a data é candidato aos dois.</remarks>
     /// <param name="vigentesAte">Limite superior da vigência.</param>
     /// <param name="limite">Máximo de linhas.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<IReadOnlyList<Assinatura>> ListarVencendoDeTodasAsFormaturas(DateTime vigentesAte, int limite, CancellationToken ct = default);
 
     /// <summary>
@@ -80,6 +71,5 @@ public interface IAssinaturaRepository
     /// documentada de <c>ReservarLote</c>: SQL explícito dentro da transação do service.
     /// </remarks>
     /// <param name="evento">Evento recebido.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<bool> RegistrarSeNovo(EventoDeCobranca evento, CancellationToken ct = default);
 }

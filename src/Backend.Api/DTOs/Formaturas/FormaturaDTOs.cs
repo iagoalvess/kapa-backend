@@ -19,6 +19,7 @@ public sealed record FormaturaDoUsuarioDTO(Guid Id, string Nome, string Curso, s
 /// <param name="Ano">Ano de conclusão.</param>
 /// <param name="Semestre">1 ou 2.</param>
 /// <param name="PrevisaoDeColacao">Data prevista da colação (<c>yyyy-MM-dd</c>), opcional.</param>
+/// <param name="PrevisaoDaFesta">Data prevista da festa (<c>yyyy-MM-dd</c>), opcional.</param>
 /// <param name="QuantidadeEstimadaDeFormandos">Quantos formandos a comissão espera.</param>
 /// <param name="RefreshToken">
 /// Refresh token atual, só na criação e só com o modo cookie desligado — com ele ligado, é ignorado.
@@ -30,6 +31,7 @@ public sealed record DadosDaFormaturaRequestDTO(
     int Ano,
     int Semestre,
     DateOnly? PrevisaoDeColacao,
+    DateOnly? PrevisaoDaFesta,
     int QuantidadeEstimadaDeFormandos,
     string? RefreshToken = null
 );
@@ -42,6 +44,7 @@ public sealed record DadosDaFormaturaRequestDTO(
 /// <param name="Ano">Ano de conclusão.</param>
 /// <param name="Semestre">Semestre de conclusão.</param>
 /// <param name="PrevisaoDeColacao">Data prevista da colação.</param>
+/// <param name="PrevisaoDaFesta">Data prevista da festa.</param>
 /// <param name="QuantidadeEstimadaDeFormandos">Quantos formandos a comissão espera.</param>
 /// <param name="Status"><c>Rascunho</c>, <c>AguardandoPagamento</c>, <c>Ativa</c>, <c>Suspensa</c> ou <c>Encerrada</c>.</param>
 /// <param name="CriadoEm">Criação, em UTC.</param>
@@ -55,6 +58,7 @@ public sealed record FormaturaDetalheDTO(
     int Ano,
     int Semestre,
     DateOnly? PrevisaoDeColacao,
+    DateOnly? PrevisaoDaFesta,
     int QuantidadeEstimadaDeFormandos,
     StatusDaFormatura Status,
     DateTime CriadoEm,

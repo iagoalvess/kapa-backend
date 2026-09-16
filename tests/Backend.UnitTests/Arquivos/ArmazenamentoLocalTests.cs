@@ -15,7 +15,7 @@ public sealed class ArmazenamentoLocalTests : IDisposable
 
     private readonly string _raiz = Path.Combine(Path.GetTempPath(), $"backend-testes-{Guid.CreateVersion7():N}");
 
-    private ArmazenamentoLocal Criar() => new(Options.Create(new ArmazenamentoSettings { CaminhoLocal = _raiz }));
+    private ArmazenamentoLocal Criar() => new(Options.Create(new ArmazenamentoSettings { CaminhoLocal = _raiz }), new UrlTemporariaLocal());
 
     private static Stream Conteudo(string texto) => new MemoryStream(Encoding.UTF8.GetBytes(texto));
 

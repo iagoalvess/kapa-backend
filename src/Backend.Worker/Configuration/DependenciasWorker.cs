@@ -1,9 +1,11 @@
 using Backend.Business;
+using Backend.Business.Abstractions;
 using Backend.Business.Usuarios.Models;
 using Backend.Data;
 using Backend.Data.Context;
 using Backend.Worker.Jobs;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Backend.Worker.Configuration;
 
@@ -28,6 +30,9 @@ public static class DependenciasWorker
 
         builder.Services.AddIdentityCore<Usuario>().AddRoles<Perfil>().AddEntityFrameworkStores<AppDbContext>();
 
+        builder.Services.AddScoped<FormaturaDoProcessamento>();
+        builder.Services.Replace(ServiceDescriptor.Scoped<IFormaturaAtual>(sp => sp.GetRequiredService<FormaturaDoProcessamento>()));
+
         return builder.AdicionarJobs();
     }
 
@@ -39,6 +44,8 @@ public static class DependenciasWorker
         builder.Services.AddHostedService<LimpezaRefreshTokensJob>();
         builder.Services.AddHostedService<RetencaoDeEventosJob>();
         builder.Services.AddHostedService<ConciliacaoDeAssinaturasJob>();
+        builder.Services.AddHostedService<GeracaoDeRelatoriosJob>();
+        builder.Services.AddHostedService<ReguaDeCobrancaJob>();
 
         return builder;
     }

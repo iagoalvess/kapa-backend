@@ -25,7 +25,6 @@ public static class SeedInicial
 
     /// <summary>Cria os perfis padrão e, se configurado, o administrador inicial.</summary>
     /// <param name="provider">Provedor de serviços com escopo já aberto.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public static async Task AplicarAsync(IServiceProvider provider, CancellationToken ct = default)
     {
         var logger = provider.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(SeedInicial));

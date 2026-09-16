@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Backend.Api.DTOs.Auth;
 using Backend.Api.DTOs.Conta;
 using Backend.Business.Auth.Services;
@@ -26,6 +27,8 @@ namespace Backend.IntegrationTests.Conta;
 [Collection(ColecaoDeApi.Nome)]
 public sealed class ContaFluxoTests(ApiFactory fabrica)
 {
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private const string SenhaNova = "NovaSenha@Teste456";
@@ -38,11 +41,12 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
         var resposta = await cliente.PostAsJsonAsync(
             "/api/v1/auth/registrar",
             await cliente.CorpoDeCadastro("Fulano", email, "Senha@Teste123", Ct),
+            Json,
             Ct
         );
         resposta.EnsureSuccessStatusCode();
 
-        return (email, (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Ct))!, resposta.RefreshTokenDoCookie()!);
+        return (email, (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, Ct))!, resposta.RefreshTokenDoCookie()!);
     }
 
     private async Task<T> ComUserManager<T>(Func<UserManager<Usuario>, Task<T>> operacao)
@@ -69,7 +73,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
     {
         var (email, _, _) = await CriarConta();
 
-        var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/conta/esqueci-senha", new PedidoPorEmailRequestDTO(email), Ct);
+        var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/conta/esqueci-senha", new PedidoPorEmailRequestDTO(email), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
@@ -83,7 +87,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
     {
         var resposta = await fabrica
             .CreateClient()
-            .PostAsJsonAsync("/api/v1/conta/esqueci-senha", new PedidoPorEmailRequestDTO("ninguem@testes.local"), Ct);
+            .PostAsJsonAsync("/api/v1/conta/esqueci-senha", new PedidoPorEmailRequestDTO("ninguem@testes.local"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
@@ -93,7 +97,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
     {
         var (email, _, _) = await CriarConta();
 
-        var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/conta/esqueci-senha", new PedidoPorEmailRequestDTO(email), Ct);
+        var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/conta/esqueci-senha", new PedidoPorEmailRequestDTO(email), Json, Ct);
         resposta.EnsureSuccessStatusCode();
 
         using var escopo = fabrica.Services.CreateScope();
@@ -110,7 +114,9 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
     [Fact]
     public async Task Esqueci_senha_com_email_invalido_responde_400()
     {
-        var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/conta/esqueci-senha", new PedidoPorEmailRequestDTO("nao-e-email"), Ct);
+        var resposta = await fabrica
+            .CreateClient()
+            .PostAsJsonAsync("/api/v1/conta/esqueci-senha", new PedidoPorEmailRequestDTO("nao-e-email"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
@@ -126,12 +132,13 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
         var redefinicao = await cliente.PostAsJsonAsync(
             "/api/v1/conta/redefinir-senha",
             new RedefinirSenhaRequestDTO(email, await TokenDeRedefinicao(email), SenhaNova),
+            Json,
             Ct
         );
         redefinicao.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        var comSenhaAntiga = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Senha@Teste123"), Ct);
-        var comSenhaNova = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, SenhaNova), Ct);
+        var comSenhaAntiga = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Senha@Teste123"), Json, Ct);
+        var comSenhaNova = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, SenhaNova), Json, Ct);
 
         comSenhaAntiga.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         comSenhaNova.EnsureSuccessStatusCode();
@@ -150,6 +157,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
         await cliente.PostAsJsonAsync(
             "/api/v1/conta/redefinir-senha",
             new RedefinirSenhaRequestDTO(email, await TokenDeRedefinicao(email), SenhaNova),
+            Json,
             Ct
         );
 
@@ -165,10 +173,16 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         var token = await TokenDeRedefinicao(email);
 
-        var primeira = await cliente.PostAsJsonAsync("/api/v1/conta/redefinir-senha", new RedefinirSenhaRequestDTO(email, token, SenhaNova), Ct);
+        var primeira = await cliente.PostAsJsonAsync(
+            "/api/v1/conta/redefinir-senha",
+            new RedefinirSenhaRequestDTO(email, token, SenhaNova),
+            Json,
+            Ct
+        );
         var segunda = await cliente.PostAsJsonAsync(
             "/api/v1/conta/redefinir-senha",
             new RedefinirSenhaRequestDTO(email, token, "OutraSenha@789"),
+            Json,
             Ct
         );
 
@@ -184,7 +198,12 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
 
         var resposta = await fabrica
             .CreateClient()
-            .PostAsJsonAsync("/api/v1/conta/redefinir-senha", new RedefinirSenhaRequestDTO(emailB, await TokenDeRedefinicao(emailA), SenhaNova), Ct);
+            .PostAsJsonAsync(
+                "/api/v1/conta/redefinir-senha",
+                new RedefinirSenhaRequestDTO(emailB, await TokenDeRedefinicao(emailA), SenhaNova),
+                Json,
+                Ct
+            );
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
@@ -198,7 +217,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
 
         var resposta = await fabrica
             .CreateClient()
-            .PostAsJsonAsync("/api/v1/conta/redefinir-senha", new RedefinirSenhaRequestDTO(email, token, SenhaNova), Ct);
+            .PostAsJsonAsync("/api/v1/conta/redefinir-senha", new RedefinirSenhaRequestDTO(email, token, SenhaNova), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await resposta.Content.ReadAsStringAsync(Ct)).ShouldContain("conta.link_invalido");
@@ -215,7 +234,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
 
         var resposta = await fabrica
             .CreateClient()
-            .PostAsJsonAsync("/api/v1/conta/redefinir-senha", new RedefinirSenhaRequestDTO(email, await TokenDeRedefinicao(email), "123"), Ct);
+            .PostAsJsonAsync("/api/v1/conta/redefinir-senha", new RedefinirSenhaRequestDTO(email, await TokenDeRedefinicao(email), "123"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
@@ -250,7 +269,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
 
         var resposta = await fabrica
             .CreateClient()
-            .PostAsJsonAsync("/api/v1/conta/confirmar-email", new ConfirmarEmailRequestDTO(email, await TokenDeConfirmacao(email)), Ct);
+            .PostAsJsonAsync("/api/v1/conta/confirmar-email", new ConfirmarEmailRequestDTO(email, await TokenDeConfirmacao(email)), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await ComUserManager(async m => (await m.FindByEmailAsync(email))!.EmailConfirmed)).ShouldBeTrue();
@@ -263,8 +282,8 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         var token = await TokenDeConfirmacao(email);
 
-        await cliente.PostAsJsonAsync("/api/v1/conta/confirmar-email", new ConfirmarEmailRequestDTO(email, token), Ct);
-        var segunda = await cliente.PostAsJsonAsync("/api/v1/conta/confirmar-email", new ConfirmarEmailRequestDTO(email, token), Ct);
+        await cliente.PostAsJsonAsync("/api/v1/conta/confirmar-email", new ConfirmarEmailRequestDTO(email, token), Json, Ct);
+        var segunda = await cliente.PostAsJsonAsync("/api/v1/conta/confirmar-email", new ConfirmarEmailRequestDTO(email, token), Json, Ct);
 
         segunda.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
@@ -276,7 +295,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
 
         var resposta = await fabrica
             .CreateClient()
-            .PostAsJsonAsync("/api/v1/conta/confirmar-email", new ConfirmarEmailRequestDTO(email, "token-inventado"), Ct);
+            .PostAsJsonAsync("/api/v1/conta/confirmar-email", new ConfirmarEmailRequestDTO(email, "token-inventado"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
@@ -286,7 +305,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
     {
         var resposta = await fabrica
             .CreateClient()
-            .PostAsJsonAsync("/api/v1/conta/reenviar-confirmacao", new PedidoPorEmailRequestDTO("ninguem@testes.local"), Ct);
+            .PostAsJsonAsync("/api/v1/conta/reenviar-confirmacao", new PedidoPorEmailRequestDTO("ninguem@testes.local"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
@@ -298,7 +317,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
     {
         var resposta = await fabrica
             .CreateClient()
-            .PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("Senha@Teste123", SenhaNova), Ct);
+            .PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("Senha@Teste123", SenhaNova), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -315,11 +334,11 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
         var resposta = await fabrica
             .CreateClient()
             .ComToken(tokens.AccessToken)
-            .PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("SenhaErrada@123", SenhaNova), Ct);
+            .PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("SenhaErrada@123", SenhaNova), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        var problema = await resposta.Content.ReadFromJsonAsync<ValidationProblemDetails>(Ct);
-        problema!.Errors.ShouldContainKey("senhaAtual");
+        var problema = await resposta.Content.ReadFromJsonAsync<ValidationProblemDetails>(Json, Ct);
+        problema!.Errors.ShouldContainKey("senha_atual");
     }
 
     /// <summary>
@@ -333,9 +352,14 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient().ComToken(tokens.AccessToken);
 
         for (var tentativa = 0; tentativa < 5; tentativa++)
-            await cliente.PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("SenhaErrada@123", SenhaNova), Ct);
+            await cliente.PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("SenhaErrada@123", SenhaNova), Json, Ct);
 
-        var resposta = await cliente.PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("Senha@Teste123", SenhaNova), Ct);
+        var resposta = await cliente.PostAsJsonAsync(
+            "/api/v1/conta/alterar-senha",
+            new AlterarSenhaRequestDTO("Senha@Teste123", SenhaNova),
+            Json,
+            Ct
+        );
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await resposta.Content.ReadAsStringAsync(Ct)).ShouldContain("auth.conta_bloqueada");
@@ -349,13 +373,13 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
 
         var troca = await cliente
             .ComToken(tokens.AccessToken)
-            .PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("Senha@Teste123", SenhaNova), Ct);
+            .PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("Senha@Teste123", SenhaNova), Json, Ct);
         troca.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         var renovacao = await fabrica.RenovarComCookie(refresh, Ct);
         renovacao.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
-        var login = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, SenhaNova), Ct);
+        var login = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, SenhaNova), Json, Ct);
         login.EnsureSuccessStatusCode();
     }
 
@@ -367,7 +391,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
         var resposta = await fabrica
             .CreateClient()
             .ComToken(tokens.AccessToken)
-            .PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("Senha@Teste123", "Senha@Teste123"), Ct);
+            .PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("Senha@Teste123", "Senha@Teste123"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
@@ -380,7 +404,7 @@ public sealed class ContaFluxoTests(ApiFactory fabrica)
         await fabrica
             .CreateClient()
             .ComToken(tokens.AccessToken)
-            .PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("Senha@Teste123", SenhaNova), Ct);
+            .PostAsJsonAsync("/api/v1/conta/alterar-senha", new AlterarSenhaRequestDTO("Senha@Teste123", SenhaNova), Json, Ct);
 
         using var escopo = fabrica.Services.CreateScope();
         var db = escopo.ServiceProvider.GetRequiredService<AppDbContext>();

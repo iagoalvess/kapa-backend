@@ -50,7 +50,6 @@ public static class FotoDoFormando
     /// <remarks>O tamanho é conferido antes de ler um byte do conteúdo.</remarks>
     /// <param name="conteudo">Bytes enviados. Quem chama é dono do descarte.</param>
     /// <param name="tamanho">Tamanho do envio, em bytes.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     /// <returns>O JPEG pronto para gravar, ou o erro de validação.</returns>
     public static async Task<Result<byte[]>> Preparar(Stream conteudo, long tamanho, CancellationToken ct = default)
     {

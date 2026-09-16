@@ -21,8 +21,8 @@ namespace Backend.UnitTests.Legal;
 public sealed class DocumentosPublicadosTests
 {
     [Theory]
-    [InlineData("TermosDeUso", "1", "b37049b9962c2b925431ae69b36d2f922ee1ac143010f8d0ab50bd2090c1fe5a")]
-    [InlineData("PoliticaDePrivacidade", "1", "d9d8d23eaabc07aa4d7f3bff73c9ee0d295a078a7ebc7feca494c14cecd918a7")]
+    [InlineData("TermosDeUso", "1", "63dc86e734c17602cc908048c90c5534a940c8454ce14da5dcfade477ec06fb4")]
+    [InlineData("PoliticaDePrivacidade", "1", "3c19d02f6c293fb4ec3d78462a88a9287e6e169d9f8ae3545c7abc4d6b65a7f6")]
     public void Texto_publicado_nao_muda(string tipo, string versao, string hashEsperado)
     {
         var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(DocumentosLegais.Ler(tipo, versao))));

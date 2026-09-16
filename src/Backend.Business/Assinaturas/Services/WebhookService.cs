@@ -154,7 +154,6 @@ public sealed class WebhookService(
     /// <param name="evento">Evento verificado.</param>
     /// <param name="payload">Corpo a guardar.</param>
     /// <param name="agoraUtc">Momento do processamento.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     private Task<Result<ReciboDeWebhook>> Processar(EventoDoProvedor evento, string payload, DateTime agoraUtc, CancellationToken ct) =>
         unitOfWork.EmTransacaoAsync(
             async token =>
@@ -271,7 +270,6 @@ public sealed class WebhookService(
 
     /// <summary>Suspende a formatura ativa e avisa o Presidente. Nada é apagado: a turma segue lendo.</summary>
     /// <param name="formatura">Formatura da assinatura vencida.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     private async Task Suspender(Formatura formatura, CancellationToken ct)
     {
         if (formatura.Transicionar(StatusDaFormatura.Suspensa).Falhou)

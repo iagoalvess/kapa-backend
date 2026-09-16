@@ -38,7 +38,6 @@ public sealed class ContaController(IContaService contaService, IUsuarioAtual us
     /// verificador de quais e-mails têm cadastro.
     /// </remarks>
     /// <param name="requisicao">E-mail da conta.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [AllowAnonymous]
     [HttpPost("esqueci-senha")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -48,7 +47,6 @@ public sealed class ContaController(IContaService contaService, IUsuarioAtual us
 
     /// <summary>Redefine a senha a partir do token recebido por e-mail.</summary>
     /// <param name="requisicao">E-mail, token e nova senha.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [RegistrarEvento("conta.senha_redefinida")]
     [AllowAnonymous]
     [HttpPost("redefinir-senha")]
@@ -59,7 +57,6 @@ public sealed class ContaController(IContaService contaService, IUsuarioAtual us
 
     /// <summary>Confirma o e-mail a partir do token recebido.</summary>
     /// <param name="requisicao">E-mail e token.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [RegistrarEvento("conta.email_confirmado")]
     [AllowAnonymous]
     [HttpPost("confirmar-email")]
@@ -70,7 +67,6 @@ public sealed class ContaController(IContaService contaService, IUsuarioAtual us
 
     /// <summary>Reenvia o e-mail de confirmação. Responde 204 exista a conta ou não.</summary>
     /// <param name="requisicao">E-mail da conta.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [AllowAnonymous]
     [HttpPost("reenviar-confirmacao")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -86,7 +82,6 @@ public sealed class ContaController(IContaService contaService, IUsuarioAtual us
     /// autenticar de novo depois de uma troca bem-sucedida.
     /// </remarks>
     /// <param name="requisicao">Senha atual e nova senha.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [RegistrarEvento("conta.senha_alterada")]
     [HttpPost("alterar-senha")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

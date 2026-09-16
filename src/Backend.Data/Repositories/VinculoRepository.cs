@@ -70,8 +70,13 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
 
     /// <inheritdoc />
     /// <remarks>
+    /// <c>LEFT JOIN</c> do vínculo com o perfil: quem nunca abriu o cadastro precisa aparecer —
+    /// é justamente quem a comissão quer cobrar. Sem perfil, conta como 0% e essencial pendente.
+    /// <para>
     /// Ativos primeiro, depois nome, com desempate por <c>Id</c> do usuário — sem critério único,
-    /// dois membros homônimos trocam de lugar entre páginas e um some da listagem.
+    /// dois membros homônimos trocam de lugar entre páginas e um some da listagem. Quem está na
+    /// turma fica em cima porque removido é histórico, e histórico não disputa atenção.
+    /// </para>
     /// </remarks>
     public async Task<PaginaDe<MembroDaFormatura>> ListarMembros(
         Guid formaturaId,
@@ -83,8 +88,17 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
         var consulta =
             from vinculo in db.Vinculos.AsNoTracking()
             join usuario in db.Users.AsNoTracking() on vinculo.UsuarioId equals usuario.Id
+            join perfil in db.PerfisDeFormandos.AsNoTracking() on vinculo.Id equals perfil.VinculoId into perfis
+            from perfil in perfis.DefaultIfEmpty()
             where vinculo.FormaturaId == formaturaId
-            select new { vinculo, usuario };
+            select new
+            {
+                vinculo,
+                usuario,
+                NomeCompleto = perfil == null ? null : perfil.NomeCompleto,
+                Completude = perfil == null ? 0 : perfil.Completude,
+                EssencialPreenchido = perfil != null && perfil.EssencialPreenchido,
+            };
 
         if (filtro.Ativo is { } ativo)
             consulta = consulta.Where(linha => linha.vinculo.Ativo == ativo);
@@ -92,10 +106,22 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
         if (filtro.Papel is { } papel)
             consulta = consulta.Where(linha => linha.vinculo.Papel == papel);
 
+        consulta = filtro.Cadastro switch
+        {
+            SituacaoDoCadastro.Pendente => consulta.Where(linha => !linha.EssencialPreenchido),
+            SituacaoDoCadastro.Incompleto => consulta.Where(linha => linha.Completude < 100),
+            SituacaoDoCadastro.Completo => consulta.Where(linha => linha.Completude == 100),
+            _ => consulta,
+        };
+
         if (!string.IsNullOrWhiteSpace(filtro.Busca))
         {
-            var termo = $"%{filtro.Busca.Trim()}%";
-            consulta = consulta.Where(linha => EF.Functions.ILike(linha.usuario.Nome, termo) || EF.Functions.ILike(linha.usuario.Email!, termo));
+            var termo = Busca.Padrao(filtro.Busca);
+            consulta = consulta.Where(linha =>
+                EF.Functions.ILike(EF.Functions.Unaccent(linha.usuario.Nome), termo)
+                || EF.Functions.ILike(linha.usuario.Email!, termo)
+                || (linha.NomeCompleto != null && EF.Functions.ILike(EF.Functions.Unaccent(linha.NomeCompleto), termo))
+            );
         }
 
         var total = await consulta.LongCountAsync(ct);
@@ -103,9 +129,17 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
         if (total == 0)
             return PaginaDe<MembroDaFormatura>.Vazia(paginacao);
 
-        var itens = await consulta
-            .OrderByDescending(linha => linha.vinculo.Ativo)
-            .ThenBy(linha => linha.usuario.Nome)
+        var desc = paginacao.Descendente;
+        var ordenada = paginacao.OrdenarPor switch
+        {
+            "membro" => consulta.Por(linha => linha.usuario.Nome, desc),
+            "papel" => consulta.Por(linha => linha.vinculo.Papel, desc),
+            "cadastro" => consulta.Por(linha => linha.Completude, desc),
+            "situacao" => consulta.Por(linha => linha.vinculo.Ativo, desc),
+            _ => consulta.OrderByDescending(linha => linha.vinculo.Ativo).ThenBy(linha => linha.usuario.Nome),
+        };
+
+        var itens = await ordenada
             .ThenBy(linha => linha.usuario.Id)
             .Skip(paginacao.Pular)
             .Take(paginacao.Tamanho)
@@ -114,7 +148,10 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
                 linha.usuario.Nome,
                 linha.usuario.Email ?? string.Empty,
                 linha.vinculo.Papel,
-                linha.vinculo.Ativo
+                linha.vinculo.Ativo,
+                linha.NomeCompleto,
+                linha.Completude,
+                !linha.EssencialPreenchido
             ))
             .ToListAsync(ct);
 
@@ -173,4 +210,34 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
             where vinculo.FormaturaId == formaturaId && vinculo.Ativo && vinculo.Papel == PapelNaFormatura.Presidente && usuario.Email != null
             select usuario.Email!
         ).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> ListarEmailsDaComissao(Guid formaturaId, CancellationToken ct = default) =>
+        await (
+            from vinculo in db.Vinculos.AsNoTracking()
+            join usuario in db.Users.AsNoTracking() on vinculo.UsuarioId equals usuario.Id
+            where vinculo.FormaturaId == formaturaId && vinculo.Ativo && vinculo.Papel != PapelNaFormatura.Formando && usuario.Email != null
+            select usuario.Email!
+        ).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> ListarEmailsDaTesouraria(Guid formaturaId, CancellationToken ct = default) =>
+        await (
+            from vinculo in db.Vinculos.AsNoTracking()
+            join usuario in db.Users.AsNoTracking() on vinculo.UsuarioId equals usuario.Id
+            where vinculo.FormaturaId == formaturaId && vinculo.Ativo && PapelNaFormatura.Tesouraria.Contains(vinculo.Papel) && usuario.Email != null
+            select usuario.Email!
+        ).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<Guid, string>> ListarEmailsDosVinculos(
+        IReadOnlyCollection<Guid> vinculoIds,
+        CancellationToken ct = default
+    ) =>
+        await (
+            from vinculo in db.Vinculos.AsNoTracking()
+            join usuario in db.Users.AsNoTracking() on vinculo.UsuarioId equals usuario.Id
+            where vinculoIds.Contains(vinculo.Id) && usuario.Email != null
+            select new { vinculo.Id, Email = usuario.Email! }
+        ).ToDictionaryAsync(linha => linha.Id, linha => linha.Email, ct);
 }

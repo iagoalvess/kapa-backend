@@ -15,6 +15,8 @@ namespace Backend.IntegrationTests.Auth;
 [Collection(ColecaoDeApi.Nome)]
 public sealed class AuthFluxoTests(ApiFactory fabrica)
 {
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -37,9 +39,9 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
         var email = $"repetido-{Guid.CreateVersion7():N}@testes.local";
         var corpo = await cliente.CorpoDeCadastro("Primeiro", email, "Senha@Teste123", Ct);
 
-        (await cliente.PostAsJsonAsync("/api/v1/auth/registrar", corpo, Ct)).EnsureSuccessStatusCode();
+        (await cliente.PostAsJsonAsync("/api/v1/auth/registrar", corpo, Json, Ct)).EnsureSuccessStatusCode();
 
-        var segunda = await cliente.PostAsJsonAsync("/api/v1/auth/registrar", corpo, Ct);
+        var segunda = await cliente.PostAsJsonAsync("/api/v1/auth/registrar", corpo, Json, Ct);
 
         segunda.StatusCode.ShouldBe(HttpStatusCode.Conflict);
     }
@@ -50,10 +52,10 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         var corpo = await cliente.CorpoDeCadastro("Fraco", $"fraco-{Guid.CreateVersion7():N}@testes.local", "123", Ct);
 
-        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/registrar", corpo, Ct);
+        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/registrar", corpo, Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        var problema = await resposta.Content.ReadFromJsonAsync<ValidationProblemDetails>(Ct);
+        var problema = await resposta.Content.ReadFromJsonAsync<ValidationProblemDetails>(Json, Ct);
         problema!.Errors.ShouldContainKey("senha");
     }
 
@@ -62,7 +64,7 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
     {
         var resposta = await fabrica
             .CreateClient()
-            .PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(ApiFactory.AdminEmail, "SenhaErrada@123"), Ct);
+            .PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(ApiFactory.AdminEmail, "SenhaErrada@123"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -71,7 +73,7 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
     /// Impede que o login vire um verificador de quais e-mails têm conta.
     /// </summary>
     /// <remarks>
-    /// A comparação ignora <c>traceId</c> e <c>instance</c>, que mudam a cada requisição por
+    /// A comparação ignora <c>trace_id</c> e <c>instance</c>, que mudam a cada requisição por
     /// definição. O que precisa ser idêntico é o par status + código de erro — é isso que um
     /// atacante consegue observar para distinguir os dois casos.
     /// </remarks>
@@ -80,13 +82,13 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
     {
         var cliente = fabrica.CreateClient();
 
-        var inexistente = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO("ninguem@testes.local", "Qualquer@123"), Ct);
-        var senhaErrada = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(ApiFactory.AdminEmail, "Errada@123"), Ct);
+        var inexistente = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO("ninguem@testes.local", "Qualquer@123"), Json, Ct);
+        var senhaErrada = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(ApiFactory.AdminEmail, "Errada@123"), Json, Ct);
 
         inexistente.StatusCode.ShouldBe(senhaErrada.StatusCode);
 
-        var problemaInexistente = await inexistente.Content.ReadFromJsonAsync<JsonElement>(Ct);
-        var problemaSenhaErrada = await senhaErrada.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        var problemaInexistente = await inexistente.Content.ReadFromJsonAsync<JsonElement>(Json, Ct);
+        var problemaSenhaErrada = await senhaErrada.Content.ReadFromJsonAsync<JsonElement>(Json, Ct);
 
         problemaInexistente.GetProperty("codigo").GetString().ShouldBe(problemaSenhaErrada.GetProperty("codigo").GetString());
         problemaInexistente.GetProperty("title").GetString().ShouldBe(problemaSenhaErrada.GetProperty("title").GetString());
@@ -102,15 +104,18 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         var email = $"bloqueada-{Guid.CreateVersion7():N}@testes.local";
         var cadastro = await cliente.CorpoDeCadastro("Bloqueada", email, "Senha@Teste123", Ct);
-        (await cliente.PostAsJsonAsync("/api/v1/auth/registrar", cadastro, Ct)).EnsureSuccessStatusCode();
+        (await cliente.PostAsJsonAsync("/api/v1/auth/registrar", cadastro, Json, Ct)).EnsureSuccessStatusCode();
 
         for (var tentativa = 0; tentativa < 5; tentativa++)
-            await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Errada@123"), Ct);
+            await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Errada@123"), Json, Ct);
 
-        var comSenhaCerta = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Senha@Teste123"), Ct);
+        var comSenhaCerta = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Senha@Teste123"), Json, Ct);
 
         comSenhaCerta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        (await comSenhaCerta.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("codigo").GetString().ShouldBe("auth.credenciais_invalidas");
+        (await comSenhaCerta.Content.ReadFromJsonAsync<JsonElement>(Json, Ct))
+            .GetProperty("codigo")
+            .GetString()
+            .ShouldBe("auth.credenciais_invalidas");
     }
 
     /// <summary>
@@ -120,10 +125,10 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
     [Fact]
     public async Task Corpo_vazio_devolve_400_com_codigo_de_validacao()
     {
-        var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/auth/login", new { }, Ct);
+        var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/auth/login", new { }, Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        var codigo = (await resposta.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("codigo").GetString() ?? "";
+        var codigo = (await resposta.Content.ReadFromJsonAsync<JsonElement>(Json, Ct)).GetProperty("codigo").GetString() ?? "";
         codigo.ShouldContain('.');
     }
 
@@ -143,12 +148,13 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
         var resposta = await cliente.PostAsJsonAsync(
             "/api/v1/auth/registrar",
             await cliente.CorpoDeCadastro("Cookie", $"cookie-{Guid.CreateVersion7():N}@testes.local", "Senha@Teste123", Ct),
+            Json,
             Ct
         );
 
         resposta.EnsureSuccessStatusCode();
 
-        var corpo = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Ct))!;
+        var corpo = (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, Ct))!;
         corpo.AccessToken.ShouldNotBeNullOrWhiteSpace();
         corpo.RefreshToken.ShouldBeNull();
 
@@ -204,7 +210,7 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
         var (_, refreshValido) = await cliente.RegistrarCapturandoCookie(Ct);
 
         var semCookie = fabrica.CreateClient();
-        var resposta = await semCookie.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequestDTO(refreshValido), Ct);
+        var resposta = await semCookie.PostAsJsonAsync("/api/v1/auth/refresh", new RefreshRequestDTO(refreshValido), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -242,14 +248,14 @@ public sealed class AuthFluxoTests(ApiFactory fabrica)
     }
 
     [Fact]
-    public async Task Erro_sai_no_formato_problem_details_com_traceId()
+    public async Task Erro_sai_no_formato_problem_details_com_trace_id()
     {
-        var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO("nao-e-email", ""), Ct);
+        var resposta = await fabrica.CreateClient().PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO("nao-e-email", ""), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         var corpo = await resposta.Content.ReadAsStringAsync(Ct);
-        corpo.ShouldContain("traceId");
+        corpo.ShouldContain("trace_id");
         corpo.ShouldContain("codigo");
         corpo.ShouldContain("errors");
     }

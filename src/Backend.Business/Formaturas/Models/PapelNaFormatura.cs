@@ -25,4 +25,11 @@ public static class PapelNaFormatura
 
     /// <summary>Todos os papéis, na ordem de responsabilidade.</summary>
     public static readonly IReadOnlyList<string> Todos = [Presidente, Tesoureiro, Comissao, Formando];
+
+    /// <summary>Quem faz a gestão da turma — o recorte da política <c>Gestao</c>, para as regras de service.</summary>
+    /// <remarks>Para checagem que a política não faz: "o dono, ou a gestão" é regra do service.</remarks>
+    public static readonly IReadOnlyList<string> Gestao = [Presidente, Tesoureiro, Comissao];
+
+    /// <summary>Quem responde pelo caixa — o recorte da política <c>Tesouraria</c>, para as regras de service.</summary>
+    public static readonly IReadOnlyList<string> Tesouraria = [Presidente, Tesoureiro];
 }

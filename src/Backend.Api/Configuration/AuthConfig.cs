@@ -19,6 +19,19 @@ namespace Backend.Api.Configuration;
 /// </summary>
 public static class AuthConfig
 {
+    /// <summary>
+    /// Serialização do 401 e do 403, escritos fora do pipeline do MVC.
+    /// </summary>
+    /// <remarks>
+    /// Aqui a resposta é montada na mão, sem passar pelo formatter — então as opções do MVC não
+    /// valem, e sem esta cópia o corpo sairia em camelCase no meio de uma API snake_case.
+    /// </remarks>
+    private static readonly JsonSerializerOptions JsonDaBorda = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower,
+    };
+
     /// <summary>Registra o ASP.NET Identity, o esquema JWT Bearer e as políticas.</summary>
     /// <param name="services">Coleção de serviços.</param>
     /// <param name="configuration">Configuração da aplicação.</param>
@@ -152,16 +165,16 @@ public static class AuthConfig
         {
             Status = status,
             Title = titulo,
-            Type = $"https://httpstatuses.io/{status}",
+            Type = DocDeErros.Para(contexto, codigo),
             Instance = $"{contexto.Request.Method} {contexto.Request.Path}",
         };
 
         problema.Extensions["codigo"] = codigo;
-        problema.Extensions["traceId"] = contexto.TraceIdentifier;
+        problema.Extensions["trace_id"] = contexto.TraceIdentifier;
 
         contexto.Response.StatusCode = status;
         contexto.Response.ContentType = "application/problem+json";
 
-        return contexto.Response.WriteAsync(JsonSerializer.Serialize(problema, JsonSerializerOptions.Web));
+        return contexto.Response.WriteAsync(JsonSerializer.Serialize(problema, JsonDaBorda));
     }
 }

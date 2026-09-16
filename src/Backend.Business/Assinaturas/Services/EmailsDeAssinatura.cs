@@ -25,13 +25,12 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
 
     private readonly AplicacaoSettings _aplicacao = aplicacao.Value;
 
-    private string LinkDaAssinatura => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/assinatura";
+    private string LinkDaFormatura => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/formatura";
 
     /// <summary>Pagamento confirmado: a turma está ativa.</summary>
     /// <param name="formatura">Formatura ativada.</param>
     /// <param name="presidentes">E-mails dos presidentes.</param>
     /// <param name="vigenteAte">Fim da vigência paga.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public Task BoasVindas(Formatura formatura, IReadOnlyList<string> presidentes, DateTime vigenteAte, CancellationToken ct = default) =>
         Enfileirar(
             presidentes,
@@ -45,7 +44,6 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
     /// <summary>O provedor recusou o pagamento.</summary>
     /// <param name="formatura">Formatura da assinatura.</param>
     /// <param name="presidentes">E-mails dos presidentes.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public Task PagamentoRecusado(Formatura formatura, IReadOnlyList<string> presidentes, CancellationToken ct = default) =>
         Enfileirar(
             presidentes,
@@ -59,7 +57,6 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
     /// <summary>Vigência e carência acabaram: a turma entrou em modo leitura.</summary>
     /// <param name="formatura">Formatura suspensa.</param>
     /// <param name="presidentes">E-mails dos presidentes.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public Task Suspensao(Formatura formatura, IReadOnlyList<string> presidentes, CancellationToken ct = default) =>
         Enfileirar(
             presidentes,
@@ -77,7 +74,6 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
     /// <param name="vigenteAte">Fim da vigência.</param>
     /// <param name="suspensaoEm">Quando a turma vira leitura se nada mudar.</param>
     /// <param name="renovacaoCancelada">Se não há renovação automática por vir.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     public Task AvisoDeVencimento(
         Formatura formatura,
         IReadOnlyList<string> presidentes,
@@ -106,7 +102,7 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
 
     private async Task Enfileirar(IReadOnlyList<string> presidentes, string assunto, string titulo, string mensagem, CancellationToken ct)
     {
-        var corpo = ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, "Ver assinatura", LinkDaAssinatura);
+        var corpo = ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, "Ver assinatura", LinkDaFormatura);
 
         foreach (var email in presidentes)
             await emailService.Enfileirar(new NovoEmail(email, $"{assunto} — {_aplicacao.Nome}", corpo), ct);

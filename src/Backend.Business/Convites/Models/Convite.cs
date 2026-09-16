@@ -11,9 +11,12 @@ namespace Backend.Business.Convites.Models;
 /// <see cref="UsosMaximos"/> e a validade, não a regra. Duas entidades seriam dois fluxos de
 /// aceite, de expiração e de auditoria, com a mesma regra escrita duas vezes.
 /// <para>
-/// O token puro nunca é gravado: só o SHA-256, como no refresh token. Vazamento do banco não
-/// entrega convite utilizável, e por isso o link também não pode ser mostrado de novo depois da
-/// criação.
+/// O aceite procura sempre pelo SHA-256 do token, como no refresh token. O nominal grava só o
+/// hash: vazamento do banco não entrega convite pessoal utilizável. O link da turma grava também
+/// o token puro (<see cref="Token"/>), para a comissão copiar de novo.
+/// </para>
+/// <para>
+/// A turma tem um link vigente por vez: gerar outro revoga o anterior.
 /// </para>
 /// <para>
 /// <c>ponytail:</c> aprovação manual de quem entra pelo link aberto só se uma turma pedir. O
@@ -22,14 +25,25 @@ namespace Backend.Business.Convites.Models;
 /// </remarks>
 public class Convite : EntidadeDaFormatura
 {
-    /// <summary>Validade do convite nominal quando o autor não escolhe outra.</summary>
+    /// <summary>Validade do convite nominal. Fixa: a tela informa em texto, não pergunta.</summary>
     public const int DiasDeValidadeDoNominal = 7;
 
-    /// <summary>Validade do link da turma quando o autor não escolhe outra.</summary>
+    /// <summary>
+    /// Validade do link da turma. Fixa, como o limite de entradas — o número estimado de formandos
+    /// no momento em que o link é gerado.
+    /// </summary>
     public const int DiasDeValidadeDoLink = 30;
 
-    /// <summary>SHA-256 do token, em hexadecimal. O token puro só existe na resposta da criação.</summary>
+    /// <summary>SHA-256 do token, em hexadecimal. É por ele que o aceite encontra o convite.</summary>
     public string TokenHash { get; set; } = string.Empty;
+
+    /// <summary>Token puro do link da turma, para mostrar o link de novo. Nulo no nominal.</summary>
+    /// <remarks>
+    /// Troca aceita: quem lê o banco entra na turma como Formando — o mesmo que qualquer um do grupo
+    /// de WhatsApp onde o link já circula —, dentro do limite de entradas e até alguém revogar. O
+    /// nominal não grava: ele vale papel de comissão e é de uma pessoa só.
+    /// </remarks>
+    public string? Token { get; set; }
 
     /// <summary>E-mail convidado. Nulo é o link aberto da turma.</summary>
     public string? Email { get; set; }

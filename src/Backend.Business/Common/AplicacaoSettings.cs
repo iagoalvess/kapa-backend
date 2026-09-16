@@ -19,6 +19,21 @@ public sealed class AplicacaoSettings
     /// <summary>Endereço base do front-end, sem barra no final.</summary>
     public string UrlDoFrontend { get; init; } = "http://localhost:3000";
 
+    /// <summary>
+    /// Onde a documentação dos erros está publicada, sem barra no final.
+    /// </summary>
+    /// <remarks>
+    /// É o <c>type</c> de todo <c>ProblemDetails</c>, com o código do erro na âncora:
+    /// <c>{UrlDaDocDeErros}#pagamento.parcela_paga</c>. O campo <c>type</c> existe na RFC 9457 para
+    /// levar a quem lê ao significado do erro — apontando para a definição genérica do status HTTP
+    /// ele não diz nada que o próprio <c>status</c> já não diga.
+    /// <para>
+    /// O conteúdo vive em <c>docs/erros.md</c>, no repositório. Publicar é apontar esta chave para
+    /// o endereço onde ele foi publicado, sem tocar em código.
+    /// </para>
+    /// </remarks>
+    public string UrlDaDocDeErros { get; init; } = "https://github.com/kapa/backend/blob/main/docs/erros.md";
+
     /// <summary>Monta uma URL do front-end a partir de um caminho e de parâmetros de consulta.</summary>
     /// <param name="caminho">Caminho da rota no front, começando com barra.</param>
     /// <param name="parametros">Pares de chave e valor para a query string.</param>

@@ -4,17 +4,23 @@ namespace Backend.Business.Assinaturas.Models;
 /// <param name="Id">Identificador.</param>
 /// <param name="Codigo">Código estável, enviado no checkout.</param>
 /// <param name="Nome">Nome do plano.</param>
+/// <param name="Descricao">Para que turma o plano serve.</param>
 /// <param name="PrecoEmCentavos">Preço de um ciclo, em centavos.</param>
+/// <param name="PrecoCheioEmCentavos">Preço sem desconto, em centavos. Nulo quando não há desconto.</param>
 /// <param name="Ciclo">Periodicidade.</param>
 /// <param name="LimiteDeFormandos">Quantos formandos cabem.</param>
+/// <param name="Modulos">Módulos incluídos, na ordem de exibição.</param>
 /// <param name="Recomendado">Destacado na tela.</param>
 public sealed record PlanoResumo(
     Guid Id,
     string Codigo,
     string Nome,
+    string Descricao,
     long PrecoEmCentavos,
+    long? PrecoCheioEmCentavos,
     CicloDeCobranca Ciclo,
     int LimiteDeFormandos,
+    IReadOnlyList<string> Modulos,
     bool Recomendado
 );
 

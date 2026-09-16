@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Backend.Api.DTOs.Auth;
 using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Usuarios;
@@ -20,6 +21,8 @@ namespace Backend.IntegrationTests.Usuarios;
 [Collection(ColecaoDeApi.Nome)]
 public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
 {
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
@@ -49,7 +52,7 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
 
         var pagina = await cliente
             .ComToken(tokens.AccessToken)
-            .GetFromJsonAsync<PaginaDTO<UsuarioResumoDTO>>("/api/v1/usuarios?pagina=1&tamanho=5", Ct);
+            .GetFromJsonAsync<PaginaDTO<UsuarioResumoDTO>>("/api/v1/usuarios?pagina=1&tamanho=5", Json, Ct);
 
         pagina.ShouldNotBeNull();
         pagina.Pagina.ShouldBe(1);
@@ -63,7 +66,9 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         var tokens = await cliente.AutenticarComoAdministrador(Ct);
 
-        var pagina = await cliente.ComToken(tokens.AccessToken).GetFromJsonAsync<PaginaDTO<UsuarioResumoDTO>>("/api/v1/usuarios?tamanho=100000", Ct);
+        var pagina = await cliente
+            .ComToken(tokens.AccessToken)
+            .GetFromJsonAsync<PaginaDTO<UsuarioResumoDTO>>("/api/v1/usuarios?tamanho=100000", Json, Ct);
 
         pagina!.Tamanho.ShouldBe(100);
     }
@@ -75,13 +80,13 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
         var tokens = await cliente.RegistrarUsuarioComum(Ct);
         var autenticado = cliente.ComToken(tokens.AccessToken);
 
-        var antes = await autenticado.GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Ct);
+        var antes = await autenticado.GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Json, Ct);
         antes!.Perfis.ShouldContain(PerfisPadrao.Usuario);
 
-        var alteracao = await autenticado.PutAsJsonAsync("/api/v1/usuarios/eu", new AtualizarUsuarioRequestDTO("Nome Alterado"), Ct);
+        var alteracao = await autenticado.PutAsJsonAsync("/api/v1/usuarios/eu", new AtualizarUsuarioRequestDTO("Nome Alterado"), Json, Ct);
         alteracao.EnsureSuccessStatusCode();
 
-        var depois = (await alteracao.Content.ReadFromJsonAsync<UsuarioDetalheDTO>(Ct))!;
+        var depois = (await alteracao.Content.ReadFromJsonAsync<UsuarioDetalheDTO>(Json, Ct))!;
         depois.Nome.ShouldBe("Nome Alterado");
         depois.Id.ShouldBe(antes.Id);
     }
@@ -92,7 +97,7 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         var tokens = await cliente.RegistrarUsuarioComum(Ct);
 
-        var resposta = await cliente.ComToken(tokens.AccessToken).PutAsJsonAsync("/api/v1/usuarios/eu", new AtualizarUsuarioRequestDTO(""), Ct);
+        var resposta = await cliente.ComToken(tokens.AccessToken).PutAsJsonAsync("/api/v1/usuarios/eu", new AtualizarUsuarioRequestDTO(""), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await resposta.Content.ReadAsStringAsync(Ct)).ShouldContain("nome");
@@ -105,9 +110,14 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
         var tokens = await cliente.AutenticarComoAdministrador(Ct);
         var autenticado = cliente.ComToken(tokens.AccessToken);
 
-        var eu = await autenticado.GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Ct);
+        var eu = await autenticado.GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Json, Ct);
 
-        var resposta = await autenticado.PutAsJsonAsync($"/api/v1/usuarios/{eu!.Id}/perfis", new AlterarPerfisRequestDTO([PerfisPadrao.Usuario]), Ct);
+        var resposta = await autenticado.PutAsJsonAsync(
+            $"/api/v1/usuarios/{eu!.Id}/perfis",
+            new AlterarPerfisRequestDTO([PerfisPadrao.Usuario]),
+            Json,
+            Ct
+        );
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
     }
@@ -119,9 +129,9 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
         var tokens = await cliente.AutenticarComoAdministrador(Ct);
         var autenticado = cliente.ComToken(tokens.AccessToken);
 
-        var eu = await autenticado.GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Ct);
+        var eu = await autenticado.GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Json, Ct);
 
-        var resposta = await autenticado.PutAsJsonAsync($"/api/v1/usuarios/{eu!.Id}/ativacao", new AlterarAtivacaoRequestDTO(false), Ct);
+        var resposta = await autenticado.PutAsJsonAsync($"/api/v1/usuarios/{eu!.Id}/ativacao", new AlterarAtivacaoRequestDTO(false), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
     }
@@ -134,9 +144,9 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
         var alvo = await fabrica.CreateClient().RegistrarUsuarioComum(Ct);
 
         var autenticado = cliente.ComToken(admin.AccessToken);
-        var eu = await fabrica.CreateClient().ComToken(alvo.AccessToken).GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Ct);
+        var eu = await fabrica.CreateClient().ComToken(alvo.AccessToken).GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Json, Ct);
 
-        var resposta = await autenticado.PutAsJsonAsync($"/api/v1/usuarios/{eu!.Id}/perfis", new AlterarPerfisRequestDTO(["Superusuario"]), Ct);
+        var resposta = await autenticado.PutAsJsonAsync($"/api/v1/usuarios/{eu!.Id}/perfis", new AlterarPerfisRequestDTO(["Superusuario"]), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
@@ -146,14 +156,14 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
     {
         var clienteAlvo = fabrica.CreateClient();
         var (alvo, refreshDoAlvo) = await clienteAlvo.RegistrarCapturandoCookie(Ct);
-        var eu = await clienteAlvo.ComToken(alvo.AccessToken).GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Ct);
+        var eu = await clienteAlvo.ComToken(alvo.AccessToken).GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Json, Ct);
 
         var clienteAdmin = fabrica.CreateClient();
         var admin = await clienteAdmin.AutenticarComoAdministrador(Ct);
 
         var desativacao = await clienteAdmin
             .ComToken(admin.AccessToken)
-            .PutAsJsonAsync($"/api/v1/usuarios/{eu!.Id}/ativacao", new AlterarAtivacaoRequestDTO(false), Ct);
+            .PutAsJsonAsync($"/api/v1/usuarios/{eu!.Id}/ativacao", new AlterarAtivacaoRequestDTO(false), Json, Ct);
         desativacao.EnsureSuccessStatusCode();
 
         var renovacao = await fabrica.RenovarComCookie(refreshDoAlvo, Ct);

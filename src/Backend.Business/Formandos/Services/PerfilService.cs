@@ -48,20 +48,32 @@ public sealed class PerfilService(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// O CPF inteiro é só do titular. A comissão identifica a pessoa pelo nome; o número serve ao
+    /// termo de adesão, que o próprio assina.
+    /// </remarks>
+    public async Task<Result<PerfilDetalhe>> ObterParaComissao(Guid formaturaId, Guid usuarioId, CancellationToken ct = default) =>
+        (await Obter(formaturaId, usuarioId, ct)).Map(perfil => perfil.ComCpfMascarado());
+
+    /// <inheritdoc />
     public Task<Result<PerfilDetalhe>> Atualizar(Guid formaturaId, Guid usuarioId, AtualizarPerfil dados, CancellationToken ct = default) =>
         Gravar(formaturaId, usuarioId, dados, autorDaCorrecao: null, ct);
 
     /// <inheritdoc />
     /// <remarks>
     /// O registro da correção entra na mesma transação da alteração: ou os dois ficam, ou nenhum.
+    /// <para>
+    /// O CPF que vier no pedido é descartado antes da validação: a comissão só o recebe mascarado,
+    /// e o formulário devolveria a máscara. Quem corrige o CPF é o titular.
+    /// </para>
     /// </remarks>
-    public Task<Result<PerfilDetalhe>> Corrigir(
+    public async Task<Result<PerfilDetalhe>> Corrigir(
         Guid formaturaId,
         Guid usuarioId,
         Guid autorId,
         AtualizarPerfil dados,
         CancellationToken ct = default
-    ) => Gravar(formaturaId, usuarioId, dados, autorId, ct);
+    ) => (await Gravar(formaturaId, usuarioId, dados.ComCpf(null), autorId, ct)).Map(perfil => perfil.ComCpfMascarado());
 
     /// <inheritdoc />
     /// <remarks>
@@ -122,20 +134,11 @@ public sealed class PerfilService(
         return await arquivoService.Baixar(arquivoId, new SolicitanteDeArquivo(membro.UsuarioId, EhAdministrador: false), ct);
     }
 
-    /// <inheritdoc />
-    public async Task<Result<PaginaDe<FormandoResumo>>> Listar(
-        Guid formaturaId,
-        PaginacaoRequest paginacao,
-        FiltroDeFormandos filtro,
-        CancellationToken ct = default
-    ) => Result.Ok(await perfilRepository.Listar(formaturaId, paginacao.Normalizar(), filtro, ct));
-
     /// <summary>Validar, achar o membro, aplicar, registrar a correção se houver autor, salvar.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Dono do cadastro.</param>
     /// <param name="dados">Seções a gravar.</param>
     /// <param name="autorDaCorrecao">Quem corrige, quando é a comissão; nulo quando é o próprio.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     private async Task<Result<PerfilDetalhe>> Gravar(
         Guid formaturaId,
         Guid usuarioId,
@@ -153,7 +156,7 @@ public sealed class PerfilService(
             return NaoEncontrado;
 
         var perfil = await ObterOuCriar(membro.VinculoId, ct);
-        perfil.Aplicar(dados);
+        perfil.Aplicar(autorDaCorrecao is null ? dados : dados.ComCpf(perfil.Cpf));
 
         if (autorDaCorrecao is { } autor)
         {

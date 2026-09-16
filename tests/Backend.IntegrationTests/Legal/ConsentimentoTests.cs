@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Backend.Api.DTOs.Auth;
 using Backend.Api.DTOs.Legal;
 using Backend.Business.Abstractions;
@@ -26,12 +27,14 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
 {
     private const string Registrar = "/api/v1/auth/registrar";
 
+    private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
     public async Task Vigentes_abrem_sem_sessao_com_os_dois_documentos()
     {
-        var vigentes = await fabrica.CreateClient().GetFromJsonAsync<DocumentoLegalDTO[]>("/api/v1/legal/vigentes", Ct);
+        var vigentes = await fabrica.CreateClient().GetFromJsonAsync<DocumentoLegalDTO[]>("/api/v1/legal/vigentes", Json, Ct);
 
         vigentes.ShouldNotBeNull();
         vigentes.Select(d => d.Tipo).ShouldBe([TipoDeDocumento.PoliticaDePrivacidade, TipoDeDocumento.TermosDeUso], ignoreOrder: true);
@@ -44,7 +47,7 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
     {
         var cliente = fabrica.CreateClient();
 
-        var documento = await cliente.GetFromJsonAsync<DocumentoLegalDTO>("/api/v1/legal/termosdeuso/1", Ct);
+        var documento = await cliente.GetFromJsonAsync<DocumentoLegalDTO>("/api/v1/legal/termosdeuso/1", Json, Ct);
         var inexistente = await cliente.GetAsync("/api/v1/legal/TermosDeUso/nao-existe", Ct);
 
         documento!.Tipo.ShouldBe(TipoDeDocumento.TermosDeUso);
@@ -74,7 +77,7 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
         var corpo = await cliente.CorpoDeCadastro("Meio aceite", NovoEmail(), "Senha@Teste123", Ct);
         var soOsTermos = corpo with { Aceites = [.. corpo.Aceites!.Where(a => a.Tipo == TipoDeDocumento.TermosDeUso)] };
 
-        var resposta = await cliente.PostAsJsonAsync(Registrar, soOsTermos, Ct);
+        var resposta = await cliente.PostAsJsonAsync(Registrar, soOsTermos, Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await resposta.Codigo(Ct)).ShouldBe("legal.aceite_obrigatorio");
@@ -138,7 +141,7 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
 
         await PublicarNovaVersaoDosTermos();
 
-        var resposta = await cliente.PostAsJsonAsync(Registrar, corpoAntigo, Ct);
+        var resposta = await cliente.PostAsJsonAsync(Registrar, corpoAntigo, Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await resposta.Codigo(Ct)).ShouldBe("legal.versao_desatualizada");
@@ -177,6 +180,7 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
         var resposta = await cliente.PostAsJsonAsync(
             "/api/v1/legal/aceites",
             new RegistrarAceitesRequestDTO([new AceiteDeDocumentoDTO(TipoDeDocumento.TermosDeUso, versaoNova)]),
+            Json,
             Ct
         );
 
@@ -191,10 +195,10 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
     public async Task Aceite_vazio_devolve_400_e_sem_sessao_devolve_401()
     {
         var cliente = fabrica.CreateClient();
-        var anonimo = await cliente.PostAsJsonAsync("/api/v1/legal/aceites", new RegistrarAceitesRequestDTO([]), Ct);
+        var anonimo = await cliente.PostAsJsonAsync("/api/v1/legal/aceites", new RegistrarAceitesRequestDTO([]), Json, Ct);
 
         var tokens = await cliente.RegistrarUsuarioComum(Ct);
-        var vazio = await cliente.ComToken(tokens.AccessToken).PostAsJsonAsync("/api/v1/legal/aceites", new RegistrarAceitesRequestDTO([]), Ct);
+        var vazio = await cliente.ComToken(tokens.AccessToken).PostAsJsonAsync("/api/v1/legal/aceites", new RegistrarAceitesRequestDTO([]), Json, Ct);
 
         anonimo.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         vazio.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -228,7 +232,7 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
     private static string NovoEmail() => $"legal-{Guid.CreateVersion7():N}@testes.local";
 
     private static async Task<MeusAceitesDTO> MeusAceites(HttpClient cliente) =>
-        (await cliente.GetFromJsonAsync<MeusAceitesDTO>("/api/v1/legal/meus-aceites", Ct))!;
+        (await cliente.GetFromJsonAsync<MeusAceitesDTO>("/api/v1/legal/meus-aceites", Json, Ct))!;
 
     /// <summary>
     /// Publica uma versão nova dos Termos, já vigente.
@@ -277,24 +281,6 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
         await using var contexto = fabrica.ContextoDe(null);
 
         return await contexto.Users.AnyAsync(u => u.Email == email, Ct);
-    }
-
-    /// <summary>Fixa o IP remoto antes do pipeline da aplicação, como o proxy reverso faria.</summary>
-    /// <param name="ip">IP a atribuir a toda requisição.</param>
-    private sealed class IpFixo(string ip) : IStartupFilter
-    {
-        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> proximo) =>
-            app =>
-            {
-                app.Use(
-                    (contexto, seguir) =>
-                    {
-                        contexto.Connection.RemoteIpAddress = IPAddress.Parse(ip);
-                        return seguir(contexto);
-                    }
-                );
-                proximo(app);
-            };
     }
 
     /// <summary>Aceite que falha de forma imprevista, depois de o usuário já existir na transação.</summary>

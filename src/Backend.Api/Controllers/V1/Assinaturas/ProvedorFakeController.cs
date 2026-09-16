@@ -76,13 +76,11 @@ public sealed class ProvedorFakeController(IProvedorDeAssinatura provedor, IWebh
 
     /// <summary>Aprova o pagamento, entrega o webhook e devolve o navegador ao front.</summary>
     /// <param name="id">Sessão de checkout.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("{id}/pagar")]
     public Task<IActionResult> Pagar(string id, CancellationToken ct) => Decidir(id, aprovado: true, ct);
 
     /// <summary>Recusa o pagamento, entrega o webhook e devolve o navegador ao front.</summary>
     /// <param name="id">Sessão de checkout.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPost("{id}/recusar")]
     public Task<IActionResult> Recusar(string id, CancellationToken ct) => Decidir(id, aprovado: false, ct);
 

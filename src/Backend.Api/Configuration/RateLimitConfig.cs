@@ -43,8 +43,22 @@ public static class RateLimitConfig
     /// </remarks>
     public const string Convites = "convites";
 
+    /// <summary>
+    /// Limite estreito, por usuário, para pedir e conferir o código de seis dígitos da adesão.
+    /// </summary>
+    /// <remarks>
+    /// Seis dígitos numa janela de poucos minutos é um espaço pequeno o bastante para força bruta
+    /// valer a pena no limite padrão de 120 por minuto. Por <b>usuário</b>, e não por IP como a
+    /// política de autenticação: a turma inteira adere do mesmo Wi-Fi da assembleia, e o código só
+    /// serve para quem já entrou na conta — tentar o de outra pessoa exigiria o token dela.
+    /// </remarks>
+    public const string Codigo = "codigo";
+
     /// <summary>Seção de configuração que ajusta os limites por ambiente.</summary>
     public const string Secao = "RateLimit";
+
+    /// <summary>Código do 429, no mesmo vocabulário dos erros de negócio.</summary>
+    private const string CodigoDoExcesso = "rate_limit.excedido";
 
     /// <summary>Registra as políticas de limitação.</summary>
     /// <param name="services">Coleção de serviços.</param>
@@ -56,6 +70,7 @@ public static class RateLimitConfig
         var porMinutoWebhook = configuration.GetValue($"{Secao}:WebhookPorMinuto", 600);
         var porMinutoConvites = configuration.GetValue($"{Secao}:ConvitesPorMinuto", 20);
         var rajadaConvites = configuration.GetValue($"{Secao}:ConvitesRajada", 150);
+        var porMinutoCodigo = configuration.GetValue($"{Secao}:CodigoPorMinuto", 6);
 
         services.AddRateLimiter(opcoes =>
         {
@@ -69,9 +84,10 @@ public static class RateLimitConfig
                 await contexto.HttpContext.Response.WriteAsJsonAsync(
                     new
                     {
+                        type = DocDeErros.Para(contexto.HttpContext, CodigoDoExcesso),
                         status = StatusCodes.Status429TooManyRequests,
                         title = "Muitas requisições. Tente novamente em instantes.",
-                        codigo = "rate_limit.excedido",
+                        codigo = CodigoDoExcesso,
                         traceId = contexto.HttpContext.TraceIdentifier,
                     },
                     ct
@@ -81,6 +97,8 @@ public static class RateLimitConfig
             opcoes.AddPolicy(Padrao, contexto => LimitarPor(Identificar(contexto), porMinutoPadrao));
 
             opcoes.AddPolicy(Autenticacao, contexto => LimitarPor($"auth:{Ip(contexto)}", porMinutoAutenticacao));
+
+            opcoes.AddPolicy(Codigo, contexto => LimitarPor($"codigo:{Identificar(contexto)}", porMinutoCodigo));
 
             opcoes.AddPolicy(Webhook, contexto => LimitarPor($"webhook:{Identificar(contexto)}", porMinutoWebhook));
 

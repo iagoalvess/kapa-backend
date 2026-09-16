@@ -33,7 +33,6 @@ public sealed class UsuarioController(IUsuarioService usuarioService, IUsuarioAt
     public const string RotaDeDetalhe = "UsuarioPorId";
 
     /// <summary>Devolve os dados do usuário autenticado.</summary>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("eu")]
     [ProducesResponseType(typeof(UsuarioDetalheDTO), StatusCodes.Status200OK)]
     public async Task<IActionResult> ObterMeuPerfil(CancellationToken ct)
@@ -45,7 +44,6 @@ public sealed class UsuarioController(IUsuarioService usuarioService, IUsuarioAt
 
     /// <summary>Altera os dados do usuário autenticado.</summary>
     /// <param name="requisicao">Novos valores.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPut("eu")]
     [ProducesResponseType(typeof(UsuarioDetalheDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -59,7 +57,6 @@ public sealed class UsuarioController(IUsuarioService usuarioService, IUsuarioAt
     /// <summary>Lista usuários paginados.</summary>
     /// <param name="paginacao">Página e tamanho.</param>
     /// <param name="busca">Termo livre aplicado a nome e e-mail.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet]
     [Authorize(Policy = Politicas.SomenteAdministrador)]
     [ProducesResponseType(typeof(PaginaDTO<UsuarioResumoDTO>), StatusCodes.Status200OK)]
@@ -72,7 +69,6 @@ public sealed class UsuarioController(IUsuarioService usuarioService, IUsuarioAt
 
     /// <summary>Obtém um usuário pelo identificador.</summary>
     /// <param name="id">Identificador do usuário.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpGet("{id:guid}", Name = RotaDeDetalhe)]
     [Authorize(Policy = Politicas.SomenteAdministrador)]
     [ProducesResponseType(typeof(UsuarioDetalheDTO), StatusCodes.Status200OK)]
@@ -87,7 +83,6 @@ public sealed class UsuarioController(IUsuarioService usuarioService, IUsuarioAt
     /// <summary>Altera os dados de um usuário.</summary>
     /// <param name="id">Identificador do usuário.</param>
     /// <param name="requisicao">Novos valores.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [HttpPut("{id:guid}")]
     [Authorize(Policy = Politicas.SomenteAdministrador)]
     [ProducesResponseType(typeof(UsuarioDetalheDTO), StatusCodes.Status200OK)]
@@ -103,7 +98,6 @@ public sealed class UsuarioController(IUsuarioService usuarioService, IUsuarioAt
     /// <summary>Ativa ou desativa o acesso de um usuário.</summary>
     /// <param name="id">Identificador do usuário.</param>
     /// <param name="requisicao">Novo estado de ativação.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [RegistrarEvento("usuario.ativacao_alterada", CamposDaRota = ["id"])]
     [HttpPut("{id:guid}/ativacao")]
     [Authorize(Policy = Politicas.SomenteAdministrador)]
@@ -116,7 +110,6 @@ public sealed class UsuarioController(IUsuarioService usuarioService, IUsuarioAt
     /// <summary>Substitui os perfis de acesso de um usuário.</summary>
     /// <param name="id">Identificador do usuário.</param>
     /// <param name="requisicao">Conjunto completo de perfis.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     [RegistrarEvento("usuario.perfis_alterados", CamposDaRota = ["id"])]
     [HttpPut("{id:guid}/perfis")]
     [Authorize(Policy = Politicas.SomenteAdministrador)]

@@ -18,7 +18,18 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
             .Where(p => p.Ativo)
             .OrderBy(p => p.PrecoEmCentavos)
             .ThenBy(p => p.Id)
-            .Select(p => new PlanoResumo(p.Id, p.Codigo, p.Nome, p.PrecoEmCentavos, p.Ciclo, p.LimiteDeFormandos, p.Recomendado))
+            .Select(p => new PlanoResumo(
+                p.Id,
+                p.Codigo,
+                p.Nome,
+                p.Descricao,
+                p.PrecoEmCentavos,
+                p.PrecoCheioEmCentavos,
+                p.Ciclo,
+                p.LimiteDeFormandos,
+                p.Modulos,
+                p.Recomendado
+            ))
             .ToListAsync(ct);
 
     /// <inheritdoc />
@@ -38,7 +49,18 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
             select new AssinaturaDetalhe(
                 assinatura.Id,
                 assinatura.Status,
-                new PlanoResumo(plano.Id, plano.Codigo, plano.Nome, plano.PrecoEmCentavos, plano.Ciclo, plano.LimiteDeFormandos, plano.Recomendado),
+                new PlanoResumo(
+                    plano.Id,
+                    plano.Codigo,
+                    plano.Nome,
+                    plano.Descricao,
+                    plano.PrecoEmCentavos,
+                    plano.PrecoCheioEmCentavos,
+                    plano.Ciclo,
+                    plano.LimiteDeFormandos,
+                    plano.Modulos,
+                    plano.Recomendado
+                ),
                 assinatura.VigenteAte,
                 assinatura.Status == StatusDaAssinatura.Ativa ? assinatura.VigenteAte : null,
                 assinatura.CanceladaEm,

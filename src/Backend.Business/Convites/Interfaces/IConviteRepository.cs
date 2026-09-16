@@ -15,17 +15,18 @@ public interface IConviteRepository
     /// <summary>Os convites mais recentes da formatura da sessão, com a situação no instante informado.</summary>
     /// <param name="agoraUtc">Momento que decide pendente e expirado.</param>
     /// <param name="limite">Quantos no máximo.</param>
-    /// <param name="ct">Token de cancelamento.</param>
+    /// <returns>Os convites. No link da turma, <c>Link</c> sai com o token puro: o endereço é o service que monta.</returns>
     Task<IReadOnlyList<ConviteResumo>> ListarRecentes(DateTime agoraUtc, int limite, CancellationToken ct = default);
+
+    /// <summary>Os links da turma da formatura da sessão ainda não revogados, rastreados para revogação.</summary>
+    Task<IReadOnlyList<Convite>> ListarLinksNaoRevogadosParaEdicao(CancellationToken ct = default);
 
     /// <summary>Um convite da formatura da sessão, rastreado para alteração.</summary>
     /// <param name="conviteId">Convite.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Convite?> ObterParaEdicao(Guid conviteId, CancellationToken ct = default);
 
     /// <summary>O convite com este hash de token, de qualquer formatura, sem rastreamento.</summary>
     /// <param name="tokenHash">SHA-256 do token recebido.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task<Convite?> ObterPorHashDeTodasAsFormaturas(string tokenHash, CancellationToken ct = default);
 
     /// <summary>
@@ -39,17 +40,14 @@ public interface IConviteRepository
     /// </remarks>
     /// <param name="conviteId">Convite.</param>
     /// <param name="agoraUtc">Momento que decide a validade.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     /// <returns><c>true</c> se o uso foi consumido; <c>false</c> se o convite já não admite mais.</returns>
     Task<bool> ConsumirUsoDeTodasAsFormaturas(Guid conviteId, DateTime agoraUtc, CancellationToken ct = default);
 
     /// <summary>Registra um convite novo.</summary>
     /// <param name="convite">Convite a persistir.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task Adicionar(Convite convite, CancellationToken ct = default);
 
     /// <summary>Registra quem entrou pelo convite.</summary>
     /// <param name="aceite">Registro do aceite.</param>
-    /// <param name="ct">Token de cancelamento.</param>
     Task RegistrarAceite(AceiteDeConvite aceite, CancellationToken ct = default);
 }
