@@ -13,7 +13,17 @@ public interface ITokenService
     /// <param name="perfis">Perfis do usuário, que viram claims de papel.</param>
     /// <param name="formaturaId">Formatura selecionada, quando houver. Vira a claim <c>formatura_id</c>.</param>
     /// <param name="papel">Papel do usuário na formatura selecionada. Vira a claim <c>papel</c>.</param>
-    AccessTokenGerado GerarAccessToken(Usuario usuario, IReadOnlyList<string> perfis, Guid? formaturaId = null, string? papel = null);
+    /// <param name="desligadoEm">
+    /// Quando ele foi desligado dessa formatura, se foi. Vira a claim <c>desligado_em</c>, que é o que
+    /// faz a tela abrir em leitura em vez de oferecer o que a API vai recusar.
+    /// </param>
+    AccessTokenGerado GerarAccessToken(
+        Usuario usuario,
+        IReadOnlyList<string> perfis,
+        Guid? formaturaId = null,
+        string? papel = null,
+        DateTime? desligadoEm = null
+    );
 
     /// <summary>Gera um refresh token aleatório, devolvendo o valor e o hash a persistir.</summary>
     RefreshTokenGerado GerarRefreshToken();

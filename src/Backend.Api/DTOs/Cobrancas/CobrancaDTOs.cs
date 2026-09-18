@@ -8,12 +8,17 @@ namespace Backend.Api.DTOs.Cobrancas;
 /// <param name="PercentualDeJurosAoMes">Juros de mora ao mês, base 10.000 — <c>100</c> é 1%.</param>
 /// <param name="CarenciaEmDias">Dias depois do vencimento sem multa nem juros.</param>
 /// <param name="PercentualDeDescontoPorAntecipacao">Desconto por pagamento antecipado, base 10.000.</param>
+/// <param name="DiasMinimosParaDesconto">
+/// Dias de antecedência que o desconto exige. Obrigatório acima de zero quando há desconto (400
+/// <c>cobranca.antecedencia_obrigatoria</c>): sem ele, quem paga um dia antes leva o desconto inteiro.
+/// </param>
 public sealed record PlanoDeCobrancaRequestDTO(
     string Nome,
     int PercentualDeMulta,
     int PercentualDeJurosAoMes,
     int CarenciaEmDias,
-    int PercentualDeDescontoPorAntecipacao
+    int PercentualDeDescontoPorAntecipacao,
+    int DiasMinimosParaDesconto
 );
 
 /// <summary>Corpo de inclusão e alteração de um item.</summary>
@@ -23,13 +28,21 @@ public sealed record PlanoDeCobrancaRequestDTO(
 /// <param name="NumeroDeParcelas">Em quantas vezes, de 1 a 120.</param>
 /// <param name="DiaDeVencimento">De 1 a 31; no mês mais curto, vale o último dia.</param>
 /// <param name="PrimeiroMes">Mês do primeiro vencimento, <c>aaaa-mm-dd</c>; o dia é ignorado.</param>
+/// <param name="AplicarAQuemJaAderiu">
+/// Rateio extraordinário: grava a grade também para quem já aderiu. Exige
+/// <paramref name="OrigemDaDecisao"/> e um primeiro mês que ainda não passou. Só na
+/// <b>inclusão</b> — a alteração e a simulação ignoram.
+/// </param>
+/// <param name="OrigemDaDecisao">Onde a turma decidiu: "assembleia de 12/10". Até 200 caracteres.</param>
 public sealed record ItemDeCobrancaRequestDTO(
     TipoDeCobranca Tipo,
     string? Descricao,
     long ValorEmCentavos,
     int NumeroDeParcelas,
     int DiaDeVencimento,
-    DateOnly PrimeiroMes
+    DateOnly PrimeiroMes,
+    bool AplicarAQuemJaAderiu = false,
+    string? OrigemDaDecisao = null
 );
 
 /// <summary>Corpo da simulação.</summary>
@@ -52,8 +65,9 @@ public sealed record PlanoDeCobrancaResumoDTO(Guid Id, string Nome, StatusDoPlan
 /// <param name="PercentualDeJurosAoMes">Juros ao mês, base 10.000.</param>
 /// <param name="CarenciaEmDias">Dias sem multa nem juros.</param>
 /// <param name="PercentualDeDescontoPorAntecipacao">Desconto por antecipação, base 10.000.</param>
+/// <param name="DiasMinimosParaDesconto">Dias de antecedência que o desconto exige.</param>
 /// <param name="Itens">Itens, na ordem de criação, inclusive os encerrados.</param>
-/// <param name="FormandosComParcela">Quantos já aderiram a este plano. Item incluído agora vale só para quem aderir depois.</param>
+/// <param name="FormandosComParcela">Quantos já aderiram a este plano. Item incluído agora vale só para quem aderir depois, salvo no rateio.</param>
 public sealed record PlanoDeCobrancaDTO(
     Guid Id,
     string Nome,
@@ -63,6 +77,7 @@ public sealed record PlanoDeCobrancaDTO(
     int PercentualDeJurosAoMes,
     int CarenciaEmDias,
     int PercentualDeDescontoPorAntecipacao,
+    int DiasMinimosParaDesconto,
     IReadOnlyList<ItemDeCobrancaDTO> Itens,
     int FormandosComParcela
 );
@@ -77,6 +92,7 @@ public sealed record PlanoDeCobrancaDTO(
 /// <param name="PrimeiroMes">Mês do primeiro vencimento, no dia 1.</param>
 /// <param name="EncerradoEm">Quando deixou de cobrar, se deixou.</param>
 /// <param name="EmUso">Já gerou parcela: não se remove, só se encerra, e só o valor muda.</param>
+/// <param name="OrigemDaDecisao">Onde a turma decidiu, se o item foi um rateio extraordinário; nulo no item comum.</param>
 public sealed record ItemDeCobrancaDTO(
     Guid Id,
     TipoDeCobranca Tipo,
@@ -86,7 +102,8 @@ public sealed record ItemDeCobrancaDTO(
     int DiaDeVencimento,
     DateOnly PrimeiroMes,
     DateOnly? EncerradoEm,
-    bool EmUso
+    bool EmUso,
+    string? OrigemDaDecisao
 );
 
 /// <summary>Uma parcela da simulação.</summary>
@@ -142,15 +159,17 @@ public sealed record ParcelaDTO(
 /// <param name="MultaEmCentavos">Multa, se o atraso passou da carência.</param>
 /// <param name="JurosEmCentavos">Juros pro rata, se o atraso passou da carência.</param>
 /// <param name="DescontoEmCentavos">Desconto por antecipação, antes do vencimento.</param>
-/// <param name="TotalEmCentavos">O que se paga no dia.</param>
+/// <param name="TotalEmCentavos">O que se paga no dia — já abatido o <paramref name="JaPagoEmCentavos"/>.</param>
 /// <param name="DiasDeAtraso">Dias depois do vencimento.</param>
+/// <param name="JaPagoEmCentavos">O que já entrou por esta parcela em pagamentos parciais; zero na maioria.</param>
 public sealed record ValorDoDiaDTO(
     long OriginalEmCentavos,
     long MultaEmCentavos,
     long JurosEmCentavos,
     long DescontoEmCentavos,
     long TotalEmCentavos,
-    int DiasDeAtraso
+    int DiasDeAtraso,
+    long JaPagoEmCentavos
 );
 
 /// <summary>Quantas parcelas há numa situação e quanto somam.</summary>

@@ -59,7 +59,7 @@ public sealed class FormaturaServiceTests
         Formatura? criada = null;
         await _formaturas.Adicionar(Arg.Do<Formatura>(f => criada = f), Arg.Any<CancellationToken>());
         _auth
-            .EmitirSessaoDeFormatura(default, default, default!, default!, default, Ct)
+            .EmitirSessaoDeFormatura(default, default, default!, default!, default, default, Ct)
             .ReturnsForAnyArgs(new ParDeTokens("a", DateTime.UtcNow, "r"));
 
         var resultado = await Servico.Criar(usuarioId, Dados(), "refresh", null, Ct);
@@ -76,7 +76,7 @@ public sealed class FormaturaServiceTests
             );
         await _auth
             .Received(1)
-            .EmitirSessaoDeFormatura(usuarioId, criada.Id, PapelNaFormatura.Presidente, "refresh", null, Arg.Any<CancellationToken>());
+            .EmitirSessaoDeFormatura(usuarioId, criada.Id, PapelNaFormatura.Presidente, "refresh", null, null, Arg.Any<CancellationToken>());
     }
 
     [Theory]

@@ -9,12 +9,15 @@ using Backend.Business.Comunicacao.Models;
 using Backend.Business.Convites.Models;
 using Backend.Business.Emails.Models;
 using Backend.Business.Eventos.Models;
+using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Models;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Leads.Models;
 using Backend.Business.Legal.Models;
 using Backend.Business.Notificacoes.Models;
 using Backend.Business.Pagamentos.Models;
+using Backend.Business.Privacidade.Models;
 using Backend.Business.Recebimentos.Models;
 using Backend.Business.Relatorios.Models;
 using Backend.Business.Usuarios.Models;
@@ -123,6 +126,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Fornecedores contratados por cada formatura.</summary>
     public DbSet<Fornecedor> Fornecedores => Set<Fornecedor>();
 
+    /// <summary>O que a turma está comprando: buffet, espaço, fotografia — o combinado, não o vencimento.</summary>
+    public DbSet<ItemDaFesta> ItensDaFesta => Set<ItemDaFesta>();
+
     /// <summary>Saídas do caixa: o que a turma deve e o que já pagou, uma linha por vencimento.</summary>
     public DbSet<Despesa> Despesas => Set<Despesa>();
 
@@ -140,6 +146,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
 
     /// <summary>O que cada membro escolheu não receber.</summary>
     public DbSet<PreferenciaDeNotificacao> PreferenciasDeNotificacao => Set<PreferenciaDeNotificacao>();
+
+    /// <summary>
+    /// Pedidos de exportação e de eliminação feitos pelos titulares.
+    /// </summary>
+    /// <remarks>
+    /// Sem <c>formatura_id</c>: o titular é a pessoa, e o pedido dela atravessa as turmas
+    /// (decisão 2 da Sprint 14).
+    /// </remarks>
+    public DbSet<SolicitacaoDePrivacidade> SolicitacoesDePrivacidade => Set<SolicitacaoDePrivacidade>();
+
+    /// <summary>
+    /// Contatos deixados no formulário da página institucional.
+    /// </summary>
+    /// <remarks>
+    /// Sem <c>formatura_id</c>, como as solicitações de privacidade e pela razão oposta: quem
+    /// preenche ainda <b>não tem</b> turma — é por isso que está preenchendo.
+    /// </remarks>
+    public DbSet<Lead> Leads => Set<Lead>();
 
     /// <summary>
     /// Formatura que os filtros globais enxergam.

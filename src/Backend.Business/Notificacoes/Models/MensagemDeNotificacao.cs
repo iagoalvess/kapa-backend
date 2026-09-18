@@ -5,9 +5,9 @@ namespace Backend.Business.Notificacoes.Models;
 /// </summary>
 /// <remarks>
 /// O canal não conhece régua, parcela nem formatura: recebe destinatário, assunto e corpo. É o que
-/// permite o WhatsApp entrar como segunda implementação sem tocar no <c>ReguaService</c>.
+/// deixa o teste do <c>ReguaService</c> rodar sem servidor de e-mail nenhum.
 /// </remarks>
-/// <param name="Para">Endereço do destinatário, no formato do canal.</param>
+/// <param name="Para">Endereço do destinatário.</param>
 /// <param name="Assunto">Assunto, já com as variáveis trocadas.</param>
 /// <param name="CorpoHtml">Corpo em HTML, já com as variáveis trocadas e escapadas.</param>
 /// <param name="Link">Destino do botão da mensagem, se houver.</param>

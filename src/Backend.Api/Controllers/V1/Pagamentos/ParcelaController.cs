@@ -52,10 +52,30 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     public async Task<IActionResult> GerarPix(Guid id, CancellationToken ct) =>
         Responder((await pagamentoService.GerarPix(FormaturaId, usuarioAtual.Id, id, ct)).Map(pix => pix.Adapt<PixDaParcelaDTO>()));
 
-    /// <summary>O "já paguei": avisa a tesouraria. A parcela não muda até a tesouraria conferir.</summary>
+    /// <summary>O PIX de várias parcelas: um BR Code só, com a soma do que elas cobram hoje. Só o dono.</summary>
+    /// <remarks>
+    /// É o passo 1 do "paguei vários meses de uma vez"; o passo 2 é <c>POST /parcelas/informes</c>, com a
+    /// mesma lista. 400 <c>pagamento.parcelas_do_informe</c> fora de 1 a 24 parcelas; 409
+    /// <c>pagamento.sem_conta</c>, <c>pagamento.informe_pendente</c> ou <c>pagamento.parcela_paga</c> se
+    /// qualquer uma delas não aceitar o pagamento.
+    /// </remarks>
+    /// <param name="parcelaIds">Parcelas que o pagamento vai cobrir.</param>
+    [HttpGet("pix")]
+    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [ProducesResponseType(typeof(PixDaParcelaDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> GerarPixDeVarias([FromQuery] IReadOnlyList<Guid> parcelaIds, CancellationToken ct) =>
+        Responder(
+            (await pagamentoService.GerarPixDeVarias(FormaturaId, usuarioAtual.Id, parcelaIds ?? [], ct)).Map(pix => pix.Adapt<PixDaParcelaDTO>())
+        );
+
+    /// <summary>O "já paguei" de uma parcela: avisa a tesouraria. A parcela não muda até ela conferir.</summary>
     /// <remarks>
     /// Multipart, com o comprovante opcional. 409 <c>pagamento.informe_pendente</c> se já há aviso esperando,
     /// <c>pagamento.parcela_paga</c> se a parcela já foi paga.
+    /// <para>Um PIX que cobriu vários meses vai em <c>POST /parcelas/informes</c>, com a lista.</para>
     /// </remarks>
     /// <param name="id">Parcela.</param>
     /// <param name="pagoEm">Dia do pagamento, <c>aaaa-mm-dd</c>.</param>
@@ -63,7 +83,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     /// <param name="comprovante">PDF ou imagem, opcional.</param>
     [HttpPost("{id:guid}/informes")]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
-    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [Authorize(Policy = Politicas.ExigeFormaturaRecebendo)]
     [Consumes("multipart/form-data")]
     [RegistrarEvento("pagamento.informado", CamposDaRota = ["id"])]
     [ProducesResponseType(typeof(ParcelaDTO), StatusCodes.Status200OK)]
@@ -83,13 +103,61 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
         var resultado = await pagamentoService.Informar(
             FormaturaId,
             usuarioAtual.Id,
-            id,
+            [id],
             new NovoInforme(pagoEm, valorEmCentavos),
             Comprovante(comprovante, conteudo),
             ct
         );
 
-        return Responder(resultado.Map(parcela => parcela.Adapt<ParcelaDTO>()));
+        return Responder(resultado.Map(parcelas => parcelas[0].Adapt<ParcelaDTO>()));
+    }
+
+    /// <summary>
+    /// O "já paguei" de um PIX que cobriu várias parcelas — os meses atrasados de uma vez.
+    /// </summary>
+    /// <remarks>
+    /// Multipart, com o comprovante opcional e compartilhado pelas parcelas: é um pagamento só. O
+    /// valor é distribuído da parcela mais antiga para a mais nova, cada uma até o que ela cobra, e o
+    /// que sobrar fica na última — a tesouraria vê a sobra em Divergências.
+    /// <para>
+    /// 400 <c>pagamento.parcelas_do_informe</c> fora de 1 a 24 parcelas; 409
+    /// <c>pagamento.informe_pendente</c> ou <c>pagamento.parcela_paga</c> se qualquer uma delas não
+    /// aceitar o aviso — nada é gravado.
+    /// </para>
+    /// </remarks>
+    /// <param name="parcelaIds">Parcelas cobertas pelo pagamento.</param>
+    /// <param name="pagoEm">Dia do pagamento, <c>aaaa-mm-dd</c>.</param>
+    /// <param name="valorEmCentavos">Valor total pago, em centavos.</param>
+    /// <param name="comprovante">PDF ou imagem, opcional.</param>
+    [HttpPost("informes")]
+    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.ExigeFormaturaRecebendo)]
+    [Consumes("multipart/form-data")]
+    [RegistrarEvento("pagamento.informado")]
+    [ProducesResponseType(typeof(IReadOnlyList<ParcelaDTO>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> InformarVarias(
+        [FromForm] IReadOnlyList<Guid> parcelaIds,
+        [FromForm] DateOnly pagoEm,
+        [FromForm] long valorEmCentavos,
+        IFormFile? comprovante,
+        CancellationToken ct
+    )
+    {
+        await using var conteudo = comprovante?.OpenReadStream() ?? Stream.Null;
+
+        var resultado = await pagamentoService.Informar(
+            FormaturaId,
+            usuarioAtual.Id,
+            parcelaIds ?? [],
+            new NovoInforme(pagoEm, valorEmCentavos),
+            Comprovante(comprovante, conteudo),
+            ct
+        );
+
+        return Responder(resultado.Map(parcelas => parcelas.Adapt<List<ParcelaDTO>>()));
     }
 
     /// <summary>Baixa a parcela sem informe — dinheiro, TED, quem pagou e não avisou. Grava autor, IP e hora.</summary>
@@ -101,7 +169,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     /// <param name="comprovante">PDF ou imagem, opcional.</param>
     [HttpPost("{id:guid}/baixa-manual")]
     [Authorize(Policy = Politicas.Tesouraria)]
-    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [Authorize(Policy = Politicas.ExigeFormaturaRecebendo)]
     [Consumes("multipart/form-data")]
     [RegistrarEvento("pagamento.baixa_manual", CamposDaRota = ["id"])]
     [ProducesResponseType(typeof(ParcelaDTO), StatusCodes.Status200OK)]
@@ -137,7 +205,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     /// <param name="requisicao">Justificativa.</param>
     [HttpPost("{id:guid}/estornar-baixa")]
     [Authorize(Policy = Politicas.SomentePresidente)]
-    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [Authorize(Policy = Politicas.ExigeFormaturaRecebendo)]
     [RegistrarEvento("pagamento.estorno", CamposDaRota = ["id"])]
     [ProducesResponseType(typeof(ParcelaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]

@@ -39,7 +39,8 @@ public sealed class EmailsDeConta(IEmailService emailService, IOptions<Aplicacao
             $"Bem-vindo ao {Texto(_aplicacao.Nome)}",
             $"Olá, {Texto(usuario.Nome)}. Confirme seu e-mail para ativar o acesso.",
             "Confirmar e-mail",
-            link
+            link,
+            Mascote.Acenando
         );
 
         await emailService.Enfileirar(new NovoEmail(usuario.Email!, $"Confirme seu e-mail — {_aplicacao.Nome}", corpo, EEmailPrioridade.Alta), ct);
@@ -56,7 +57,8 @@ public sealed class EmailsDeConta(IEmailService emailService, IOptions<Aplicacao
                 + $"O link vale por {_conta.HorasDeValidadeDoLink} horas. "
                 + "Se não foi você quem pediu, ignore este e-mail — sua senha continua a mesma.",
             "Redefinir senha",
-            link
+            link,
+            Mascote.Checklist
         );
 
         await emailService.Enfileirar(new NovoEmail(usuario.Email!, $"Redefinição de senha — {_aplicacao.Nome}", corpo, EEmailPrioridade.Alta), ct);
@@ -70,7 +72,8 @@ public sealed class EmailsDeConta(IEmailService emailService, IOptions<Aplicacao
             $"Olá, {Texto(usuario.Nome)}. A senha da sua conta foi alterada agora há pouco e todas as sessões abertas foram encerradas. "
                 + "<strong>Se não foi você, procure o administrador imediatamente</strong> — alguém pode ter acesso à sua conta.",
             botao: null,
-            link: null
+            link: null,
+            Mascote.Alerta
         );
 
         await emailService.Enfileirar(new NovoEmail(usuario.Email!, $"Sua senha foi alterada — {_aplicacao.Nome}", corpo, EEmailPrioridade.Alta), ct);
@@ -81,6 +84,6 @@ public sealed class EmailsDeConta(IEmailService emailService, IOptions<Aplicacao
 
     private static string Texto(string? valor) => ModeloDeEmail.Texto(valor);
 
-    private string Modelo(string titulo, string mensagem, string? botao, string? link) =>
-        ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, botao, link);
+    private string Modelo(string titulo, string mensagem, string? botao, string? link, Mascote mascote) =>
+        ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, botao, link, mascote);
 }

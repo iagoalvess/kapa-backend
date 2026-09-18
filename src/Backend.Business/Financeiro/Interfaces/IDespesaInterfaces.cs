@@ -52,7 +52,8 @@ public interface IDespesaService
 
     /// <summary>Cancela uma despesa prevista.</summary>
     /// <param name="id">Despesa.</param>
-    Task<Result<DespesaResumo>> Cancelar(Guid id, CancellationToken ct = default);
+    /// <param name="autorId">Quem cancelou — vai na trilha com o retrato da despesa.</param>
+    Task<Result<DespesaResumo>> Cancelar(Guid id, Guid autorId, CancellationToken ct = default);
 
     /// <summary>O comprovante de uma despesa, para a tesouraria abrir.</summary>
     /// <param name="id">Despesa.</param>
@@ -94,6 +95,11 @@ public interface IDespesaRepository
     /// <summary>Se o fornecedor tem despesa lançada — o que impede a exclusão dele.</summary>
     /// <param name="fornecedorId">Fornecedor.</param>
     Task<bool> ExisteDoFornecedor(Guid fornecedorId, CancellationToken ct = default);
+
+    /// <summary>Se o item da festa tem despesa lançada — o que impede a exclusão dele (Sprint 17, decisão 13).</summary>
+    /// <remarks>Cancelada conta: ela existiu, e apagar o item levaria junto a origem dela.</remarks>
+    /// <param name="itemDaFestaId">Item da festa.</param>
+    Task<bool> ExisteDoItemDaFesta(Guid itemDaFestaId, CancellationToken ct = default);
 
     /// <summary>O comprovante da despesa; nulo se ela não existir aqui ou não tiver.</summary>
     /// <param name="id">Despesa.</param>

@@ -25,7 +25,7 @@ public sealed class TemplateDeNotificacaoTests
     };
 
     private static DadosDaRegra Regra(string assunto = "Oi, {nome}", string template = "Sua parcela de {valor} vence em {vencimento}.") =>
-        new(GatilhoDaRegua.Vencimento, 3, CanalDeNotificacao.Email, assunto, template, true, false);
+        new(GatilhoDaRegua.Vencimento, 3, assunto, template, true, false);
 
     [Fact]
     public void Troca_as_variaveis_conhecidas() =>
@@ -66,7 +66,7 @@ public sealed class TemplateDeNotificacaoTests
                 new DadosDaRegua([
                     .. RegraDeNotificacao
                         .Padrao()
-                        .Select(r => new DadosDaRegra(r.Gatilho, r.DiasDeDeslocamento, r.Canal, r.Assunto, r.Template, r.Ativa, false)),
+                        .Select(r => new DadosDaRegra(r.Gatilho, r.DiasDeDeslocamento, r.Assunto, r.Template, r.Ativa, false)),
                 ])
             )
             .Sucesso.ShouldBeTrue();

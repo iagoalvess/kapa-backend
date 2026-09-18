@@ -154,11 +154,11 @@ public sealed class PagamentoServiceTests
         var parcela = DaAna(_hoje.AddDays(5));
 
         // Act
-        var resultado = await Servico.Informar(FormaturaId, Ana.UsuarioId, parcela.Id, new NovoInforme(_hoje, 350_000), null, Ct);
+        var resultado = await Servico.Informar(FormaturaId, Ana.UsuarioId, [parcela.Id], new NovoInforme(_hoje, 350_000), null, Ct);
 
         // Assert
-        resultado.Valor.Status.ShouldBe(StatusDaParcela.Aberta);
-        resultado.Valor.EmConferencia.ShouldBeTrue();
+        resultado.Valor[0].Status.ShouldBe(StatusDaParcela.Aberta);
+        resultado.Valor[0].EmConferencia.ShouldBeTrue();
         await _informes
             .Received(1)
             .Adicionar(
@@ -177,7 +177,7 @@ public sealed class PagamentoServiceTests
         _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
 
         // Act
-        var informe = await Servico.Informar(FormaturaId, Bruno.UsuarioId, parcela.Id, new NovoInforme(_hoje, 350_000), null, Ct);
+        var informe = await Servico.Informar(FormaturaId, Bruno.UsuarioId, [parcela.Id], new NovoInforme(_hoje, 350_000), null, Ct);
         var pix = await Servico.GerarPix(FormaturaId, Bruno.UsuarioId, parcela.Id, Ct);
         var leitura = await Servico.ObterParcela(FormaturaId, Bruno.UsuarioId, parcela.Id, Ct);
 
@@ -215,13 +215,75 @@ public sealed class PagamentoServiceTests
         var paga = DaAna(_hoje.AddDays(-5), StatusDaParcela.Paga);
 
         // Act
-        var segundo = await Servico.Informar(FormaturaId, Ana.UsuarioId, emConferencia.Id, new NovoInforme(_hoje, 350_000), null, Ct);
-        var naPaga = await Servico.Informar(FormaturaId, Ana.UsuarioId, paga.Id, new NovoInforme(_hoje, 350_000), null, Ct);
+        var segundo = await Servico.Informar(FormaturaId, Ana.UsuarioId, [emConferencia.Id], new NovoInforme(_hoje, 350_000), null, Ct);
+        var naPaga = await Servico.Informar(FormaturaId, Ana.UsuarioId, [paga.Id], new NovoInforme(_hoje, 350_000), null, Ct);
 
         // Assert
         segundo.PrimeiroErro.Codigo.ShouldBe("pagamento.informe_pendente");
         naPaga.PrimeiroErro.Codigo.ShouldBe("pagamento.parcela_paga");
         naPaga.PrimeiroErro.Mensagem.ShouldContain("fale com a tesouraria");
+    }
+
+    /// <summary>
+    /// Um PIX cobrindo três meses atrasados: o valor é distribuído da parcela mais antiga para a mais
+    /// nova, cada uma até o que ela cobra, e o que sobra fica na última.
+    /// </summary>
+    [Fact]
+    public async Task Um_pagamento_cobre_varias_parcelas_da_mais_antiga_para_a_mais_nova()
+    {
+        // Arrange
+        var maisNova = DaAna(_hoje.AddDays(5));
+        var maisAntiga = DaAna(_hoje.AddDays(-35));
+        var doMeio = DaAna(_hoje.AddDays(-5));
+
+        // Act
+        var resultado = await Servico.Informar(
+            FormaturaId,
+            Ana.UsuarioId,
+            [maisNova.Id, maisAntiga.Id, doMeio.Id],
+            new NovoInforme(_hoje, 800_000),
+            null,
+            Ct
+        );
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        resultado.Valor.Select(p => p.Id).ShouldBe([maisAntiga.Id, doMeio.Id, maisNova.Id]);
+        resultado.Valor.ShouldAllBe(p => p.EmConferencia);
+        await _informes.Received(3).Adicionar(Arg.Any<InformeDePagamento>(), Ct);
+        // Cada vencida consome o valor do dia dela, com a multa e os juros que Ana aceitou; a última leva o resto.
+        await _informes.Received(1).Adicionar(Arg.Is<InformeDePagamento>(i => i.ParcelaId == maisAntiga.Id && i.ValorEmCentavos == 361_083), Ct);
+        await _informes.Received(1).Adicionar(Arg.Is<InformeDePagamento>(i => i.ParcelaId == doMeio.Id && i.ValorEmCentavos == 357_583), Ct);
+        await _informes.Received(1).Adicionar(Arg.Is<InformeDePagamento>(i => i.ParcelaId == maisNova.Id && i.ValorEmCentavos == 81_334), Ct);
+        await _unitOfWork.Received(1).SalvarAsync(Ct);
+    }
+
+    /// <summary>Uma parcela recusada derruba o aviso inteiro: nada é gravado pela metade.</summary>
+    [Fact]
+    public async Task Parcela_ja_paga_no_meio_do_lote_recusa_o_aviso_inteiro()
+    {
+        // Arrange
+        var aberta = DaAna(_hoje.AddDays(-5));
+        var paga = DaAna(_hoje.AddDays(-35), StatusDaParcela.Paga);
+
+        // Act
+        var resultado = await Servico.Informar(FormaturaId, Ana.UsuarioId, [aberta.Id, paga.Id], new NovoInforme(_hoje, 700_000), null, Ct);
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("pagamento.parcela_paga");
+        await _informes.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
+    }
+
+    [Fact]
+    public async Task Aviso_sem_parcela_nenhuma_e_recusado()
+    {
+        // Act
+        var resultado = await Servico.Informar(FormaturaId, Ana.UsuarioId, [], new NovoInforme(_hoje, 350_000), null, Ct);
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("pagamento.parcelas_do_informe");
+        resultado.PrimeiroErro.Campo.ShouldBe("parcela_ids");
     }
 
     [Fact]
@@ -231,7 +293,7 @@ public sealed class PagamentoServiceTests
         var parcela = DaAna(_hoje.AddDays(5));
 
         // Act
-        var resultado = await Servico.Informar(FormaturaId, Ana.UsuarioId, parcela.Id, new NovoInforme(_hoje.AddDays(1), 350_000), null, Ct);
+        var resultado = await Servico.Informar(FormaturaId, Ana.UsuarioId, [parcela.Id], new NovoInforme(_hoje.AddDays(1), 350_000), null, Ct);
 
         // Assert
         resultado.PrimeiroErro.Tipo.ShouldBe(ETipoErro.Validacao);
@@ -257,6 +319,45 @@ public sealed class PagamentoServiceTests
         comConta.Valor.Identificador.Length.ShouldBe(25);
         semConta.PrimeiroErro.Codigo.ShouldBe("pagamento.sem_conta");
         semConta.PrimeiroErro.Tipo.ShouldBe(ETipoErro.Conflito);
+    }
+
+    /// <summary>O passo 1 do lote: um BR Code só, com a soma, e o identificador da parcela mais antiga.</summary>
+    [Fact]
+    public async Task Pix_de_varias_soma_o_valor_do_dia_e_usa_o_identificador_da_mais_antiga()
+    {
+        // Arrange
+        var vencida = DaAna(_hoje.AddDays(-30));
+        var aVencer = DaAna(_hoje.AddDays(5));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+
+        // Act
+        var pix = await Servico.GerarPixDeVarias(FormaturaId, Ana.UsuarioId, [aVencer.Id, vencida.Id], Ct);
+
+        // Assert
+        pix.Valor.ValorEmCentavos.ShouldBe(350_000 + 7_000 + 3_500 + 350_000);
+        pix.Valor.Identificador.ShouldBe(PagamentoService.Identificador(vencida.Id));
+        pix.Valor.CopiaECola.ShouldContain("54077105.00");
+    }
+
+    /// <summary>Quem não pode avisar também não vê o QR: uma parcela ruim derruba o lote inteiro.</summary>
+    [Fact]
+    public async Task Pix_de_varias_recusa_lista_vazia_parcela_de_outro_e_parcela_ja_avisada()
+    {
+        // Arrange
+        var daAna = DaAna(_hoje.AddDays(5));
+        var avisada = DaAna(_hoje.AddDays(35), emConferencia: true);
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+
+        // Act
+        var vazio = await Servico.GerarPixDeVarias(FormaturaId, Ana.UsuarioId, [], Ct);
+        var deOutro = await Servico.GerarPixDeVarias(FormaturaId, Bruno.UsuarioId, [daAna.Id], Ct);
+        var comAvisada = await Servico.GerarPixDeVarias(FormaturaId, Ana.UsuarioId, [daAna.Id, avisada.Id], Ct);
+
+        // Assert
+        vazio.PrimeiroErro.Codigo.ShouldBe("pagamento.parcelas_do_informe");
+        vazio.PrimeiroErro.Campo.ShouldBe("parcela_ids");
+        deOutro.PrimeiroErro.Tipo.ShouldBe(ETipoErro.NaoEncontrado);
+        comAvisada.PrimeiroErro.Codigo.ShouldBe("pagamento.informe_pendente");
     }
 
     [Fact]
@@ -407,7 +508,7 @@ public sealed class PagamentoServiceTests
     {
         // Arrange
         var parcela = Parcela.Nova(Ana.VinculoId, Guid.CreateVersion7(), new ParcelaPrevista(3, _hoje.AddDays(-5), 350_000));
-        parcela.Pagar(350_000, _hoje).Sucesso.ShouldBeTrue();
+        parcela.Pagar(350_000, _hoje, 350_000).Valor.ShouldBeTrue();
         var recebimento = Recebimento.Novo(
             parcela.Id,
             null,

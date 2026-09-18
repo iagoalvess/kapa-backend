@@ -8,9 +8,9 @@ namespace Backend.Business.Notificacoes.Interfaces;
 /// Por onde uma mensagem sai.
 /// </summary>
 /// <remarks>
-/// Esta sprint entrega o e-mail, que já tem fila e worker prontos; o WhatsApp entra como segunda
-/// implementação atrás desta mesma interface (decisão 6). O canal não conhece régua, parcela nem
-/// formatura — recebe <see cref="MensagemDeNotificacao"/> e devolve o que precisa para o histórico.
+/// Só existe o e-mail (decisão 6), e a interface fica pelo que ela já paga hoje: é por ela que o
+/// teste troca o envio real por um dublê. O canal não conhece régua, parcela nem formatura — recebe
+/// <see cref="MensagemDeNotificacao"/> e devolve o que precisa para o histórico.
 /// <para>
 /// <c>Canal</c> é o enum, e não um nome em texto: a regra guarda o canal escolhido, e casar regra com
 /// implementação por <c>string</c> transformaria um erro de digitação em mensagem que nunca sai.
@@ -87,9 +87,9 @@ public interface INotificacaoService
     /// <param name="regraId">Degrau a testar.</param>
     Task<Result> Testar(Guid formaturaId, Guid usuarioId, Guid regraId, CancellationToken ct = default);
 
-    /// <summary>Quem recebeu o quê, quando, por qual canal e com qual resultado.</summary>
+    /// <summary>Quem recebeu o quê, quando e com qual resultado.</summary>
     /// <param name="paginacao">Página pedida.</param>
-    /// <param name="filtro">Canal, situação, período e busca.</param>
+    /// <param name="filtro">Situação, período e busca.</param>
     Task<Result<PaginaDe<NotificacaoNoHistorico>>> ListarHistorico(
         PaginacaoRequest paginacao,
         FiltroDeNotificacoes filtro,
@@ -194,7 +194,7 @@ public interface INotificacaoRepository
 
     /// <summary>Uma página do histórico, da mais recente.</summary>
     /// <param name="paginacao">Página pedida, já normalizada.</param>
-    /// <param name="filtro">Canal, situação, período e busca.</param>
+    /// <param name="filtro">Situação, período e busca.</param>
     Task<PaginaDe<NotificacaoNoHistorico>> ListarHistorico(PaginacaoRequest paginacao, FiltroDeNotificacoes filtro, CancellationToken ct = default);
 
     /// <summary>As preferências gravadas do vínculo, rastreadas.</summary>

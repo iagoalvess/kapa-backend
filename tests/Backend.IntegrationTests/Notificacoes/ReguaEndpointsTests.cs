@@ -99,7 +99,7 @@ public sealed class ReguaEndpointsTests(ApiFactory fabrica)
 
     /// <summary>
     /// Critérios de aceite, num cenário só: uma mensagem por pessoa com as três parcelas, a segunda
-    /// rodada do dia não manda de novo, e o histórico mostra destinatário, canal, data e resultado.
+    /// rodada do dia não manda de novo, e o histórico mostra destinatário, data e resultado.
     /// </summary>
     [Fact]
     public async Task Rodar_duas_vezes_no_mesmo_dia_manda_uma_mensagem_com_as_tres_parcelas()
@@ -133,7 +133,6 @@ public sealed class ReguaEndpointsTests(ApiFactory fabrica)
         var historico = await Ler<PaginaDTO<NotificacaoDTO>>(await turma.Tesoureiro.Cliente.GetAsync(Historico, Ct));
         historico.Total.ShouldBe(3);
         historico.Itens[0].Nome.ShouldNotBeNull();
-        historico.Itens[0].Canal.ShouldBe(CanalDeNotificacao.Email);
         historico.Itens[0].DataDeReferencia.ShouldBe(Hoje);
         historico.Itens[0].Status.ShouldBe(StatusDaNotificacao.Enfileirada);
     }
@@ -302,10 +301,10 @@ public sealed class ReguaEndpointsTests(ApiFactory fabrica)
 
         await using var contexto = fabrica.ContextoDe(turma.Id);
 
-        contexto.NotificacoesEnviadas.Add(NotificacaoEnviada.Nova(regraId, Hoje, CanalDeNotificacao.Email, "tesouraria@turma.dev", "Resumo"));
+        contexto.NotificacoesEnviadas.Add(NotificacaoEnviada.Nova(regraId, Hoje, "tesouraria@turma.dev", "Resumo"));
         await contexto.SaveChangesAsync(Ct);
 
-        contexto.NotificacoesEnviadas.Add(NotificacaoEnviada.Nova(regraId, Hoje, CanalDeNotificacao.Email, "tesouraria@turma.dev", "Resumo de novo"));
+        contexto.NotificacoesEnviadas.Add(NotificacaoEnviada.Nova(regraId, Hoje, "tesouraria@turma.dev", "Resumo de novo"));
 
         await Should.ThrowAsync<DbUpdateException>(() => contexto.SaveChangesAsync(Ct));
     }
@@ -315,7 +314,6 @@ public sealed class ReguaEndpointsTests(ApiFactory fabrica)
             .. regua.Regras.Select(r => new RegraRequestDTO(
                 r.Gatilho,
                 r.DiasDeDeslocamento,
-                r.Canal,
                 r.Assunto,
                 r.Gatilho == GatilhoDaRegua.Vencimento && r.DiasDeDeslocamento == dias ? template : r.Template,
                 r.Ativa,
@@ -348,7 +346,7 @@ public sealed class ReguaEndpointsTests(ApiFactory fabrica)
         var plano = await Ler<PlanoDeCobrancaDTO>(
             await presidente.Cliente.PostAsJsonAsync(
                 "/api/v1/cobrancas/planos",
-                new PlanoDeCobrancaRequestDTO("Plano 2027", 200, 100, 0, 0),
+                new PlanoDeCobrancaRequestDTO("Plano 2027", 200, 100, 0, 0, 0),
                 Json,
                 Ct
             ),

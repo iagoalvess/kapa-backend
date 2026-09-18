@@ -46,8 +46,14 @@ public sealed record FornecedorDTO(
     long PrevistoEmCentavos
 );
 
+/// <summary>Quantos fornecedores a turma tem em cada situação — os números das pílulas da tela.</summary>
+/// <param name="Ativos">Os que aparecem na hora de lançar uma despesa.</param>
+/// <param name="Inativos">Os desativados, que ficam pelo histórico das despesas deles.</param>
+public sealed record ContagemDeFornecedoresDTO(int Ativos, int Inativos);
+
 /// <summary>Corpo do lançamento de despesa (multipart, com o comprovante).</summary>
 /// <param name="FornecedorId">A quem se paga. Ausente: gasto sem fornecedor cadastrado.</param>
+/// <param name="ItemDaFestaId">Item da festa que esta despesa paga. Ausente: gasto que não é da festa.</param>
 /// <param name="Descricao">O que é.</param>
 /// <param name="Categoria">Em que a turma gastou.</param>
 /// <param name="ValorEmCentavos">Valor <b>total</b> do compromisso, em centavos.</param>
@@ -57,6 +63,7 @@ public sealed record FornecedorDTO(
 /// <param name="PagaEm">Dia do pagamento, quando a despesa já nasce paga — exige comprovante.</param>
 public sealed record NovaDespesaRequestDTO(
     Guid? FornecedorId,
+    Guid? ItemDaFestaId,
     string? Descricao,
     CategoriaDeDespesa Categoria,
     long ValorEmCentavos,
@@ -68,6 +75,7 @@ public sealed record NovaDespesaRequestDTO(
 
 /// <summary>Corpo da correção de uma despesa.</summary>
 /// <param name="FornecedorId">A quem se paga.</param>
+/// <param name="ItemDaFestaId">Item da festa que esta despesa paga. Ausente: gasto que não é da festa.</param>
 /// <param name="Descricao">O que é.</param>
 /// <param name="Categoria">Em que a turma gastou.</param>
 /// <param name="ValorEmCentavos">Valor desta linha, em centavos.</param>
@@ -75,6 +83,7 @@ public sealed record NovaDespesaRequestDTO(
 /// <param name="Vencimento">Dia do pagamento desta linha.</param>
 public sealed record AtualizarDespesaRequestDTO(
     Guid? FornecedorId,
+    Guid? ItemDaFestaId,
     string? Descricao,
     CategoriaDeDespesa Categoria,
     long ValorEmCentavos,
@@ -86,6 +95,7 @@ public sealed record AtualizarDespesaRequestDTO(
 /// <param name="Id">Identificador.</param>
 /// <param name="LancamentoId">O lançamento que a criou; as parcelas irmãs têm o mesmo.</param>
 /// <param name="FornecedorId">A quem se paga, se houver.</param>
+/// <param name="ItemDaFestaId">Item da festa que esta despesa paga, se houver.</param>
 /// <param name="Fornecedor">Nome do fornecedor, se houver.</param>
 /// <param name="Descricao">O que é.</param>
 /// <param name="Categoria">Em que a turma gastou.</param>
@@ -102,6 +112,7 @@ public sealed record DespesaDTO(
     Guid Id,
     Guid LancamentoId,
     Guid? FornecedorId,
+    Guid? ItemDaFestaId,
     string? Fornecedor,
     string Descricao,
     CategoriaDeDespesa Categoria,

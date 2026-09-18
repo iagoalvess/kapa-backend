@@ -77,7 +77,20 @@ public sealed record SessaoDeCheckout(string IdExterno, string Url);
 /// <param name="Tipo">Tipo, em <see cref="TiposDeEvento"/> quando reconhecido.</param>
 /// <param name="AssinaturaId">Referência enviada no checkout.</param>
 /// <param name="IdExternoDaAssinatura">Id da assinatura no provedor, quando ele informa.</param>
-public sealed record EventoDoProvedor(string Id, string Tipo, Guid? AssinaturaId, string? IdExternoDaAssinatura);
+/// <param name="OcorridoEm">
+/// Quando o evento aconteceu <b>no provedor</b>, em UTC. É o que ordena os eventos entre si.
+/// </param>
+/// <remarks>
+/// <see cref="OcorridoEm"/> não é o momento em que o webhook chegou: reentrega, fila do PSP e
+/// retentativa fazem um evento antigo chegar depois de um novo, e aplicar na ordem de chegada
+/// desfaz o estado — "fatura criada" depois de "paga" devolve a turma para pendente. Quem compara
+/// é <c>WebhookService</c>, contra <c>Assinatura.UltimoEventoEm</c>.
+/// <para>
+/// Nulo quando o PSP não informa data. Aí não há como ordenar, e o evento é aplicado: recusar todo
+/// evento sem data pararia a cobrança inteira de um provedor que simplesmente não manda o campo.
+/// </para>
+/// </remarks>
+public sealed record EventoDoProvedor(string Id, string Tipo, Guid? AssinaturaId, string? IdExternoDaAssinatura, DateTime? OcorridoEm = null);
 
 /// <summary>Resposta do webhook.</summary>
 /// <param name="EventoId">Id do evento recebido.</param>
@@ -86,6 +99,7 @@ public sealed record ReciboDeWebhook(string EventoId, bool Duplicado);
 
 /// <summary>O que uma rodada de conciliação fez.</summary>
 /// <param name="Confirmadas">Pagamentos achados no provedor sem webhook.</param>
+/// <param name="Renovadas">Renovações achadas no provedor sem webhook, pouco antes de suspender.</param>
 /// <param name="Vencidas">Assinaturas vencidas e formaturas suspensas.</param>
 /// <param name="Avisos">Avisos de vencimento enfileirados.</param>
-public sealed record ResumoDaConciliacao(int Confirmadas, int Vencidas, int Avisos);
+public sealed record ResumoDaConciliacao(int Confirmadas, int Renovadas, int Vencidas, int Avisos);

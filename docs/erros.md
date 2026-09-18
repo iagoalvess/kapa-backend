@@ -1,3 +1,5 @@
+| <a id="membro.nao_encontrado"></a>`membro.nao_encontrado` | undefined | Membro não encontrado nesta formatura. || <a id="formatura.sem_vinculo"></a>`formatura.sem_vinculo` | undefined | Você não participa desta formatura. || <a id="formatura.inativa"></a>`formatura.inativa` | undefined | Esta formatura está em modo leitura e não aceita alterações. || <a id="legal.consentimento_nao_encontrado"></a>`legal.consentimento_nao_encontrado` | 404 | Registro de consentimento não encontrado. |
+| <a id="legal.consentimento_ja_revogado"></a>`legal.consentimento_ja_revogado` | 409 | Este consentimento já foi revogado. |
 # Erros da API
 
 Toda falha desta API responde no formato [RFC 9457 — Problem Details](https://www.rfc-editor.org/rfc/rfc9457),
@@ -157,8 +159,12 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="formatura.assinatura_ativa"></a>`formatura.assinatura_ativa` | 409 | Cancele a renovação da assinatura antes de encerrar a formatura. |
 | <a id="formatura.encerrada"></a>`formatura.encerrada` | 409 | Uma formatura encerrada não contrata assinatura. |
 | <a id="formatura.inativa"></a>`formatura.inativa` | 403 | Esta formatura está em modo leitura e não aceita alterações. |
+| <a id="formatura.membro_ja_desligado"></a>`formatura.membro_ja_desligado` | 409 | Esta pessoa já foi desligada da turma. |
+| <a id="formatura.membro_nao_desligado"></a>`formatura.membro_nao_desligado` | 409 | Esta pessoa não está desligada da turma. |
+| <a id="formatura.membro_sem_adesao"></a>`formatura.membro_sem_adesao` | 409 | Esta pessoa ainda não aderiu ao termo e não deve nada à turma. Use Remover. |
 | <a id="formatura.nao_encontrada"></a>`formatura.nao_encontrada` | 404 | Formatura não encontrada. |
 | <a id="formatura.sem_vinculo"></a>`formatura.sem_vinculo` | 403 | Você não participa desta formatura. |
+| <a id="formatura.ultimo_presidente"></a>`formatura.ultimo_presidente` | 409 | A formatura precisa de ao menos um presidente ativo. Promova outra pessoa antes. |
 
 ### legal
 
@@ -171,7 +177,10 @@ nossa, e o `trace_id` é o que o resolve.
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
+| <a id="membro.detalhe_obrigatorio"></a>`membro.detalhe_obrigatorio` | 400 | Diga qual foi o motivo. (Só com o motivo `Outro`.) |
+| <a id="membro.motivo_invalido"></a>`membro.motivo_invalido` | 400 | Motivo inválido. Escolha um da lista. |
 | <a id="membro.nao_encontrado"></a>`membro.nao_encontrado` | 404 | Membro não encontrado nesta formatura. |
+| <a id="membro.papel_invalido"></a>`membro.papel_invalido` | 400 | Papel inválido. Use Presidente, Tesoureiro, Comissao ou Formando. |
 
 ### pagamento
 
@@ -194,6 +203,18 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="perfil.foto_tipo_invalido"></a>`perfil.foto_tipo_invalido` | 400 | Envie uma imagem JPEG, PNG ou WebP. |
 | <a id="perfil.foto_vazia"></a>`perfil.foto_vazia` | 400 | Nenhuma imagem foi enviada. |
 | <a id="perfil.sem_foto"></a>`perfil.sem_foto` | 404 | Este formando ainda não enviou foto. |
+
+### privacidade
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| <a id="privacidade.titular_nao_encontrado"></a>`privacidade.titular_nao_encontrado` | 404 | Titular não encontrado. |
+| <a id="privacidade.solicitacao_nao_encontrada"></a>`privacidade.solicitacao_nao_encontrada` | 404 | Solicitação não encontrada. Também é a resposta ao pacote de outro titular, ao ainda não gerado e ao já expirado. |
+| <a id="privacidade.senha_obrigatoria"></a>`privacidade.senha_obrigatoria` | 400 | Digite sua senha para confirmar. Só na eliminação, que é irreversível. |
+| <a id="privacidade.senha_invalida"></a>`privacidade.senha_invalida` | 401 | Senha incorreta. |
+| <a id="privacidade.nada_a_confirmar"></a>`privacidade.nada_a_confirmar` | 409 | Só a solicitação de exclusão precisa de confirmação. |
+| <a id="privacidade.solicitacao_encerrada"></a>`privacidade.solicitacao_encerrada` | 409 | Esta solicitação já foi atendida ou cancelada. |
+| <a id="privacidade.anonimizacao_recusada"></a>`privacidade.anonimizacao_recusada` | 409 | Não foi possível anonimizar a conta. Tente de novo. |
 
 ### recebimento
 

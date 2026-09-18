@@ -40,7 +40,7 @@ public sealed class ArmazenamentoSettings
     /// esquece alguma extensão executável, e basta uma para transformar o upload em execução
     /// remota de código.
     /// </remarks>
-    public string[] ExtensoesPermitidas { get; init; } = [".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".csv", ".txt", ".xlsx", ".docx"];
+    public string[] ExtensoesPermitidas { get; init; } = [".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".csv", ".txt", ".xlsx", ".docx", ".zip"];
 
     /// <summary>
     /// Espaço total que um usuário pode ocupar, em megabytes. <c>0</c> desliga a cota.

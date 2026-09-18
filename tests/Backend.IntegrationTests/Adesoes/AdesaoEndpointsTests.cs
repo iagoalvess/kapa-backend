@@ -416,7 +416,7 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
 
         var criacao = await presidente.Cliente.PostAsJsonAsync(
             "/api/v1/cobrancas/planos",
-            new PlanoDeCobrancaRequestDTO("Plano 2027", 200, 100, 0, 0),
+            new PlanoDeCobrancaRequestDTO("Plano 2027", 200, 100, 0, 0, 0),
             Json,
             Ct
         );

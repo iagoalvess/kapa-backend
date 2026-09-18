@@ -53,8 +53,18 @@ public sealed class LegalRepository(AppDbContext db) : ILegalRepository
             join documento in db.DocumentosLegais on consentimento.DocumentoLegalId equals documento.Id
             where consentimento.UsuarioId == usuarioId
             orderby consentimento.AceitoEm descending, consentimento.Id descending
-            select new ConsentimentoDoUsuario(documento.Tipo, consentimento.Versao, consentimento.AceitoEm, consentimento.Revogado)
+            select new ConsentimentoDoUsuario(consentimento.Id, documento.Tipo, consentimento.Versao, consentimento.AceitoEm, consentimento.Revogado)
         ).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public Task<ConsentimentoRegistrado?> ObterConsentimentoDoTitular(Guid id, Guid usuarioId, CancellationToken ct = default) =>
+        db.Consentimentos.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id && c.UsuarioId == usuarioId, ct);
+
+    /// <inheritdoc />
+    public Task<bool> TemRevogacaoPosterior(Guid usuarioId, Guid documentoLegalId, DateTime depoisDe, CancellationToken ct = default) =>
+        db
+            .Consentimentos.AsNoTracking()
+            .AnyAsync(c => c.UsuarioId == usuarioId && c.DocumentoLegalId == documentoLegalId && c.Revogado && c.AceitoEm >= depoisDe, ct);
 
     /// <inheritdoc />
     public async Task Adicionar(ConsentimentoRegistrado consentimento, CancellationToken ct = default) =>

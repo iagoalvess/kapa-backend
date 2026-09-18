@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -29,6 +30,21 @@ public sealed class TokenService : ITokenService
     /// <summary>Nome da claim que carrega o papel do usuário na formatura selecionada.</summary>
     public const string ClaimDePapel = "papel";
 
+    /// <summary>
+    /// Nome da claim que diz quando o usuário foi desligado da formatura selecionada. Ausente para
+    /// quem continua na turma.
+    /// </summary>
+    /// <remarks>
+    /// Existe pelo mesmo motivo de <see cref="ClaimDePapel"/>: é a fonte que a tela lê para decidir o
+    /// que mostrar, e ela precisa ser a mesma que o backend lê para decidir o que aceitar. Sem ela, o
+    /// desligado veria o menu inteiro e colecionaria 403 em cada clique.
+    /// <para>
+    /// Como o papel, é fotografia da emissão — quem autoriza confere o vínculo gravado a cada
+    /// requisição (<c>PapelNaFormaturaHandler</c>).
+    /// </para>
+    /// </remarks>
+    public const string ClaimDeDesligamento = "desligado_em";
+
     private readonly JwtSettings _settings;
     private readonly SigningCredentials _credenciaisDeAssinatura;
     private readonly JsonWebTokenHandler _handler = new();
@@ -49,7 +65,13 @@ public sealed class TokenService : ITokenService
     /// listagem de formaturas, o cadastro e o aceite de convite. Endpoint de domínio exige a
     /// claim pelas políticas de papel (<c>MembroDaFormatura</c> e as mais estritas).
     /// </remarks>
-    public AccessTokenGerado GerarAccessToken(Usuario usuario, IReadOnlyList<string> perfis, Guid? formaturaId = null, string? papel = null)
+    public AccessTokenGerado GerarAccessToken(
+        Usuario usuario,
+        IReadOnlyList<string> perfis,
+        Guid? formaturaId = null,
+        string? papel = null,
+        DateTime? desligadoEm = null
+    )
     {
         var agora = DateTime.UtcNow;
         var expiraEm = agora.AddMinutes(_settings.MinutosDeValidadeDoAccessToken);
@@ -69,6 +91,9 @@ public sealed class TokenService : ITokenService
 
         if (!string.IsNullOrWhiteSpace(papel))
             claims.Add(new Claim(ClaimDePapel, papel));
+
+        if (desligadoEm is not null)
+            claims.Add(new Claim(ClaimDeDesligamento, desligadoEm.Value.ToString("O", CultureInfo.InvariantCulture)));
 
         var descritor = new SecurityTokenDescriptor
         {

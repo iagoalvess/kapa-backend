@@ -19,4 +19,30 @@ public interface IAdminRepository
     /// gerenciar usuários — e a recuperação exige acesso direto ao banco.
     /// </remarks>
     Task<int> ContarAdministradoresAtivos(CancellationToken ct = default);
+
+    /// <summary>
+    /// Turmas cujo nome, instituição ou curso batem com o termo.
+    /// </summary>
+    /// <remarks>
+    /// Atravessa todas as formaturas: quem atende é perfil de plataforma e não tem turma na sessão.
+    /// O filtro global do <c>AppDbContext</c> não alcança <c>Formatura</c>, que é a raiz — mas
+    /// alcança tudo o que pende dela, e por isso as consultas daqui que passam por vínculo,
+    /// parcela ou adesão precisam ignorá-lo explicitamente.
+    /// </remarks>
+    /// <param name="termo">Trecho digitado.</param>
+    /// <param name="limite">Máximo de linhas.</param>
+    Task<IReadOnlyList<TurmaEncontrada>> BuscarTurmas(string termo, int limite, CancellationToken ct = default);
+
+    /// <summary>Contas cujo nome ou e-mail batem com o termo, com em quantas turmas cada uma está.</summary>
+    /// <param name="termo">Trecho digitado.</param>
+    /// <param name="limite">Máximo de linhas.</param>
+    Task<IReadOnlyList<UsuarioEncontrado>> BuscarUsuarios(string termo, int limite, CancellationToken ct = default);
+
+    /// <summary>A turma inteira como o suporte a vê, ou nulo se não existir.</summary>
+    /// <param name="formaturaId">Formatura.</param>
+    Task<TurmaNoSuporte?> ObterTurma(Guid formaturaId, CancellationToken ct = default);
+
+    /// <summary>A conta inteira como o suporte a vê, ou nulo se não existir.</summary>
+    /// <param name="usuarioId">Conta.</param>
+    Task<UsuarioNoSuporte?> ObterUsuario(Guid usuarioId, CancellationToken ct = default);
 }

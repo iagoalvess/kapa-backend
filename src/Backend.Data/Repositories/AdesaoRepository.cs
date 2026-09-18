@@ -44,6 +44,9 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
         db.Adesoes.AnyAsync(a => a.VinculoId == vinculoId && a.TermoId == termoId, ct);
 
     /// <inheritdoc />
+    public Task<bool> JaAderiuAlgumaVez(Guid vinculoId, CancellationToken ct = default) => db.Adesoes.AnyAsync(a => a.VinculoId == vinculoId, ct);
+
+    /// <inheritdoc />
     public Task<bool> CpfEmUsoPorOutro(string cpf, Guid vinculoId, CancellationToken ct = default)
     {
         var hmac = cifra.Hmac(cpf);

@@ -23,28 +23,43 @@ public sealed class EmailsDePagamento(IEmailService emailService, IOptions<Aplic
     private readonly AplicacaoSettings _aplicacao = aplicacao.Value;
 
     /// <summary>O extrato no front — o mesmo caminho de <c>ROTAS.extrato</c>.</summary>
-    private string LinkDoExtrato => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/extrato";
+    private string LinkDoExtrato => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/minhas-parcelas";
 
-    /// <summary>A tesouraria achou o dinheiro e baixou a parcela.</summary>
+    /// <summary>
+    /// A tesouraria achou o dinheiro e registrou o pagamento.
+    /// </summary>
+    /// <remarks>
+    /// Com saldo, a parcela continua em aberto e o e-mail diz quanto falta: é a diferença entre "está
+    /// tudo certo" e "a tesouraria achou o seu PIX, mas você ainda deve" — e a pessoa precisa saber
+    /// qual das duas antes do próximo vencimento.
+    /// </remarks>
     /// <param name="email">Formando.</param>
     /// <param name="formatura">Nome da turma.</param>
     /// <param name="vencimento">Vencimento da parcela.</param>
     /// <param name="valorEmCentavos">O que entrou.</param>
     /// <param name="pagoEm">Dia em que entrou.</param>
+    /// <param name="saldoEmCentavos">O que ainda falta na parcela; zero se ela ficou quitada.</param>
     public Task Confirmado(
         string email,
         string formatura,
         DateOnly vencimento,
         long valorEmCentavos,
         DateOnly pagoEm,
+        long saldoEmCentavos = 0,
         CancellationToken ct = default
     ) =>
         Enfileirar(
             email,
-            $"Pagamento confirmado — {formatura}",
-            "Pagamento confirmado",
+            saldoEmCentavos > 0 ? $"Pagamento parcial registrado — {formatura}" : $"Pagamento confirmado — {formatura}",
+            saldoEmCentavos > 0 ? "Pagamento parcial registrado" : "Pagamento confirmado",
             $"A tesouraria de <strong>{ModeloDeEmail.Texto(formatura)}</strong> confirmou o pagamento de "
-                + $"{FormatosBrasileiros.Reais(valorEmCentavos)}, feito em {Dia(pagoEm)}, da sua parcela com vencimento em {Dia(vencimento)}.",
+                + $"{FormatosBrasileiros.Reais(valorEmCentavos)}, feito em {Dia(pagoEm)}, da sua parcela com vencimento em {Dia(vencimento)}."
+                + (
+                    saldoEmCentavos > 0
+                        ? $" Ela continua em aberto: ainda faltam <strong>{FormatosBrasileiros.Reais(saldoEmCentavos)}</strong>."
+                        : string.Empty
+                ),
+            Mascote.Cofrinho,
             ct
         );
 
@@ -62,6 +77,7 @@ public sealed class EmailsDePagamento(IEmailService emailService, IOptions<Aplic
             $"A tesouraria de <strong>{ModeloDeEmail.Texto(formatura)}</strong> não confirmou o pagamento de "
                 + $"{FormatosBrasileiros.Reais(valorEmCentavos)} que você informou para a parcela com vencimento em {Dia(vencimento)}. "
                 + $"Motivo: <em>{ModeloDeEmail.Texto(motivo)}</em>. A parcela continua em aberto — se você pagou, fale com a tesouraria.",
+            Mascote.Erro,
             ct
         );
 
@@ -91,17 +107,18 @@ public sealed class EmailsDePagamento(IEmailService emailService, IOptions<Aplic
                 + $"{FormatosBrasileiros.Reais(valorEmCentavos)} da sua parcela com vencimento em {Dia(vencimento)}. "
                 + $"Motivo: <em>{ModeloDeEmail.Texto(justificativa)}</em>. A parcela voltou a ficar em aberto — "
                 + "se você não reconhece este estorno, fale com a comissão.",
+            Mascote.Alerta,
             ct
         );
 
     private static string Dia(DateOnly dia) => dia.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
 
-    private async Task Enfileirar(string email, string assunto, string titulo, string mensagem, CancellationToken ct) =>
+    private async Task Enfileirar(string email, string assunto, string titulo, string mensagem, Mascote mascote, CancellationToken ct) =>
         await emailService.Enfileirar(
             new NovoEmail(
                 email,
                 $"{assunto} — {_aplicacao.Nome}",
-                ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, "Ver meu extrato", LinkDoExtrato)
+                ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, "Ver meu extrato", LinkDoExtrato, mascote)
             ),
             ct
         );

@@ -10,7 +10,20 @@ namespace Backend.Api.DTOs.Formaturas;
 /// <param name="Ano">Ano de conclusão.</param>
 /// <param name="Semestre">Semestre de conclusão: 1 ou 2. Com o ano, forma a turma ("2027.1").</param>
 /// <param name="Papel">Papel do usuário nesta formatura.</param>
-public sealed record FormaturaDoUsuarioDTO(Guid Id, string Nome, string Curso, string Instituicao, int Ano, int Semestre, string Papel);
+/// <param name="DesligadoEm">
+/// Quando ele foi desligado desta turma, em UTC; nulo para quem continua nela. A turma desligada
+/// segue na lista, em leitura: o extrato é a prova do que ele pagou.
+/// </param>
+public sealed record FormaturaDoUsuarioDTO(
+    Guid Id,
+    string Nome,
+    string Curso,
+    string Instituicao,
+    int Ano,
+    int Semestre,
+    string Papel,
+    DateTime? DesligadoEm
+);
 
 /// <summary>Corpo da criação e da edição de formatura.</summary>
 /// <param name="Nome">Nome da turma.</param>

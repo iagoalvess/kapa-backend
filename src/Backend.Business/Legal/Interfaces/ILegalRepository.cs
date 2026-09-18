@@ -24,6 +24,27 @@ public interface ILegalRepository
     /// <param name="usuarioId">Titular.</param>
     Task<IReadOnlyList<ConsentimentoDoUsuario>> ListarConsentimentos(Guid usuarioId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Um registro de consentimento do titular informado.
+    /// </summary>
+    /// <remarks>
+    /// Sem rastreamento, porque não há o que alterar: revogar é <b>inserir</b> uma linha nova. Esta
+    /// leitura existe só para a revogação saber qual versão de qual documento ela está desfazendo.
+    /// </remarks>
+    /// <param name="id">Registro.</param>
+    /// <param name="usuarioId">Titular.</param>
+    Task<ConsentimentoRegistrado?> ObterConsentimentoDoTitular(Guid id, Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>Se o titular já revogou este documento depois do aceite informado.</summary>
+    /// <remarks>
+    /// É o que impede a segunda revogação do mesmo aceite: o histórico é append-only, então "já
+    /// revogado" não é um campo do registro original — é a existência de uma linha mais nova.
+    /// </remarks>
+    /// <param name="usuarioId">Titular.</param>
+    /// <param name="documentoLegalId">Versão do documento.</param>
+    /// <param name="depoisDe">Momento do aceite que se quer revogar, em UTC.</param>
+    Task<bool> TemRevogacaoPosterior(Guid usuarioId, Guid documentoLegalId, DateTime depoisDe, CancellationToken ct = default);
+
     /// <summary>Marca um registro de consentimento para gravação.</summary>
     /// <param name="consentimento">Registro a gravar.</param>
     Task Adicionar(ConsentimentoRegistrado consentimento, CancellationToken ct = default);

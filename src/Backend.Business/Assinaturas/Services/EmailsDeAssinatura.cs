@@ -38,6 +38,7 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
             "Pagamento confirmado",
             $"A assinatura da formatura <strong>{ModeloDeEmail.Texto(formatura.Nome)}</strong> foi confirmada e a turma já está ativa. "
                 + $"A licença vale até {Data(vigenteAte)}.",
+            Mascote.Foguete,
             ct
         );
 
@@ -50,7 +51,8 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
             $"Pagamento recusado — {formatura.Nome}",
             "Pagamento recusado",
             $"O pagamento da assinatura de <strong>{ModeloDeEmail.Texto(formatura.Nome)}</strong> foi recusado. "
-                + "Confira os dados do cartão e tente de novo.",
+                + "Refaça o pagamento pelo painel da turma para ativá-la.",
+            Mascote.Erro,
             ct
         );
 
@@ -64,6 +66,7 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
             "Assinatura vencida",
             $"A assinatura de <strong>{ModeloDeEmail.Texto(formatura.Nome)}</strong> venceu e a turma entrou em modo leitura. "
                 + "Nada foi apagado: todos continuam consultando. Para voltar a registrar, renove a assinatura.",
+            Mascote.Alerta,
             ct
         );
 
@@ -92,17 +95,31 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
                 + $"Se nada mudar, a turma entra em modo leitura em {Data(suspensaoEm)}.",
             (_, true) => $"A assinatura de <strong>{nome}</strong> foi cancelada e o acesso completo termina em {Data(vigenteAte)}. "
                 + "Depois disso a turma fica em modo leitura, sem perder nada.",
-            _ => $"A assinatura de <strong>{nome}</strong> renova em {Data(vigenteAte)}. Se o cartão estiver em dia, nada muda.",
+            _ => $"A assinatura de <strong>{nome}</strong> renova em {Data(vigenteAte)}. Se o pagamento estiver em dia, nada muda.",
         };
 
-        return Enfileirar(presidentes, $"Assinatura de {formatura.Nome}", marco < 0 ? "Assinatura vencida" : "Vencimento próximo", mensagem, ct);
+        return Enfileirar(
+            presidentes,
+            $"Assinatura de {formatura.Nome}",
+            marco < 0 ? "Assinatura vencida" : "Vencimento próximo",
+            mensagem,
+            marco < 0 ? Mascote.Alerta : Mascote.Checklist,
+            ct
+        );
     }
 
     private static string Data(DateTime utc) => DataUtils.ParaExibicao(utc).ToString("dd/MM/yyyy", PtBr);
 
-    private async Task Enfileirar(IReadOnlyList<string> presidentes, string assunto, string titulo, string mensagem, CancellationToken ct)
+    private async Task Enfileirar(
+        IReadOnlyList<string> presidentes,
+        string assunto,
+        string titulo,
+        string mensagem,
+        Mascote mascote,
+        CancellationToken ct
+    )
     {
-        var corpo = ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, "Ver assinatura", LinkDaFormatura);
+        var corpo = ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, "Ver assinatura", LinkDaFormatura, mascote);
 
         foreach (var email in presidentes)
             await emailService.Enfileirar(new NovoEmail(email, $"{assunto} — {_aplicacao.Nome}", corpo), ct);

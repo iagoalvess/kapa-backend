@@ -296,7 +296,15 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
 
         var criado = await tesoureiro.Cliente.PostAsJsonAsync(
             $"{Financeiro}/fornecedores",
-            new FornecedorRequestDTO("Buffet Sabor", "11.222.333/0001-81", CategoriaDeDespesa.Buffet, "(41) 99876-5432", "contato@fornecedor.dev", null, true),
+            new FornecedorRequestDTO(
+                "Buffet Sabor",
+                "11.222.333/0001-81",
+                CategoriaDeDespesa.Buffet,
+                "(41) 99876-5432",
+                "contato@fornecedor.dev",
+                null,
+                true
+            ),
             Json,
             Ct
         );

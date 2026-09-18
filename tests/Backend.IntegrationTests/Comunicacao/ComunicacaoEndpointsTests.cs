@@ -116,6 +116,40 @@ public sealed class ComunicacaoEndpointsTests(ApiFactory fabrica)
         (await comissao.Cliente.GetFromJsonAsync<Pagina<DocumentoDTO>>(Documentos, Json, Ct))!.Total.ShouldBe(2);
     }
 
+    /// <summary>
+    /// O filtro de visibilidade estreita o acervo, e nunca o alarga.
+    /// </summary>
+    /// <remarks>
+    /// Ele existe para a tela que precisa escolher um documento que a turma inteira abre — o contrato
+    /// de um item da festa (Sprint 17). O risco de um filtro assim é ser lido como "mostre-me os
+    /// internos": para quem não os vê, a resposta é lista vazia, e não o acervo da comissão.
+    /// </remarks>
+    [Fact]
+    public async Task O_filtro_de_visibilidade_estreita_o_acervo_e_nunca_o_alarga()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var comissao = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Comissao, Ct);
+        var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+
+        var contrato = await Enviar(comissao, "Contrato do buffet", Visibilidade.Turma);
+        await Enviar(comissao, "Ata da negociação", Visibilidade.SomenteComissao);
+
+        var daTurma = await comissao.Cliente.GetFromJsonAsync<Pagina<DocumentoDTO>>($"{Documentos}?visibilidade=Turma", Json, Ct);
+        daTurma!.Itens.Select(d => d.Id).ShouldBe([contrato.Id]);
+        daTurma.Total.ShouldBe(1);
+
+        var internos = await comissao.Cliente.GetFromJsonAsync<Pagina<DocumentoDTO>>($"{Documentos}?visibilidade=SomenteComissao", Json, Ct);
+        internos!.Total.ShouldBe(1);
+
+        // O formando pedindo os internos recebe vazio: o recorte do papel vem antes do filtro.
+        var tentativa = await formando.Cliente.GetFromJsonAsync<Pagina<DocumentoDTO>>(
+            $"{Documentos}?visibilidade=SomenteComissao",
+            Json,
+            Ct
+        );
+        tentativa!.Total.ShouldBe(0);
+    }
+
     [Fact]
     public async Task Publicar_e_da_gestao_e_o_formando_recebe_403()
     {
@@ -337,5 +371,54 @@ public sealed class ComunicacaoEndpointsTests(ApiFactory fabrica)
         var achados = await comissao.Cliente.GetFromJsonAsync<Pagina<DocumentoDTO>>($"{Documentos}?busca=decoracao", Json, Ct);
 
         achados!.Itens.ShouldHaveSingleItem().Titulo.ShouldBe("Orçamento da decoração");
+    }
+
+    /// <summary>
+    /// O sino conta o que entrou desde a última visita — e nada do que é interno para quem não o lê.
+    /// </summary>
+    /// <remarks>
+    /// É a mesma fronteira do resto do mural, vista por outro endpoint: um selo com "3" para um
+    /// formando que só tem dois avisos a ler conta a ele que existe um terceiro, interno.
+    /// </remarks>
+    [Fact]
+    public async Task O_sino_nao_conta_aviso_interno_para_o_formando()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var comissao = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Comissao, Ct);
+        var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+
+        await Publicar(comissao, Pedido("Assembleia geral"));
+        await Publicar(comissao, Pedido("Ata da reunião", Visibilidade.SomenteComissao));
+
+        var daComissao = await comissao.Cliente.GetFromJsonAsync<NovidadesDoMuralDTO>($"{Avisos}/novidades", Json, Ct);
+        var doFormando = await formando.Cliente.GetFromJsonAsync<NovidadesDoMuralDTO>($"{Avisos}/novidades", Json, Ct);
+
+        daComissao!.Quantidade.ShouldBe(2);
+        doFormando!.Quantidade.ShouldBe(1);
+        doFormando.Itens.ShouldHaveSingleItem().Titulo.ShouldBe("Assembleia geral");
+    }
+
+    /// <summary>Abrir o mural zera o sino; o que for publicado depois volta a acendê-lo.</summary>
+    [Fact]
+    public async Task Marcar_visto_zera_o_sino_e_o_aviso_seguinte_o_acende()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var comissao = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Comissao, Ct);
+        var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+
+        await Publicar(comissao, Pedido("Assembleia geral"));
+
+        var visto = await formando.Cliente.PostAsync($"{Avisos}/novidades/visto", null, Ct);
+        visto.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var zerado = await formando.Cliente.GetFromJsonAsync<NovidadesDoMuralDTO>($"{Avisos}/novidades", Json, Ct);
+        zerado!.Quantidade.ShouldBe(0);
+        zerado.Itens.ShouldBeEmpty();
+
+        await Publicar(comissao, Pedido("Rifa do jantar"));
+
+        var depois = await formando.Cliente.GetFromJsonAsync<NovidadesDoMuralDTO>($"{Avisos}/novidades", Json, Ct);
+        depois!.Quantidade.ShouldBe(1);
+        depois.Itens.ShouldHaveSingleItem().Titulo.ShouldBe("Rifa do jantar");
     }
 }

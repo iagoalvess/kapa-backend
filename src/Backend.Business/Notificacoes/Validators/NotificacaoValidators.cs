@@ -37,7 +37,6 @@ public sealed class DadosDaRegraValidator : AbstractValidator<DadosDaRegra>
     public DadosDaRegraValidator()
     {
         RuleFor(x => x.Gatilho).IsInEnum().WithMessage("Gatilho desconhecido.");
-        RuleFor(x => x.Canal).IsInEnum().WithMessage("Canal desconhecido.");
 
         RuleFor(x => x.DiasDeDeslocamento)
             .InclusiveBetween(-30, DeslocamentoMaximo)

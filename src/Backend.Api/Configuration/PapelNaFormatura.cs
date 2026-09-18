@@ -11,10 +11,17 @@ namespace Backend.Api.Configuration;
 /// Exige que o usuário tenha, <b>agora</b>, um dos papéis informados na formatura da sessão.
 /// </summary>
 /// <param name="papeis">Papéis aceitos além do Presidente, que sempre passa.</param>
-public sealed class PapelNaFormaturaRequirement(IReadOnlyList<string> papeis) : IAuthorizationRequirement
+/// <param name="aceitaDesligado">
+/// Aceita também quem foi desligado da turma. Vale só para a leitura do que é do próprio titular
+/// (P5 da Sprint 15) — nunca para escrita, e nunca para dado da turma.
+/// </param>
+public sealed class PapelNaFormaturaRequirement(IReadOnlyList<string> papeis, bool aceitaDesligado = false) : IAuthorizationRequirement
 {
     /// <summary>Papéis aceitos além do Presidente.</summary>
     public IReadOnlyList<string> Papeis { get; } = papeis;
+
+    /// <summary>Se o vínculo desligado também passa.</summary>
+    public bool AceitaDesligado { get; } = aceitaDesligado;
 }
 
 /// <summary>
@@ -46,7 +53,10 @@ public sealed class PapelNaFormaturaHandler(IVinculoRepository vinculoRepository
             return;
 
         var ct = (context.Resource as HttpContext)?.RequestAborted ?? CancellationToken.None;
-        var papel = await vinculoRepository.ObterPapelAtivo(usuarioId, formaturaId, ct);
+
+        var papel = requirement.AceitaDesligado
+            ? (await vinculoRepository.ObterDoTitular(usuarioId, formaturaId, ct))?.Papel
+            : await vinculoRepository.ObterPapelAtivo(usuarioId, formaturaId, ct);
 
         if (papel == PapelNaFormatura.Presidente || (papel is not null && requirement.Papeis.Contains(papel, StringComparer.Ordinal)))
             context.Succeed(requirement);

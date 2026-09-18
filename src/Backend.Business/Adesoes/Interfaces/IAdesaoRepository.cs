@@ -28,6 +28,16 @@ public interface IAdesaoRepository
     /// <param name="termoId">Versão do termo.</param>
     Task<bool> JaAderiu(Guid vinculoId, Guid termoId, CancellationToken ct = default);
 
+    /// <summary>Se o vínculo aderiu a alguma versão do termo.</summary>
+    /// <remarks>
+    /// É o que separa Desligar de Remover (decisão 1 da Sprint 15): quem aderiu deve, e sai pela
+    /// porta que cancela dívida; quem nunca aderiu é erro de cadastro, e sai pela que não mexe em
+    /// dinheiro nenhum. Qualquer versão serve — a pessoa pode ter aderido à v1 e não à v2 vigente,
+    /// e a dívida da v1 continua sendo dela.
+    /// </remarks>
+    /// <param name="vinculoId">Vínculo.</param>
+    Task<bool> JaAderiuAlgumaVez(Guid vinculoId, CancellationToken ct = default);
+
     /// <summary>Se outro vínculo da turma já aderiu com este CPF.</summary>
     /// <remarks>Compara pelo HMAC: o CPF gravado é cifrado com nonce aleatório e não admite busca.</remarks>
     /// <param name="cpf">CPF, só os dígitos.</param>

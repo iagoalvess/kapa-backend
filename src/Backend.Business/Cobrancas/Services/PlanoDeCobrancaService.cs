@@ -2,6 +2,9 @@ using Backend.Business.Abstractions;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
+using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Eventos.Models;
+using Backend.Business.Eventos.Services;
 using Backend.Business.Formaturas.Interfaces;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
@@ -18,18 +21,24 @@ namespace Backend.Business.Cobrancas.Services;
 /// <param name="planoRepository">Planos e itens.</param>
 /// <param name="parcelaRepository">Parcelas geradas.</param>
 /// <param name="vinculoRepository">Membros, para o total da turma.</param>
+/// <param name="geracaoDeParcelas">Parcelas do rateio extraordinário no nome de quem já aderiu.</param>
 /// <param name="planoValidator">Forma do plano.</param>
 /// <param name="itemValidator">Forma do item.</param>
+/// <param name="rateioValidator">Forma do rateio extraordinário.</param>
 /// <param name="simulacaoValidator">Forma da simulação.</param>
+/// <param name="eventos">Trilha de auditoria.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class PlanoDeCobrancaService(
     IPlanoDeCobrancaRepository planoRepository,
     IParcelaRepository parcelaRepository,
     IVinculoRepository vinculoRepository,
+    IGeracaoDeParcelasService geracaoDeParcelas,
     IValidator<DadosDoPlano> planoValidator,
     IValidator<DadosDoItem> itemValidator,
+    IValidator<RateioExtraordinario> rateioValidator,
     IValidator<SimularPlano> simulacaoValidator,
+    IEventoRepository eventos,
     IUnitOfWork unitOfWork,
     ILogger<PlanoDeCobrancaService> logger
 ) : ICobrancaService
@@ -92,11 +101,40 @@ public sealed class PlanoDeCobrancaService(
     }
 
     /// <inheritdoc />
-    public async Task<Result<PlanoDeCobrancaDetalhe>> AdicionarItem(Guid planoId, DadosDoItem dados, CancellationToken ct = default)
+    /// <remarks>
+    /// Sem <paramref name="rateio"/>, vale a regra normal: a parcela nasce na adesão, então o item
+    /// alcança só quem aderir depois — e a tela avisa quantos ficam de fora.
+    /// <para>
+    /// Com ele, o item é um <b>rateio extraordinário</b> (revisão de 17/09/2026 da decisão 8 da
+    /// Sprint 7): a grade também é gravada para cada vínculo ativo que já aderiu, na mesma
+    /// transação. O primeiro vencimento não pode ser passado nesse caso — a parcela nasceria
+    /// vencida, com multa e juros de um atraso que a pessoa não teve como cometer.
+    /// </para>
+    /// </remarks>
+    public async Task<Result<PlanoDeCobrancaDetalhe>> AdicionarItem(
+        Guid planoId,
+        DadosDoItem dados,
+        RateioExtraordinario? rateio = null,
+        CancellationToken ct = default
+    )
     {
         var validacao = itemValidator.Validar(dados);
         if (validacao.Falhou)
             return Result.Falha<PlanoDeCobrancaDetalhe>(validacao.Erros);
+
+        if (rateio is not null)
+        {
+            var formaDoRateio = rateioValidator.Validar(rateio);
+            if (formaDoRateio.Falhou)
+                return Result.Falha<PlanoDeCobrancaDetalhe>(formaDoRateio.Erros);
+
+            if (GradeDeParcelas.PrimeiroDoMes(dados.PrimeiroMes) < GradeDeParcelas.PrimeiroDoMes(DataUtils.Hoje()))
+                return Erro.Validacao(
+                    "cobranca.rateio_retroativo",
+                    "O rateio não pode começar num mês que já passou: a parcela nasceria vencida, com multa e juros.",
+                    campo: "primeiro_mes"
+                );
+        }
 
         var plano = await planoRepository.ObterParaEdicao(planoId, ct);
         if (plano is null)
@@ -106,10 +144,18 @@ public sealed class PlanoDeCobrancaService(
         if (aceita.Falhou)
             return Result.Falha<PlanoDeCobrancaDetalhe>(aceita.Erros);
 
-        var item = ItemDeCobranca.Novo(plano.Id, dados);
+        var item = ItemDeCobranca.Novo(plano.Id, dados, rateio?.OrigemDaDecisao);
         plano.Itens.Add(item);
 
         await planoRepository.AdicionarItem(item, ct);
+
+        if (rateio is not null)
+        {
+            var ratear = await Ratear(item, ct);
+            if (ratear.Falhou)
+                return Result.Falha<PlanoDeCobrancaDetalhe>(ratear.Erros);
+        }
+
         await unitOfWork.SalvarAsync(ct);
 
         return await Detalhar(plano, ct);
@@ -122,7 +168,13 @@ public sealed class PlanoDeCobrancaService(
     /// mudança, a soma das parcelas de um formando pode não ser o total novo do item: é a mudança
     /// valendo só para o futuro.
     /// </remarks>
-    public async Task<Result<PlanoDeCobrancaDetalhe>> AlterarItem(Guid planoId, Guid itemId, DadosDoItem dados, CancellationToken ct = default)
+    public async Task<Result<PlanoDeCobrancaDetalhe>> AlterarItem(
+        Guid planoId,
+        Guid itemId,
+        DadosDoItem dados,
+        Guid autorId,
+        CancellationToken ct = default
+    )
     {
         var validacao = itemValidator.Validar(dados);
         if (validacao.Falhou)
@@ -150,18 +202,53 @@ public sealed class PlanoDeCobrancaService(
                 "Este item já gerou parcelas: só o valor e a descrição podem mudar. Para mudar o resto, encerre-o e inclua outro."
             );
 
+        var antes = Retrato(item);
+
         item.Aplicar(dados);
 
         if (emUso)
             await Repactuar(item, ct);
+
+        await eventos.Auditar(
+            NomesDeAuditoria.ItemAlterado,
+            autorId,
+            new
+            {
+                formaturaId = plano.FormaturaId,
+                itemId,
+                antes,
+                depois = Retrato(item),
+            },
+            ct
+        );
 
         await unitOfWork.SalvarAsync(ct);
 
         return await Detalhar(plano, ct);
     }
 
+    /// <summary>
+    /// O item como ele fica na trilha: o que muda valor ou vencimento do que a turma deve.
+    /// </summary>
+    /// <remarks>
+    /// É o corpo do <c>antes</c> e do <c>depois</c>, e a tela mostra só o que diferiu entre os dois.
+    /// Sem ele, "Item de cobrança alterado" dizia quem alterou e não o que mudou — que é a metade
+    /// da pergunta que a assembleia faz.
+    /// </remarks>
+    /// <param name="item">Item do plano.</param>
+    private static object Retrato(ItemDeCobranca item) =>
+        new
+        {
+            item.Descricao,
+            item.Tipo,
+            valorEmCentavos = item.ValorEmCentavos,
+            item.NumeroDeParcelas,
+            item.DiaDeVencimento,
+            item.PrimeiroMes,
+        };
+
     /// <inheritdoc />
-    public async Task<Result<PlanoDeCobrancaDetalhe>> RemoverItem(Guid planoId, Guid itemId, CancellationToken ct = default)
+    public async Task<Result<PlanoDeCobrancaDetalhe>> RemoverItem(Guid planoId, Guid itemId, Guid autorId, CancellationToken ct = default)
     {
         var plano = await planoRepository.ObterParaEdicao(planoId, ct);
         if (plano is null)
@@ -177,6 +264,20 @@ public sealed class PlanoDeCobrancaService(
                 "Este item já gerou parcelas e não pode ser removido. Encerre-o: ele para de cobrar e o que já foi cobrado fica."
             );
 
+        // O retrato é tirado **antes** da remoção: depois dela a linha não existe mais, e o evento
+        // seria a única memória de um item que ninguém mais consegue consultar.
+        await eventos.Auditar(
+            NomesDeAuditoria.ItemRemovido,
+            autorId,
+            new
+            {
+                formaturaId = plano.FormaturaId,
+                itemId,
+                removido = Retrato(item),
+            },
+            ct
+        );
+
         plano.Itens.Remove(item);
         planoRepository.RemoverItem(item);
 
@@ -187,7 +288,7 @@ public sealed class PlanoDeCobrancaService(
 
     /// <inheritdoc />
     /// <remarks>Vence hoje ainda é devida e fica; o que vence de amanhã em diante é cancelado.</remarks>
-    public async Task<Result<PlanoDeCobrancaDetalhe>> EncerrarItem(Guid planoId, Guid itemId, CancellationToken ct = default)
+    public async Task<Result<PlanoDeCobrancaDetalhe>> EncerrarItem(Guid planoId, Guid itemId, Guid autorId, CancellationToken ct = default)
     {
         var plano = await planoRepository.ObterParaEdicao(planoId, ct);
         if (plano is null)
@@ -201,6 +302,21 @@ public sealed class PlanoDeCobrancaService(
         item.Encerrar(hoje);
 
         var canceladas = (await parcelaRepository.ListarAbertasParaEdicao(item.Id, hoje.AddDays(1), ct)).Count(parcela => parcela.Cancelar(hoje));
+
+        await eventos.Auditar(
+            NomesDeAuditoria.ItemEncerrado,
+            autorId,
+            new
+            {
+                formaturaId = plano.FormaturaId,
+                itemId,
+                item.Descricao,
+                item.Tipo,
+                encerradoEm = hoje,
+                parcelasCanceladas = canceladas,
+            },
+            ct
+        );
 
         await unitOfWork.SalvarAsync(ct);
 
@@ -236,7 +352,7 @@ public sealed class PlanoDeCobrancaService(
     /// "Só um vigente" é conferido aqui para dar a mensagem certa, e garantido pelo índice único
     /// parcial do banco para os dois cliques simultâneos.
     /// </remarks>
-    public async Task<Result<PlanoDeCobrancaDetalhe>> Vigorar(Guid planoId, CancellationToken ct = default)
+    public async Task<Result<PlanoDeCobrancaDetalhe>> Vigorar(Guid planoId, Guid autorId, CancellationToken ct = default)
     {
         var plano = await planoRepository.ObterParaEdicao(planoId, ct);
         if (plano is null)
@@ -248,6 +364,24 @@ public sealed class PlanoDeCobrancaService(
         var vigorar = plano.Vigorar(DateTime.UtcNow);
         if (vigorar.Falhou)
             return Result.Falha<PlanoDeCobrancaDetalhe>(vigorar.Erros);
+
+        // O plano inteiro vai no corpo, e não só o id: é a partir daqui que todo formando passa a
+        // dever, e a assembleia de dois anos depois pergunta "o que exatamente entrou em vigor
+        // naquele dia". O plano pode ser editado depois; o evento, não.
+        var ativos = plano.Itens.Where(item => item.EncerradoEm is null).ToList();
+
+        await eventos.Auditar(
+            NomesDeAuditoria.PlanoVigorado,
+            autorId,
+            new
+            {
+                formaturaId = plano.FormaturaId,
+                planoId,
+                itens = ativos.Select(Retrato).ToList(),
+                totalPorFormandoEmCentavos = ativos.Sum(item => item.ValorEmCentavos * item.NumeroDeParcelas),
+            },
+            ct
+        );
 
         await unitOfWork.SalvarAsync(ct);
 
@@ -312,15 +446,68 @@ public sealed class PlanoDeCobrancaService(
         );
     }
 
-    /// <summary>Leva o valor novo do item às parcelas abertas que ainda não venceram.</summary>
+    /// <summary>Grava a grade do item novo para quem já aderiu — o rateio extraordinário.</summary>
+    /// <remarks>
+    /// Vínculo ativo, e por isso a contagem aqui pode ser menor que o <c>FormandosComParcela</c> que
+    /// a tela mostrou: quem saiu da turma continua devendo o que já devia, e não recebe cobrança nova.
+    /// </remarks>
+    /// <param name="item">Item recém-incluído, ainda não salvo.</param>
+    private async Task<Result> Ratear(ItemDeCobranca item, CancellationToken ct)
+    {
+        var vinculos = await parcelaRepository.ListarVinculosAtivosComParcela(item.PlanoId, ct);
+
+        var geradas = await geracaoDeParcelas.GerarDoItem(vinculos, item, ct);
+        if (geradas.Falhou)
+            return Result.Falha(geradas.Erros);
+
+        logger.LogInformation(
+            "Rateio extraordinário no item {ItemId}: {Parcelas} parcelas para {Vinculos} formandos que já haviam aderido.",
+            item.Id,
+            geradas.Valor,
+            vinculos.Count
+        );
+
+        return Result.Ok();
+    }
+
+    /// <summary>
+    /// Leva o valor novo do item às parcelas abertas que ainda não venceram, formando a formando.
+    /// </summary>
+    /// <remarks>
+    /// Por vínculo, e não pela grade do item: quem aderiu depois do começo do plano tem menos
+    /// parcelas que ele (<c>GradeDeParcelas.DeQuemAdereEm</c>), e copiar o valor da posição
+    /// correspondente faria essa pessoa pagar menos que o resto da turma.
+    /// <para>
+    /// O que já venceu, foi pago ou foi cancelado fica como está e conta como <i>comprometido</i>; o
+    /// que sobra do total novo se redistribui pelas parcelas que ainda não venceram. Cancelada não
+    /// entra no comprometido — ela não é devida. <c>ponytail:</c> se o valor novo for menor do que o
+    /// formando já pagou, as futuras vão a zero em vez de negativo, e a soma dele fica acima do total
+    /// novo; devolver dinheiro é decisão de gente, não de repactuação.
+    /// </para>
+    /// </remarks>
     private async Task Repactuar(ItemDeCobranca item, CancellationToken ct)
     {
         var hoje = DataUtils.Hoje();
-        var grade = item.ParaDados().Grade().ToDictionary(parcela => parcela.Numero, parcela => parcela.ValorEmCentavos);
+        var repactuadas = 0;
 
-        var repactuadas = (await parcelaRepository.ListarAbertasParaEdicao(item.Id, hoje, ct)).Count(parcela =>
-            parcela.Repactuar(grade[parcela.Numero], hoje)
-        );
+        foreach (var doVinculo in (await parcelaRepository.ListarDoItemParaEdicao(item.Id, ct)).GroupBy(parcela => parcela.VinculoId))
+        {
+            var futuras = doVinculo
+                .Where(parcela => parcela.StatusEm(hoje) == StatusDaParcela.Aberta)
+                .OrderBy(parcela => parcela.Vencimento)
+                .ToList();
+            if (futuras.Count == 0)
+                continue;
+
+            var comprometido = doVinculo
+                .Where(parcela => !futuras.Contains(parcela) && parcela.Status != StatusDaParcela.Cancelada)
+                .Sum(parcela => parcela.ValorOriginalEmCentavos);
+
+            var restante = item.ValorEmCentavos - comprometido;
+            var valores = GradeDeParcelas.Distribuir(item.ValorEmCentavos >= 0 ? Math.Max(0, restante) : Math.Min(0, restante), futuras.Count);
+
+            repactuadas += futuras.Where((parcela, posicao) => parcela.Repactuar(valores[posicao], hoje)).Count();
+        }
 
         logger.LogInformation("Item {ItemId} alterado; {Repactuadas} parcelas futuras com valor novo.", item.Id, repactuadas);
     }
@@ -338,6 +525,7 @@ public sealed class PlanoDeCobrancaService(
             plano.PercentualDeJurosAoMes,
             plano.CarenciaEmDias,
             plano.PercentualDeDescontoPorAntecipacao,
+            plano.DiasMinimosParaDesconto,
             [
                 .. plano
                     .Itens.OrderBy(item => item.CriadoEm)
@@ -351,7 +539,8 @@ public sealed class PlanoDeCobrancaService(
                         item.DiaDeVencimento,
                         item.PrimeiroMes,
                         item.EncerradoEm,
-                        emUso.Contains(item.Id)
+                        emUso.Contains(item.Id),
+                        item.OrigemDaDecisao
                     )),
             ],
             emUso.Count == 0 ? 0 : await parcelaRepository.ContarVinculosComParcela(plano.Id, ct)

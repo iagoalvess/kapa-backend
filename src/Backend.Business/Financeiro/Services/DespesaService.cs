@@ -3,6 +3,10 @@ using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Models;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
+using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Eventos.Models;
+using Backend.Business.Eventos.Services;
+using Backend.Business.Festa.Interfaces;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Models;
 using FluentValidation;
@@ -24,19 +28,23 @@ namespace Backend.Business.Financeiro.Services;
 /// </remarks>
 /// <param name="despesaRepository">Despesas da turma.</param>
 /// <param name="fornecedorRepository">Fornecedores, para conferir o informado.</param>
+/// <param name="itemDaFestaRepository">Itens da festa, para conferir o vínculo informado (Sprint 17).</param>
 /// <param name="arquivoService">Comprovantes.</param>
 /// <param name="novaValidator">Forma do lançamento.</param>
 /// <param name="dadosValidator">Forma da correção.</param>
 /// <param name="pagamentoValidator">Forma do pagamento.</param>
+/// <param name="eventos">Trilha de auditoria.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class DespesaService(
     IDespesaRepository despesaRepository,
     IFornecedorRepository fornecedorRepository,
+    IItemDaFestaRepository itemDaFestaRepository,
     IArquivoService arquivoService,
     IValidator<NovaDespesa> novaValidator,
     IValidator<DadosDaDespesa> dadosValidator,
     IValidator<PagarDespesa> pagamentoValidator,
+    IEventoRepository eventos,
     IUnitOfWork unitOfWork,
     ILogger<DespesaService> logger
 ) : IDespesaService
@@ -119,6 +127,9 @@ public sealed class DespesaService(
         if (dados.FornecedorId is { } fornecedorId && await fornecedorRepository.ObterCategoria(fornecedorId, ct) is null)
             return Erro.Validacao("financeiro.fornecedor_nao_encontrado", "Fornecedor não encontrado.", "fornecedor_id");
 
+        if (dados.ItemDaFestaId is { } itemId && await itemDaFestaRepository.Obter(itemId, ct) is null)
+            return Erro.Validacao("financeiro.item_da_festa_nao_encontrado", "Item da festa não encontrado.", "item_da_festa_id");
+
         if (dados.PagaEm is not null && comprovante is null)
             return SemComprovante;
 
@@ -169,6 +180,9 @@ public sealed class DespesaService(
 
         if (dados.FornecedorId is { } fornecedorId && await fornecedorRepository.ObterCategoria(fornecedorId, ct) is null)
             return Erro.Validacao("financeiro.fornecedor_nao_encontrado", "Fornecedor não encontrado.", "fornecedor_id");
+
+        if (dados.ItemDaFestaId is { } itemId && await itemDaFestaRepository.Obter(itemId, ct) is null)
+            return Erro.Validacao("financeiro.item_da_festa_nao_encontrado", "Item da festa não encontrado.", "item_da_festa_id");
 
         var despesa = await despesaRepository.ObterParaEdicao(id, ct);
         if (despesa is null)
@@ -223,7 +237,7 @@ public sealed class DespesaService(
     }
 
     /// <inheritdoc />
-    public async Task<Result<DespesaResumo>> Cancelar(Guid id, CancellationToken ct = default)
+    public async Task<Result<DespesaResumo>> Cancelar(Guid id, Guid autorId, CancellationToken ct = default)
     {
         var despesa = await despesaRepository.ObterParaEdicao(id, ct);
         if (despesa is null)
@@ -232,6 +246,22 @@ public sealed class DespesaService(
         var cancelamento = despesa.Cancelar();
         if (cancelamento.Falhou)
             return Result.Falha<DespesaResumo>(cancelamento.Erros);
+
+        await eventos.Auditar(
+            NomesDeAuditoria.DespesaCancelada,
+            autorId,
+            new
+            {
+                formaturaId = despesa.FormaturaId,
+                despesaId = id,
+                despesa.Descricao,
+                despesa.Categoria,
+                valorEmCentavos = despesa.ValorEmCentavos,
+                despesa.Vencimento,
+                parcela = $"{despesa.Numero}/{despesa.TotalDeParcelas}",
+            },
+            ct
+        );
 
         await unitOfWork.SalvarAsync(ct);
 

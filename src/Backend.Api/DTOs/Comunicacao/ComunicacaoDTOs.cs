@@ -42,6 +42,18 @@ public sealed record AvisoDTO(
 /// <param name="UltimaPublicacao">A publicação mais recente, em UTC; ausente com o mural vazio.</param>
 public sealed record ResumoDoMuralDTO(int Quantidade, int Fixados, int Importantes, int Internos, DateTime? UltimaPublicacao);
 
+/// <summary>Um aviso no sino.</summary>
+/// <param name="Id">Aviso.</param>
+/// <param name="Titulo">Como ele aparece na lista.</param>
+/// <param name="PublicadoEm">Quando entrou no mural, em UTC.</param>
+/// <param name="Destaque">Se a comissão o marcou como importante.</param>
+public sealed record NovidadeDoMuralDTO(Guid Id, string Titulo, DateTime PublicadoEm, bool Destaque);
+
+/// <summary>O que há de novo no mural desde a última visita de quem perguntou.</summary>
+/// <param name="Quantidade">Quantos avisos novos há ao todo — é o número do selo.</param>
+/// <param name="Itens">Os mais recentes, do mais novo para o mais antigo.</param>
+public sealed record NovidadesDoMuralDTO(int Quantidade, IReadOnlyList<NovidadeDoMuralDTO> Itens);
+
 /// <summary>Campos do envio e da correção de um documento (multipart, com o arquivo).</summary>
 /// <param name="Titulo">Como a turma chama o documento.</param>
 /// <param name="Categoria">Gaveta do acervo. Obrigatória.</param>

@@ -17,6 +17,9 @@ public interface IFornecedorService
     /// <param name="filtro">Ativação, categoria e busca.</param>
     Task<Result<PaginaDe<FornecedorResumo>>> Listar(PaginacaoRequest paginacao, FiltroDeFornecedores filtro, CancellationToken ct = default);
 
+    /// <summary>Quantos fornecedores a turma tem ativos e inativos — os números das pílulas.</summary>
+    Task<Result<ContagemDeFornecedores>> Contar(CancellationToken ct = default);
+
     /// <summary>Um fornecedor da turma.</summary>
     /// <param name="id">Fornecedor.</param>
     Task<Result<FornecedorResumo>> ObterPorId(Guid id, CancellationToken ct = default);
@@ -45,6 +48,9 @@ public interface IFornecedorRepository
     /// <param name="paginacao">Página pedida, já normalizada.</param>
     /// <param name="filtro">Ativação, categoria e busca.</param>
     Task<PaginaDe<FornecedorResumo>> Listar(PaginacaoRequest paginacao, FiltroDeFornecedores filtro, CancellationToken ct = default);
+
+    /// <summary>Quantos fornecedores a turma tem ativos e inativos, numa consulta agrupada.</summary>
+    Task<ContagemDeFornecedores> Contar(CancellationToken ct = default);
 
     /// <summary>Um fornecedor, com o gasto dele; nulo se não existir aqui.</summary>
     /// <param name="id">Fornecedor.</param>

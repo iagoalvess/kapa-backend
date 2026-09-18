@@ -52,14 +52,19 @@ public sealed record ItemAceitoDTO(
 /// <param name="PercentualDeJurosAoMes">Juros ao mês, base 10.000.</param>
 /// <param name="CarenciaEmDias">Dias sem multa nem juros.</param>
 /// <param name="PercentualDeDescontoPorAntecipacao">Desconto por antecipação, base 10.000.</param>
+/// <param name="DiasMinimosParaDesconto">Dias de antecedência que o desconto exige; zero nos termos assinados antes de 17/09/2026.</param>
 /// <param name="Itens">Itens, na ordem do plano.</param>
-/// <param name="Parcelas">A grade, por vencimento.</param>
+/// <param name="Parcelas">
+/// A grade, por vencimento — a de quem adere hoje. Quem adere depois do começo do plano deve o mesmo
+/// total, redividido pelas parcelas que ainda não venceram.
+/// </param>
 /// <param name="TotalEmCentavos">Soma das parcelas.</param>
 public sealed record PlanoAceitoDTO(
     int PercentualDeMulta,
     int PercentualDeJurosAoMes,
     int CarenciaEmDias,
     int PercentualDeDescontoPorAntecipacao,
+    int DiasMinimosParaDesconto,
     IReadOnlyList<ItemAceitoDTO> Itens,
     IReadOnlyList<ParcelaSimuladaDTO> Parcelas,
     long TotalEmCentavos

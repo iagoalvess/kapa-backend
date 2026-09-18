@@ -20,6 +20,15 @@ public interface IPagamentoService
     /// <param name="usuarioId">Quem pede.</param>
     Task<Result<ExtratoDoFormando>> ObterExtrato(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
 
+    /// <summary>Quantas parcelas próprias venceram sem o formando ter avisado o pagamento.</summary>
+    /// <remarks>
+    /// O selo do menu, que está em toda tela: por isso é um número, e não o extrato inteiro filtrado
+    /// por quem chama.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Quem pede.</param>
+    Task<Result<int>> ContarVencidasSemAviso(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+
     /// <summary>Uma parcela, com o valor do dia. O dono, ou a gestão.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Quem pede.</param>
@@ -32,16 +41,39 @@ public interface IPagamentoService
     /// <param name="parcelaId">Parcela.</param>
     Task<Result<PixDaParcela>> GerarPix(Guid formaturaId, Guid usuarioId, Guid parcelaId, CancellationToken ct = default);
 
-    /// <summary>O "já paguei": grava o informe pendente e não muda a parcela. Só o dono.</summary>
+    /// <summary>
+    /// O PIX de várias parcelas de uma vez: um BR Code com a soma do que elas cobram hoje. Só o dono.
+    /// </summary>
+    /// <remarks>
+    /// O passo que faltava no "paguei vários meses de uma vez": até 17/09/2026 o formando só podia
+    /// avisar o lote, e tinha que somar as parcelas e montar o PIX por fora. As parcelas passam pelas
+    /// mesmas conferências de <see cref="Informar"/>, e a distribuição continua sendo dela — este
+    /// método não grava nada.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Quem pede.</param>
+    /// <param name="parcelaIds">Parcelas que o pagamento vai cobrir, ao menos uma.</param>
+    Task<Result<PixDaParcela>> GerarPixDeVarias(Guid formaturaId, Guid usuarioId, IReadOnlyList<Guid> parcelaIds, CancellationToken ct = default);
+
+    /// <summary>
+    /// O "já paguei": grava os informes pendentes e não muda parcela nenhuma. Só o dono.
+    /// </summary>
+    /// <remarks>
+    /// Várias parcelas porque um PIX só costuma cobrir vários meses — é o formando atrasado se
+    /// acertando, e obrigá-lo a rachar o valor em três avisos é atrito no pior momento possível
+    /// (revisão de 17/09/2026). O valor informado é distribuído da parcela mais antiga para a mais
+    /// nova, cada uma até o que ela cobra; o que sobrar fica no último aviso, e a tesouraria o vê em
+    /// Divergências. Um comprovante só, compartilhado — é um pagamento só.
+    /// </remarks>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Quem informa.</param>
-    /// <param name="parcelaId">Parcela.</param>
-    /// <param name="dados">Dia e valor.</param>
+    /// <param name="parcelaIds">Parcelas cobertas pelo pagamento, ao menos uma.</param>
+    /// <param name="dados">Dia e valor total do pagamento.</param>
     /// <param name="comprovante">Comprovante, se enviado.</param>
-    Task<Result<ParcelaResumo>> Informar(
+    Task<Result<IReadOnlyList<ParcelaResumo>>> Informar(
         Guid formaturaId,
         Guid usuarioId,
-        Guid parcelaId,
+        IReadOnlyList<Guid> parcelaIds,
         NovoInforme dados,
         NovoArquivo? comprovante,
         CancellationToken ct = default
@@ -156,7 +188,11 @@ public interface IInformeRepository
 /// <remarks>Isolados pelo filtro global. Não há método para remover: o estorno marca, não apaga.</remarks>
 public interface IRecebimentoRepository
 {
-    /// <summary>O recebimento que vale para a parcela, rastreado; nulo se ela não tem baixa ativa.</summary>
+    /// <summary>A <b>última</b> baixa que vale para a parcela, rastreada; nula se ela não tem baixa ativa.</summary>
+    /// <remarks>
+    /// A mais recente porque desde 17/09/2026 uma parcela pode ter várias: o pagamento parcial não a
+    /// fecha, e estornar é desfazer a última entrada, não todas.
+    /// </remarks>
     /// <param name="parcelaId">Parcela.</param>
     Task<Recebimento?> ObterAtivoParaEdicao(Guid parcelaId, CancellationToken ct = default);
 

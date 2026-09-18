@@ -30,7 +30,7 @@ public static class MontagemDaMensagem
 {
     /// <summary>O extrato no front — o mesmo caminho de <c>ROTAS.extrato</c>.</summary>
     /// <param name="aplicacao">Identidade da aplicação.</param>
-    public static string LinkDoExtrato(AplicacaoSettings aplicacao) => $"{aplicacao.UrlDoFrontend.TrimEnd('/')}/extrato";
+    public static string LinkDoExtrato(AplicacaoSettings aplicacao) => $"{aplicacao.UrlDoFrontend.TrimEnd('/')}/minhas-parcelas";
 
     /// <summary>A fila de conferência no front — o mesmo caminho de <c>ROTAS.conferencia</c>.</summary>
     /// <param name="aplicacao">Identidade da aplicação.</param>

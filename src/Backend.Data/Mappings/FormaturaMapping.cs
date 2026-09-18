@@ -20,6 +20,8 @@ public sealed class FormaturaMapping : IEntityTypeConfiguration<Formatura>
     {
         builder.ToTable("formaturas");
 
+        builder.ComTokenDeConcorrencia();
+
         builder.HasKey(f => f.Id);
 
         builder.Property(f => f.Nome).IsRequired().HasMaxLength(200);

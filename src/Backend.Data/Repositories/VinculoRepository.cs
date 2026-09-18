@@ -30,7 +30,7 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
         await (
             from vinculo in db.Vinculos.AsNoTracking()
             join formatura in db.Formaturas on vinculo.FormaturaId equals formatura.Id
-            where vinculo.UsuarioId == usuarioId && vinculo.Ativo
+            where vinculo.UsuarioId == usuarioId && (vinculo.Ativo || vinculo.DesligadoEm != null)
             orderby formatura.Nome, formatura.Id
             select new FormaturaDoUsuario(
                 formatura.Id,
@@ -39,7 +39,8 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
                 formatura.Instituicao,
                 formatura.Ano,
                 formatura.Semestre,
-                vinculo.Papel
+                vinculo.Papel,
+                vinculo.DesligadoEm
             )
         ).ToListAsync(ct);
 
@@ -52,8 +53,8 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
     {
         var ativos = await db
             .Vinculos.AsNoTracking()
-            .Where(v => v.UsuarioId == usuarioId && v.Ativo)
-            .Select(v => new VinculoAtivo(v.FormaturaId, v.Papel))
+            .Where(v => v.UsuarioId == usuarioId && (v.Ativo || v.DesligadoEm != null))
+            .Select(v => new VinculoAtivo(v.FormaturaId, v.Papel, v.DesligadoEm))
             .Take(2)
             .ToListAsync(ct);
 
@@ -66,6 +67,14 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
             .Vinculos.AsNoTracking()
             .Where(v => v.UsuarioId == usuarioId && v.FormaturaId == formaturaId && v.Ativo)
             .Select(v => v.Papel)
+            .FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    public Task<VinculoAtivo?> ObterDoTitular(Guid usuarioId, Guid formaturaId, CancellationToken ct = default) =>
+        db
+            .Vinculos.AsNoTracking()
+            .Where(v => v.UsuarioId == usuarioId && v.FormaturaId == formaturaId && (v.Ativo || v.DesligadoEm != null))
+            .Select(v => new VinculoAtivo(v.FormaturaId, v.Papel, v.DesligadoEm))
             .FirstOrDefaultAsync(ct);
 
     /// <inheritdoc />
@@ -98,10 +107,16 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
                 NomeCompleto = perfil == null ? null : perfil.NomeCompleto,
                 Completude = perfil == null ? 0 : perfil.Completude,
                 EssencialPreenchido = perfil != null && perfil.EssencialPreenchido,
+                // Subconsulta correlacionada, um EXISTS por linha: a adesão vive sob o filtro global
+                // da formatura, que aqui é sempre a mesma que chega em `formaturaId` (vem da claim).
+                TemAdesao = db.Adesoes.Any(adesao => adesao.VinculoId == vinculo.Id),
             };
 
         if (filtro.Ativo is { } ativo)
             consulta = consulta.Where(linha => linha.vinculo.Ativo == ativo);
+
+        if (filtro.Desligado is { } desligado)
+            consulta = consulta.Where(linha => (linha.vinculo.DesligadoEm != null) == desligado);
 
         if (filtro.Papel is { } papel)
             consulta = consulta.Where(linha => linha.vinculo.Papel == papel);
@@ -151,7 +166,11 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
                 linha.vinculo.Ativo,
                 linha.NomeCompleto,
                 linha.Completude,
-                !linha.EssencialPreenchido
+                !linha.EssencialPreenchido,
+                linha.TemAdesao,
+                linha.vinculo.DesligadoEm,
+                linha.vinculo.MotivoDoDesligamento,
+                linha.vinculo.DetalheDoDesligamento
             ))
             .ToListAsync(ct);
 
@@ -159,12 +178,32 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// <c>LEFT JOIN</c> do perfil, como em <see cref="ListarMembros"/>: quem nunca abriu o cadastro é
+    /// justamente quem falta, e um <c>INNER JOIN</c> o deixaria de fora da contagem.
+    /// </remarks>
     public async Task<IReadOnlyList<ContagemDeMembros>> ContarMembros(Guid formaturaId, CancellationToken ct = default) =>
-        await db
-            .Vinculos.AsNoTracking()
-            .Where(v => v.FormaturaId == formaturaId)
-            .GroupBy(v => new { v.Papel, v.Ativo })
-            .Select(grupo => new ContagemDeMembros(grupo.Key.Papel, grupo.Key.Ativo, grupo.Count()))
+        await (
+            from vinculo in db.Vinculos.AsNoTracking()
+            join perfil in db.PerfisDeFormandos.AsNoTracking() on vinculo.Id equals perfil.VinculoId into perfis
+            from perfil in perfis.DefaultIfEmpty()
+            where vinculo.FormaturaId == formaturaId
+            select new
+            {
+                vinculo.Papel,
+                vinculo.Ativo,
+                Desligado = vinculo.DesligadoEm != null,
+                EssencialPendente = perfil == null || !perfil.EssencialPreenchido,
+            }
+        )
+            .GroupBy(linha => new
+            {
+                linha.Papel,
+                linha.Ativo,
+                linha.Desligado,
+                linha.EssencialPendente,
+            })
+            .Select(grupo => new ContagemDeMembros(grupo.Key.Papel, grupo.Key.Ativo, grupo.Key.Desligado, grupo.Key.EssencialPendente, grupo.Count()))
             .ToListAsync(ct);
 
     /// <inheritdoc />

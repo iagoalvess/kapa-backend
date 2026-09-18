@@ -9,6 +9,10 @@ namespace Backend.Api.DTOs.Pagamentos;
 /// <param name="Parcelas">Todas as parcelas, por vencimento.</param>
 public sealed record ExtratoDTO(long EmAbertoEmCentavos, ParcelaDTO? Proxima, IReadOnlyList<ParcelaDTO> Parcelas);
 
+/// <summary>O que o extrato tem de pendente, sem o extrato — o selo do menu.</summary>
+/// <param name="VencidasSemAviso">Parcelas vencidas em que o formando ainda não avisou o pagamento.</param>
+public sealed record PendenciasDoExtratoDTO(int VencidasSemAviso);
+
 /// <summary>O PIX da parcela, montado na hora.</summary>
 /// <param name="CopiaECola">O BR Code — a tela desenha o QR a partir dele, no navegador.</param>
 /// <param name="ValorEmCentavos">O valor de hoje.</param>

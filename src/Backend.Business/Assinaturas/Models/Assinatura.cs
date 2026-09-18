@@ -37,6 +37,15 @@ public class Assinatura : EntidadeDaFormatura
     /// <summary>Último marco de aviso de vencimento enviado. Ver <see cref="MarcosDeAviso"/>.</summary>
     public int? UltimoAvisoDeVencimento { get; private set; }
 
+    /// <summary>Data, no provedor, do último evento já aplicado a esta assinatura. Em UTC.</summary>
+    /// <remarks>
+    /// A régua contra o evento fora de ordem. O PSP reentrega em timeout e tem fila própria: um
+    /// evento antigo chega depois de um novo, e aplicá-lo desfaz o estado — "pagamento recusado" de
+    /// terça caindo depois do "renovada" de quarta suspenderia uma turma em dia. Nulo enquanto
+    /// nenhum evento datado tiver sido aplicado.
+    /// </remarks>
+    public DateTime? UltimoEventoEm { get; private set; }
+
     /// <summary>Primeiro pagamento confirmado: a assinatura passa a valer por um ciclo a partir de agora.</summary>
     /// <remarks>
     /// Só sai de <see cref="StatusDaAssinatura.Pendente"/>. É o que torna a confirmação idempotente
@@ -104,7 +113,7 @@ public class Assinatura : EntidadeDaFormatura
 
     /// <summary>Se a vigência (mais a carência, para quem ia renovar) já acabou.</summary>
     /// <remarks>
-    /// A carência vale só para a <see cref="StatusDaAssinatura.Ativa"/>: falha de cartão se resolve
+    /// A carência vale só para a <see cref="StatusDaAssinatura.Ativa"/>: falha de pagamento se resolve
     /// em dois dias, e suspender no minuto seguinte gera mais suporte que receita. Quem cancelou não
     /// tem cobrança por vir — a turma vira leitura no fim da vigência, como o diálogo prometeu.
     /// </remarks>
@@ -141,6 +150,29 @@ public class Assinatura : EntidadeDaFormatura
     /// <summary>Registra que o aviso do marco foi enfileirado.</summary>
     /// <param name="marco">Marco enviado.</param>
     public void RegistrarAviso(int marco) => UltimoAvisoDeVencimento = marco;
+
+    /// <summary>
+    /// Se este evento do provedor é anterior ao último já aplicado — e portanto não deve ser aplicado.
+    /// </summary>
+    /// <remarks>
+    /// Compara por data do <b>provedor</b>, e não pela ordem de chegada. Evento sem data passa: o
+    /// PSP que não informa a data não pode ter a cobrança dele parada por causa disso.
+    /// <para>
+    /// Empate (mesma data do último aplicado) também passa. A trava contra reprocessar o mesmo
+    /// evento é o índice único de <c>EventoDeCobranca.IdExterno</c>, não esta comparação — e dois
+    /// eventos distintos no mesmo segundo são comuns num PSP que fatura em lote.
+    /// </para>
+    /// </remarks>
+    /// <param name="ocorridoEm">Data do evento no provedor, em UTC.</param>
+    public bool EhAnteriorAoUltimoEvento(DateTime? ocorridoEm) => ocorridoEm is { } data && UltimoEventoEm is { } ultimo && data < ultimo;
+
+    /// <summary>Marca a data do evento recém-aplicado. Data nula não recua o marcador.</summary>
+    /// <param name="ocorridoEm">Data do evento no provedor, em UTC.</param>
+    public void RegistrarEvento(DateTime? ocorridoEm)
+    {
+        if (ocorridoEm is { } data && (UltimoEventoEm is null || data > UltimoEventoEm))
+            UltimoEventoEm = data;
+    }
 
     private Result Invalida(StatusDaAssinatura destino) =>
         Result.Falha(Erro.Conflito("assinatura.transicao_invalida", $"Uma assinatura {Status} não pode passar para {destino}."));

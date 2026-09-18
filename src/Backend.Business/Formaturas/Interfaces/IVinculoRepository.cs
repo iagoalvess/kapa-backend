@@ -8,16 +8,27 @@ namespace Backend.Business.Formaturas.Interfaces;
 /// </summary>
 public interface IVinculoRepository
 {
-    /// <summary>Formaturas em que o usuário tem vínculo ativo, com o papel dele em cada uma.</summary>
+    /// <summary>
+    /// Formaturas em que o usuário tem vínculo ativo <b>ou desligado</b>, com o papel dele em cada uma.
+    /// </summary>
+    /// <remarks>
+    /// O desligado vem junto porque a turma continua no seletor dele, em leitura: o extrato é a prova
+    /// do que ele pagou (P5 de 17/09/2026). Quem foi <b>removido</b> não vem — nunca aderiu, nunca
+    /// deveu, e não tem histórico a consultar.
+    /// </remarks>
     /// <param name="usuarioId">Usuário autenticado.</param>
     Task<IReadOnlyList<FormaturaDoUsuario>> ListarDoUsuario(Guid usuarioId, CancellationToken ct = default);
 
     /// <summary>
-    /// O vínculo ativo do usuário, <b>se</b> ele tiver exatamente um.
+    /// O vínculo ativo ou desligado do usuário, <b>se</b> ele tiver exatamente um.
     /// </summary>
     /// <remarks>
     /// Nulo tanto para nenhum quanto para dois ou mais: os dois casos precisam de uma decisão
     /// que não é do sistema — criar a primeira formatura, ou escolher entre as que existem.
+    /// <para>
+    /// O desligado entra na contagem pelo mesmo motivo de <see cref="ListarDoUsuario"/>: sem a claim
+    /// <c>formatura_id</c> ele não chegaria nem ao próprio extrato.
+    /// </para>
     /// </remarks>
     /// <param name="usuarioId">Usuário autenticado.</param>
     Task<VinculoAtivo?> ObterUnicoAtivo(Guid usuarioId, CancellationToken ct = default);
@@ -26,6 +37,18 @@ public interface IVinculoRepository
     /// <param name="usuarioId">Usuário autenticado.</param>
     /// <param name="formaturaId">Formatura pretendida.</param>
     Task<string?> ObterPapelAtivo(Guid usuarioId, Guid formaturaId, CancellationToken ct = default);
+
+    /// <summary>
+    /// O vínculo do usuário na formatura aceitando o <b>desligado</b>; nulo para quem foi removido ou
+    /// nunca pertenceu a ela.
+    /// </summary>
+    /// <remarks>
+    /// A emissão de sessão e a leitura do próprio histórico (P5) passam por aqui — <b>e mais nada</b>.
+    /// Toda política de papel continua em <see cref="ObterPapelAtivo"/>: quem saiu não opera a turma.
+    /// </remarks>
+    /// <param name="usuarioId">Usuário autenticado.</param>
+    /// <param name="formaturaId">Formatura pretendida.</param>
+    Task<VinculoAtivo?> ObterDoTitular(Guid usuarioId, Guid formaturaId, CancellationToken ct = default);
 
     /// <summary>Uma página dos vínculos da formatura, ativos primeiro, com nome e e-mail do usuário.</summary>
     /// <param name="formaturaId">Formatura consultada.</param>

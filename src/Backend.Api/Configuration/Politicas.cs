@@ -53,6 +53,23 @@ public static class Politicas
     public const string MembroDaFormatura = nameof(MembroDaFormatura);
 
     /// <summary>
+    /// <see cref="MembroDaFormatura"/> aceitando também quem foi <b>desligado</b> da turma. Vai só
+    /// nas leituras do que é do próprio titular.
+    /// </summary>
+    /// <remarks>
+    /// Quem sai deixa de dever, mas não deixa de ter pago: o extrato é a prova do que ele pagou, e
+    /// tirá-la no mesmo instante faz do Kapa o lugar onde o comprovante some quando a pessoa mais
+    /// precisa dele (P5 de 17/09/2026).
+    /// <para>
+    /// A lista é curta de propósito e não cresce sem uma decisão: <c>GET /formaturas/atual</c> (a
+    /// moldura de toda tela), <c>GET /extrato/eu</c>, <c>GET /adesoes/eu</c> e o PDF do termo. Mural,
+    /// acervo, dashboard da turma e <b>toda</b> escrita continuam em <see cref="MembroDaFormatura"/>,
+    /// que exige vínculo ativo.
+    /// </para>
+    /// </remarks>
+    public const string TitularDoProprioHistorico = nameof(TitularDoProprioHistorico);
+
+    /// <summary>
     /// A formatura selecionada precisa estar <c>Ativa</c>. Vai em <b>toda escrita de domínio</b>,
     /// somada à política de papel.
     /// </summary>
@@ -68,7 +85,7 @@ public static class Politicas
     /// </summary>
     /// <remarks>
     /// Contratar é decisão da comissão, não do Presidente sozinho: ele precisa chamar o tesoureiro e
-    /// os colegas antes de pôr o cartão. Formando só entra depois do pagamento — essa regra é do
+    /// os colegas antes de pagar. Formando só entra depois do pagamento — essa regra é do
     /// <c>ConviteService</c>, porque depende do papel do convite.
     /// </remarks>
     public const string ExigeFormaturaEditavel = nameof(ExigeFormaturaEditavel);
@@ -82,6 +99,23 @@ public static class Politicas
     /// (LGPD, art. 18, III), e não pode depender de a licença estar em dia.
     /// </remarks>
     public const string ExigeFormaturaAberta = nameof(ExigeFormaturaAberta);
+
+    /// <summary>
+    /// A formatura está <c>Ativa</c> ou <c>Suspensa</c>. Vai só no registro de dinheiro que já entrou:
+    /// baixa, conferência de informe e o aviso de pagamento do formando.
+    /// </summary>
+    /// <remarks>
+    /// Revisão de 17/09/2026. Suspensa é a turma que deixou a assinatura da Kapa vencer, e até aqui
+    /// isso travava também a baixa — mas o dinheiro dos formandos continua caindo na conta PIX da
+    /// comissão, porque a Kapa não é meio de pagamento (decisão de 14/09/2026). O efeito era o
+    /// contrário do pretendido: quem pagou em dia seguia "vencido", com multa e juros correndo por
+    /// uma dívida que é da comissão com a Kapa, não dele com a turma.
+    /// <para>
+    /// Registrar dinheiro que já entrou é escrituração do caixa da própria turma. O resto da suspensão
+    /// continua valendo — plano, despesas, mural, convites e a régua seguem travados.
+    /// </para>
+    /// </remarks>
+    public const string ExigeFormaturaRecebendo = nameof(ExigeFormaturaRecebendo);
 
     /// <summary>
     /// Aceita qualquer um dos perfis informados, e sempre o administrador.
@@ -135,7 +169,16 @@ public static class Politicas
             .AddPolicy(Tesouraria, politica => politica.RequireAuthenticatedUser().ExigirPapel(PapelNaFormatura.Tesoureiro))
             .AddPolicy(Gestao, politica => politica.RequireAuthenticatedUser().ExigirPapel(PapelNaFormatura.Tesoureiro, PapelNaFormatura.Comissao))
             .AddPolicy(MembroDaFormatura, politica => politica.RequireAuthenticatedUser().ExigirPapel([.. PapelNaFormatura.Todos]))
+            .AddPolicy(
+                TitularDoProprioHistorico,
+                politica =>
+                    politica
+                        .RequireAuthenticatedUser()
+                        .RequireClaim(TokenService.ClaimDeFormatura)
+                        .AddRequirements(new PapelNaFormaturaRequirement([.. PapelNaFormatura.Todos], aceitaDesligado: true))
+            )
             .AddPolicy(ExigeFormaturaAtiva, politica => politica.ExigirStatus(StatusDaFormatura.Ativa))
+            .AddPolicy(ExigeFormaturaRecebendo, politica => politica.ExigirStatus(StatusDaFormatura.Ativa, StatusDaFormatura.Suspensa))
             .AddPolicy(
                 ExigeFormaturaEditavel,
                 politica => politica.ExigirStatus(StatusDaFormatura.Rascunho, StatusDaFormatura.AguardandoPagamento, StatusDaFormatura.Ativa)

@@ -54,6 +54,19 @@ public static class RateLimitConfig
     /// </remarks>
     public const string Codigo = "codigo";
 
+    /// <summary>
+    /// Limite estreito, por IP, para o formulário de contato da página institucional.
+    /// </summary>
+    /// <remarks>
+    /// É escrita anônima, indexada pelo Google e linkada em anúncio: o alvo mais fácil do produto.
+    /// Cinco por minuto cobre com folga quem errou o e-mail e reenviou, e não cobre robô nenhum.
+    /// <para>
+    /// Por IP, e não por usuário: não há usuário. Pelo mesmo motivo da política de autenticação, a
+    /// partição precisa ser o IP mesmo quando vier um Bearer junto.
+    /// </para>
+    /// </remarks>
+    public const string Leads = "leads";
+
     /// <summary>Seção de configuração que ajusta os limites por ambiente.</summary>
     public const string Secao = "RateLimit";
 
@@ -71,6 +84,7 @@ public static class RateLimitConfig
         var porMinutoConvites = configuration.GetValue($"{Secao}:ConvitesPorMinuto", 20);
         var rajadaConvites = configuration.GetValue($"{Secao}:ConvitesRajada", 150);
         var porMinutoCodigo = configuration.GetValue($"{Secao}:CodigoPorMinuto", 6);
+        var porMinutoLeads = configuration.GetValue($"{Secao}:LeadsPorMinuto", 5);
 
         services.AddRateLimiter(opcoes =>
         {
@@ -99,6 +113,8 @@ public static class RateLimitConfig
             opcoes.AddPolicy(Autenticacao, contexto => LimitarPor($"auth:{Ip(contexto)}", porMinutoAutenticacao));
 
             opcoes.AddPolicy(Codigo, contexto => LimitarPor($"codigo:{Identificar(contexto)}", porMinutoCodigo));
+
+            opcoes.AddPolicy(Leads, contexto => LimitarPor($"leads:{Ip(contexto)}", porMinutoLeads));
 
             opcoes.AddPolicy(Webhook, contexto => LimitarPor($"webhook:{Identificar(contexto)}", porMinutoWebhook));
 

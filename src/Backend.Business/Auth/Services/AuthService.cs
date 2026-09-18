@@ -121,7 +121,7 @@ public sealed class AuthService(
 
         await userManager.ResetAccessFailedCountAsync(usuario);
 
-        return await EmitirSessao(usuario, ipDeOrigem, formaturaId: null, papel: null, substituido: null, ct);
+        return await EmitirSessao(usuario, ipDeOrigem, formaturaId: null, papel: null, substituido: null, desligadoEm: null, ct);
     }
 
     /// <inheritdoc />
@@ -142,6 +142,7 @@ public sealed class AuthService(
         string papel,
         string refreshTokenAtual,
         string? ipDeOrigem,
+        DateTime? desligadoEm = null,
         CancellationToken ct = default
     )
     {
@@ -157,7 +158,7 @@ public sealed class AuthService(
         if (anterior is null || anterior.UsuarioId != usuarioId || !anterior.Ativo(DateTime.UtcNow))
             return SessaoInvalida;
 
-        return await EmitirSessao(usuario, ipDeOrigem, formaturaId, papel, anterior, ct);
+        return await EmitirSessao(usuario, ipDeOrigem, formaturaId, papel, anterior, desligadoEm, ct);
     }
 
     /// <inheritdoc />
@@ -208,12 +209,14 @@ public sealed class AuthService(
             return SessaoInvalida;
         }
 
-        var papel = armazenado.FormaturaId is null ? null : await vinculoRepository.ObterPapelAtivo(usuario.Id, armazenado.FormaturaId.Value, ct);
+        // Do titular, e não só do ativo: quem foi desligado mantém a claim para chegar ao próprio
+        // extrato (P5 da Sprint 15). Quem foi removido perde a formatura na renovação seguinte.
+        var vinculo = armazenado.FormaturaId is null ? null : await vinculoRepository.ObterDoTitular(usuario.Id, armazenado.FormaturaId.Value, ct);
 
-        var formaturaId = papel is null ? null : armazenado.FormaturaId;
+        var formaturaId = vinculo is null ? null : armazenado.FormaturaId;
 
         var perfis = await userManager.GetRolesAsync(usuario);
-        var acesso = tokenService.GerarAccessToken(usuario, [.. perfis], formaturaId, papel);
+        var acesso = tokenService.GerarAccessToken(usuario, [.. perfis], formaturaId, vinculo?.Papel, vinculo?.DesligadoEm);
         var novoRefresh = tokenService.GerarRefreshToken();
 
         armazenado.RevogadoEm = agora;
@@ -280,7 +283,7 @@ public sealed class AuthService(
         var confirmacao = await userManager.GenerateEmailConfirmationTokenAsync(usuario);
         await emailsDeConta.EnfileirarConfirmacao(usuario, confirmacao, ct);
 
-        return await EmitirSessao(usuario, origem.EnderecoIp, formaturaId: null, papel: null, substituido: null, ct);
+        return await EmitirSessao(usuario, origem.EnderecoIp, formaturaId: null, papel: null, substituido: null, desligadoEm: null, ct);
     }
 
     /// <summary>
@@ -313,20 +316,23 @@ public sealed class AuthService(
     /// <param name="formaturaId">Formatura já decidida pelo chamador, quando houver.</param>
     /// <param name="papel">Papel correspondente a essa formatura.</param>
     /// <param name="substituido">Refresh token ativo que o novo substitui, quando houver.</param>
+    /// <param name="desligadoEm">Quando o usuário foi desligado dessa formatura, se foi.</param>
+    /// <param name="ct">Token de cancelamento.</param>
     private async Task<Result<ParDeTokens>> EmitirSessao(
         Usuario usuario,
         string? ipDeOrigem,
         Guid? formaturaId,
         string? papel,
         RefreshToken? substituido,
+        DateTime? desligadoEm,
         CancellationToken ct
     )
     {
         if (formaturaId is null && await vinculoRepository.ObterUnicoAtivo(usuario.Id, ct) is { } unico)
-            (formaturaId, papel) = (unico.FormaturaId, unico.Papel);
+            (formaturaId, papel, desligadoEm) = (unico.FormaturaId, unico.Papel, unico.DesligadoEm);
 
         var perfis = await userManager.GetRolesAsync(usuario);
-        var acesso = tokenService.GerarAccessToken(usuario, [.. perfis], formaturaId, papel);
+        var acesso = tokenService.GerarAccessToken(usuario, [.. perfis], formaturaId, papel, desligadoEm);
         var refresh = tokenService.GerarRefreshToken();
 
         if (substituido is not null)

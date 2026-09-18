@@ -1,4 +1,5 @@
 using Backend.Business.Arquivos.Models;
+using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Models;
 using Backend.Business.Formaturas.Models;
 using Microsoft.EntityFrameworkCore;
@@ -50,8 +51,10 @@ public sealed class FornecedorMapping : IEntityTypeConfiguration<Fornecedor>
 /// <para>
 /// O índice <c>(formatura_id, lancamento_id)</c> atende as irmãs de uma parcelada: a tela de detalhe
 /// pede as N linhas do lançamento de uma vez. O <c>(formatura_id, status, competencia)</c> é o do
-/// quadro por categoria e do fechamento por mês (risco da sprint). Chaves em <c>Restrict</c>:
-/// dinheiro que saiu não some em cascata.
+/// quadro por categoria e do fechamento por mês (risco da sprint). O
+/// <c>(formatura_id, item_da_festa_id)</c> é o das somas por item da Sprint 17, que a tela da festa
+/// pede uma vez por item numa consulta só. Chaves em <c>Restrict</c>: dinheiro que saiu não some em
+/// cascata.
 /// </para>
 /// </remarks>
 public sealed class DespesaMapping : IEntityTypeConfiguration<Despesa>
@@ -95,7 +98,10 @@ public sealed class DespesaMapping : IEntityTypeConfiguration<Despesa>
         });
         builder.HasIndex(d => new { d.FormaturaId, d.Vencimento });
 
+        builder.HasIndex(d => new { d.FormaturaId, d.ItemDaFestaId });
+
         builder.HasOne<Fornecedor>().WithMany().HasForeignKey(d => d.FornecedorId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ItemDaFesta>().WithMany().HasForeignKey(d => d.ItemDaFestaId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Arquivo>().WithMany().HasForeignKey(d => d.ComprovanteArquivoId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Formatura>().WithMany().HasForeignKey(d => d.FormaturaId).OnDelete(DeleteBehavior.Restrict);
     }

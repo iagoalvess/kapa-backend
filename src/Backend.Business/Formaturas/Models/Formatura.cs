@@ -71,6 +71,31 @@ public class Formatura : Entity
     /// reescreve quando a turma começou.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Leva a turma a <c>Ativa</c> porque o pagamento entrou, venha ela de onde vier.
+    /// </summary>
+    /// <remarks>
+    /// Existe para os dois caminhos que ativam uma turma dizerem a mesma coisa: o webhook do PSP e o
+    /// botão do painel de suporte (Sprint 16). Enquanto a sequência rascunho → aguardando → ativa
+    /// morava dentro do <c>WebhookService</c>, o segundo caminho teria de copiá-la — e uma cópia é
+    /// tudo o que separa "turma ativada pelo suporte" de "turma ativada pelo suporte, sem
+    /// <c>AtivadaEm</c>".
+    /// <para>
+    /// Já ativa responde sucesso: a ação é idempotente de propósito, porque quem clica no painel
+    /// está justamente em dúvida sobre o estado da turma.
+    /// </para>
+    /// </remarks>
+    public Result AtivarPorPagamento()
+    {
+        if (Status == StatusDaFormatura.Ativa)
+            return Result.Ok();
+
+        if (Status == StatusDaFormatura.Rascunho)
+            Transicionar(StatusDaFormatura.AguardandoPagamento);
+
+        return Transicionar(StatusDaFormatura.Ativa);
+    }
+
     /// <param name="destino">Status pretendido.</param>
     public Result Transicionar(StatusDaFormatura destino)
     {

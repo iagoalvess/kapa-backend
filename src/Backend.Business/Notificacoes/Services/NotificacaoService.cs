@@ -20,7 +20,7 @@ namespace Backend.Business.Notificacoes.Services;
 /// <param name="vinculos">Vínculo de quem chama.</param>
 /// <param name="formaturas">Nome da turma, que vai na variável <c>{formatura}</c>.</param>
 /// <param name="usuarios">E-mail e nome de quem clicou em "testar".</param>
-/// <param name="canais">Canais disponíveis.</param>
+/// <param name="canal">Por onde a mensagem sai.</param>
 /// <param name="validadorDaRegua">Forma da régua.</param>
 /// <param name="validadorDasPreferencias">Forma das preferências.</param>
 /// <param name="aplicacao">Identidade da aplicação, para os links.</param>
@@ -32,7 +32,7 @@ public sealed class NotificacaoService(
     IVinculoRepository vinculos,
     IFormaturaRepository formaturas,
     IUsuarioRepository usuarios,
-    IEnumerable<ICanalDeNotificacao> canais,
+    ICanalDeNotificacao canal,
     IValidator<DadosDaRegua> validadorDaRegua,
     IValidator<DadosDasPreferencias> validadorDasPreferencias,
     IOptions<AplicacaoSettings> aplicacao,
@@ -87,7 +87,6 @@ public sealed class NotificacaoService(
                         degrau.DiasDeDeslocamento,
                         degrau.Assunto,
                         degrau.Template,
-                        degrau.Canal,
                         degrau.Ativa,
                         degrau.AvisarTesouraria
                     )
@@ -114,11 +113,8 @@ public sealed class NotificacaoService(
         if (await usuarios.ObterDetalhe(usuarioId, ct) is not { } quemClicou)
             return Result.Falha(RegraNaoEncontrada);
 
-        if (canais.FirstOrDefault(c => c.Canal == regra.Canal) is not { } canal)
-            return Result.Falha(Erro.Conflito("notificacao.canal_indisponivel", "Este canal ainda não está disponível."));
-
         var nome = await NomeDaFormatura(formaturaId, ct);
-        var link = $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/notificacoes/regua";
+        var link = $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/notificacoes/lembretes";
 
         var enviado = await canal.Enviar(MontagemDaMensagem.Exemplo(regra, quemClicou.Nome, quemClicou.Email, nome, link), ct);
         if (enviado.Falhou)
@@ -200,9 +196,6 @@ public sealed class NotificacaoService(
         if (Avulsa(regras, parcela, hoje) is not { } regra)
             return Result.Falha(Erro.Conflito("notificacao.sem_degrau", "A régua não tem nenhum degrau ativo para usar nesta cobrança."));
 
-        if (canais.FirstOrDefault(c => c.Canal == regra.Canal) is not { } canal)
-            return Result.Falha(Erro.Conflito("notificacao.canal_indisponivel", "Este canal ainda não está disponível."));
-
         var ja = await notificacoes.ListarChavesDoDia(hoje, ct);
         if (ja.Contains(new ChaveDeEnvio(regra.Id, parcelaId)))
             return Result.Falha(Erro.Conflito("notificacao.ja_cobrada_hoje", "Esta parcela já foi cobrada hoje."));
@@ -228,7 +221,6 @@ public sealed class NotificacaoService(
                 NotificacaoEnviada.Nova(
                     regra.Id,
                     hoje,
-                    regra.Canal,
                     parcela.Email,
                     mensagem.Assunto,
                     parcela.ParcelaId,

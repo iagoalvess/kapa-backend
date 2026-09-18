@@ -37,10 +37,11 @@ public sealed class ConciliacaoDeAssinaturasJob(IServiceScopeFactory scopeFactor
 
             var resumo = (await webhookService.Conciliar(DateTime.UtcNow, ct)).Valor;
 
-            if (resumo is not { Confirmadas: 0, Vencidas: 0, Avisos: 0 })
+            if (resumo is not { Confirmadas: 0, Renovadas: 0, Vencidas: 0, Avisos: 0 })
                 logger.LogInformation(
-                    "Conciliação de assinaturas: {Confirmadas} confirmadas, {Vencidas} vencidas, {Avisos} avisos.",
+                    "Conciliação de assinaturas: {Confirmadas} confirmadas, {Renovadas} renovadas, {Vencidas} vencidas, {Avisos} avisos.",
                     resumo.Confirmadas,
+                    resumo.Renovadas,
                     resumo.Vencidas,
                     resumo.Avisos
                 );

@@ -52,9 +52,10 @@ public sealed class BaixaService(IRecebimentoRepository recebimentoRepository, I
         if (parcela.Status != StatusDaParcela.Aberta)
             return false;
 
-        var devido = parcela.ValorEm(dados.PagoEm, contexto.Regras).TotalEmCentavos;
+        var valorDoDia = parcela.ValorEm(dados.PagoEm, contexto.Regras);
+        var devido = valorDoDia.DevidoEmCentavos;
 
-        var pagar = parcela.Pagar(dados.ValorEmCentavos, dados.PagoEm);
+        var pagar = parcela.Pagar(dados.ValorEmCentavos, dados.PagoEm, devido);
         if (pagar.Falhou)
             return Result.Falha<bool>(pagar.Erros);
 
@@ -87,7 +88,15 @@ public sealed class BaixaService(IRecebimentoRepository recebimentoRepository, I
         );
 
         if (contexto.EmailDoFormando is { } email)
-            await emails.Confirmado(email, contexto.NomeDaTurma, parcela.Vencimento, dados.ValorEmCentavos, dados.PagoEm, ct);
+            await emails.Confirmado(
+                email,
+                contexto.NomeDaTurma,
+                parcela.Vencimento,
+                dados.ValorEmCentavos,
+                dados.PagoEm,
+                pagar.Valor ? 0 : parcela.QuitaCom(devido) - (parcela.ValorPagoEmCentavos ?? 0),
+                ct
+            );
 
         return true;
     }

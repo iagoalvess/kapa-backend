@@ -31,10 +31,45 @@ public interface IMembroService
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Membro a alterar.</param>
     /// <param name="dados">Papel novo.</param>
-    Task<Result> AlterarPapel(Guid formaturaId, Guid usuarioId, AlterarPapel dados, CancellationToken ct = default);
+    /// <param name="autorId">Quem está trocando — vai na trilha de auditoria (Sprint 14).</param>
+    Task<Result> AlterarPapel(Guid formaturaId, Guid usuarioId, AlterarPapel dados, Guid autorId, CancellationToken ct = default);
 
     /// <summary>Desativa o vínculo de um membro, preservando o histórico.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Membro a remover.</param>
-    Task<Result> Remover(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+    /// <param name="autorId">Quem está removendo — vai na trilha de auditoria (Sprint 14).</param>
+    Task<Result> Remover(Guid formaturaId, Guid usuarioId, Guid autorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// O que o desligamento vai mexer: quanto a pessoa já pagou, quanto deve e quanto está em atraso.
+    /// </summary>
+    /// <remarks>Alimenta o diálogo de confirmação. Desligar sem ver estes números é assinar em branco.</remarks>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Membro que sairia.</param>
+    Task<Result<ResumoDaSaida>> ResumirSaida(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Desliga um formando: inativa o vínculo, cancela o que ele ainda deve e avisa quem precisa saber.
+    /// </summary>
+    /// <remarks>
+    /// Idempotente: desligar de novo não cancela mais nada e não manda o segundo e-mail. Quem nunca
+    /// aderiu é recusado com <c>formatura.membro_sem_adesao</c> — para ele a ação é Remover.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Membro a desligar.</param>
+    /// <param name="dados">Motivo e o que fazer com o atraso.</param>
+    /// <param name="autorId">Quem desligou — vai para a auditoria.</param>
+    Task<Result> Desligar(Guid formaturaId, Guid usuarioId, DesligarFormando dados, Guid autorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Desfaz o desligamento: o acesso volta.
+    /// </summary>
+    /// <remarks>
+    /// <b>Não</b> ressuscita parcela cancelada — a cobrança volta por lançamento novo, não por
+    /// desfazer (decisão da Sprint 15). É o desfazer do clique errado, não uma renegociação.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Membro a religar.</param>
+    /// <param name="autorId">Quem religou — vai para a auditoria.</param>
+    Task<Result> Religar(Guid formaturaId, Guid usuarioId, Guid autorId, CancellationToken ct = default);
 }

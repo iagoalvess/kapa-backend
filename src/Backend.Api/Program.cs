@@ -21,6 +21,17 @@ app.UseDocumentacao();
 
 app.MapHealthChecks("/health").AllowAnonymous();
 
+// Seed em produção é a conta de administrador com senha de arquivo de configuração — e é assim
+// que um produto estreia com credencial conhecida. A conta inicial de produção é criada uma vez,
+// à mão (checklist da Sprint 16). Recusar na subida, e não ignorar em silêncio, é de propósito:
+// quem deixou a chave ligada precisa descobrir no deploy, não seis meses depois.
+if (app.Environment.IsProduction() && app.Configuration.GetValue<bool>("Seed:AoIniciar"))
+{
+    throw new InvalidOperationException(
+        "'Seed:AoIniciar' não pode ficar ligado em produção: a conta inicial é criada manualmente. Ver docs/operacao.md."
+    );
+}
+
 if (app.Configuration.GetValue<bool>("Seed:AoIniciar"))
 {
     using var escopo = app.Services.CreateScope();

@@ -102,7 +102,7 @@ public sealed class ProvedorFake(IOptions<AssinaturaSettings> options) : IProved
     /// quando o webhook se perde.
     /// </remarks>
     /// <param name="id">Id da sessão.</param>
-    /// <param name="aprovado">Pagou (<c>true</c>) ou o cartão foi recusado.</param>
+    /// <param name="aprovado">Pagou (<c>true</c>) ou o pagamento foi recusado.</param>
     /// <returns>Corpo e assinatura do webhook, ou nulo se a sessão não existir.</returns>
     public WebhookFake? Pagar(string id, bool aprovado)
     {
@@ -113,7 +113,8 @@ public sealed class ProvedorFake(IOptions<AssinaturaSettings> options) : IProved
             $"evt_{Guid.CreateVersion7():N}",
             aprovado ? TiposDeEvento.PagamentoConfirmado : TiposDeEvento.PagamentoRecusado,
             sessao.Pedido.AssinaturaId,
-            id
+            id,
+            DateTime.UtcNow
         );
 
         if (aprovado)

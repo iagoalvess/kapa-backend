@@ -24,7 +24,7 @@ public sealed class EmailsDeAdesao(IEmailService emailService, IOptions<Aplicaca
     private readonly AplicacaoSettings _aplicacao = aplicacao.Value;
 
     /// <summary>A tela do termo no front — o mesmo caminho de <c>ROTAS.adesao</c>.</summary>
-    private string LinkDoTermo => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/adesao";
+    private string LinkDoTermo => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/meu-termo";
 
     /// <summary>Adesão registrada: o que a pessoa aceitou pagar, com a primeira parcela e as regras de atraso.</summary>
     /// <param name="email">Quem aderiu.</param>
@@ -44,7 +44,7 @@ public sealed class EmailsDeAdesao(IEmailService emailService, IOptions<Aplicaca
             + $"Total de {FormatosBrasileiros.Reais(plano.TotalEmCentavos)} em {plano.Parcelas.Count} parcelas.{detalhe} "
             + ModeloDeEmail.Texto(plano.RegrasDeAtrasoPorExtenso());
 
-        return Enfileirar(email, $"Adesão registrada — {formatura}", "Adesão registrada", mensagem, "Ver meu termo", ct);
+        return Enfileirar(email, $"Adesão registrada — {formatura}", "Adesão registrada", mensagem, "Ver meu termo", Mascote.Canudo, ct);
     }
 
     /// <summary>
@@ -68,6 +68,7 @@ public sealed class EmailsDeAdesao(IEmailService emailService, IOptions<Aplicaca
                 + $"<strong>{ModeloDeEmail.Texto(formatura)}</strong>. Ele vale por poucos minutos — conte com {minutos}. "
                 + "Se não foi você quem pediu, ignore esta mensagem — sem o código, nada é assinado.",
             "Voltar ao termo",
+            Mascote.Celular,
             ct
         );
 
@@ -82,12 +83,25 @@ public sealed class EmailsDeAdesao(IEmailService emailService, IOptions<Aplicaca
             $"A comissão de <strong>{ModeloDeEmail.Texto(formatura)}</strong> pede que você leia o termo de adesão e o plano de "
                 + "pagamento da turma e registre o seu aceite. Leva poucos minutos.",
             "Ler o termo",
+            Mascote.Checklist,
             ct
         );
 
-    private async Task Enfileirar(string email, string assunto, string titulo, string mensagem, string botao, CancellationToken ct) =>
+    private async Task Enfileirar(
+        string email,
+        string assunto,
+        string titulo,
+        string mensagem,
+        string botao,
+        Mascote mascote,
+        CancellationToken ct
+    ) =>
         await emailService.Enfileirar(
-            new NovoEmail(email, $"{assunto} — {_aplicacao.Nome}", ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, botao, LinkDoTermo)),
+            new NovoEmail(
+                email,
+                $"{assunto} — {_aplicacao.Nome}",
+                ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, botao, LinkDoTermo, mascote)
+            ),
             ct
         );
 }

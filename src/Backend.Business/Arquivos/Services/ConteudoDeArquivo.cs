@@ -37,7 +37,7 @@ public static class ConteudoDeArquivo
             ".jpg" or ".jpeg" => inicio.StartsWith((ReadOnlySpan<byte>)[0xFF, 0xD8, 0xFF]),
             ".webp" => inicio.Length >= 12 && inicio[..4].SequenceEqual("RIFF"u8) && inicio[8..12].SequenceEqual("WEBP"u8),
             ".gif" => inicio.StartsWith("GIF87a"u8) || inicio.StartsWith("GIF89a"u8),
-            ".docx" or ".xlsx" => inicio.StartsWith((ReadOnlySpan<byte>)[0x50, 0x4B, 0x03, 0x04]),
+            ".docx" or ".xlsx" or ".zip" => inicio.StartsWith((ReadOnlySpan<byte>)[0x50, 0x4B, 0x03, 0x04]),
             ".csv" or ".txt" => !inicio.IsEmpty,
             _ => false,
         };

@@ -40,7 +40,6 @@ public sealed class NotificacaoServiceTests
 
     public NotificacaoServiceTests()
     {
-        _canal.Canal.Returns(CanalDeNotificacao.Email);
         _canal
             .Enviar(Arg.Any<MensagemDeNotificacao>(), Arg.Any<CancellationToken>())
             .Returns(Result.Ok(new EntregaDaMensagem(Guid.CreateVersion7())));
@@ -83,7 +82,7 @@ public sealed class NotificacaoServiceTests
             _vinculos,
             _formaturas,
             _usuarios,
-            [_canal],
+            _canal,
             new DadosDaReguaValidator(),
             new DadosDasPreferenciasValidator(),
             Options.Create(new AplicacaoSettings { Nome = "Kapa", UrlDoFrontend = "https://kapa.dev" }),
@@ -106,16 +105,7 @@ public sealed class NotificacaoServiceTests
     }
 
     private static RegraResumo Degrau() =>
-        new(
-            RegraId,
-            GatilhoDaRegua.Vencimento,
-            3,
-            CanalDeNotificacao.Email,
-            "Parcela em atraso — {formatura}",
-            "Oi, {nome}. São {valor}.",
-            true,
-            false
-        );
+        new(RegraId, GatilhoDaRegua.Vencimento, 3, "Parcela em atraso — {formatura}", "Oi, {nome}. São {valor}.", true, false);
 
     /// <summary>Critério de aceite: <c>testar</c> envia só para quem clicou.</summary>
     [Fact]
@@ -180,7 +170,7 @@ public sealed class NotificacaoServiceTests
         _notificacoes.ListarRegrasParaEdicao(Arg.Any<CancellationToken>()).Returns([gravada]);
 
         var resultado = await Servico.SalvarRegras(
-            new DadosDaRegua([new DadosDaRegra(GatilhoDaRegua.Vencimento, 3, CanalDeNotificacao.Email, "Novo", "Oi, {nome}.", true, false)]),
+            new DadosDaRegua([new DadosDaRegra(GatilhoDaRegua.Vencimento, 3, "Novo", "Oi, {nome}.", true, false)]),
             Ct
         );
 

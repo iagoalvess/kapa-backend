@@ -64,9 +64,11 @@ public sealed class AdesaoServiceTests
     {
         _adesoes.ObterTermoVigente(Arg.Any<CancellationToken>()).Returns(_termo);
         _planos.ObterVigente(Arg.Any<CancellationToken>()).Returns(_plano);
-        _perfis
-            .ObterMembro(FormaturaId, UsuarioId, Arg.Any<CancellationToken>())
-            .Returns(new MembroDoPerfil(VinculoId, UsuarioId, "Ana", "ana@kapa.dev", PapelNaFormatura.Formando));
+        // As duas portas: a escrita passa por `ObterMembro` (vínculo ativo) e a leitura do próprio
+        // histórico por `ObterTitular`, que aceita também quem foi desligado (P5 da Sprint 15).
+        var membro = new MembroDoPerfil(VinculoId, UsuarioId, "Ana", "ana@kapa.dev", PapelNaFormatura.Formando);
+        _perfis.ObterMembro(FormaturaId, UsuarioId, Arg.Any<CancellationToken>()).Returns(membro);
+        _perfis.ObterTitular(FormaturaId, UsuarioId, Arg.Any<CancellationToken>()).Returns(membro);
         _perfis.ObterDoVinculo(VinculoId, Arg.Any<CancellationToken>()).Returns(Perfil());
         _geracao.Gerar(VinculoId, Arg.Any<PlanoDeCobranca>(), Arg.Any<CancellationToken>()).Returns(Result.Ok(24));
 
@@ -112,7 +114,7 @@ public sealed class AdesaoServiceTests
         return perfil;
     }
 
-    private string HashCerto => AdesaoDoFormando.CalcularHash(_termo.Conteudo, SnapshotDoPlano.De(_plano).ParaJson());
+    private string HashCerto => AdesaoDoFormando.CalcularHash(_termo.Conteudo, SnapshotDoPlano.De(_plano, DataUtils.Hoje()).ParaJson());
 
     private Task<Result<AdesaoDetalhe>> Aderir(string? hash = null, string codigo = CodigoCerto) =>
         Servico.Aderir(FormaturaId, UsuarioId, new AderirAoTermo(hash ?? HashCerto, codigo), Origem, Ct);
@@ -311,7 +313,7 @@ public sealed class AdesaoServiceTests
     {
         var adesao = AdesaoGravada(vinculoId: Guid.CreateVersion7());
         _perfis
-            .ObterMembro(FormaturaId, UsuarioId, Arg.Any<CancellationToken>())
+            .ObterTitular(FormaturaId, UsuarioId, Arg.Any<CancellationToken>())
             .Returns(new MembroDoPerfil(VinculoId, UsuarioId, "Ana", "ana@kapa.dev", papel));
 
         (await Servico.ObterPdf(FormaturaId, adesao.Adesao.Id, UsuarioId, Ct)).Sucesso.ShouldBeTrue();
@@ -338,7 +340,7 @@ public sealed class AdesaoServiceTests
                 AceitoEm = DateTime.UtcNow,
                 NomeCompleto = "Bruno Lima",
                 Cpf = "11144477735",
-                PlanoAceito = SnapshotDoPlano.De(_plano).ParaJson(),
+                PlanoAceito = SnapshotDoPlano.De(_plano, DataUtils.Hoje()).ParaJson(),
             },
             _termo.Conteudo
         );

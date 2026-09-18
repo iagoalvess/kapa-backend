@@ -1,3 +1,4 @@
+using Backend.Business.Abstractions;
 using Backend.Business.Eventos.Models;
 
 namespace Backend.Business.Eventos.Interfaces;
@@ -55,6 +56,67 @@ public interface IEventoRepository
     /// mais cresce, porque registra atividade e não estado.
     /// </remarks>
     /// <param name="limiteUtc">Só remove eventos anteriores a este instante.</param>
+    /// <param name="limiteDaAuditoriaUtc">
+    /// Limite aplicado aos nomes de <see cref="NomesDeAuditoria"/>, que vivem mais (decisão 3 da
+    /// Sprint 14). Nulo aplica o mesmo limite a todos.
+    /// </param>
     /// <returns>Quantidade de eventos removidos.</returns>
-    Task<int> RemoverAnterioresA(DateTime limiteUtc, CancellationToken ct = default);
+    Task<int> RemoverAnterioresA(DateTime limiteUtc, DateTime? limiteDaAuditoriaUtc = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// A trilha de auditoria de uma formatura, paginada, do mais recente para o mais antigo.
+    /// </summary>
+    /// <remarks>
+    /// A tabela de eventos <b>não tem coluna de formatura</b>: ela é de toda a plataforma, e a turma
+    /// vai no corpo JSON de cada evento auditável. O recorte, portanto, é por
+    /// <c>dados-&gt;&gt;'formaturaId'</c> — e é por isso que este método recebe a formatura em vez de
+    /// confiar no filtro global, que aqui não existe.
+    /// </remarks>
+    /// <param name="formaturaId">Turma.</param>
+    /// <param name="paginacao">Página pedida, já normalizada.</param>
+    /// <param name="filtro">Recorte pedido pela tela.</param>
+    Task<PaginaDe<LinhaDeAuditoria>> ListarAuditoria(
+        Guid formaturaId,
+        PaginacaoRequest paginacao,
+        FiltroDeAuditoria filtro,
+        CancellationToken ct = default
+    );
+
+    /// <summary>Autores e nomes de evento que a turma tem registrados, para os seletores da tela.</summary>
+    /// <param name="formaturaId">Turma.</param>
+    Task<OpcoesDeAuditoria> OpcoesDeAuditoria(Guid formaturaId, CancellationToken ct = default);
+
+    /// <summary>Os números do topo da tela de Auditoria, da turma inteira e sem filtro.</summary>
+    /// <param name="formaturaId">Turma.</param>
+    Task<ResumoDaAuditoria> ResumirAuditoria(Guid formaturaId, CancellationToken ct = default);
+}
+
+/// <summary>
+/// A trilha de auditoria visível: quem fez o quê com o dinheiro da turma.
+/// </summary>
+/// <remarks>
+/// Só leitura. A gravação acontece dentro da transação de cada operação auditada, por
+/// <c>IEventoRepository.Auditar</c> — não existe, e não deve existir, um método aqui que escreva:
+/// auditoria que a aplicação sabe escrever sob demanda é auditoria que ela sabe forjar.
+/// </remarks>
+public interface IAuditoriaService
+{
+    /// <summary>A trilha da turma, paginada e filtrada.</summary>
+    /// <param name="formaturaId">Turma.</param>
+    /// <param name="paginacao">Página pedida.</param>
+    /// <param name="filtro">Recorte pedido.</param>
+    Task<Result<PaginaDe<LinhaDeAuditoria>>> Listar(
+        Guid formaturaId,
+        PaginacaoRequest paginacao,
+        FiltroDeAuditoria filtro,
+        CancellationToken ct = default
+    );
+
+    /// <summary>O que os seletores de filtro da tela oferecem.</summary>
+    /// <param name="formaturaId">Turma.</param>
+    Task<Result<OpcoesDeAuditoria>> Opcoes(Guid formaturaId, CancellationToken ct = default);
+
+    /// <summary>Os números do topo da tela: quantas ações, quando foi a última e quem mais fez.</summary>
+    /// <param name="formaturaId">Turma.</param>
+    Task<Result<ResumoDaAuditoria>> Resumir(Guid formaturaId, CancellationToken ct = default);
 }

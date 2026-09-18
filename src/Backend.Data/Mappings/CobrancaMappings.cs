@@ -1,4 +1,5 @@
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Cobrancas.Validators;
 using Backend.Business.Formaturas.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -51,6 +52,7 @@ public sealed class ItemDeCobrancaMapping : IEntityTypeConfiguration<ItemDeCobra
 
         builder.Property(i => i.Tipo).HasConversion<string>().HasMaxLength(20);
         builder.Property(i => i.Descricao).HasMaxLength(120);
+        builder.Property(i => i.OrigemDaDecisao).HasMaxLength(RateioExtraordinarioValidator.TamanhoDaOrigem);
 
         builder.HasOne<Formatura>().WithMany().HasForeignKey(i => i.FormaturaId).OnDelete(DeleteBehavior.Restrict);
     }

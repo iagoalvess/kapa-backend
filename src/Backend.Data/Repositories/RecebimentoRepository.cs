@@ -14,7 +14,11 @@ public sealed class RecebimentoRepository(AppDbContext db) : IRecebimentoReposit
 {
     /// <inheritdoc />
     public Task<Recebimento?> ObterAtivoParaEdicao(Guid parcelaId, CancellationToken ct = default) =>
-        db.Recebimentos.FirstOrDefaultAsync(r => r.ParcelaId == parcelaId && r.EstornadoEm == null, ct);
+        db
+            .Recebimentos.Where(r => r.ParcelaId == parcelaId && r.EstornadoEm == null)
+            .OrderByDescending(r => r.BaixadoEm)
+            .ThenByDescending(r => r.Id)
+            .FirstOrDefaultAsync(ct);
 
     /// <inheritdoc />
     /// <remarks>

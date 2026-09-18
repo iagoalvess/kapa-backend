@@ -15,6 +15,8 @@ public sealed class RefreshTokenMapping : IEntityTypeConfiguration<RefreshToken>
     {
         builder.ToTable("refresh_tokens");
 
+        builder.ComTokenDeConcorrencia();
+
         builder.HasKey(t => t.Id);
 
         builder.Property(t => t.TokenHash).IsRequired().HasMaxLength(64);

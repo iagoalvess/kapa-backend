@@ -39,6 +39,19 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
     private static ItemDeCobrancaRequestDTO Mensalidade(long valor = 840_000, int parcelas = 24, int dia = 10, DateOnly? primeiroMes = null) =>
         new(TipoDeCobranca.Mensalidade, null, valor, parcelas, dia, primeiroMes ?? new DateOnly(DateTime.UtcNow.Year + 1, 3, 1));
 
+    /// <summary>O item do rateio: "o buffet subiu, R$ 100 por cabeça".</summary>
+    private static ItemDeCobrancaRequestDTO Rateio(string? origem) =>
+        new(
+            TipoDeCobranca.Avulsa,
+            "Rateio do buffet",
+            10_000,
+            1,
+            10,
+            new DateOnly(DateTime.UtcNow.Year + 1, 3, 1),
+            AplicarAQuemJaAderiu: true,
+            origem
+        );
+
     [Theory]
     [InlineData(PapelNaFormatura.Presidente, HttpStatusCode.OK)]
     [InlineData(PapelNaFormatura.Tesoureiro, HttpStatusCode.OK)]
@@ -49,7 +62,7 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
         var membro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), papel, Ct);
 
         var lista = await membro.Cliente.GetAsync($"{Rota}/planos", Ct);
-        var criacao = await membro.Cliente.PostAsJsonAsync($"{Rota}/planos", new PlanoDeCobrancaRequestDTO("Plano", 0, 0, 0, 0), Json, Ct);
+        var criacao = await membro.Cliente.PostAsJsonAsync($"{Rota}/planos", new PlanoDeCobrancaRequestDTO("Plano", 0, 0, 0, 0, 0), Json, Ct);
 
         lista.StatusCode.ShouldBe(esperado);
         criacao.StatusCode.ShouldBe(esperado == HttpStatusCode.OK ? HttpStatusCode.Created : esperado);
@@ -181,6 +194,81 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
         erro.InnerException.ShouldBeOfType<PostgresException>().SqlState.ShouldBe(PostgresErrorCodes.UniqueViolation);
     }
 
+    /// <summary>
+    /// O rateio extraordinário: o item novo alcança quem já aderiu, e só quem ainda é da turma.
+    /// </summary>
+    /// <remarks>
+    /// Item e parcelas nascem no mesmo <c>SaveChanges</c>, com as parcelas apontando para um item que
+    /// ainda não existia — é aqui que o banco prova que a ordem de inserção sai certa.
+    /// </remarks>
+    [Fact]
+    public async Task Rateio_cobra_quem_ja_aderiu_e_pula_quem_saiu_da_turma()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var fica = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+        var saiu = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+        var plano = await CriarPlano(presidente.Cliente, Mensalidade());
+        await Vigorar(presidente.Cliente, plano.Id);
+        await GerarParcelas(formaturaId, fica.UsuarioId);
+        await GerarParcelas(formaturaId, saiu.UsuarioId);
+        await Desligar(formaturaId, saiu.UsuarioId);
+
+        var resposta = await presidente.Cliente.PostAsJsonAsync($"{Rota}/planos/{plano.Id}/itens", Rateio(origem: "assembleia de 12/10"), Json, Ct);
+
+        resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var item = (await resposta.Content.ReadFromJsonAsync<PlanoDeCobrancaDTO>(Json, Ct))!.Itens.Single(i => i.Tipo == TipoDeCobranca.Avulsa);
+        item.OrigemDaDecisao.ShouldBe("assembleia de 12/10");
+        item.EmUso.ShouldBeTrue();
+        await using var contexto = fabrica.ContextoDe(formaturaId);
+        var cobrados = await contexto.Parcelas.Where(p => p.ItemDeCobrancaId == item.Id).Select(p => p.VinculoId).ToListAsync(Ct);
+        cobrados.ShouldBe([await VinculoDe(formaturaId, fica.UsuarioId)]);
+    }
+
+    [Fact]
+    public async Task Rateio_sem_origem_devolve_400_e_nao_inclui_o_item()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+        var plano = await CriarPlano(presidente.Cliente, Mensalidade());
+        await Vigorar(presidente.Cliente, plano.Id);
+        await GerarParcelas(formaturaId, formando.UsuarioId);
+
+        var resposta = await presidente.Cliente.PostAsJsonAsync($"{Rota}/planos/{plano.Id}/itens", Rateio(origem: null), Json, Ct);
+
+        resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await resposta.Codigo(Ct)).ShouldBe("cobranca.origem_obrigatoria");
+        var atual = await presidente.Cliente.GetFromJsonAsync<PlanoDeCobrancaDTO>($"{Rota}/planos/{plano.Id}", Json, Ct);
+        atual!.Itens.ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public async Task Item_comum_em_plano_vigente_nao_cobra_quem_ja_aderiu()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+        var plano = await CriarPlano(presidente.Cliente, Mensalidade());
+        await Vigorar(presidente.Cliente, plano.Id);
+        await GerarParcelas(formaturaId, formando.UsuarioId);
+
+        var resposta = await presidente.Cliente.PostAsJsonAsync(
+            $"{Rota}/planos/{plano.Id}/itens",
+            Rateio(origem: null) with
+            {
+                AplicarAQuemJaAderiu = false,
+            },
+            Json,
+            Ct
+        );
+
+        resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var item = (await resposta.Content.ReadFromJsonAsync<PlanoDeCobrancaDTO>(Json, Ct))!.Itens.Single(i => i.Tipo == TipoDeCobranca.Avulsa);
+        item.OrigemDaDecisao.ShouldBeNull();
+        item.EmUso.ShouldBeFalse();
+    }
+
     [Fact]
     public async Task Remover_item_com_parcela_devolve_409_e_encerrar_funciona()
     {
@@ -206,9 +294,13 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
     }
 
     /// <summary>
-    /// Mudar o valor vale só para o futuro: a vencida e a paga ficam com o valor antigo; as abertas
-    /// que ainda não venceram passam ao novo.
+    /// Mudar o valor vale só para o futuro: a vencida e a paga ficam com o valor antigo, e o que sobra
+    /// do total novo se redistribui pelas que ainda não venceram.
     /// </summary>
+    /// <remarks>
+    /// A vencida é envelhecida no banco, e não pelo plano começar no passado: desde 17/09/2026 a
+    /// geração não cria parcela vencida — ela redistribui o total pelas que restam.
+    /// </remarks>
     [Fact]
     public async Task Alterar_valor_nao_muda_parcela_vencida_nem_paga()
     {
@@ -216,13 +308,17 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
         var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
         var hoje = DataUtils.Hoje();
-        var inicio = hoje.AddMonths(-3);
+        var inicio = hoje.AddMonths(1);
         var plano = await CriarPlano(presidente.Cliente, Mensalidade(valor: 120_000, parcelas: 12, dia: 1, primeiroMes: inicio));
         await Vigorar(presidente.Cliente, plano.Id);
         await GerarParcelas(formaturaId, formando.UsuarioId);
         var vinculoId = await VinculoDe(formaturaId, formando.UsuarioId);
+        var ontem = hoje.AddDays(-1);
         await using (var contexto = fabrica.ContextoDe(formaturaId))
+        {
             await contexto.Database.ExecuteSqlAsync($"UPDATE parcelas SET status = 'Paga' WHERE vinculo_id = {vinculoId} AND numero = 12", Ct);
+            await contexto.Database.ExecuteSqlAsync($"UPDATE parcelas SET vencimento = {ontem} WHERE vinculo_id = {vinculoId} AND numero = 1", Ct);
+        }
 
         var alteracao = await presidente.Cliente.PutAsJsonAsync(
             $"{Rota}/planos/{plano.Id}/itens/{plano.Itens[0].Id}",
@@ -237,9 +333,34 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
         parcelas.ShouldContain(p => p.Vencimento < hoje);
         foreach (var parcela in parcelas)
         {
-            var esperado = parcela.Numero == 12 || parcela.Vencimento < hoje ? 10_000 : 20_000;
+            // A vencida e a paga ficam nos R$ 100; os R$ 2.200 que faltam se dividem pelas dez restantes.
+            var esperado = parcela.Numero is 1 or 12 ? 10_000 : 22_000;
             parcela.ValorOriginalEmCentavos.ShouldBe(esperado, $"parcela {parcela.Numero}, vence {parcela.Vencimento}");
         }
+    }
+
+    /// <summary>
+    /// Aderir com o plano em andamento não pode gerar parcela já vencida: o total é redividido pelas
+    /// que ainda não venceram, e quem entra depois paga mais por mês.
+    /// </summary>
+    [Fact]
+    public async Task Quem_adere_com_o_plano_em_andamento_nao_nasce_devendo()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+        var hoje = DataUtils.Hoje();
+        var plano = await CriarPlano(presidente.Cliente, Mensalidade(valor: 120_000, parcelas: 12, dia: 1, primeiroMes: hoje.AddMonths(-3)));
+        await Vigorar(presidente.Cliente, plano.Id);
+
+        var geradas = await GerarParcelas(formaturaId, formando.UsuarioId);
+
+        geradas.ShouldBeLessThan(12);
+        var vinculoId = await VinculoDe(formaturaId, formando.UsuarioId);
+        await using var leitura = fabrica.ContextoDe(formaturaId);
+        var parcelas = await leitura.Parcelas.Where(p => p.VinculoId == vinculoId).ToListAsync(Ct);
+        parcelas.ShouldAllBe(p => p.Vencimento >= hoje);
+        parcelas.Sum(p => p.ValorOriginalEmCentavos).ShouldBe(120_000);
     }
 
     [Fact]
@@ -321,7 +442,7 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
 
     private static async Task<PlanoDeCobrancaDTO> CriarPlano(HttpClient cliente, params ItemDeCobrancaRequestDTO[] itens)
     {
-        var resposta = await cliente.PostAsJsonAsync($"{Rota}/planos", new PlanoDeCobrancaRequestDTO("Plano 2027", 200, 100, 3, 0), Json, Ct);
+        var resposta = await cliente.PostAsJsonAsync($"{Rota}/planos", new PlanoDeCobrancaRequestDTO("Plano 2027", 200, 100, 3, 0, 0), Json, Ct);
         resposta.StatusCode.ShouldBe(HttpStatusCode.Created);
         var plano = (await resposta.Content.ReadFromJsonAsync<PlanoDeCobrancaDTO>(Json, Ct))!;
 
@@ -356,6 +477,16 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
         await using var contexto = fabrica.ContextoDe(null);
 
         return await contexto.Vinculos.Where(v => v.FormaturaId == formaturaId && v.UsuarioId == usuarioId).Select(v => v.Id).SingleAsync(Ct);
+    }
+
+    /// <summary>Tira o membro da turma, como a saída do formando fará.</summary>
+    private async Task Desligar(Guid formaturaId, Guid usuarioId)
+    {
+        await using var contexto = fabrica.ContextoDe(null);
+        var vinculo = await contexto.Vinculos.SingleAsync(v => v.FormaturaId == formaturaId && v.UsuarioId == usuarioId, Ct);
+
+        vinculo.Ativo = false;
+        await contexto.SaveChangesAsync(Ct);
     }
 
     private async Task Suspender(Guid formaturaId)

@@ -32,6 +32,8 @@ public sealed class PerfilDoFormandoMapping : IEntityTypeConfiguration<PerfilDoF
     {
         builder.ToTable("perfis_de_formandos");
 
+        builder.ComTokenDeConcorrencia();
+
         builder.HasKey(p => p.Id);
 
         builder.Property(p => p.NomeCompleto).HasMaxLength(200);

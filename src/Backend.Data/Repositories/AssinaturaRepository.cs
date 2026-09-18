@@ -80,6 +80,25 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
         db.Assinaturas.IgnoreQueryFilters().FirstOrDefaultAsync(a => a.Id == assinaturaId, ct);
 
     /// <inheritdoc />
+    public Task<Assinatura?> ObterMaisRecenteParaEdicaoDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default) =>
+        db
+            .Assinaturas.IgnoreQueryFilters()
+            .Where(a => a.FormaturaId == formaturaId)
+            .OrderByDescending(a => a.CriadoEm)
+            .ThenByDescending(a => a.Id)
+            .FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    public Task<int?> ObterLimiteDeFormandosDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default) =>
+        (
+            from assinatura in db.Assinaturas.AsNoTracking().IgnoreQueryFilters()
+            join plano in db.Planos.AsNoTracking() on assinatura.PlanoId equals plano.Id
+            where assinatura.FormaturaId == formaturaId
+            orderby assinatura.CriadoEm descending, assinatura.Id descending
+            select (int?)plano.LimiteDeFormandos
+        ).FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
     /// <remarks>Mais recentes primeiro: se o lote não couber, quem acabou de pagar não espera atrás de checkout esquecido.</remarks>
     public async Task<IReadOnlyList<Assinatura>> ListarPendentesDeTodasAsFormaturas(
         DateTime atualizadasAntesDe,

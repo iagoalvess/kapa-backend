@@ -7,12 +7,14 @@ namespace Backend.Business.Cobrancas.Models;
 /// <param name="PercentualDeJurosAoMes">Juros de mora ao mês.</param>
 /// <param name="CarenciaEmDias">Dias depois do vencimento sem multa nem juros.</param>
 /// <param name="PercentualDeDescontoPorAntecipacao">Desconto para quem paga antes do vencimento.</param>
+/// <param name="DiasMinimosParaDesconto">Dias de antecedência que o desconto exige; zero vale qualquer dia antes do vencimento.</param>
 public sealed record DadosDoPlano(
     string Nome,
     int PercentualDeMulta,
     int PercentualDeJurosAoMes,
     int CarenciaEmDias,
-    int PercentualDeDescontoPorAntecipacao
+    int PercentualDeDescontoPorAntecipacao,
+    int DiasMinimosParaDesconto
 );
 
 /// <summary>Uma linha do plano, como a tesouraria informa — e como a simulação a recebe.</summary>
@@ -35,6 +37,22 @@ public sealed record DadosDoItem(
     public IReadOnlyList<ParcelaPrevista> Grade() => GradeDeParcelas.Calcular(this);
 }
 
+/// <summary>
+/// A marca que faz um item novo alcançar também quem já aderiu — o rateio extraordinário.
+/// </summary>
+/// <remarks>
+/// Ausente, vale a regra normal: a parcela nasce na adesão, e o item novo só alcança quem aderir
+/// depois. Presente, a turma decidiu por todos, e a origem dessa decisão fica gravada no item.
+/// <para>
+/// É um tipo próprio, e não um par de campos em <see cref="DadosDoItem"/>, por dois motivos:
+/// <see cref="DadosDoItem"/> é congelado no snapshot da adesão e não deve carregar comando, e
+/// cobrar a turma inteira precisa ser um argumento que alguém escreveu — não um <c>bool</c> que
+/// vai junto por engano.
+/// </para>
+/// </remarks>
+/// <param name="OrigemDaDecisao">Onde a turma decidiu: "assembleia de 12/10".</param>
+public sealed record RateioExtraordinario(string OrigemDaDecisao);
+
 /// <summary>Plano na lista da turma.</summary>
 /// <param name="Id">Identificador.</param>
 /// <param name="Nome">Nome do plano.</param>
@@ -51,10 +69,11 @@ public sealed record PlanoDeCobrancaResumo(Guid Id, string Nome, StatusDoPlano S
 /// <param name="PercentualDeJurosAoMes">Juros ao mês, base 10.000.</param>
 /// <param name="CarenciaEmDias">Dias sem multa nem juros.</param>
 /// <param name="PercentualDeDescontoPorAntecipacao">Desconto por antecipação, base 10.000.</param>
+/// <param name="DiasMinimosParaDesconto">Dias de antecedência que o desconto exige.</param>
 /// <param name="Itens">Itens, na ordem em que foram criados.</param>
 /// <param name="FormandosComParcela">
 /// Quantos já têm parcela deste plano — quem aderiu. Item incluído agora não os alcança (decisão de
-/// 14/09/2026): a tela avisa com este número.
+/// 14/09/2026), salvo no rateio extraordinário: a tela avisa com este número.
 /// </param>
 public sealed record PlanoDeCobrancaDetalhe(
     Guid Id,
@@ -65,6 +84,7 @@ public sealed record PlanoDeCobrancaDetalhe(
     int PercentualDeJurosAoMes,
     int CarenciaEmDias,
     int PercentualDeDescontoPorAntecipacao,
+    int DiasMinimosParaDesconto,
     IReadOnlyList<ItemDeCobrancaDetalhe> Itens,
     int FormandosComParcela
 );
@@ -79,6 +99,7 @@ public sealed record PlanoDeCobrancaDetalhe(
 /// <param name="PrimeiroMes">Mês do primeiro vencimento, no dia 1.</param>
 /// <param name="EncerradoEm">Quando deixou de cobrar, se deixou.</param>
 /// <param name="EmUso">Já gerou parcela: não pode ser removido, só encerrado, e só o valor muda.</param>
+/// <param name="OrigemDaDecisao">Onde a turma decidiu, se o item foi um rateio extraordinário.</param>
 public sealed record ItemDeCobrancaDetalhe(
     Guid Id,
     TipoDeCobranca Tipo,
@@ -88,7 +109,8 @@ public sealed record ItemDeCobrancaDetalhe(
     int DiaDeVencimento,
     DateOnly PrimeiroMes,
     DateOnly? EncerradoEm,
-    bool EmUso
+    bool EmUso,
+    string? OrigemDaDecisao
 );
 
 /// <summary>Pedido de simulação.</summary>

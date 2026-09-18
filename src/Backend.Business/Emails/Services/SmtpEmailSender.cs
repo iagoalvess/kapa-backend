@@ -34,18 +34,28 @@ public sealed class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<Smtp
     /// A porta escolhe o modo de TLS: 465 é SSL desde o handshake, as demais começam em texto
     /// puro e sobem com STARTTLS. Combinar a opção errada com a porta não dá erro imediato —
     /// a conexão trava até o timeout, que é bem mais difícil de diagnosticar.
+    /// <para>
+    /// O mascote do corpo vai como <c>LinkedResource</c>, e não por URL: cliente de e-mail bloqueia
+    /// imagem remota por padrão, e a mensagem chegaria com um quadrado vazio no topo. Quem sabe
+    /// quais são elas é <see cref="ModeloDeEmail.ImagensDe"/> — aqui só se anexa o que ele listou.
+    /// </para>
     /// </remarks>
     public async Task EnviarAsync(MensagemDeEmail mensagem, CancellationToken ct = default)
     {
         var desviado = !string.IsNullOrWhiteSpace(_settings.RedirecionarPara);
         var destinatario = desviado ? _settings.RedirecionarPara : mensagem.Para;
 
+        var corpo = new BodyBuilder { HtmlBody = mensagem.CorpoHtml };
+
+        foreach (var (cid, conteudo) in ModeloDeEmail.ImagensDe(mensagem.CorpoHtml))
+            corpo.LinkedResources.Add(Inline(cid, conteudo));
+
         using var mime = new MimeMessage
         {
             // O destinatário original vai no assunto do desvio: sem ele, a caixa de quem desenvolve
             // vira uma pilha de mensagens idênticas sem dizer de quem era cada uma.
             Subject = desviado ? $"[para {mensagem.Para}] {mensagem.Assunto}" : mensagem.Assunto,
-            Body = new BodyBuilder { HtmlBody = mensagem.CorpoHtml }.ToMessageBody(),
+            Body = corpo.ToMessageBody(),
         };
 
         mime.From.Add(new MailboxAddress(_settings.RemetenteNome, _settings.RemetenteEmail));
@@ -71,5 +81,38 @@ public sealed class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<Smtp
             );
         else
             logger.LogInformation("E-mail entregue ao servidor SMTP para {Destinatario}.", TextoUtils.MascararEmail(mensagem.Para));
+    }
+
+    /// <summary>
+    /// Uma imagem do corpo, montada à mão para o cliente <b>não</b> a listar como anexo.
+    /// </summary>
+    /// <remarks>
+    /// Duas coisas fazem a diferença, e as duas o <c>Add(nome, stream)</c> do MailKit faz ao
+    /// contrário: disposição <c>inline</c> e <b>sem nome de arquivo</b>. Com nome, o Gmail entende
+    /// que há algo para baixar e pendura o clipe na mensagem — o logo da marca virava um anexo
+    /// chamado <c>kapa-logo.png</c> em toda cobrança.
+    /// <para>
+    /// O conteúdo é copiado para memória porque o corpo só é serializado no <c>SendAsync</c>, e o
+    /// recurso embutido já sai do assembly inteiro na memória de qualquer forma.
+    /// </para>
+    /// </remarks>
+    /// <param name="cid">O <c>Content-ID</c> que o HTML cita.</param>
+    /// <param name="conteudo">O PNG.</param>
+    private static MimePart Inline(string cid, Stream conteudo)
+    {
+        using (conteudo)
+        {
+            var memoria = new MemoryStream();
+            conteudo.CopyTo(memoria);
+            memoria.Position = 0;
+
+            return new MimePart("image", "png")
+            {
+                Content = new MimeContent(memoria),
+                ContentId = cid,
+                ContentDisposition = new ContentDisposition(ContentDisposition.Inline),
+                ContentTransferEncoding = ContentEncoding.Base64,
+            };
+        }
     }
 }

@@ -43,11 +43,16 @@ public static class ScalarConfig
     /// Ligada por padrão só em desenvolvimento. Documentação aberta em produção entrega a
     /// superfície inteira da API — todas as rotas, todos os campos — para quem estiver olhando.
     /// Para liberar em homologação, use <c>Documentacao:Habilitada = true</c>.
+    /// <para>
+    /// Em <b>produção</b> a chave não libera nada: ela existe para homologação, e a diferença entre
+    /// "publiquei a doc em staging" e "publiquei a doc em produção" é uma variável de ambiente
+    /// copiada de um ambiente para o outro. Item do checklist da Sprint 16.
+    /// </para>
     /// </remarks>
     /// <param name="app">Aplicação web.</param>
     public static WebApplication UseDocumentacao(this WebApplication app)
     {
-        var habilitada = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>(ChaveDeHabilitacao);
+        var habilitada = !app.Environment.IsProduction() && (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>(ChaveDeHabilitacao));
 
         if (!habilitada)
             return app;

@@ -36,12 +36,21 @@ public sealed class RelatorioRepository(AppDbContext db) : IRelatorioRepository
     /// <remarks>
     /// Denominador é só o que já venceu (decisão 6): a parcela de dezembro não conta como inadimplência
     /// em março. Uma consulta, dois grupos — paga ou não.
+    /// <para>
+    /// Só vínculo ativo, no numerador e no denominador (decisão 6 da Sprint 15): um desistente no
+    /// denominador puxa o índice da turma para baixo para sempre, e o número que a turma vê é o
+    /// número em que ela confia. A parcela cancelada já sai sozinha, pelo status.
+    /// </para>
     /// </remarks>
     public async Task<Adimplencia> Adimplencia(DateOnly hoje, CancellationToken ct = default)
     {
         var grupos = await db
             .Parcelas.AsNoTracking()
-            .Where(p => p.Vencimento <= hoje && (p.Status == StatusDaParcela.Aberta || p.Status == StatusDaParcela.Paga))
+            .Where(p =>
+                p.Vencimento <= hoje
+                && (p.Status == StatusDaParcela.Aberta || p.Status == StatusDaParcela.Paga)
+                && db.Vinculos.Any(v => v.Id == p.VinculoId && v.Ativo)
+            )
             .GroupBy(p => p.Status == StatusDaParcela.Paga)
             .Select(grupo => new { Paga = grupo.Key, Valor = grupo.Sum(p => p.ValorOriginalEmCentavos) })
             .ToListAsync(ct);

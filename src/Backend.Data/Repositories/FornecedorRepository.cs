@@ -48,6 +48,25 @@ public sealed class FornecedorRepository(AppDbContext db) : IFornecedorRepositor
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Agrupa por <c>ativo</c> e soma os dois lados na memória: são duas linhas, e assim a contagem
+    /// não depende de a turma ter fornecedor inativo — um <c>GROUP BY</c> vazio não devolve zero.
+    /// </remarks>
+    public async Task<ContagemDeFornecedores> Contar(CancellationToken ct = default)
+    {
+        var grupos = await db
+            .Fornecedores.AsNoTracking()
+            .GroupBy(f => f.Ativo)
+            .Select(grupo => new { Ativo = grupo.Key, Quantidade = grupo.Count() })
+            .ToListAsync(ct);
+
+        return new ContagemDeFornecedores(
+            grupos.Where(grupo => grupo.Ativo).Sum(grupo => grupo.Quantidade),
+            grupos.Where(grupo => !grupo.Ativo).Sum(grupo => grupo.Quantidade)
+        );
+    }
+
+    /// <inheritdoc />
     public Task<FornecedorResumo?> ObterResumo(Guid id, CancellationToken ct = default) =>
         Projetar(db.Fornecedores.AsNoTracking().Where(f => f.Id == id)).FirstOrDefaultAsync(ct);
 

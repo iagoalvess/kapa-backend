@@ -30,20 +30,18 @@ public enum GatilhoDaRegua
 
 /// <summary>Por onde a mensagem sai.</summary>
 /// <remarks>
-/// <see cref="Whatsapp"/> existe no enum e <b>não</b> tem implementação nesta sprint (decisão 6):
-/// a régua pula a regra cujo canal não tem canal registrado, em vez de engolir a mensagem.
+/// O Kapa avisa por e-mail, e só (decisão 6). O enum tem um valor só de propósito: ele e a coluna
+/// existem porque o histórico registra por onde a mensagem saiu, e porque um canal futuro entra
+/// aqui e como outra <c>ICanalDeNotificacao</c>, sem migration de dado.
 /// </remarks>
 public enum CanalDeNotificacao
 {
     /// <summary>E-mail, pela fila que o worker já esvazia.</summary>
     Email,
-
-    /// <summary>API oficial do WhatsApp. Implementação na sprint seguinte.</summary>
-    Whatsapp,
 }
 
 /// <summary>
-/// Um degrau da régua: quando avisar, por onde e com que texto.
+/// Um degrau da régua: quando avisar e com que texto.
 /// </summary>
 /// <remarks>
 /// A turma que não configurar nada recebe <see cref="Padrao"/> (decisão 5): exigir configuração
@@ -137,7 +135,6 @@ public class RegraDeNotificacao : EntidadeDaFormatura
     /// <param name="dias">Dias de distância do gatilho.</param>
     /// <param name="assunto">Assunto da mensagem.</param>
     /// <param name="template">Corpo da mensagem.</param>
-    /// <param name="canal">Por onde sai.</param>
     /// <param name="ativa">Se dispara.</param>
     /// <param name="avisarTesouraria">Se a tesouraria recebe cópia.</param>
     public static RegraDeNotificacao Nova(
@@ -145,7 +142,6 @@ public class RegraDeNotificacao : EntidadeDaFormatura
         int dias,
         string assunto,
         string template,
-        CanalDeNotificacao canal = CanalDeNotificacao.Email,
         bool ativa = true,
         bool avisarTesouraria = false
     ) =>
@@ -155,18 +151,16 @@ public class RegraDeNotificacao : EntidadeDaFormatura
             DiasDeDeslocamento = dias,
             Assunto = assunto,
             Template = template,
-            Canal = canal,
             Ativa = ativa,
             AvisarTesouraria = avisarTesouraria,
         };
 
     /// <summary>Aplica o que a tesouraria editou. Gatilho e deslocamento são a identidade e não mudam.</summary>
-    /// <param name="dados">Texto, canal e chaves do degrau.</param>
+    /// <param name="dados">Texto e chaves do degrau.</param>
     public void Aplicar(DadosDaRegra dados)
     {
         Assunto = dados.Assunto.Trim();
         Template = dados.Template.Trim();
-        Canal = dados.Canal;
         Ativa = dados.Ativa;
         AvisarTesouraria = dados.AvisarTesouraria;
     }

@@ -5,6 +5,8 @@ using Backend.Business.Adesoes.Services;
 using Backend.Business.Adesoes.Validators;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Eventos.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -18,9 +20,12 @@ public sealed class TermoServiceTests
 
     private readonly IAdesaoRepository _adesoes = Substitute.For<IAdesaoRepository>();
     private readonly IPlanoDeCobrancaRepository _planos = Substitute.For<IPlanoDeCobrancaRepository>();
+    private readonly IEventoRepository _eventos = Substitute.For<IEventoRepository>();
+    private readonly IFormaturaAtual _formatura = Substitute.For<IFormaturaAtual>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
-    private TermoService Servico => new(_adesoes, _planos, new PublicarTermoValidator(), _unitOfWork, NullLogger<TermoService>.Instance);
+    private TermoService Servico =>
+        new(_adesoes, _planos, new PublicarTermoValidator(), _eventos, _formatura, _unitOfWork, NullLogger<TermoService>.Instance);
 
     [Fact]
     public async Task Publicar_grava_a_versao_seguinte()
@@ -33,6 +38,37 @@ public sealed class TermoServiceTests
         publicado.Conteudo.ShouldBe("v4");
         await _adesoes.Received(1).AdicionarTermo(Arg.Is<TermoDaFormatura>(t => t.Versao == 4), Ct);
         await _unitOfWork.Received(1).SalvarAsync(Ct);
+    }
+
+    /// <summary>
+    /// O evento leva a formatura <b>da sessão</b>, e não a do termo recém-criado.
+    /// </summary>
+    /// <remarks>
+    /// Achado em 17/09/2026. Quem carimba <c>FormaturaId</c> na entidade é o <c>SaveChangesAsync</c>,
+    /// que ainda não rodou quando o evento é montado: lê-la ali grava <c>Guid.Empty</c> no corpo, e
+    /// o evento some da trilha da turma — que filtra justamente por essa coluna.
+    /// </remarks>
+    [Fact]
+    public async Task Publicar_audita_com_a_formatura_da_sessao()
+    {
+        // Arrange
+        var formaturaId = Guid.CreateVersion7();
+        var autorId = Guid.CreateVersion7();
+        _formatura.Id.Returns(formaturaId);
+        _adesoes.ObterTermoVigente(Arg.Any<CancellationToken>()).Returns((VersaoDoTermo?)null);
+
+        // Act
+        await Servico.Publicar(autorId, new PublicarTermo("Primeira versão do termo."), Ct);
+
+        // Assert
+        await _eventos
+            .Received(1)
+            .Adicionar(
+                Arg.Is<Evento>(evento =>
+                    evento.Nome == NomesDeAuditoria.TermoPublicado && evento.UsuarioId == autorId && evento.FormaturaId == formaturaId
+                ),
+                Arg.Any<CancellationToken>()
+            );
     }
 
     [Fact]

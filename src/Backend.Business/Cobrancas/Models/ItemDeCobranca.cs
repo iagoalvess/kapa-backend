@@ -36,12 +36,23 @@ public class ItemDeCobranca : EntidadeDaFormatura
     /// <summary>Quando deixou de cobrar. Item encerrado não gera parcela nova.</summary>
     public DateOnly? EncerradoEm { get; private set; }
 
+    /// <summary>
+    /// Onde a turma decidiu este item — "assembleia de 12/10". Só no rateio extraordinário.
+    /// </summary>
+    /// <remarks>
+    /// Preenchido quer dizer que o item alcançou também quem já tinha aderido (revisão de
+    /// 17/09/2026 da decisão 8 da Sprint 7). É a prova da cobrança: o snapshot da adesão não a
+    /// cita — ele é o que a pessoa leu no dia, e reescrevê-lo destruiria a defesa da comissão.
+    /// </remarks>
+    public string? OrigemDaDecisao { get; private set; }
+
     /// <summary>Cria o item a partir dos dados informados.</summary>
     /// <param name="planoId">Plano dono.</param>
     /// <param name="dados">Dados já validados.</param>
-    public static ItemDeCobranca Novo(Guid planoId, DadosDoItem dados)
+    /// <param name="origemDaDecisao">Onde a turma decidiu, no rateio extraordinário; nulo no item comum.</param>
+    public static ItemDeCobranca Novo(Guid planoId, DadosDoItem dados, string? origemDaDecisao = null)
     {
-        var item = new ItemDeCobranca { PlanoId = planoId };
+        var item = new ItemDeCobranca { PlanoId = planoId, OrigemDaDecisao = origemDaDecisao?.Trim() };
         item.Aplicar(dados);
 
         return item;

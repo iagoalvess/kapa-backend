@@ -44,10 +44,13 @@ public sealed class InformeDePagamentoMapping : IEntityTypeConfiguration<Informe
 /// Mapeamento dos recebimentos — as entradas no caixa.
 /// </summary>
 /// <remarks>
-/// O índice único parcial em <c>parcela_id</c> onde <c>estornado_em is null</c> é a última barreira
-/// contra a baixa dupla: a parcela é travada antes da baixa, e se algum caminho futuro esquecer a trava,
-/// o segundo insert falha. Estornar libera a parcela para uma baixa nova, e as duas linhas ficam.
-/// Chaves em <c>Restrict</c>: dinheiro que entrou não some em cascata.
+/// O índice de <c>parcela_id</c> deixou de ser único em 17/09/2026: o pagamento parcial não fecha a
+/// parcela, então ela passa a ter uma entrada por PIX recebido, e o único recusaria a segunda. Quem
+/// barra a baixa dupla é a trava da parcela (<c>IParcelaRepository.TravarParaBaixa</c>) somada à
+/// conferência de status — e, no informe, o <c>pagamento.informe_pendente</c>.
+/// <c>ponytail:</c> a barreira do banco contra um caminho futuro que esqueça a trava caiu junto;
+/// se ela fizer falta, o caminho é um único sobre <c>(informe_id)</c>, que continua sendo um para um.
+/// <para>Chaves em <c>Restrict</c>: dinheiro que entrou não some em cascata.</para>
 /// </remarks>
 public sealed class RecebimentoMapping : IEntityTypeConfiguration<Recebimento>
 {
@@ -64,7 +67,7 @@ public sealed class RecebimentoMapping : IEntityTypeConfiguration<Recebimento>
 
         builder.Ignore(r => r.Divergente);
 
-        builder.HasIndex(r => r.ParcelaId).IsUnique().HasFilter("estornado_em IS NULL");
+        builder.HasIndex(r => r.ParcelaId);
 
         builder.HasOne<Parcela>().WithMany().HasForeignKey(r => r.ParcelaId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<InformeDePagamento>().WithMany().HasForeignKey(r => r.InformeId).OnDelete(DeleteBehavior.Restrict);

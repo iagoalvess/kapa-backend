@@ -58,7 +58,7 @@ public static class TiposDeEvento
     /// <summary>Primeiro pagamento confirmado.</summary>
     public const string PagamentoConfirmado = "pagamento.confirmado";
 
-    /// <summary>Pagamento recusado (cartão, saldo).</summary>
+    /// <summary>Pagamento recusado pelo provedor.</summary>
     public const string PagamentoRecusado = "pagamento.recusado";
 
     /// <summary>Ciclo seguinte cobrado com sucesso.</summary>

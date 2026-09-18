@@ -50,6 +50,8 @@ public sealed class AssinaturaMapping : IEntityTypeConfiguration<Assinatura>
     {
         builder.ToTable("assinaturas");
 
+        builder.ComTokenDeConcorrencia();
+
         builder.HasKey(a => a.Id);
 
         builder.Property(a => a.Status).HasConversion<string>().HasMaxLength(20);

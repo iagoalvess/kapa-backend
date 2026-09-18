@@ -74,9 +74,11 @@ public sealed class WebhookService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// Três etapas, cada linha gravada por conta própria — uma turma com problema não segura as outras:
+    /// Quatro etapas, cada linha gravada por conta própria — uma turma com problema não segura as outras:
     /// <list type="number">
     /// <item>pendentes paradas: pergunta ao provedor, e o pagamento achado segue o mesmo caminho do webhook;</item>
+    /// <item>ativas passadas da vigência: pergunta ao provedor <b>antes</b> de suspender ou de avisar
+    /// que venceu — é a renovação cujo webhook se perdeu;</item>
     /// <item>vigência mais carência vencidas: assinatura vencida, formatura suspensa, e-mail ao Presidente;</item>
     /// <item>avisos de D-7, D-3 e D+1.</item>
     /// </list>
@@ -84,6 +86,7 @@ public sealed class WebhookService(
     public async Task<Result<ResumoDaConciliacao>> Conciliar(DateTime agoraUtc, CancellationToken ct = default)
     {
         var confirmadas = await ConciliarPendentes(agoraUtc, ct);
+        var renovadas = 0;
         var vencidas = 0;
         var avisos = 0;
 
@@ -91,21 +94,88 @@ public sealed class WebhookService(
 
         foreach (var assinatura in vencendo)
         {
-            if (assinatura.DeveVencer(agoraUtc, Carencia))
+            var vencer = assinatura.DeveVencer(agoraUtc, Carencia);
+            var marco = vencer ? null : assinatura.AvisoDeVencimentoDevido(agoraUtc);
+
+            if (PassouDaVigencia(vencer, marco) && await AcharRenovacaoPerdida(assinatura, agoraUtc, ct))
+            {
+                renovadas++;
+                continue;
+            }
+
+            if (vencer)
             {
                 await Vencer(assinatura, ct);
                 vencidas++;
             }
-            else if (assinatura.AvisoDeVencimentoDevido(agoraUtc) is { } marco)
+            else if (marco is { } devido)
             {
-                await Avisar(assinatura, marco, ct);
+                await Avisar(assinatura, devido, ct);
                 avisos++;
             }
 
             await unitOfWork.SalvarAsync(ct);
         }
 
-        return new ResumoDaConciliacao(confirmadas, vencidas, avisos);
+        return new ResumoDaConciliacao(confirmadas, renovadas, vencidas, avisos);
+    }
+
+    /// <summary>Se a rodada está prestes a agir <b>depois</b> do fim da vigência — suspender, ou avisar que venceu.</summary>
+    /// <remarks>
+    /// Os marcos positivos (D-7, D-3) são avisos legítimos de quem ainda está em dia: a cobrança da
+    /// renovação nem aconteceu, e não há o que reconsultar. Marco negativo é D+1, depois do
+    /// vencimento — ali a renovação já deveria ter chegado.
+    /// </remarks>
+    /// <param name="vencer">Se a assinatura vai ser vencida agora.</param>
+    /// <param name="marco">Marco de aviso devido, se houver.</param>
+    private static bool PassouDaVigencia(bool vencer, int? marco) => vencer || marco < 0;
+
+    /// <summary>
+    /// Pergunta ao provedor se a assinatura foi renovada e o webhook se perdeu. Devolve se achou.
+    /// </summary>
+    /// <remarks>
+    /// É a pendência técnica da Sprint 16: o job só reconsultava as <c>Pendente</c>, então uma
+    /// renovação cujo webhook nunca chegou suspendia uma turma que <b>pagou</b>.
+    /// <para>
+    /// <c>ponytail:</c> consulta na hora de agir, e não a cada rodada da carência. É a única hora em
+    /// que a resposta muda o desfecho, e são sete dias de carência × uma rodada por hora — reconsultar
+    /// sempre seriam 168 chamadas ao PSP por assinatura para evitar um e-mail a mais.
+    /// </para>
+    /// <para>
+    /// Só a <c>Ativa</c>: quem cancelou a renovação não tem cobrança por vir, e perguntar ao provedor
+    /// sobre ela é gastar chamada para ouvir o que já se sabe.
+    /// </para>
+    /// </remarks>
+    /// <param name="assinatura">Assinatura passada da vigência.</param>
+    /// <param name="agoraUtc">Momento da rodada.</param>
+    private async Task<bool> AcharRenovacaoPerdida(Assinatura assinatura, DateTime agoraUtc, CancellationToken ct)
+    {
+        if (assinatura.Status != StatusDaAssinatura.Ativa)
+            return false;
+
+        var consulta = await provedor.ConsultarPagamento(assinatura.Id, assinatura.IdExterno, ct);
+
+        if (consulta.Falhou)
+        {
+            logger.LogWarning(
+                "Conciliação não reconsultou a assinatura {AssinaturaId} antes de vencê-la: {Codigo}.",
+                assinatura.Id,
+                consulta.PrimeiroErro.Codigo
+            );
+            return false;
+        }
+
+        if (consulta.Valor is not { } evento)
+            return false;
+
+        var recibo = await Processar(evento, JsonSerializer.Serialize(evento), agoraUtc, ct);
+
+        if (recibo.Falhou || recibo.Valor.Duplicado || assinatura.DeveVencer(agoraUtc, Carencia))
+            return false;
+
+        logger.LogInformation("Conciliação achou a renovação da assinatura {AssinaturaId} sem webhook.", assinatura.Id);
+
+        return true;
     }
 
     private async Task<int> ConciliarPendentes(DateTime agoraUtc, CancellationToken ct)
@@ -148,8 +218,13 @@ public sealed class WebhookService(
     /// Registra o evento uma vez e aplica o efeito, tudo na mesma transação.
     /// </summary>
     /// <remarks>
-    /// Evento repetido, de tipo desconhecido ou de assinatura inexistente responde sucesso: erro faria
-    /// o provedor reentregar para sempre algo que nunca vai dar certo.
+    /// Evento repetido, de tipo desconhecido, de assinatura inexistente ou <b>fora de ordem</b>
+    /// responde sucesso: erro faria o provedor reentregar para sempre algo que nunca vai dar certo.
+    /// <para>
+    /// Fora de ordem é evento cuja data no provedor é anterior à do último já aplicado. Ele é
+    /// gravado — o corpo fica na tabela, para quem for investigar — mas não aplicado: "fatura
+    /// criada" chegando depois de "paga" devolveria a turma para pendente.
+    /// </para>
     /// </remarks>
     /// <param name="evento">Evento verificado.</param>
     /// <param name="payload">Corpo a guardar.</param>
@@ -159,7 +234,16 @@ public sealed class WebhookService(
             async token =>
             {
                 var assinatura = evento.AssinaturaId is { } id ? await assinaturaRepository.ObterParaEdicaoDeTodasAsFormaturas(id, token) : null;
-                var aplicavel = assinatura is not null && Tratados.Contains(evento.Tipo);
+                var foraDeOrdem = assinatura?.EhAnteriorAoUltimoEvento(evento.OcorridoEm) == true;
+                var aplicavel = assinatura is not null && Tratados.Contains(evento.Tipo) && !foraDeOrdem;
+
+                if (foraDeOrdem)
+                    logger.LogWarning(
+                        "Evento de cobrança {EventoId} ({Tipo}) chegou fora de ordem e foi ignorado: {OcorridoEm} é anterior ao último aplicado.",
+                        evento.Id,
+                        evento.Tipo,
+                        evento.OcorridoEm
+                    );
 
                 var novo = await assinaturaRepository.RegistrarSeNovo(
                     new EventoDeCobranca
@@ -183,7 +267,7 @@ public sealed class WebhookService(
 
                 if (aplicavel)
                     await Aplicar(evento, assinatura!, agoraUtc, token);
-                else
+                else if (!foraDeOrdem)
                     logger.LogWarning("Evento de cobrança {EventoId} ({Tipo}) gravado e ignorado.", evento.Id, evento.Tipo);
 
                 return Result.Ok(new ReciboDeWebhook(evento.Id, Duplicado: false));
@@ -217,6 +301,8 @@ public sealed class WebhookService(
             return;
         }
 
+        assinatura.RegistrarEvento(evento.OcorridoEm);
+
         switch (evento.Tipo)
         {
             case TiposDeEvento.PagamentoConfirmado:
@@ -239,16 +325,11 @@ public sealed class WebhookService(
     }
 
     /// <summary>Ativa a formatura, se ainda não estiver. Rascunho, aguardando e suspensa passam; encerrada fica.</summary>
+    /// <remarks>A sequência mora em <see cref="Formatura.AtivarPorPagamento"/>, porque o painel de suporte usa a mesma.</remarks>
     /// <param name="formatura">Formatura da assinatura paga.</param>
     private void Ativar(Formatura formatura)
     {
-        if (formatura.Status == StatusDaFormatura.Ativa)
-            return;
-
-        if (formatura.Status == StatusDaFormatura.Rascunho)
-            formatura.Transicionar(StatusDaFormatura.AguardandoPagamento);
-
-        var transicao = formatura.Transicionar(StatusDaFormatura.Ativa);
+        var transicao = formatura.AtivarPorPagamento();
 
         if (transicao.Falhou)
             logger.LogWarning(

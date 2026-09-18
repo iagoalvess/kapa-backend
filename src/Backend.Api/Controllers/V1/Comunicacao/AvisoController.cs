@@ -55,6 +55,25 @@ public sealed class AvisoController(IAvisoService avisoService, IUsuarioAtual us
     public async Task<IActionResult> Resumir(CancellationToken ct) =>
         Responder((await avisoService.Resumir(FormaturaId, usuarioAtual.Id, ct)).Map(resumo => resumo.Adapt<ResumoDoMuralDTO>()));
 
+    /// <summary>O que entrou no mural desde a última visita desta pessoa — o sino do cabeçalho.</summary>
+    /// <remarks>
+    /// Recorte de visibilidade igual ao da lista: o aviso interno não conta no sino de quem não o lê.
+    /// </remarks>
+    [HttpGet("novidades")]
+    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [ProducesResponseType(typeof(NovidadesDoMuralDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Novidades(CancellationToken ct) =>
+        Responder((await avisoService.Novidades(FormaturaId, usuarioAtual.Id, ct)).Map(novidades => novidades.Adapt<NovidadesDoMuralDTO>()));
+
+    /// <summary>Marca o mural como visto agora: o sino zera para quem chamou.</summary>
+    /// <remarks>Quem chama é a tela do mural ao abrir — ver o balão do sino não é ter lido os avisos.</remarks>
+    [HttpPost("novidades/visto")]
+    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> MarcarVisto(CancellationToken ct) => Responder(await avisoService.MarcarVisto(FormaturaId, usuarioAtual.Id, ct));
+
     /// <summary>Um aviso. O interno pedido por formando responde 404, como o que não existe.</summary>
     /// <param name="id">Aviso.</param>
     [HttpGet("{id:guid}", Name = RotaDoAviso)]

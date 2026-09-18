@@ -40,11 +40,31 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
             .CountAsync(ct);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Guid>> ListarVinculosAtivosComParcela(Guid planoId, CancellationToken ct = default) =>
+        await db
+            .Parcelas.AsNoTracking()
+            .Where(p =>
+                db.ItensDeCobranca.Any(i => i.Id == p.ItemDeCobrancaId && i.PlanoId == planoId)
+                && db.Vinculos.Any(v => v.Id == p.VinculoId && v.Ativo)
+            )
+            .Select(p => p.VinculoId)
+            .Distinct()
+            .ToListAsync(ct);
+
+    /// <inheritdoc />
     public Task<bool> ExisteDoItem(Guid itemId, CancellationToken ct = default) => db.Parcelas.AnyAsync(p => p.ItemDeCobrancaId == itemId, ct);
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<Parcela>> ListarAbertasParaEdicao(Guid itemId, DateOnly aPartirDe, CancellationToken ct = default) =>
         await db.Parcelas.Where(p => p.ItemDeCobrancaId == itemId && p.Status == StatusDaParcela.Aberta && p.Vencimento >= aPartirDe).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Parcela>> ListarDoItemParaEdicao(Guid itemId, CancellationToken ct = default) =>
+        await db.Parcelas.Where(p => p.ItemDeCobrancaId == itemId).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Parcela>> ListarEmAbertoDoVinculoParaEdicao(Guid vinculoId, CancellationToken ct = default) =>
+        await db.Parcelas.Where(p => p.VinculoId == vinculoId && p.Status == StatusDaParcela.Aberta).ToListAsync(ct);
 
     /// <inheritdoc />
     /// <remarks>
@@ -103,6 +123,23 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
                 .ToListAsync(ct),
             hoje
         );
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// "Vencida" é aberta com vencimento no passado, como em toda leitura daqui; o aviso pendente sai
+    /// da mesma subconsulta que alimenta <c>EmConferencia</c> em <see cref="Linhas(AppDbContext)"/>.
+    /// </remarks>
+    public Task<int> ContarVencidasSemAviso(Guid vinculoId, DateOnly hoje, CancellationToken ct = default) =>
+        db
+            .Parcelas.AsNoTracking()
+            .CountAsync(
+                p =>
+                    p.VinculoId == vinculoId
+                    && p.Status == StatusDaParcela.Aberta
+                    && p.Vencimento < hoje
+                    && !db.Informes.Any(i => i.ParcelaId == p.Id && i.Status == StatusDoInforme.Pendente),
+                ct
+            );
 
     /// <inheritdoc />
     /// <remarks>

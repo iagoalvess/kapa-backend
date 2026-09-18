@@ -4,17 +4,21 @@ using Backend.Business.Admin.Interfaces;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Auth.Interfaces;
+using Backend.Business.Busca.Interfaces;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Comunicacao.Interfaces;
 using Backend.Business.Convites.Interfaces;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Festa.Interfaces;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Leads.Interfaces;
 using Backend.Business.Legal.Interfaces;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Pagamentos.Interfaces;
+using Backend.Business.Privacidade.Interfaces;
 using Backend.Business.Recebimentos.Interfaces;
 using Backend.Business.Relatorios.Interfaces;
 using Backend.Business.Usuarios.Interfaces;
@@ -110,6 +114,7 @@ public static class DependenciasData
         services.AddScoped<IAdminRepository, AdminRepository>();
         services.AddScoped<IEmailFilaRepository, EmailFilaRepository>();
         services.AddScoped<IEventoRepository, EventoRepository>();
+        services.AddScoped<IBuscaRepository, BuscaRepository>();
         services.AddScoped<IArquivoRepository, ArquivoRepository>();
         services.AddScoped<IVinculoRepository, VinculoRepository>();
         services.AddScoped<IConviteRepository, ConviteRepository>();
@@ -123,6 +128,7 @@ public static class DependenciasData
         services.AddScoped<IContaDeRecebimentoRepository, ContaDeRecebimentoRepository>();
         services.AddScoped<IInformeRepository, InformeRepository>();
         services.AddScoped<IRecebimentoRepository, RecebimentoRepository>();
+        services.AddScoped<IItemDaFestaRepository, ItemDaFestaRepository>();
         services.AddScoped<IFornecedorRepository, FornecedorRepository>();
         services.AddScoped<IDespesaRepository, DespesaRepository>();
         services.AddScoped<ICaixaRepository, CaixaRepository>();
@@ -131,6 +137,8 @@ public static class DependenciasData
         services.AddScoped<IAvisoRepository, AvisoRepository>();
         services.AddScoped<INotificacaoRepository, NotificacaoRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
+        services.AddScoped<IPrivacidadeRepository, PrivacidadeRepository>();
+        services.AddScoped<ILeadRepository, LeadRepository>();
 
         return services;
     }

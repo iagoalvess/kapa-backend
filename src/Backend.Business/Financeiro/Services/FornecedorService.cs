@@ -37,6 +37,9 @@ public sealed class FornecedorService(
     ) => Result.Ok(await fornecedorRepository.Listar(paginacao.Normalizar(), filtro, ct));
 
     /// <inheritdoc />
+    public async Task<Result<ContagemDeFornecedores>> Contar(CancellationToken ct = default) => Result.Ok(await fornecedorRepository.Contar(ct));
+
+    /// <inheritdoc />
     public async Task<Result<FornecedorResumo>> ObterPorId(Guid id, CancellationToken ct = default) =>
         await fornecedorRepository.ObterResumo(id, ct) is { } fornecedor ? fornecedor : NaoEncontrado;
 

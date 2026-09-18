@@ -31,6 +31,16 @@ public interface IAvisoService
     /// <param name="usuarioId">Quem consulta.</param>
     Task<Result<ResumoDoMural>> Resumir(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
 
+    /// <summary>O que entrou no mural desde a última visita desta pessoa — o sino do cabeçalho.</summary>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Quem consulta.</param>
+    Task<Result<NovidadesDoMural>> Novidades(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>Marca o mural como visto agora: o sino zera para esta pessoa.</summary>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Quem viu.</param>
+    Task<Result> MarcarVisto(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+
     /// <summary>Um aviso, se quem consulta pode lê-lo.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Quem consulta.</param>
@@ -76,6 +86,12 @@ public interface IAvisoRepository
     /// <summary>Quantos avisos, fixados, importantes e internos o papel vê, e a última publicação.</summary>
     /// <param name="papel">Papel de quem consulta.</param>
     Task<ResumoDoMural> Resumir(string? papel, CancellationToken ct = default);
+
+    /// <summary>Os avisos publicados depois da última visita ao mural, para o sino.</summary>
+    /// <param name="papel">Papel de quem consulta; fora da gestão, só os da turma.</param>
+    /// <param name="vistoEm">Quando a pessoa viu o mural pela última vez; nulo se nunca viu.</param>
+    /// <param name="limite">Quantos avisos trazer na lista.</param>
+    Task<NovidadesDoMural> Novidades(string? papel, DateTime? vistoEm, int limite, CancellationToken ct = default);
 
     /// <summary>Um aviso; nulo se não existir aqui ou se o papel não o puder ler.</summary>
     /// <param name="id">Aviso.</param>

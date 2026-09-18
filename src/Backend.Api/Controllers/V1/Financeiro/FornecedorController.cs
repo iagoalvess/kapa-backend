@@ -54,6 +54,18 @@ public sealed class FornecedorController(IFornecedorService fornecedorService) :
         return Responder(resultado.Map(pagina => pagina.ParaDTO(fornecedor => fornecedor.Adapt<FornecedorDTO>())));
     }
 
+    /// <summary>Quantos fornecedores a turma tem ativos e inativos — os números das pílulas da tela.</summary>
+    /// <remarks>
+    /// Existe para a tela não pedir duas listas de um item só (<c>tamanho=1</c>) das quais só se lia o
+    /// <c>total</c> — o caminho que a Sprint 10 tomou por não haver resumo aqui.
+    /// </remarks>
+    [HttpGet("resumo")]
+    [Authorize(Policy = Politicas.Tesouraria)]
+    [ProducesResponseType(typeof(ContagemDeFornecedoresDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Resumir(CancellationToken ct) =>
+        Responder((await fornecedorService.Contar(ct)).Map(contagem => contagem.Adapt<ContagemDeFornecedoresDTO>()));
+
     /// <summary>Um fornecedor da turma.</summary>
     /// <param name="id">Fornecedor.</param>
     [HttpGet("{id:guid}", Name = RotaDoFornecedor)]

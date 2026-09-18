@@ -3,6 +3,7 @@ using Backend.Api.Analytics;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Cobrancas;
 using Backend.Api.DTOs.Comum;
+using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
@@ -28,7 +29,7 @@ namespace Backend.Api.Controllers.V1.Cobrancas;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/cobrancas")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class CobrancaController(ICobrancaService cobrancaService) : MainController
+public sealed class CobrancaController(ICobrancaService cobrancaService, IUsuarioAtual usuarioAtual) : MainController
 {
     /// <summary>Nome da rota do detalhe do plano, para o <c>Location</c> da criação.</summary>
     public const string RotaDoPlano = "PlanoDeCobrancaPorId";
@@ -80,9 +81,18 @@ public sealed class CobrancaController(ICobrancaService cobrancaService) : MainC
     public async Task<IActionResult> Atualizar(Guid id, [FromBody] PlanoDeCobrancaRequestDTO requisicao, CancellationToken ct) =>
         Responder(ParaDTO(await cobrancaService.Atualizar(id, requisicao.Adapt<DadosDoPlano>(), ct)));
 
-    /// <summary>Inclui um item. Devolve o plano inteiro.</summary>
+    /// <summary>
+    /// Inclui um item. Devolve o plano inteiro.
+    /// </summary>
+    /// <remarks>
+    /// Por padrão o item vale só para quem aderir daqui em diante — a parcela nasce na adesão.
+    /// Com <c>aplicar_a_quem_ja_aderiu</c> e a <c>origem_da_decisao</c>, ele é um rateio
+    /// extraordinário e alcança também quem já aderiu; sem a origem, 400
+    /// <c>cobranca.origem_obrigatoria</c>, e com o primeiro mês no passado, 400
+    /// <c>cobranca.rateio_retroativo</c>.
+    /// </remarks>
     /// <param name="id">Plano.</param>
-    /// <param name="requisicao">Item.</param>
+    /// <param name="requisicao">Item, com o rateio opcional.</param>
     [HttpPost("planos/{id:guid}/itens")]
     [Authorize(Policy = Politicas.Tesouraria)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
@@ -92,8 +102,12 @@ public sealed class CobrancaController(ICobrancaService cobrancaService) : MainC
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> AdicionarItem(Guid id, [FromBody] ItemDeCobrancaRequestDTO requisicao, CancellationToken ct) =>
-        Responder(ParaDTO(await cobrancaService.AdicionarItem(id, requisicao.Adapt<DadosDoItem>(), ct)));
+    public async Task<IActionResult> AdicionarItem(Guid id, [FromBody] ItemDeCobrancaRequestDTO requisicao, CancellationToken ct)
+    {
+        var rateio = requisicao.AplicarAQuemJaAderiu ? new RateioExtraordinario(requisicao.OrigemDaDecisao ?? string.Empty) : null;
+
+        return Responder(ParaDTO(await cobrancaService.AdicionarItem(id, requisicao.Adapt<DadosDoItem>(), rateio, ct)));
+    }
 
     /// <summary>Altera um item. Com parcela gerada, só valor e descrição — e o valor novo vale só para o que não venceu.</summary>
     /// <param name="id">Plano.</param>
@@ -102,14 +116,13 @@ public sealed class CobrancaController(ICobrancaService cobrancaService) : MainC
     [HttpPut("planos/{id:guid}/itens/{itemId:guid}")]
     [Authorize(Policy = Politicas.Tesouraria)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [RegistrarEvento("cobranca.item_alterado", CamposDaRota = ["id", "itemId"])]
     [ProducesResponseType(typeof(PlanoDeCobrancaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> AlterarItem(Guid id, Guid itemId, [FromBody] ItemDeCobrancaRequestDTO requisicao, CancellationToken ct) =>
-        Responder(ParaDTO(await cobrancaService.AlterarItem(id, itemId, requisicao.Adapt<DadosDoItem>(), ct)));
+        Responder(ParaDTO(await cobrancaService.AlterarItem(id, itemId, requisicao.Adapt<DadosDoItem>(), usuarioAtual.Id, ct)));
 
     /// <summary>Remove um item que nunca gerou parcela. Em uso, 409 <c>cobranca.item_em_uso</c>: encerre-o.</summary>
     /// <param name="id">Plano.</param>
@@ -117,13 +130,12 @@ public sealed class CobrancaController(ICobrancaService cobrancaService) : MainC
     [HttpDelete("planos/{id:guid}/itens/{itemId:guid}")]
     [Authorize(Policy = Politicas.Tesouraria)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [RegistrarEvento("cobranca.item_removido", CamposDaRota = ["id", "itemId"])]
     [ProducesResponseType(typeof(PlanoDeCobrancaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> RemoverItem(Guid id, Guid itemId, CancellationToken ct) =>
-        Responder(ParaDTO(await cobrancaService.RemoverItem(id, itemId, ct)));
+        Responder(ParaDTO(await cobrancaService.RemoverItem(id, itemId, usuarioAtual.Id, ct)));
 
     /// <summary>Encerra um item: para de cobrar e cancela as parcelas que vencem de amanhã em diante.</summary>
     /// <param name="id">Plano.</param>
@@ -131,12 +143,11 @@ public sealed class CobrancaController(ICobrancaService cobrancaService) : MainC
     [HttpPost("planos/{id:guid}/itens/{itemId:guid}/encerrar")]
     [Authorize(Policy = Politicas.Tesouraria)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [RegistrarEvento("cobranca.item_encerrado", CamposDaRota = ["id", "itemId"])]
     [ProducesResponseType(typeof(PlanoDeCobrancaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> EncerrarItem(Guid id, Guid itemId, CancellationToken ct) =>
-        Responder(ParaDTO(await cobrancaService.EncerrarItem(id, itemId, ct)));
+        Responder(ParaDTO(await cobrancaService.EncerrarItem(id, itemId, usuarioAtual.Id, ct)));
 
     /// <summary>A grade de um formando e o total da turma, sem gravar nada.</summary>
     /// <remarks>
@@ -163,12 +174,12 @@ public sealed class CobrancaController(ICobrancaService cobrancaService) : MainC
     [HttpPost("planos/{id:guid}/vigorar")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [RegistrarEvento("cobranca.plano_vigorado", CamposDaRota = ["id"])]
     [ProducesResponseType(typeof(PlanoDeCobrancaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Vigorar(Guid id, CancellationToken ct) => Responder(ParaDTO(await cobrancaService.Vigorar(id, ct)));
+    public async Task<IActionResult> Vigorar(Guid id, CancellationToken ct) =>
+        Responder(ParaDTO(await cobrancaService.Vigorar(id, usuarioAtual.Id, ct)));
 
     /// <summary>As parcelas da turma, por vencimento.</summary>
     /// <param name="paginacao">Página e tamanho; o teto é aplicado no servidor.</param>

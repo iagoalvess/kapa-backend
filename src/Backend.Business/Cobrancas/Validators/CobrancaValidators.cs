@@ -28,6 +28,14 @@ public sealed class DadosDoPlanoValidator : AbstractValidator<DadosDoPlano>
         RuleFor(x => x.PercentualDeDescontoPorAntecipacao)
             .InclusiveBetween(0, PercentualMaximo)
             .WithMessage("O desconto deve ficar entre 0% e 100%.");
+
+        RuleFor(x => x.DiasMinimosParaDesconto).InclusiveBetween(0, 365).WithMessage("A antecedência do desconto deve ficar entre 0 e 365 dias.");
+
+        RuleFor(x => x.DiasMinimosParaDesconto)
+            .GreaterThan(0)
+            .When(x => x.PercentualDeDescontoPorAntecipacao > 0)
+            .WithErrorCode("cobranca.antecedencia_obrigatoria")
+            .WithMessage("Diga com quantos dias de antecedência o desconto vale — senão ele sai para quem pagar um dia antes.");
     }
 }
 
@@ -79,6 +87,30 @@ public sealed class DadosDoItemValidator : AbstractValidator<DadosDoItem>
             .InclusiveBetween(2000, 2100)
             .OverridePropertyName("primeiro_mes")
             .WithMessage("Informe o mês do primeiro vencimento.");
+    }
+}
+
+/// <summary>
+/// Forma do rateio extraordinário: sem a origem da decisão, ele não existe.
+/// </summary>
+/// <remarks>
+/// A origem é obrigatória porque é a única prova da cobrança — quem já aderiu passa a dever por
+/// um item que o termo aceito não cita, e "quem mandou" não pode ficar na memória da tesouraria.
+/// </remarks>
+public sealed class RateioExtraordinarioValidator : AbstractValidator<RateioExtraordinario>
+{
+    /// <summary>Tamanho da origem da decisão.</summary>
+    public const int TamanhoDaOrigem = 200;
+
+    /// <summary>Registra as regras de validação.</summary>
+    public RateioExtraordinarioValidator()
+    {
+        RuleFor(x => x.OrigemDaDecisao)
+            .NotEmpty()
+            .WithErrorCode("cobranca.origem_obrigatoria")
+            .WithMessage("Informe onde a turma decidiu esta cobrança — a assembleia e a data.")
+            .MaximumLength(TamanhoDaOrigem)
+            .WithMessage($"A origem deve ter no máximo {TamanhoDaOrigem} caracteres.");
     }
 }
 

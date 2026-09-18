@@ -31,6 +31,22 @@ public class Evento
     /// <summary>Usuário que originou o evento. Nulo em ação anônima ou de sistema.</summary>
     public Guid? UsuarioId { get; init; }
 
+    /// <summary>
+    /// Formatura a que o evento pertence. Nula no evento que não é de turma nenhuma.
+    /// </summary>
+    /// <remarks>
+    /// Coluna, e não uma chave dentro de <see cref="Dados"/> (Sprint 14): a trilha de auditoria é
+    /// por turma, e o filtro precisa de índice. Extrair a turma do <c>jsonb</c> a cada consulta
+    /// significaria varrer a maior tabela do banco toda vez que a assembleia abre a tela.
+    /// <para>
+    /// A entidade <b>não</b> herda de <c>EntidadeDaFormatura</c>, e isso é deliberado: eventos são
+    /// da plataforma inteira — login, bloqueio por tentativas, ação de administrador —, e um filtro
+    /// global aqui esconderia justamente os que não pertencem a turma nenhuma. Quem preenche a
+    /// coluna é <c>Auditoria.Auditar</c>, a partir do próprio corpo do evento.
+    /// </para>
+    /// </remarks>
+    public Guid? FormaturaId { get; init; }
+
     /// <summary>Momento em que o evento aconteceu, em UTC.</summary>
     /// <remarks>
     /// Capturado no momento do evento, e não na gravação: a fila grava em lote, então os dois

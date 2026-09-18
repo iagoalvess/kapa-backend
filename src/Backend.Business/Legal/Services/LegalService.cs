@@ -104,6 +104,39 @@ public sealed class LegalService(ILegalRepository legalRepository, IValidator<Re
         return new MeusAceites(historico, pendencias);
     }
 
+    /// <inheritdoc />
+    public async Task<Result> Revogar(Guid usuarioId, Guid consentimentoId, OrigemDoAceite origem, CancellationToken ct = default)
+    {
+        var consentimento = await legalRepository.ObterConsentimentoDoTitular(consentimentoId, usuarioId, ct);
+
+        if (consentimento is null)
+            return Result.Falha(Erro.NaoEncontrado("legal.consentimento_nao_encontrado", "Registro de consentimento não encontrado."));
+
+        if (
+            consentimento.Revogado
+            || await legalRepository.TemRevogacaoPosterior(usuarioId, consentimento.DocumentoLegalId, consentimento.AceitoEm, ct)
+        )
+            return Result.Falha(Erro.Conflito("legal.consentimento_ja_revogado", "Este consentimento já foi revogado."));
+
+        await legalRepository.Adicionar(
+            new ConsentimentoRegistrado
+            {
+                UsuarioId = usuarioId,
+                DocumentoLegalId = consentimento.DocumentoLegalId,
+                Versao = consentimento.Versao,
+                AceitoEm = DateTime.UtcNow,
+                EnderecoIp = origem.EnderecoIp ?? string.Empty,
+                UserAgent = TextoUtils.Truncar(origem.UserAgent, TamanhoMaximoDoUserAgent) ?? string.Empty,
+                Revogado = true,
+            },
+            ct
+        );
+
+        await unitOfWork.SalvarAsync(ct);
+
+        return Result.Ok();
+    }
+
     /// <summary>
     /// Confirma que o aceite aponta para a versão vigente do documento.
     /// </summary>

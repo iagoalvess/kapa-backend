@@ -34,6 +34,9 @@ public sealed class AvisoService(
     /// <summary>Evento da exclusão, com quem excluiu e o que foi excluído — lido pela trilha de auditoria (Sprint 14).</summary>
     public const string EventoDeExclusao = "comunicacao.aviso_excluido";
 
+    /// <summary>Quantos avisos novos o balão do sino lista; o resto vira "e mais N" na contagem.</summary>
+    private const int NovidadesNoSino = 5;
+
     private static readonly Erro NaoEncontrado = Erro.NaoEncontrado("comunicacao.aviso_nao_encontrado", "Aviso não encontrado.");
 
     private static readonly Erro LimiteDeFixados = Erro.Conflito(
@@ -66,6 +69,43 @@ public sealed class AvisoService(
         var papel = await vinculoRepository.ObterPapelAtivo(usuarioId, formaturaId, ct);
 
         return Result.Ok(await avisoRepository.Resumir(papel, ct));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Mesmo recorte de visibilidade do resto: o aviso interno não conta no sino de quem não o lê —
+    /// um selo com "1" que não corresponde a linha nenhuma na lista é a mesma brecha, de outro jeito.
+    /// <para>
+    /// Sem vínculo ativo não há sino: quem foi desligado não recebe novidade de turma.
+    /// </para>
+    /// </remarks>
+    public async Task<Result<NovidadesDoMural>> Novidades(Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
+    {
+        var vinculo = await vinculoRepository.ObterAtivoParaEdicao(usuarioId, formaturaId, ct);
+
+        if (vinculo is null || vinculo.Desligado)
+            return Result.Ok(NovidadesDoMural.Nenhuma);
+
+        return Result.Ok(await avisoRepository.Novidades(vinculo.Papel, vinculo.MuralVistoEm, NovidadesNoSino, ct));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Quem chama é a tela do mural, ao abrir. Não é o sino que zera a si mesmo: abrir o balão é dar
+    /// uma olhada, e o que marca como visto é a visita à lista, onde os avisos estão inteiros.
+    /// </remarks>
+    public async Task<Result> MarcarVisto(Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
+    {
+        var vinculo = await vinculoRepository.ObterAtivoParaEdicao(usuarioId, formaturaId, ct);
+
+        if (vinculo is null)
+            return Result.Ok();
+
+        vinculo.VerMural(DateTime.UtcNow);
+
+        await unitOfWork.SalvarAsync(ct);
+
+        return Result.Ok();
     }
 
     /// <inheritdoc />

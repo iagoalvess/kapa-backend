@@ -3,20 +3,11 @@ namespace Backend.Business.Notificacoes.Models;
 /// <summary>Um degrau da régua, como a tesouraria o edita.</summary>
 /// <param name="Gatilho">O que dispara. Com <paramref name="DiasDeDeslocamento"/>, é a identidade do degrau.</param>
 /// <param name="DiasDeDeslocamento">Dias de distância do gatilho; negativo é antes do vencimento.</param>
-/// <param name="Canal">Por onde sai.</param>
 /// <param name="Assunto">Assunto, com as variáveis de <c>TemplateDeNotificacao</c>.</param>
 /// <param name="Template">Corpo, com as mesmas variáveis.</param>
 /// <param name="Ativa">Se dispara.</param>
 /// <param name="AvisarTesouraria">Se a tesouraria recebe cópia.</param>
-public sealed record DadosDaRegra(
-    GatilhoDaRegua Gatilho,
-    int DiasDeDeslocamento,
-    CanalDeNotificacao Canal,
-    string Assunto,
-    string Template,
-    bool Ativa,
-    bool AvisarTesouraria
-);
+public sealed record DadosDaRegra(GatilhoDaRegua Gatilho, int DiasDeDeslocamento, string Assunto, string Template, bool Ativa, bool AvisarTesouraria);
 
 /// <summary>A régua inteira, como a tela a grava: os degraus de uma vez.</summary>
 /// <param name="Regras">Degraus. Cada par <c>(gatilho, dias)</c> aparece uma vez.</param>
@@ -26,7 +17,6 @@ public sealed record DadosDaRegua(IReadOnlyList<DadosDaRegra> Regras);
 /// <param name="Id">Identificador.</param>
 /// <param name="Gatilho">O que dispara.</param>
 /// <param name="DiasDeDeslocamento">Dias de distância do gatilho.</param>
-/// <param name="Canal">Por onde sai.</param>
 /// <param name="Assunto">Assunto.</param>
 /// <param name="Template">Corpo.</param>
 /// <param name="Ativa">Se dispara.</param>
@@ -35,7 +25,6 @@ public sealed record RegraResumo(
     Guid Id,
     GatilhoDaRegua Gatilho,
     int DiasDeDeslocamento,
-    CanalDeNotificacao Canal,
     string Assunto,
     string Template,
     bool Ativa,
@@ -43,25 +32,17 @@ public sealed record RegraResumo(
 );
 
 /// <summary>Filtros do histórico de envios.</summary>
-/// <param name="Canal">Só deste canal.</param>
 /// <param name="Status">Só nesta situação.</param>
 /// <param name="De">A partir deste dia de referência, inclusive.</param>
 /// <param name="Ate">Até este dia de referência, inclusive.</param>
 /// <param name="Busca">Trecho do destinatário ou do nome de quem recebeu.</param>
-public sealed record FiltroDeNotificacoes(
-    CanalDeNotificacao? Canal = null,
-    StatusDaNotificacao? Status = null,
-    DateOnly? De = null,
-    DateOnly? Ate = null,
-    string? Busca = null
-);
+public sealed record FiltroDeNotificacoes(StatusDaNotificacao? Status = null, DateOnly? De = null, DateOnly? Ate = null, string? Busca = null);
 
-/// <summary>Uma linha do histórico: quem recebeu o quê, quando, por qual canal e com qual resultado.</summary>
+/// <summary>Uma linha do histórico: quem recebeu o quê, quando e com qual resultado.</summary>
 /// <param name="Id">Identificador.</param>
 /// <param name="Destinatario">Endereço que recebeu.</param>
 /// <param name="Nome">Nome de quem recebeu; ausente no resumo à tesouraria.</param>
 /// <param name="Assunto">Assunto enviado.</param>
-/// <param name="Canal">Por onde saiu.</param>
 /// <param name="Status">Resultado.</param>
 /// <param name="Erro">Por que falhou, quando falhou.</param>
 /// <param name="DataDeReferencia">Dia em que a régua rodou.</param>
@@ -73,7 +54,6 @@ public sealed record NotificacaoNoHistorico(
     string Destinatario,
     string? Nome,
     string Assunto,
-    CanalDeNotificacao Canal,
     StatusDaNotificacao Status,
     string? Erro,
     DateOnly DataDeReferencia,

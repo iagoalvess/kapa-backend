@@ -29,6 +29,11 @@ namespace Backend.Business.Adesoes.Models;
 /// <param name="Itens">Itens que cobravam, na ordem do plano.</param>
 /// <param name="Parcelas">A grade do formando, por vencimento.</param>
 /// <param name="TotalEmCentavos">Soma das parcelas.</param>
+/// <param name="DiasMinimosParaDesconto">
+/// Dias de antecedência que o desconto exige (revisão de 17/09/2026). Por último e com padrão, para
+/// os snapshots já assinados continuarem lendo: neles o campo não existe, e zero é exatamente a regra
+/// que aquelas pessoas aceitaram — qualquer dia antes do vencimento.
+/// </param>
 public sealed record SnapshotDoPlano(
     int VersaoDoEsquema,
     Guid PlanoId,
@@ -39,7 +44,8 @@ public sealed record SnapshotDoPlano(
     int PercentualDeDescontoPorAntecipacao,
     IReadOnlyList<DadosDoItem> Itens,
     IReadOnlyList<ParcelaSimulada> Parcelas,
-    long TotalEmCentavos
+    long TotalEmCentavos,
+    int DiasMinimosParaDesconto = 0
 )
 {
     /// <summary>Versão atual da forma do JSON.</summary>
@@ -55,12 +61,18 @@ public sealed record SnapshotDoPlano(
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    /// <summary>Congela o plano vigente.</summary>
+    /// <summary>Congela o plano vigente, com a grade de quem adere no dia.</summary>
+    /// <remarks>
+    /// A grade sai por <c>GradeDeParcelas.DeQuemAdereEm</c>: quem adere depois do começo do plano
+    /// deve o mesmo total, redividido pelas parcelas que ainda não venceram. É a mesma conta da
+    /// geração — o que a pessoa lê e assina é, parcela por parcela, o que ela passa a dever.
+    /// </remarks>
     /// <param name="plano">Plano em vigor, com os itens.</param>
-    public static SnapshotDoPlano De(PlanoDeCobranca plano)
+    /// <param name="hoje">Dia da adesão.</param>
+    public static SnapshotDoPlano De(PlanoDeCobranca plano, DateOnly hoje)
     {
         var itens = plano.DadosDosItensAtivos();
-        var parcelas = GradeDeParcelas.DoFormando(itens);
+        var parcelas = GradeDeParcelas.DoFormando(itens, hoje);
 
         return new SnapshotDoPlano(
             EsquemaAtual,
@@ -72,7 +84,8 @@ public sealed record SnapshotDoPlano(
             plano.PercentualDeDescontoPorAntecipacao,
             itens,
             parcelas,
-            parcelas.Sum(parcela => parcela.ValorEmCentavos)
+            parcelas.Sum(parcela => parcela.ValorEmCentavos),
+            plano.DiasMinimosParaDesconto
         );
     }
 
@@ -86,7 +99,8 @@ public sealed record SnapshotDoPlano(
 
     /// <summary>As regras de atraso aceitas — as que o valor do dia usa (Sprint 9).</summary>
     /// <remarks>Método, e não propriedade: propriedade entraria no JSON e mudaria o hash das adesões novas.</remarks>
-    public RegrasDeAtraso Regras() => new(PercentualDeMulta, PercentualDeJurosAoMes, CarenciaEmDias, PercentualDeDescontoPorAntecipacao);
+    public RegrasDeAtraso Regras() =>
+        new(PercentualDeMulta, PercentualDeJurosAoMes, CarenciaEmDias, PercentualDeDescontoPorAntecipacao, DiasMinimosParaDesconto);
 
     /// <summary>
     /// As regras de atraso numa frase — "multa de 2% e juros de 1% ao mês…" —, a mesma no PDF e no e-mail.
@@ -100,8 +114,11 @@ public sealed record SnapshotDoPlano(
                     + $"{FormatosBrasileiros.Percentual(PercentualDeJurosAoMes)} ao mês"
                     + (CarenciaEmDias > 0 ? $", depois de {CarenciaEmDias} dias de carência." : ".");
 
-        return PercentualDeDescontoPorAntecipacao > 0
-            ? $"{atraso} Desconto de {FormatosBrasileiros.Percentual(PercentualDeDescontoPorAntecipacao)} para pagamento antes do vencimento."
-            : atraso;
+        if (PercentualDeDescontoPorAntecipacao == 0)
+            return atraso;
+
+        var antecedencia = DiasMinimosParaDesconto > 0 ? $"com pelo menos {DiasMinimosParaDesconto} dias de antecedência" : "antes do vencimento";
+
+        return $"{atraso} Desconto de {FormatosBrasileiros.Percentual(PercentualDeDescontoPorAntecipacao)} para pagamento {antecedencia}.";
     }
 }

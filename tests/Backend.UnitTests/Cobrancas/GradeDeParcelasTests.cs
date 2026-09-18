@@ -77,4 +77,65 @@ public sealed class GradeDeParcelasTests
         // Assert
         vencimento.ShouldBe(new DateOnly(ano, 2, ultimoDia));
     }
+
+    [Fact]
+    public void Quem_adere_na_publicacao_recebe_a_grade_inteira()
+    {
+        // Arrange
+        var item = Item(840_000, 24, primeiroMes: new DateOnly(2027, 3, 1));
+
+        // Act
+        var grade = GradeDeParcelas.DeQuemAdereEm(item, new DateOnly(2027, 2, 20));
+
+        // Assert
+        grade.ShouldBe(item.Grade());
+    }
+
+    /// <summary>
+    /// O plano começou em março de 2027; quem adere em setembro perdeu seis vencimentos. Ele deve o
+    /// mesmo total, em 18 parcelas de R$ 466,67 — e nenhuma delas nasce vencida.
+    /// </summary>
+    [Fact]
+    public void Quem_adere_depois_paga_o_mesmo_total_em_menos_vezes()
+    {
+        // Act
+        var grade = GradeDeParcelas.DeQuemAdereEm(Item(840_000, 24, primeiroMes: new DateOnly(2027, 3, 1)), new DateOnly(2027, 9, 1));
+
+        // Assert
+        grade.Count.ShouldBe(18);
+        grade.Sum(parcela => parcela.ValorEmCentavos).ShouldBe(840_000);
+        grade.ShouldAllBe(parcela => parcela.Vencimento >= new DateOnly(2027, 9, 1));
+        grade[0].Numero.ShouldBe(7);
+        grade[0].ValorEmCentavos.ShouldBe(46_678);
+        grade[^1].ValorEmCentavos.ShouldBe(46_666);
+    }
+
+    /// <summary>Vence hoje ainda não venceu: a parcela do dia entra na grade de quem adere hoje.</summary>
+    [Fact]
+    public void Parcela_que_vence_hoje_continua_na_grade()
+    {
+        // Act
+        var grade = GradeDeParcelas.DeQuemAdereEm(Item(100_000, 2, primeiroMes: new DateOnly(2027, 3, 1)), new DateOnly(2027, 3, 10));
+
+        // Assert
+        grade.Count.ShouldBe(2);
+        grade[0].Vencimento.ShouldBe(new DateOnly(2027, 3, 10));
+    }
+
+    /// <summary>
+    /// Aderir depois do último vencimento não pode gerar zero parcela nem uma já vencida: o total
+    /// inteiro vira uma só, no próximo dia de vencimento que ainda vai acontecer.
+    /// </summary>
+    [Fact]
+    public void Quem_adere_depois_do_ultimo_vencimento_deve_tudo_de_uma_vez()
+    {
+        // Act
+        var grade = GradeDeParcelas.DeQuemAdereEm(Item(840_000, 24, primeiroMes: new DateOnly(2027, 3, 1)), new DateOnly(2029, 5, 20));
+
+        // Assert
+        grade.Count.ShouldBe(1);
+        grade[0].Numero.ShouldBe(24);
+        grade[0].ValorEmCentavos.ShouldBe(840_000);
+        grade[0].Vencimento.ShouldBe(new DateOnly(2029, 6, 10));
+    }
 }

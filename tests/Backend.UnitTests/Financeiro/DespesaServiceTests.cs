@@ -2,6 +2,8 @@ using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Models;
 using Backend.Business.Common.Datas;
+using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Festa.Interfaces;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Models;
 using Backend.Business.Financeiro.Services;
@@ -26,7 +28,9 @@ public sealed class DespesaServiceTests
 
     private readonly IDespesaRepository _despesas = Substitute.For<IDespesaRepository>();
     private readonly IFornecedorRepository _fornecedores = Substitute.For<IFornecedorRepository>();
+    private readonly IItemDaFestaRepository _itensDaFesta = Substitute.For<IItemDaFestaRepository>();
     private readonly IArquivoService _arquivos = Substitute.For<IArquivoService>();
+    private readonly IEventoRepository _eventos = Substitute.For<IEventoRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
     private readonly DateOnly _hoje = DataUtils.Hoje();
@@ -58,10 +62,12 @@ public sealed class DespesaServiceTests
         new(
             _despesas,
             _fornecedores,
+            _itensDaFesta,
             _arquivos,
             new NovaDespesaValidator(),
             new DadosDaDespesaValidator(),
             new PagarDespesaValidator(),
+            _eventos,
             _unitOfWork,
             NullLogger<DespesaService>.Instance
         );
@@ -217,7 +223,7 @@ public sealed class DespesaServiceTests
         // Act
         var resultado = await Servico.Atualizar(
             despesa.Id,
-            new DadosDaDespesa(FornecedorId, "Buffet — entrada", CategoriaDeDespesa.Buffet, 95_000, _hoje, _hoje),
+            new DadosDaDespesa(FornecedorId, null, "Buffet — entrada", CategoriaDeDespesa.Buffet, 95_000, _hoje, _hoje),
             Ct
         );
 
@@ -238,7 +244,7 @@ public sealed class DespesaServiceTests
         // Act
         var resultado = await Servico.Atualizar(
             despesa.Id,
-            new DadosDaDespesa(FornecedorId, "Buffet — entrada", CategoriaDeDespesa.Buffet, 95_000, _hoje, _hoje),
+            new DadosDaDespesa(FornecedorId, null, "Buffet — entrada", CategoriaDeDespesa.Buffet, 95_000, _hoje, _hoje),
             Ct
         );
 
@@ -257,7 +263,7 @@ public sealed class DespesaServiceTests
         _despesas.ObterParaEdicao(despesa.Id, Arg.Any<CancellationToken>()).Returns(despesa);
 
         // Act
-        var resultado = await Servico.Cancelar(despesa.Id, Ct);
+        var resultado = await Servico.Cancelar(despesa.Id, Guid.CreateVersion7(), Ct);
 
         // Assert
         resultado.Falhou.ShouldBeTrue();
@@ -317,10 +323,26 @@ public sealed class DespesaServiceTests
     }
 
     private NovaDespesa Nova(long valorEmCentavos = 100_000, int parcelas = 1, DateOnly? vencimento = null) =>
-        new(FornecedorId, "Buffet", CategoriaDeDespesa.Buffet, valorEmCentavos, parcelas, _hoje, vencimento ?? _hoje);
+        new(FornecedorId, null, "Buffet", CategoriaDeDespesa.Buffet, valorEmCentavos, parcelas, _hoje, vencimento ?? _hoje);
 
     private DespesaResumo Resumo(Guid id, StatusDaDespesa status) =>
-        new(id, LancamentoId, FornecedorId, "Buffet Sabor", "Buffet", CategoriaDeDespesa.Buffet, 100_000, _hoje, _hoje, 1, 1, status, null, false);
+        new(
+            id,
+            LancamentoId,
+            FornecedorId,
+            null,
+            "Buffet Sabor",
+            "Buffet",
+            CategoriaDeDespesa.Buffet,
+            100_000,
+            _hoje,
+            _hoje,
+            1,
+            1,
+            status,
+            null,
+            false
+        );
 
     private static NovoArquivo Comprovante(string nome) => new(nome, 10, Stream.Null, "comprovantes-despesa");
 }

@@ -3,6 +3,7 @@ using System.Text;
 using Backend.Business.Adesoes.Models;
 using Backend.Business.Adesoes.Services;
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Common.Datas;
 using Backend.Business.Common.Pdf;
 using Shouldly;
 
@@ -25,7 +26,7 @@ public sealed class TermoEmPdfTests
         plano.Itens.Add(ItemDeCobranca.Novo(plano.Id, new DadosDoItem(TipoDeCobranca.Mensalidade, null, 840_000, 24, 10, new DateOnly(2027, 3, 1))));
         plano.Vigorar(DateTime.UtcNow);
 
-        return SnapshotDoPlano.De(plano);
+        return SnapshotDoPlano.De(plano, DataUtils.Hoje());
     }
 
     private static AdesaoComTermo Adesao(string cpf = "52998224725") =>

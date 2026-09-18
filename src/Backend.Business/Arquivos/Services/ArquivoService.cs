@@ -51,6 +51,7 @@ public sealed class ArquivoService(
         [".txt"] = "text/plain",
         [".xlsx"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         [".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        [".zip"] = "application/zip",
     };
 
     /// <inheritdoc />

@@ -39,12 +39,14 @@ public interface IAuthService
     /// <param name="papel">Papel do usuário nessa formatura.</param>
     /// <param name="refreshTokenAtual">Refresh token da sessão atual, obrigatório e revogado em favor do novo.</param>
     /// <param name="ipDeOrigem">IP do solicitante, registrado para auditoria.</param>
+    /// <param name="desligadoEm">Quando o usuário foi desligado dessa formatura, se foi.</param>
     Task<Result<ParDeTokens>> EmitirSessaoDeFormatura(
         Guid usuarioId,
         Guid formaturaId,
         string papel,
         string refreshTokenAtual,
         string? ipDeOrigem,
+        DateTime? desligadoEm = null,
         CancellationToken ct = default
     );
 

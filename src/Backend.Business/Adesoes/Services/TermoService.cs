@@ -2,6 +2,10 @@ using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Models;
 using Backend.Business.Cobrancas.Interfaces;
+using Backend.Business.Common.Datas;
+using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Eventos.Models;
+using Backend.Business.Eventos.Services;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
@@ -17,12 +21,16 @@ namespace Backend.Business.Adesoes.Services;
 /// <param name="adesaoRepository">Termos e adesões.</param>
 /// <param name="planoRepository">Plano vigente.</param>
 /// <param name="validator">Forma do texto.</param>
+/// <param name="eventos">Trilha de auditoria.</param>
+/// <param name="formaturaAtual">Turma da sessão — o termo é novo, e o contexto só carimba a dele no commit.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class TermoService(
     IAdesaoRepository adesaoRepository,
     IPlanoDeCobrancaRepository planoRepository,
     IValidator<PublicarTermo> validator,
+    IEventoRepository eventos,
+    IFormaturaAtual formaturaAtual,
     IUnitOfWork unitOfWork,
     ILogger<TermoService> logger
 ) : ITermoService
@@ -53,6 +61,27 @@ public sealed class TermoService(
         };
 
         await adesaoRepository.AdicionarTermo(termo, ct);
+
+        // O texto **não** entra no corpo: ele já é imutável na própria tabela de termos, e copiar
+        // páginas de contrato para dentro do evento engordaria a maior tabela do banco sem
+        // responder nada que a versão não responda.
+        await eventos.Auditar(
+            NomesDeAuditoria.TermoPublicado,
+            usuarioId,
+            new
+            {
+                // Da sessão, e **não** de `termo.FormaturaId`: o termo acabou de ser criado, e quem
+                // preenche essa coluna é o `SaveChangesAsync`, que ainda não rodou. Lê-la aqui
+                // grava `Guid.Empty` no evento — e o evento some da trilha da turma.
+                formaturaId = formaturaAtual.Id,
+                termoId = termo.Id,
+                termo.Versao,
+                versaoAnterior = vigente?.Versao,
+                caracteres = conteudo.Length,
+            },
+            ct
+        );
+
         await unitOfWork.SalvarAsync(ct);
 
         logger.LogInformation("Termo de adesão versão {Versao} publicado por {UsuarioId}.", termo.Versao, usuarioId);
@@ -68,7 +97,7 @@ public sealed class TermoService(
     public async Task<Result<ConteudoParaAdesao>> ObterParaAdesao(CancellationToken ct = default)
     {
         var termo = await adesaoRepository.ObterTermoVigente(ct);
-        var plano = await planoRepository.ObterVigente(ct) is { } vigente ? SnapshotDoPlano.De(vigente) : null;
+        var plano = await planoRepository.ObterVigente(ct) is { } vigente ? SnapshotDoPlano.De(vigente, DataUtils.Hoje()) : null;
         var hash = termo is null || plano is null ? null : AdesaoDoFormando.CalcularHash(termo.Conteudo, plano.ParaJson());
 
         return new ConteudoParaAdesao(termo, plano, hash);

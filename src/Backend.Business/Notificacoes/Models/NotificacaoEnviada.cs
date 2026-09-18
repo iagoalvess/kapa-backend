@@ -41,8 +41,8 @@ public class NotificacaoEnviada : EntidadeDaFormatura
     /// <summary>Dia (em Brasília) em que a régua rodou. É a terceira parte da chave.</summary>
     public DateOnly DataDeReferencia { get; private set; }
 
-    /// <summary>Por onde saiu.</summary>
-    public CanalDeNotificacao Canal { get; private set; }
+    /// <summary>Por onde saiu — hoje, sempre o e-mail.</summary>
+    public CanalDeNotificacao Canal { get; private set; } = CanalDeNotificacao.Email;
 
     /// <summary>Para quem — o endereço, que é o que a tesouraria mostra quando alguém diz que não foi avisado.</summary>
     public string Destinatario { get; private set; } = string.Empty;
@@ -65,16 +65,14 @@ public class NotificacaoEnviada : EntidadeDaFormatura
     /// <summary>Registra o disparo de uma mensagem.</summary>
     /// <param name="regraId">Degrau que disparou.</param>
     /// <param name="dia">Dia de referência, em Brasília.</param>
-    /// <param name="canal">Por onde saiu.</param>
     /// <param name="destinatario">Endereço.</param>
     /// <param name="assunto">Assunto já renderizado.</param>
     /// <param name="parcelaId">Parcela cobrada, se houver.</param>
     /// <param name="vinculoId">Vínculo de quem recebeu, se houver.</param>
-    /// <param name="emailNaFilaId">E-mail correspondente na fila, se o canal foi o e-mail.</param>
+    /// <param name="emailNaFilaId">E-mail correspondente na fila.</param>
     public static NotificacaoEnviada Nova(
         Guid regraId,
         DateOnly dia,
-        CanalDeNotificacao canal,
         string destinatario,
         string assunto,
         Guid? parcelaId = null,
@@ -85,7 +83,6 @@ public class NotificacaoEnviada : EntidadeDaFormatura
         {
             RegraId = regraId,
             DataDeReferencia = dia,
-            Canal = canal,
             Destinatario = destinatario,
             Assunto = assunto,
             ParcelaId = parcelaId,

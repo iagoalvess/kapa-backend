@@ -52,12 +52,21 @@ public sealed class FormaturaService(
         CancellationToken ct = default
     )
     {
-        var papel = await vinculoRepository.ObterPapelAtivo(usuarioId, formaturaId, ct);
+        // Do titular: a turma de quem foi desligado continua no seletor dele, em leitura (P5).
+        var vinculo = await vinculoRepository.ObterDoTitular(usuarioId, formaturaId, ct);
 
-        if (papel is null)
+        if (vinculo is null)
             return Erro.Proibido("formatura.sem_vinculo", "Você não participa desta formatura.");
 
-        return await authService.EmitirSessaoDeFormatura(usuarioId, formaturaId, papel, refreshTokenAtual, ipDeOrigem, ct);
+        return await authService.EmitirSessaoDeFormatura(
+            usuarioId,
+            formaturaId,
+            vinculo.Papel,
+            refreshTokenAtual,
+            ipDeOrigem,
+            vinculo.DesligadoEm,
+            ct
+        );
     }
 
     /// <inheritdoc />
@@ -112,7 +121,7 @@ public sealed class FormaturaService(
                     PapelNaFormatura.Presidente,
                     refreshTokenAtual,
                     ipDeOrigem,
-                    token
+                    ct: token
                 );
             },
             ct

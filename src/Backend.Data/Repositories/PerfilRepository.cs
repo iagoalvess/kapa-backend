@@ -25,6 +25,15 @@ public sealed class PerfilRepository(AppDbContext db) : IPerfilRepository
         ).FirstOrDefaultAsync(ct);
 
     /// <inheritdoc />
+    public Task<MembroDoPerfil?> ObterTitular(Guid formaturaId, Guid usuarioId, CancellationToken ct = default) =>
+        (
+            from vinculo in db.Vinculos.AsNoTracking()
+            join usuario in db.Users.AsNoTracking() on vinculo.UsuarioId equals usuario.Id
+            where vinculo.FormaturaId == formaturaId && vinculo.UsuarioId == usuarioId && (vinculo.Ativo || vinculo.DesligadoEm != null)
+            select new MembroDoPerfil(vinculo.Id, usuario.Id, usuario.Nome, usuario.Email ?? string.Empty, vinculo.Papel)
+        ).FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
     public Task<PerfilDoFormando?> ObterDoVinculo(Guid vinculoId, CancellationToken ct = default) =>
         db.PerfisDeFormandos.AsNoTracking().FirstOrDefaultAsync(p => p.VinculoId == vinculoId, ct);
 

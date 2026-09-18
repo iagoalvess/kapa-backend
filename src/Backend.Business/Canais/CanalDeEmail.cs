@@ -28,7 +28,14 @@ public sealed class CanalDeEmail(IEmailService emailService, IOptions<AplicacaoS
     /// <inheritdoc />
     public async Task<Result<EntregaDaMensagem>> Enviar(MensagemDeNotificacao mensagem, CancellationToken ct = default)
     {
-        var corpo = ModeloDeEmail.Montar(_aplicacao.Nome, mensagem.Assunto, mensagem.CorpoHtml, mensagem.TextoDoLink, mensagem.Link);
+        var corpo = ModeloDeEmail.Montar(
+            _aplicacao.Nome,
+            mensagem.Assunto,
+            mensagem.CorpoHtml,
+            mensagem.TextoDoLink,
+            mensagem.Link,
+            Mascote.Cofrinho
+        );
 
         var enfileirado = await emailService.Enfileirar(new NovoEmail(mensagem.Para, $"{mensagem.Assunto} — {_aplicacao.Nome}", corpo), ct);
 

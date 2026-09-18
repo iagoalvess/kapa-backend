@@ -38,7 +38,7 @@ public sealed class EmailsDeRecebimento(IEmailService emailService, IOptions<Apl
             new NovoEmail(
                 email,
                 $"Conta de recebimento alterada — {formatura} — {_aplicacao.Nome}",
-                ModeloDeEmail.Montar(_aplicacao.Nome, "Conta de recebimento alterada", mensagem, null, null)
+                ModeloDeEmail.Montar(_aplicacao.Nome, "Conta de recebimento alterada", mensagem, null, null, Mascote.Alerta)
             ),
             ct
         );

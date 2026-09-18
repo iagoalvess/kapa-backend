@@ -111,12 +111,51 @@ public static class ApiConfig
             app.UseHsts();
 
         app.UseHttpsRedirection();
+        app.UseCabecalhosDeSeguranca();
         app.UseRouting();
         app.UseCors(PoliticaDeCors);
         app.UseAuthentication();
         app.UseRateLimiter();
         app.UseAuthorization();
         app.MapControllers();
+
+        return app;
+    }
+
+    /// <summary>
+    /// Cabeçalhos de segurança em toda resposta da API.
+    /// </summary>
+    /// <remarks>
+    /// Item do checklist da Sprint 16. São três linhas e não dependem de nada, e é exatamente por
+    /// isso que costumam ficar só no front: a API também devolve conteúdo ao navegador — o PDF do
+    /// termo, a foto do formando, o JSON de erro que alguém abre numa aba.
+    /// <list type="bullet">
+    /// <item><c>X-Content-Type-Options: nosniff</c> — impede o navegador de adivinhar o tipo e
+    /// executar como script um arquivo que o usuário enviou;</item>
+    /// <item><c>Referrer-Policy</c> — o caminho da API guarda ids de formatura e de parcela, e
+    /// sem ela eles vazariam no <c>Referer</c> de qualquer link externo;</item>
+    /// <item><c>X-Frame-Options: DENY</c> — nada da API é para ser embutido em página de terceiro.</item>
+    /// </list>
+    /// <para>
+    /// Sem CSP aqui: a API não serve HTML próprio. A da aplicação está no nginx do front, que é
+    /// quem entrega a página — <c>nginx/default.conf.template</c> no repositório do frontend.
+    /// </para>
+    /// </remarks>
+    /// <param name="app">Aplicação web.</param>
+    private static WebApplication UseCabecalhosDeSeguranca(this WebApplication app)
+    {
+        app.Use(
+            (contexto, proximo) =>
+            {
+                var cabecalhos = contexto.Response.Headers;
+
+                cabecalhos["X-Content-Type-Options"] = "nosniff";
+                cabecalhos["Referrer-Policy"] = "strict-origin-when-cross-origin";
+                cabecalhos["X-Frame-Options"] = "DENY";
+
+                return proximo();
+            }
+        );
 
         return app;
     }

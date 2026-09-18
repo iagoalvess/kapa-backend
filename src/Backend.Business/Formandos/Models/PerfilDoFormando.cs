@@ -104,6 +104,39 @@ public class PerfilDoFormando : EntidadeDaFormatura
         Recalcular();
     }
 
+    /// <summary>
+    /// Apaga tudo o que identifica a pessoa, mantendo a linha e o vínculo.
+    /// </summary>
+    /// <remarks>
+    /// É a eliminação da LGPD como ela de fato acontece aqui (Sprint 14): o cadastro fica, vazio,
+    /// porque <see cref="VinculoId"/> é o que amarra as parcelas e os recebimentos ao lançamento. A
+    /// chave estrangeira sobrevive; o que era dado pessoal vira nulo.
+    /// <para>
+    /// Irreversível, e por isso idempotente: rodar de novo não tem o que apagar e não falha.
+    /// </para>
+    /// </remarks>
+    /// <returns>A foto que havia, para quem chamou apagar os bytes dela. Nulo se não havia.</returns>
+    public Guid? Anonimizar()
+    {
+        var foto = FotoArquivoId;
+
+        NomeCompleto = null;
+        NomeNoDiploma = null;
+        Cpf = null;
+        Rg = null;
+        Matricula = null;
+        Telefone = null;
+        DataDeNascimento = null;
+        Observacoes = null;
+        Endereco = new Endereco();
+        ContatoDeEmergencia = new ContatoDeEmergencia();
+        FotoArquivoId = null;
+
+        Recalcular();
+
+        return foto;
+    }
+
     /// <summary>Troca a foto e devolve a anterior, para quem chamou remover o arquivo dela.</summary>
     /// <param name="arquivoId">Arquivo da foto nova.</param>
     public Guid? TrocarFoto(Guid arquivoId)

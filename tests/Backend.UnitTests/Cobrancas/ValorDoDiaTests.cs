@@ -107,4 +107,58 @@ public sealed class ValorDoDiaTests
         // Assert
         valor.TotalEmCentavos.ShouldBe(-50_000);
     }
+
+    /// <summary>
+    /// "5% para quem quitar à vista" não pode virar 5% para quem pagou no dia 9 em vez do dia 10.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 350_000)]
+    [InlineData(29, 350_000)]
+    [InlineData(30, 332_500)]
+    [InlineData(60, 332_500)]
+    public void Desconto_exige_a_antecedencia_combinada(int diasAntes, long esperado)
+    {
+        // Arrange
+        var regras = new RegrasDeAtraso(200, 100, 0, 500, DiasMinimosParaDesconto: 30);
+
+        // Act
+        var valor = ValorDoDia.Calcular(350_000, Vencimento, Vencimento.AddDays(-diasAntes), regras);
+
+        // Assert
+        valor.TotalEmCentavos.ShouldBe(esperado);
+    }
+
+    /// <summary>Snapshot assinado antes de 17/09/2026 não tem o campo: zero, e a regra é a que aquela pessoa aceitou.</summary>
+    [Fact]
+    public void Sem_antecedencia_minima_qualquer_dia_antes_vale_o_desconto()
+    {
+        // Act
+        var valor = ValorDoDia.Calcular(350_000, Vencimento, Vencimento.AddDays(-1), new RegrasDeAtraso(200, 100, 0, 500));
+
+        // Assert
+        valor.TotalEmCentavos.ShouldBe(332_500);
+    }
+
+    /// <summary>O pagamento parcial abate; o devido do dia, que a divergência compara, continua cheio.</summary>
+    [Fact]
+    public void O_que_ja_foi_pago_abate_do_valor_do_dia()
+    {
+        // Act
+        var valor = ValorDoDia.Calcular(350_000, Vencimento, Vencimento, Tipicas, jaPagoEmCentavos: 200_000);
+
+        // Assert
+        valor.TotalEmCentavos.ShouldBe(150_000);
+        valor.DevidoEmCentavos.ShouldBe(350_000);
+    }
+
+    /// <summary>Pagar acima do devido não vira crédito na parcela — a sobra é divergência.</summary>
+    [Fact]
+    public void Pago_acima_do_devido_zera_o_valor_do_dia_sem_ficar_negativo()
+    {
+        // Act
+        var valor = ValorDoDia.Calcular(350_000, Vencimento, Vencimento, Tipicas, jaPagoEmCentavos: 400_000);
+
+        // Assert
+        valor.TotalEmCentavos.ShouldBe(0);
+    }
 }

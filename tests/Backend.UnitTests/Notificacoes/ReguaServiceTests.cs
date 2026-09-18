@@ -44,7 +44,6 @@ public sealed class ReguaServiceTests
 
     public ReguaServiceTests()
     {
-        _canal.Canal.Returns(CanalDeNotificacao.Email);
         _canal
             .Enviar(Arg.Any<MensagemDeNotificacao>(), Arg.Any<CancellationToken>())
             .Returns(Result.Ok(new EntregaDaMensagem(Guid.CreateVersion7())));
@@ -65,7 +64,7 @@ public sealed class ReguaServiceTests
             _notificacoes,
             _parcelas,
             _vinculos,
-            [_canal],
+            _canal,
             Options.Create(new AplicacaoSettings { Nome = "Kapa", UrlDoFrontend = "https://kapa.dev" }),
             _unitOfWork,
             NullLogger<ReguaService>.Instance
@@ -76,7 +75,6 @@ public sealed class ReguaServiceTests
             dias == 3 ? RegraDeTresDias : Guid.CreateVersion7(),
             GatilhoDaRegua.Vencimento,
             dias,
-            CanalDeNotificacao.Email,
             "Parcela em atraso — {formatura}",
             "Oi, {nome}. São {valor}, com vencimento em {vencimento}.",
             ativa,
@@ -157,7 +155,7 @@ public sealed class ReguaServiceTests
     [Fact]
     public async Task O_endereco_que_o_canal_recusou_nao_e_tentado_de_novo()
     {
-        var notificacao = NotificacaoEnviada.Nova(RegraDeTresDias, Hoje, CanalDeNotificacao.Email, "julia@turma.dev", "Parcela em atraso");
+        var notificacao = NotificacaoEnviada.Nova(RegraDeTresDias, Hoje, "julia@turma.dev", "Parcela em atraso");
         _notificacoes
             .ListarEntregasAConferir(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns([new EntregaAConferir(notificacao, EEmailStatus.Falhou, "550 mailbox unavailable")]);
@@ -218,12 +216,14 @@ public sealed class ReguaServiceTests
     }
 
     /// <summary>
-    /// Canal sem implementação registrada não vira mensagem engolida: nada é enviado e nada é gravado.
+    /// Mensagem recusada pelo canal não vira envio gravado: o histórico não mente sobre o que saiu.
     /// </summary>
     [Fact]
-    public async Task Regra_no_WhatsApp_nao_grava_envio_enquanto_o_canal_nao_existir()
+    public async Task Mensagem_recusada_pelo_canal_nao_grava_envio()
     {
-        _notificacoes.ListarRegras(Arg.Any<CancellationToken>()).Returns([Degrau(3) with { Canal = CanalDeNotificacao.Whatsapp }]);
+        _canal
+            .Enviar(Arg.Any<MensagemDeNotificacao>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Falha<EntregaDaMensagem>(Erro.Conflito("email.recusado", "O provedor recusou.")));
         ComParcelas(Parcela(Guid.CreateVersion7(), 12, "Mensalidade 3/24"));
 
         (await Servico.Executar(Formatura, DentroDaJanela, Ct)).Mensagens.ShouldBe(0);

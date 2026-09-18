@@ -127,7 +127,7 @@ public sealed class AdesaoService(
         if (await adesaoRepository.JaAderiu(membro.VinculoId, termo.Id, ct))
             return Erro.Conflito("adesao.ja_aderiu", "Você já aderiu a esta versão do termo.");
 
-        var snapshot = SnapshotDoPlano.De(plano);
+        var snapshot = SnapshotDoPlano.De(plano, DataUtils.Hoje());
         var planoJson = snapshot.ParaJson();
         var hash = AdesaoDoFormando.CalcularHash(termo.Conteudo, planoJson);
 
@@ -234,7 +234,8 @@ public sealed class AdesaoService(
     /// <inheritdoc />
     public async Task<Result<MinhaAdesao>> ObterMinha(Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
     {
-        var membro = await perfilRepository.ObterMembro(formaturaId, usuarioId, ct);
+        // Do titular: o termo que vigorou continua acessível a quem foi desligado (P5 da Sprint 15).
+        var membro = await perfilRepository.ObterTitular(formaturaId, usuarioId, ct);
         if (membro is null)
             return MembroNaoEncontrado;
 
@@ -269,7 +270,9 @@ public sealed class AdesaoService(
     public async Task<Result<PdfDaAdesao>> ObterPdf(Guid formaturaId, Guid adesaoId, Guid solicitanteId, CancellationToken ct = default)
     {
         var adesao = await adesaoRepository.Obter(adesaoId, ct);
-        var solicitante = await perfilRepository.ObterMembro(formaturaId, solicitanteId, ct);
+        // Do titular: o PDF do próprio termo acompanha a adesão. O de terceiro continua exigindo Gestão,
+        // e quem saiu nunca a tem — o papel dele passou a valer só para ler o que é dele.
+        var solicitante = await perfilRepository.ObterTitular(formaturaId, solicitanteId, ct);
 
         if (adesao is null || solicitante is null)
             return AdesaoNaoEncontrada;

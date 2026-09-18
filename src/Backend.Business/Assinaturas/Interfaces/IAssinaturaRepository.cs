@@ -38,6 +38,25 @@ public interface IAssinaturaRepository
     Task<Assinatura?> ObterParaEdicaoDeTodasAsFormaturas(Guid assinaturaId, CancellationToken ct = default);
 
     /// <summary>
+    /// Quantos formandos cabem no plano da assinatura mais recente da formatura. Nulo se ela nunca
+    /// contratou.
+    /// </summary>
+    /// <remarks>
+    /// Atravessa formaturas de propósito — e o nome diz isso: quem pergunta é o aceite de convite,
+    /// que roda na sessão de quem <b>ainda não</b> pertence à turma e portanto não tem a claim dela.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura consultada.</param>
+    Task<int?> ObterLimiteDeFormandosDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default);
+
+    /// <summary>A assinatura mais recente de uma formatura qualquer, rastreada para alteração.</summary>
+    /// <remarks>
+    /// Atravessa formaturas de propósito — e o nome diz isso: quem chama é o painel de suporte, que
+    /// roda sob um perfil de plataforma e nunca tem turma na sessão.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura.</param>
+    Task<Assinatura?> ObterMaisRecenteParaEdicaoDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default);
+
+    /// <summary>
     /// Assinaturas pendentes, de todas as formaturas, paradas dentro da janela informada.
     /// </summary>
     /// <remarks>

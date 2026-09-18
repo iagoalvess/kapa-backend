@@ -69,7 +69,8 @@ public sealed class FormaturaController(
 
     /// <summary>Detalhe da formatura selecionada, com o status. Leitura: vale em qualquer status.</summary>
     [HttpGet("atual")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    // Aceita o desligado: é a moldura de toda tela, e sem ela o extrato dele não abre (P5).
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [ProducesResponseType(typeof(FormaturaDetalheDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ObterAtual(CancellationToken ct)

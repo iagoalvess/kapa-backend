@@ -87,6 +87,10 @@ public sealed class DespesaRepository(AppDbContext db) : IDespesaRepository
         db.Despesas.AnyAsync(d => d.FornecedorId == fornecedorId, ct);
 
     /// <inheritdoc />
+    public Task<bool> ExisteDoItemDaFesta(Guid itemDaFestaId, CancellationToken ct = default) =>
+        db.Despesas.AnyAsync(d => d.ItemDaFestaId == itemDaFestaId, ct);
+
+    /// <inheritdoc />
     public Task<ComprovanteDaDespesa?> ObterComprovante(Guid id, CancellationToken ct = default) =>
         (
             from despesa in db.Despesas.AsNoTracking()
@@ -148,6 +152,7 @@ public sealed class DespesaRepository(AppDbContext db) : IDespesaRepository
             linha.Despesa.Id,
             linha.Despesa.LancamentoId,
             linha.Despesa.FornecedorId,
+            linha.Despesa.ItemDaFestaId,
             linha.Fornecedor == null ? null : linha.Fornecedor.Nome,
             linha.Despesa.Descricao,
             linha.Despesa.Categoria,

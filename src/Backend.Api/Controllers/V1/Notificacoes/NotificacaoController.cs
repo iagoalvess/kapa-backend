@@ -67,9 +67,9 @@ public sealed class NotificacaoController(INotificacaoService notificacaoService
     public async Task<IActionResult> Testar(Guid id, CancellationToken ct) =>
         Responder(await notificacaoService.Testar(FormaturaId, usuarioAtual.Id, id, ct));
 
-    /// <summary>Quem recebeu o quê, quando, por qual canal e com qual resultado.</summary>
+    /// <summary>Quem recebeu o quê, quando e com qual resultado.</summary>
     /// <param name="paginacao">Página e ordenação.</param>
-    /// <param name="filtro">Canal, situação, período e busca.</param>
+    /// <param name="filtro">Situação, período e busca.</param>
     [HttpGet("historico")]
     [Authorize(Policy = Politicas.Gestao)]
     [ProducesResponseType(typeof(PaginaDTO<NotificacaoDTO>), StatusCodes.Status200OK)]
@@ -137,7 +137,6 @@ public sealed class NotificacaoController(INotificacaoService notificacaoService
             .. (requisicao.Regras ?? []).Select(regra => new DadosDaRegra(
                 regra.Gatilho,
                 regra.DiasDeDeslocamento,
-                regra.Canal,
                 regra.Assunto ?? string.Empty,
                 regra.Template ?? string.Empty,
                 regra.Ativa,

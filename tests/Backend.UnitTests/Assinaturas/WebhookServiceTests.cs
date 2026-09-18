@@ -36,6 +36,10 @@ public sealed class WebhookServiceTests
     {
         _formatura.Transicionar(StatusDaFormatura.AguardandoPagamento);
 
+        // O padrão é "o provedor não tem nada a informar". Sem isto, toda conciliação que chega ao
+        // ponto de reconsultar a renovação (Sprint 16) receberia um `Result` nulo do substitute.
+        _provedor.ConsultarPagamento(Arg.Any<Guid>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Result.Ok<EventoDoProvedor?>(null));
+
         _unitOfWork
             .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<ReciboDeWebhook>>>>(), Arg.Any<CancellationToken>())
             .Returns(chamada => chamada.Arg<Func<CancellationToken, Task<Result<ReciboDeWebhook>>>>()(CancellationToken.None));
@@ -168,8 +172,95 @@ public sealed class WebhookServiceTests
 
         var resumo = (await Servico.Conciliar(DateTime.UtcNow, Ct)).Valor;
 
-        resumo.ShouldBe(new ResumoDaConciliacao(0, 0, 1));
+        resumo.ShouldBe(new ResumoDaConciliacao(0, 0, 0, 1));
         _assinatura.UltimoAvisoDeVencimento.ShouldBe(-1);
         _formatura.Status.ShouldBe(StatusDaFormatura.Ativa);
+    }
+
+    /// <summary>
+    /// Sprint 16: evento antigo que chega depois de um novo não pode desfazer o estado.
+    /// </summary>
+    /// <remarks>
+    /// O caso real é a reentrega do PSP: "pagamento recusado" de terça chegando depois do
+    /// "renovada" de quarta. Sem a comparação por data, a turma em dia era suspensa.
+    /// </remarks>
+    [Fact]
+    public async Task Evento_fora_de_ordem_e_gravado_mas_nao_aplicado()
+    {
+        // Arrange — a confirmação de hoje já foi aplicada.
+        var hoje = new DateTime(2026, 9, 17, 12, 0, 0, DateTimeKind.Utc);
+        ProvedorEntrega(Evento(TiposDeEvento.PagamentoConfirmado) with { OcorridoEm = hoje });
+        await Servico.Receber("corpo", "hmac", Ct);
+        _assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
+
+        // Act — e agora chega a recusa de ontem, atrasada.
+        ProvedorEntrega(new EventoDoProvedor("evt_0", TiposDeEvento.PagamentoRecusado, _assinatura.Id, "sub_1", hoje.AddDays(-1)));
+        var resultado = await Servico.Receber("corpo", "hmac", Ct);
+
+        // Assert — responde sucesso (senão o PSP reentrega para sempre), grava e não aplica.
+        resultado.Sucesso.ShouldBeTrue();
+        _assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
+        _assinatura.UltimoEventoEm.ShouldBe(hoje);
+        await _assinaturas
+            .Received(1)
+            .RegistrarSeNovo(Arg.Is<EventoDeCobranca>(e => e.IdExterno == "evt_0" && e.ProcessadoEm == null), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Evento sem data do provedor continua sendo aplicado: não há como ordenar.</summary>
+    [Fact]
+    public async Task Evento_sem_data_do_provedor_continua_sendo_aplicado()
+    {
+        ProvedorEntrega(Evento(TiposDeEvento.PagamentoConfirmado));
+
+        await Servico.Receber("corpo", "hmac", Ct);
+
+        _assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
+        _assinatura.UltimoEventoEm.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Sprint 16: renovação cobrada cujo webhook se perdeu não pode suspender quem pagou.
+    /// </summary>
+    /// <remarks>
+    /// Antes, o job só reconsultava as <c>Pendente</c>. Agora, pouco antes de suspender, ele
+    /// pergunta ao provedor — e a resposta chega pelo mesmo caminho do webhook.
+    /// </remarks>
+    [Fact]
+    public async Task Conciliacao_acha_renovacao_perdida_antes_de_suspender()
+    {
+        // Arrange — vigência acabada há mais que a carência: sem a reconsulta, seria suspensa.
+        var agora = DateTime.UtcNow;
+        _assinatura.ConfirmarPagamento(agora.AddDays(-40), CicloDeCobranca.Mensal);
+        _formatura.Transicionar(StatusDaFormatura.Ativa);
+        _assinaturas.ListarVencendoDeTodasAsFormaturas(Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns([_assinatura]);
+        _provedor
+            .ConsultarPagamento(_assinatura.Id, Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok<EventoDoProvedor?>(Evento(TiposDeEvento.AssinaturaRenovada) with { OcorridoEm = agora }));
+
+        // Act
+        var resumo = (await Servico.Conciliar(agora, Ct)).Valor;
+
+        // Assert
+        resumo.Renovadas.ShouldBe(1);
+        resumo.Vencidas.ShouldBe(0);
+        _assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
+        _assinatura.VigenteAte!.Value.ShouldBeGreaterThan(agora);
+        _formatura.Status.ShouldBe(StatusDaFormatura.Ativa);
+    }
+
+    /// <summary>Provedor sem renovação a informar: a suspensão acontece, como antes.</summary>
+    [Fact]
+    public async Task Conciliacao_suspende_quando_o_provedor_nao_tem_renovacao()
+    {
+        var agora = DateTime.UtcNow;
+        _assinatura.ConfirmarPagamento(agora.AddDays(-40), CicloDeCobranca.Mensal);
+        _formatura.Transicionar(StatusDaFormatura.Ativa);
+        _assinaturas.ListarVencendoDeTodasAsFormaturas(Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns([_assinatura]);
+
+        var resumo = (await Servico.Conciliar(agora, Ct)).Valor;
+
+        resumo.Renovadas.ShouldBe(0);
+        resumo.Vencidas.ShouldBe(1);
+        _formatura.Status.ShouldBe(StatusDaFormatura.Suspensa);
     }
 }

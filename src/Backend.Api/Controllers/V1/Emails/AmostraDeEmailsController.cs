@@ -1,0 +1,256 @@
+using Asp.Versioning;
+using Backend.Api.Configuration;
+using Backend.Business.Abstractions;
+using Backend.Business.Adesoes.Models;
+using Backend.Business.Adesoes.Services;
+using Backend.Business.Assinaturas.Services;
+using Backend.Business.Auth.Interfaces;
+using Backend.Business.Cobrancas.Models;
+using Backend.Business.Common;
+using Backend.Business.Emails.Interfaces;
+using Backend.Business.Emails.Models;
+using Backend.Business.Emails.Services;
+using Backend.Business.Formaturas.Models;
+using Backend.Business.Formaturas.Services;
+using Backend.Business.Notificacoes.Interfaces;
+using Backend.Business.Notificacoes.Models;
+using Backend.Business.Pagamentos.Services;
+using Backend.Business.Privacidade.Models;
+using Backend.Business.Privacidade.Services;
+using Backend.Business.Recebimentos.Models;
+using Backend.Business.Recebimentos.Services;
+using Backend.Business.Usuarios.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
+
+namespace Backend.Api.Controllers.V1.Emails;
+
+/// <summary>
+/// Enfileira uma amostra de cada e-mail do produto, com dados de exemplo.
+/// </summary>
+/// <remarks>
+/// Ferramenta de desenvolvimento, não endpoint do produto: mexer no <see cref="ModeloDeEmail"/> é
+/// mexer em vinte mensagens de uma vez, e a única forma de conferir isso é olhando as vinte na
+/// caixa de entrada — nenhum teste vê um mascote fora do lugar no Gmail do celular.
+/// <para>
+/// Responde 404 fora de <c>Development</c>, por lista de permissão e não de bloqueio: um staging
+/// chamado <c>Homologacao</c> não pode virar "dispare vinte e-mails para qualquer endereço". Em
+/// desenvolvimento, <c>Smtp:RedirecionarPara</c> já desvia tudo para a caixa de quem programa.
+/// </para>
+/// <para>
+/// Chama os <c>EmailsDe*</c> de verdade, com dados de exemplo: amostra que monta o próprio HTML
+/// mostraria o modelo certo com um texto que ninguém recebe. As duas exceções estão em
+/// <see cref="Avulsos"/> — o convite e o aviso ao comercial montam o corpo dentro do service que os
+/// origina, e chegar até eles exigiria uma turma inteira no banco.
+/// </para>
+/// </remarks>
+/// <param name="conta">E-mails do ciclo de vida da conta.</param>
+/// <param name="adesao">E-mails da adesão.</param>
+/// <param name="assinatura">E-mails da assinatura.</param>
+/// <param name="pagamento">E-mails de pagamento.</param>
+/// <param name="privacidade">E-mails da LGPD.</param>
+/// <param name="desligamento">E-mails da saída de formando.</param>
+/// <param name="recebimento">E-mails da conta de recebimento.</param>
+/// <param name="canal">Canal da régua de cobrança.</param>
+/// <param name="emailService">Fila de e-mails, para as duas amostras avulsas.</param>
+/// <param name="unitOfWork">Quem salva a fila — os <c>EmailsDe*</c> só enfileiram.</param>
+/// <param name="aplicacao">Identidade da aplicação.</param>
+/// <param name="ambiente">Ambiente de execução.</param>
+[ApiController]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/amostra-de-emails")]
+[AllowAnonymous]
+[ApiExplorerSettings(IgnoreApi = true)]
+[EnableRateLimiting(RateLimitConfig.Padrao)]
+public sealed class AmostraDeEmailsController(
+    IEmailsDeConta conta,
+    EmailsDeAdesao adesao,
+    EmailsDeAssinatura assinatura,
+    EmailsDePagamento pagamento,
+    EmailsDePrivacidade privacidade,
+    EmailsDeDesligamento desligamento,
+    EmailsDeRecebimento recebimento,
+    ICanalDeNotificacao canal,
+    IEmailService emailService,
+    IUnitOfWork unitOfWork,
+    IOptions<AplicacaoSettings> aplicacao,
+    IHostEnvironment ambiente
+) : ControllerBase
+{
+    private const string Turma = "Odontologia 2027";
+
+    /// <summary>Enfileira a amostra inteira para um endereço.</summary>
+    /// <param name="para">Quem recebe. Em desenvolvimento o desvio do SMTP manda tudo para a mesma caixa de qualquer jeito.</param>
+    /// <returns>Quantas mensagens entraram na fila.</returns>
+    [HttpPost]
+    public async Task<IActionResult> Enfileirar([FromQuery] string para, CancellationToken ct)
+    {
+        if (!ambiente.IsDevelopment())
+            return NotFound();
+
+        if (string.IsNullOrWhiteSpace(para))
+            return BadRequest(new { erro = "Informe ?para=endereco@exemplo.com." });
+
+        var antes = DateTime.UtcNow;
+
+        await DaConta(para, ct);
+        await DaAdesao(para, ct);
+        await DaAssinatura(para, ct);
+        await DoPagamento(para, ct);
+        await DaPrivacidade(para, ct);
+        await DoDesligamento(para, ct);
+        await DoRecebimento(para, ct);
+        await DaRegua(para, ct);
+        await Avulsos(para, ct);
+
+        await unitOfWork.SalvarAsync(ct);
+
+        return Ok(new { enfileirado_em = antes, para });
+    }
+
+    private async Task DaConta(string para, CancellationToken ct)
+    {
+        var usuario = new Usuario { Nome = "Ana Beatriz", Email = para };
+
+        await conta.EnfileirarConfirmacao(usuario, "amostra-de-token", ct);
+        await conta.EnfileirarRedefinicaoDeSenha(usuario, "amostra-de-token", ct);
+        await conta.EnfileirarAvisoDeSenhaAlterada(usuario, ct);
+    }
+
+    private async Task DaAdesao(string para, CancellationToken ct)
+    {
+        await adesao.Codigo(para, Turma, "418293", 10, ct);
+        await adesao.Confirmacao(para, Turma, 3, Plano(), ct);
+        await adesao.Lembrete(para, Turma, ct);
+    }
+
+    private async Task DaAssinatura(string para, CancellationToken ct)
+    {
+        var formatura = new Formatura { Nome = Turma };
+        var presidentes = new[] { para };
+        var hoje = DateTime.UtcNow;
+
+        await assinatura.BoasVindas(formatura, presidentes, hoje.AddYears(1), ct);
+        await assinatura.PagamentoRecusado(formatura, presidentes, ct);
+        await assinatura.Suspensao(formatura, presidentes, ct);
+        await assinatura.AvisoDeVencimento(formatura, presidentes, 7, hoje.AddDays(7), hoje.AddDays(14), false, ct);
+        await assinatura.AvisoDeVencimento(formatura, presidentes, -1, hoje.AddDays(-1), hoje.AddDays(6), true, ct);
+    }
+
+    private async Task DoPagamento(string para, CancellationToken ct)
+    {
+        var vencimento = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        await pagamento.Confirmado(para, Turma, vencimento, 35_000, vencimento, 0, ct);
+        await pagamento.Confirmado(para, Turma, vencimento, 20_000, vencimento, 15_000, ct);
+        await pagamento.Recusado(para, Turma, vencimento, 35_000, "Não encontramos este PIX no extrato da turma.", ct);
+        await pagamento.Estornado(para, Turma, vencimento, 35_000, "Baixa lançada na parcela errada.", ct);
+    }
+
+    private async Task DaPrivacidade(string para, CancellationToken ct)
+    {
+        var prazo = DateTime.UtcNow.AddDays(15);
+
+        await privacidade.ExportacaoPronta(para, 7, ct);
+        await privacidade.ExclusaoSolicitada(para, prazo, ct);
+        await privacidade.ExclusaoParaOPresidente(new PresidenteParaAviso(para, Turma, 140_000), "Ana Beatriz", prazo, ct);
+        await privacidade.ExclusaoConcluida(para, "FORMANDO-3F9A21", ct);
+    }
+
+    private async Task DoDesligamento(string para, CancellationToken ct)
+    {
+        var cancelado = new CancelamentoDaSaida(4, 140_000);
+
+        await desligamento.Confirmacao(para, Turma, cancelado, 210_000, ct);
+        await desligamento.Aviso([para], Turma, "Ana Beatriz", "Dificuldade financeira", cancelado, ct);
+    }
+
+    private Task DoRecebimento(string para, CancellationToken ct)
+    {
+        var contaPix = new ContaDeRecebimento();
+        contaPix.Aplicar(
+            new Backend.Business.Recebimentos.Models.DadosDaConta(
+                TipoDeChavePix.Email,
+                "tesouraria@odonto.kapa.dev",
+                "Comissão de Formatura Odontologia",
+                "Curitiba"
+            )
+        );
+
+        return recebimento.ContaAlterada(para, Turma, "Ana Beatriz", contaPix, ct);
+    }
+
+    private async Task DaRegua(string para, CancellationToken ct) =>
+        await canal.Enviar(
+            new MensagemDeNotificacao(
+                para,
+                $"Sua parcela vence em 3 dias — {Turma}",
+                "Olá, Ana Beatriz. A sua parcela de <strong>R$ 350,00</strong> vence em <strong>20/09/2026</strong>. "
+                    + "Depois do vencimento entram multa de 2% e juros de 1% ao mês.",
+                $"{aplicacao.Value.UrlDoFrontend.TrimEnd('/')}/minhas-parcelas",
+                "Ver meu extrato"
+            ),
+            ct
+        );
+
+    /// <summary>As duas amostras cujo corpo mora dentro do service que as origina.</summary>
+    /// <remarks>
+    /// Repetem o texto do <c>ConviteService</c> e do <c>LeadService</c>. É cópia, e some no dia em
+    /// que esses dois ganharem um <c>EmailsDe*</c> como os outros — até lá, é o único jeito de o
+    /// convite, que é o e-mail mais visto do produto, aparecer na amostra.
+    /// </remarks>
+    private async Task Avulsos(string para, CancellationToken ct)
+    {
+        var nome = aplicacao.Value.Nome;
+
+        var convite = ModeloDeEmail.Montar(
+            nome,
+            $"Você foi convidado para {Turma}",
+            $"A comissão de <strong>{Turma}</strong> (UFPR) convidou você para entrar na turma como Formando. "
+                + "O convite é pessoal e vale até 30/09/2026.",
+            "Aceitar convite",
+            $"{aplicacao.Value.UrlDoFrontend.TrimEnd('/')}/convite/amostra",
+            Mascote.Acenando
+        );
+
+        await emailService.Enfileirar(new NovoEmail(para, $"Convite para {Turma} — {nome}", convite), ct);
+
+        var lead = ModeloDeEmail.Montar(
+            nome,
+            "Contato novo pela página",
+            "<strong>Ana Beatriz Moraes Rocha</strong><br>Odontologia — UFPR<br>62 formandos · colação em dezembro de 2027<br><br>"
+                + "E-mail: ana@odonto.kapa.dev<br>Telefone: (41) 99999-0000",
+            null,
+            null,
+            Mascote.Lupa
+        );
+
+        await emailService.Enfileirar(new NovoEmail(para, $"Contato novo: UFPR — {nome}", lead), ct);
+    }
+
+    /// <summary>Um plano de exemplo: uma entrada e três mensalidades.</summary>
+    private static SnapshotDoPlano Plano()
+    {
+        var primeiro = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1);
+
+        var parcelas = Enumerable
+            .Range(0, 4)
+            .Select(indice => new ParcelaSimulada(TipoDeCobranca.Mensalidade, "Mensalidade", indice + 1, 4, primeiro.AddMonths(indice), 35_000))
+            .ToArray();
+
+        return new SnapshotDoPlano(
+            SnapshotDoPlano.EsquemaAtual,
+            Guid.NewGuid(),
+            "Plano 2027",
+            PercentualDeMulta: 200,
+            PercentualDeJurosAoMes: 100,
+            CarenciaEmDias: 3,
+            PercentualDeDescontoPorAntecipacao: 0,
+            Itens: [new DadosDoItem(TipoDeCobranca.Mensalidade, "Mensalidade", 35_000, 4, 10, primeiro)],
+            Parcelas: parcelas,
+            TotalEmCentavos: parcelas.Sum(parcela => parcela.ValorEmCentavos)
+        );
+    }
+}

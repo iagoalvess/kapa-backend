@@ -123,5 +123,6 @@ public sealed class LegalServiceTests
 
     private static VersaoDeDocumento Documento(string tipo, string versao) => new(Guid.CreateVersion7(), tipo, versao, "texto", Ontem);
 
-    private static ConsentimentoDoUsuario Aceite(string tipo, string versao, bool revogado = false) => new(tipo, versao, Ontem, revogado);
+    private static ConsentimentoDoUsuario Aceite(string tipo, string versao, bool revogado = false) =>
+        new(Guid.CreateVersion7(), tipo, versao, Ontem, revogado);
 }

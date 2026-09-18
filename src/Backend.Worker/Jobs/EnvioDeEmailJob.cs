@@ -37,7 +37,14 @@ public sealed class EnvioDeEmailJob(
     ILogger<EnvioDeEmailJob> logger
 ) : BackgroundService
 {
-    private static readonly TimeSpan Intervalo = TimeSpan.FromSeconds(30);
+    /// <summary>
+    /// De quanto em quanto tempo a fila é varrida.
+    /// </summary>
+    /// <remarks>
+    /// Dez segundos: é o teto do atraso de um código de verificação, que a pessoa espera com a tela
+    /// aberta. A rodada vazia custa um <c>SELECT ... SKIP LOCKED</c> que não acha nada.
+    /// </remarks>
+    private static readonly TimeSpan Intervalo = TimeSpan.FromSeconds(10);
 
     private readonly SmtpSettings _settings = options.Value;
 

@@ -90,6 +90,7 @@ public sealed class DespesaController(IDespesaService despesaService, IUsuarioAt
 
         var dados = new NovaDespesa(
             requisicao.FornecedorId,
+            requisicao.ItemDaFestaId,
             requisicao.Descricao ?? string.Empty,
             requisicao.Categoria,
             requisicao.ValorEmCentavos,
@@ -120,6 +121,7 @@ public sealed class DespesaController(IDespesaService despesaService, IUsuarioAt
     {
         var dados = new DadosDaDespesa(
             requisicao.FornecedorId,
+            requisicao.ItemDaFestaId,
             requisicao.Descricao ?? string.Empty,
             requisicao.Categoria,
             requisicao.ValorEmCentavos,
@@ -159,13 +161,12 @@ public sealed class DespesaController(IDespesaService despesaService, IUsuarioAt
     [HttpPost("{id:guid}/cancelar")]
     [Authorize(Policy = Politicas.Tesouraria)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [RegistrarEvento("financeiro.despesa_cancelada", CamposDaRota = ["id"])]
     [ProducesResponseType(typeof(DespesaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Cancelar(Guid id, CancellationToken ct) =>
-        Responder((await despesaService.Cancelar(id, ct)).Map(despesa => despesa.Adapt<DespesaDTO>()));
+        Responder((await despesaService.Cancelar(id, usuarioAtual.Id, ct)).Map(despesa => despesa.Adapt<DespesaDTO>()));
 
     /// <summary>O comprovante de uma despesa.</summary>
     /// <remarks>Não usa os helpers do <c>MainController</c>: o sucesso é o arquivo, e ele vai <c>inline</c> para abrir numa aba.</remarks>

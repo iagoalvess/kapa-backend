@@ -1,6 +1,7 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Common.Datas;
 
 namespace Backend.Business.Cobrancas.Services;
 
@@ -21,6 +22,7 @@ public sealed class GeracaoDeParcelasService(IParcelaRepository parcelaRepositor
         if (plano.Status != StatusDoPlano.Vigente)
             return Erro.Conflito("cobranca.sem_plano_vigente", "A turma ainda não tem plano de cobrança em vigor.");
 
+        var hoje = DataUtils.Hoje();
         var novas = new List<Parcela>();
 
         foreach (var item in plano.ItensAtivos)
@@ -28,8 +30,8 @@ public sealed class GeracaoDeParcelasService(IParcelaRepository parcelaRepositor
             var geradas = await parcelaRepository.ListarNumerosGerados(vinculoId, item.Id, ct);
 
             novas.AddRange(
-                item.ParaDados()
-                    .Grade()
+                GradeDeParcelas
+                    .DeQuemAdereEm(item.ParaDados(), hoje)
                     .Where(prevista => !geradas.Contains(prevista.Numero))
                     .Select(prevista => Parcela.Nova(vinculoId, item.Id, prevista))
             );
@@ -37,6 +39,20 @@ public sealed class GeracaoDeParcelasService(IParcelaRepository parcelaRepositor
 
         if (novas.Count > 0)
             await parcelaRepository.Adicionar(novas, ct);
+
+        return novas.Count;
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<int>> GerarDoItem(IReadOnlyCollection<Guid> vinculoIds, ItemDeCobranca item, CancellationToken ct = default)
+    {
+        if (vinculoIds.Count == 0)
+            return 0;
+
+        var grade = GradeDeParcelas.DeQuemAdereEm(item.ParaDados(), DataUtils.Hoje());
+        List<Parcela> novas = [.. vinculoIds.SelectMany(vinculoId => grade.Select(prevista => Parcela.Nova(vinculoId, item.Id, prevista)))];
+
+        await parcelaRepository.Adicionar(novas, ct);
 
         return novas.Count;
     }

@@ -12,6 +12,18 @@ public interface IPerfilRepository
     /// <param name="usuarioId">Membro.</param>
     Task<MembroDoPerfil?> ObterMembro(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
 
+    /// <summary>
+    /// O mesmo de <see cref="ObterMembro"/>, aceitando também o vínculo <b>desligado</b>.
+    /// </summary>
+    /// <remarks>
+    /// Só o que é do próprio titular e só em leitura: o extrato e a adesão dele (P5 de 17/09/2026).
+    /// O cadastro, os avisos e tudo o mais continuam em <see cref="ObterMembro"/>, que exige vínculo
+    /// ativo — quem saiu consulta o que pagou, não edita a turma.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Membro.</param>
+    Task<MembroDoPerfil?> ObterTitular(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+
     /// <summary>O cadastro do vínculo, sem rastreamento; nulo se ainda não foi criado.</summary>
     /// <param name="vinculoId">Vínculo dono.</param>
     Task<PerfilDoFormando?> ObterDoVinculo(Guid vinculoId, CancellationToken ct = default);

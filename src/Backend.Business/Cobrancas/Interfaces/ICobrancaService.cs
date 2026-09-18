@@ -29,26 +29,35 @@ public interface ICobrancaService
     /// <param name="dados">Nome e regras de atraso.</param>
     Task<Result<PlanoDeCobrancaDetalhe>> Atualizar(Guid planoId, DadosDoPlano dados, CancellationToken ct = default);
 
-    /// <summary>Inclui um item no plano.</summary>
+    /// <summary>Inclui um item no plano. Com <paramref name="rateio"/>, ele alcança também quem já aderiu.</summary>
     /// <param name="planoId">Plano.</param>
     /// <param name="dados">Item.</param>
-    Task<Result<PlanoDeCobrancaDetalhe>> AdicionarItem(Guid planoId, DadosDoItem dados, CancellationToken ct = default);
+    /// <param name="rateio">Rateio extraordinário; ausente, o item vale só para quem aderir depois.</param>
+    Task<Result<PlanoDeCobrancaDetalhe>> AdicionarItem(
+        Guid planoId,
+        DadosDoItem dados,
+        RateioExtraordinario? rateio = null,
+        CancellationToken ct = default
+    );
 
     /// <summary>Altera um item. Com parcela gerada, só o valor muda — e só nas que ainda não venceram.</summary>
     /// <param name="planoId">Plano.</param>
     /// <param name="itemId">Item.</param>
     /// <param name="dados">Dados novos.</param>
-    Task<Result<PlanoDeCobrancaDetalhe>> AlterarItem(Guid planoId, Guid itemId, DadosDoItem dados, CancellationToken ct = default);
+    /// <param name="autorId">Quem alterou — vai na trilha de auditoria com o antes e o depois.</param>
+    Task<Result<PlanoDeCobrancaDetalhe>> AlterarItem(Guid planoId, Guid itemId, DadosDoItem dados, Guid autorId, CancellationToken ct = default);
 
     /// <summary>Remove um item que nunca gerou parcela.</summary>
     /// <param name="planoId">Plano.</param>
     /// <param name="itemId">Item.</param>
-    Task<Result<PlanoDeCobrancaDetalhe>> RemoverItem(Guid planoId, Guid itemId, CancellationToken ct = default);
+    /// <param name="autorId">Quem removeu — a trilha guarda o retrato do item que deixou de existir.</param>
+    Task<Result<PlanoDeCobrancaDetalhe>> RemoverItem(Guid planoId, Guid itemId, Guid autorId, CancellationToken ct = default);
 
     /// <summary>Encerra um item: deixa de cobrar e cancela as parcelas que ainda não venceram.</summary>
     /// <param name="planoId">Plano.</param>
     /// <param name="itemId">Item.</param>
-    Task<Result<PlanoDeCobrancaDetalhe>> EncerrarItem(Guid planoId, Guid itemId, CancellationToken ct = default);
+    /// <param name="autorId">Quem encerrou.</param>
+    Task<Result<PlanoDeCobrancaDetalhe>> EncerrarItem(Guid planoId, Guid itemId, Guid autorId, CancellationToken ct = default);
 
     /// <summary>A grade de um formando e o total da turma, sem gravar nada.</summary>
     /// <param name="formaturaId">Formatura da sessão, para contar os membros.</param>
@@ -58,7 +67,8 @@ public interface ICobrancaService
 
     /// <summary>Coloca o plano em vigor. Só um por turma.</summary>
     /// <param name="planoId">Plano.</param>
-    Task<Result<PlanoDeCobrancaDetalhe>> Vigorar(Guid planoId, CancellationToken ct = default);
+    /// <param name="autorId">Quem pôs em vigor.</param>
+    Task<Result<PlanoDeCobrancaDetalhe>> Vigorar(Guid planoId, Guid autorId, CancellationToken ct = default);
 
     /// <summary>Uma página das parcelas da turma.</summary>
     /// <param name="paginacao">Página pedida.</param>

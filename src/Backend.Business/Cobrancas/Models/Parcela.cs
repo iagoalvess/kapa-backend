@@ -42,11 +42,20 @@ public class Parcela : EntidadeDaFormatura
     /// <summary>Situação gravada. <see cref="StatusEm"/> diz a do dia.</summary>
     public StatusDaParcela Status { get; private set; } = StatusDaParcela.Aberta;
 
-    /// <summary>Quanto entrou na conta da turma, em centavos. Só na parcela paga.</summary>
-    /// <remarks>Pode diferir do devido: a diferença vai para Divergências, não para um saldo (decisão 5 da Sprint 9).</remarks>
+    /// <summary>
+    /// Quanto já entrou na conta da turma por esta parcela, em centavos. Soma das baixas não estornadas.
+    /// </summary>
+    /// <remarks>
+    /// Acumulado desde 17/09/2026: antes, qualquer valor fechava a parcela, e quem pagava R$ 200 de
+    /// R$ 350 saía do "a receber" devendo R$ 150 que só apareciam na aba Divergências. Pagar o que dá
+    /// é o normal numa formatura, não a exceção.
+    /// <para>
+    /// Sobra acima do devido continua indo para Divergências, não para um saldo (decisão 5 da Sprint 9).
+    /// </para>
+    /// </remarks>
     public long? ValorPagoEmCentavos { get; private set; }
 
-    /// <summary>Dia em que o dinheiro entrou. Só na parcela paga.</summary>
+    /// <summary>Dia em que a parcela foi quitada. Só quando o pago alcançou o devido.</summary>
     public DateOnly? PagoEm { get; private set; }
 
     /// <summary>Cria a parcela de um vínculo a partir de uma linha da grade.</summary>
@@ -94,48 +103,97 @@ public class Parcela : EntidadeDaFormatura
         return true;
     }
 
-    /// <summary>O valor da parcela no dia, pelas regras que o formando aceitou.</summary>
+    /// <summary>O valor da parcela no dia, pelas regras que o formando aceitou, já abatido o que ele pagou.</summary>
     /// <param name="dia">Dia do pagamento.</param>
     /// <param name="regras">Regras do snapshot da adesão.</param>
-    public ValorDoDia ValorEm(DateOnly dia, RegrasDeAtraso regras) => ValorDoDia.Calcular(ValorOriginalEmCentavos, Vencimento, dia, regras);
+    public ValorDoDia ValorEm(DateOnly dia, RegrasDeAtraso regras) =>
+        ValorDoDia.Calcular(ValorOriginalEmCentavos, Vencimento, dia, regras, ValorPagoEmCentavos ?? 0);
 
     /// <summary>
-    /// Registra o pagamento. Só a <c>BaixaService</c> chama — é a porta única da baixa.
+    /// Registra um pagamento. Só a <c>BaixaService</c> chama — é a porta única da baixa.
     /// </summary>
-    /// <remarks>Aberta ou vencida recebe; paga, cancelada ou renegociada, não.</remarks>
-    /// <param name="valorEmCentavos">O que entrou na conta.</param>
+    /// <remarks>
+    /// O valor <b>soma</b> ao que já entrou, e a parcela só fecha quando o total alcança o
+    /// <see cref="QuitaCom"/>: pagar R$ 200 de R$ 350 deixa a parcela em aberto com R$ 150 a receber,
+    /// que é o que a pessoa de fato ainda deve. Aberta ou vencida recebe; paga, cancelada ou
+    /// renegociada, não.
+    /// </remarks>
+    /// <param name="valorEmCentavos">O que entrou na conta agora.</param>
     /// <param name="pagoEm">Dia em que entrou.</param>
-    public Result Pagar(long valorEmCentavos, DateOnly pagoEm)
+    /// <param name="devidoEmCentavos">O valor do dia, com encargos ou desconto, <b>sem</b> abater o já pago.</param>
+    /// <returns>Se a parcela ficou quitada.</returns>
+    public Result<bool> Pagar(long valorEmCentavos, DateOnly pagoEm, long devidoEmCentavos)
     {
         if (Status != StatusDaParcela.Aberta)
-            return Result.Falha(Erro.Conflito("pagamento.parcela_nao_aberta", "Esta parcela não está em aberto."));
+            return Result.Falha<bool>(Erro.Conflito("pagamento.parcela_nao_aberta", "Esta parcela não está em aberto."));
+
+        ValorPagoEmCentavos = (ValorPagoEmCentavos ?? 0) + valorEmCentavos;
+
+        if (ValorPagoEmCentavos < QuitaCom(devidoEmCentavos))
+            return false;
 
         Status = StatusDaParcela.Paga;
-        ValorPagoEmCentavos = valorEmCentavos;
         PagoEm = pagoEm;
 
-        return Result.Ok();
+        return true;
     }
 
-    /// <summary>Desfaz a baixa: a parcela volta a ser devida, e o valor do dia volta a correr.</summary>
-    public Result Estornar()
+    /// <summary>
+    /// Quanto fecha a parcela: o menor entre o devido do dia e o valor original.
+    /// </summary>
+    /// <remarks>
+    /// O devido sozinho não serve: quem paga adiantado deve menos que o original, e exigir o original
+    /// deixaria a parcela aberta por um desconto que a própria turma deu. O original sozinho também
+    /// não: quem paga atrasado deve mais.
+    /// <para>
+    /// O menor dos dois é a regra que a prática pede — pagar o principal encerra a parcela, e a multa
+    /// e os juros não pagos viram divergência, que é onde a tesouraria decide se cobra ou perdoa. Sem
+    /// isso, a parcela do formando que pagou tudo menos R$ 10,50 de juros ficaria em aberto para
+    /// sempre, com a régua cobrando.
+    /// </para>
+    /// </remarks>
+    /// <param name="devidoEmCentavos">O valor do dia, com encargos ou desconto.</param>
+    public long QuitaCom(long devidoEmCentavos) => Math.Min(devidoEmCentavos, ValorOriginalEmCentavos);
+
+    /// <summary>
+    /// Desfaz uma baixa: o valor dela sai do pago, e a parcela volta a ser devida.
+    /// </summary>
+    /// <remarks>
+    /// Recebe o valor porque a parcela pode ter várias baixas — o estorno é de <b>uma</b> delas. Uma
+    /// parcela em aberto com pagamento parcial também estorna: não estava paga, mas o dinheiro entrou.
+    /// </remarks>
+    /// <param name="valorEmCentavos">O valor da baixa estornada.</param>
+    public Result Estornar(long valorEmCentavos)
     {
-        if (Status != StatusDaParcela.Paga)
-            return Result.Falha(Erro.Conflito("pagamento.parcela_nao_paga", "Esta parcela não está paga."));
+        if (Status is not (StatusDaParcela.Paga or StatusDaParcela.Aberta) || ValorPagoEmCentavos is null)
+            return Result.Falha(Erro.Conflito("pagamento.parcela_nao_paga", "Esta parcela não tem pagamento a estornar."));
+
+        var restante = ValorPagoEmCentavos.Value - valorEmCentavos;
 
         Status = StatusDaParcela.Aberta;
-        ValorPagoEmCentavos = null;
+        ValorPagoEmCentavos = restante > 0 ? restante : null;
         PagoEm = null;
 
         return Result.Ok();
     }
 
-    /// <summary>Deixa de ser devida, se ainda não venceu. As demais ficam como estão.</summary>
+    /// <summary>
+    /// Deixa de ser devida, se ainda não venceu. As demais ficam como estão.
+    /// </summary>
+    /// <remarks>
+    /// Paga, cancelada e renegociada nunca cancelam. Vencida só com <paramref name="incluirVencidas"/>,
+    /// e o único lugar que o pede é o desligamento do formando, onde a comissão vê a soma em atraso e
+    /// decide (P1 de 17/09/2026). Encerrar item do plano continua poupando o atraso: lá a dívida
+    /// vencida é de todo mundo, e ninguém decidiu perdoá-la.
+    /// </remarks>
     /// <param name="hoje">Dia de referência.</param>
+    /// <param name="incluirVencidas">Cancela também o que já venceu e não foi pago.</param>
     /// <returns>Se foi cancelada.</returns>
-    public bool Cancelar(DateOnly hoje)
+    public bool Cancelar(DateOnly hoje, bool incluirVencidas = false)
     {
-        if (StatusEm(hoje) != StatusDaParcela.Aberta)
+        var situacao = StatusEm(hoje);
+
+        if (situacao != StatusDaParcela.Aberta && !(incluirVencidas && situacao == StatusDaParcela.Vencida))
             return false;
 
         Status = StatusDaParcela.Cancelada;

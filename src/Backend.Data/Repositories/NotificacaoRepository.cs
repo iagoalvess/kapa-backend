@@ -18,6 +18,13 @@ namespace Backend.Data.Repositories;
 /// A seleção de parcelas parte de <c>ParcelaRepository.Devedores</c>, e não de uma consulta própria:
 /// a régua precisa chamar a pessoa pelo mesmo nome que a tela de Parcelas e a conferência usam, e
 /// essa regra mora lá.
+/// <para>
+/// O vínculo ativo é exigido <b>aqui</b>, e não em <c>Devedores</c>: a tela de Parcelas continua
+/// mostrando o que quem saiu deixou em atraso — sumir esconderia o histórico de quem pagou parte —,
+/// mas a régua para no mesmo instante do desligamento (decisão 4 da Sprint 15). Sem esta linha, o
+/// job da madrugada seguinte manda cobrança para quem saiu ontem, que é a forma mais rápida de a
+/// comissão perder a confiança na ferramenta.
+/// </para>
 /// </remarks>
 /// <param name="db">Contexto de dados da requisição.</param>
 public sealed class NotificacaoRepository(AppDbContext db) : INotificacaoRepository
@@ -42,7 +49,7 @@ public sealed class NotificacaoRepository(AppDbContext db) : INotificacaoReposit
             .RegrasDeNotificacao.AsNoTracking()
             .OrderBy(r => r.Gatilho)
             .ThenBy(r => r.DiasDeDeslocamento)
-            .Select(r => new RegraResumo(r.Id, r.Gatilho, r.DiasDeDeslocamento, r.Canal, r.Assunto, r.Template, r.Ativa, r.AvisarTesouraria))
+            .Select(r => new RegraResumo(r.Id, r.Gatilho, r.DiasDeDeslocamento, r.Assunto, r.Template, r.Ativa, r.AvisarTesouraria))
             .ToListAsync(ct);
 
     /// <inheritdoc />
@@ -168,6 +175,7 @@ public sealed class NotificacaoRepository(AppDbContext db) : INotificacaoReposit
         where
             devedor.Parcela.Status == StatusDaParcela.Aberta
             && devedor.Email != null
+            && db.Vinculos.Any(vinculo => vinculo.Id == devedor.Parcela.VinculoId && vinculo.Ativo)
             && !db.Informes.Any(informe => informe.ParcelaId == devedor.Parcela.Id && informe.Status == StatusDoInforme.Pendente)
         select new LinhaCobravel
         {
@@ -217,9 +225,6 @@ public sealed class NotificacaoRepository(AppDbContext db) : INotificacaoReposit
 
     private static IQueryable<LinhaDeNotificacao> Filtrar(IQueryable<LinhaDeNotificacao> consulta, FiltroDeNotificacoes filtro)
     {
-        if (filtro.Canal is { } canal)
-            consulta = consulta.Where(linha => linha.Notificacao.Canal == canal);
-
         if (filtro.Status is { } status)
             consulta = consulta.Where(linha => linha.Notificacao.Status == status);
 
@@ -246,7 +251,6 @@ public sealed class NotificacaoRepository(AppDbContext db) : INotificacaoReposit
             linha.Notificacao.Destinatario,
             linha.Nome,
             linha.Notificacao.Assunto,
-            linha.Notificacao.Canal,
             linha.Notificacao.Status,
             linha.Notificacao.Erro,
             linha.Notificacao.DataDeReferencia,

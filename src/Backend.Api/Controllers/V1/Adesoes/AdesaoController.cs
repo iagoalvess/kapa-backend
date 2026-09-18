@@ -51,7 +51,6 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
     [HttpPost("termos")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [RegistrarEvento("adesao.termo_publicado")]
     [ProducesResponseType(typeof(VersaoDoTermoDTO), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -125,7 +124,8 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
 
     /// <summary>A própria adesão mais recente e o que falta no cadastro para aderir.</summary>
     [HttpGet("eu", Name = RotaDaMinhaAdesao)]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    // Aceita o desligado: o termo aceito vigorou, e foi sob ele que ele pagou o que pagou (P5).
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [ProducesResponseType(typeof(MinhaAdesaoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ObterMinha(CancellationToken ct) =>
@@ -166,7 +166,8 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
     /// </remarks>
     /// <param name="id">Adesão.</param>
     [HttpGet("{id:guid}/pdf")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    // Aceita o desligado: o PDF do próprio termo acompanha a adesão. O de terceiro o service recusa.
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

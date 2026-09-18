@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Backend.Api.DTOs.Auditoria;
 using Backend.Api.DTOs.Cobrancas;
 using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Pagamentos;
@@ -140,6 +141,11 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         (await EmailsPara(ana.Membro, "Pagamento confirmado")).ShouldBe(1);
         (await Auditoria("pagamento.baixado", turma.Tesoureiro, primeira)).ShouldBe(1);
 
+        var trilha = await Ler<PaginaDTO<LinhaDeAuditoriaDTO>>(await turma.Tesoureiro.Cliente.GetAsync("/api/v1/auditoria", Ct));
+        var naTrilha = trilha.Itens.Single(item => item.Nome == "pagamento.baixado");
+
+        naTrilha.Pessoas[primeira.ToString()].ShouldBe(await NomeDoUsuario(ana.Membro.UsuarioId));
+
         var informeNaPaga = await ana.Membro.Cliente.PostAsync($"/api/v1/parcelas/{primeira}/informes", Informe(Hoje, Mensalidade), Ct);
         (await informeNaPaga.Codigo(Ct)).ShouldBe("pagamento.parcela_paga");
     }
@@ -193,8 +199,12 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         (await EmailsPara(ana.Membro, "Pagamento confirmado")).ShouldBe(1);
     }
 
+    /// <summary>
+    /// Recebido a menos é pagamento parcial: entra no caixa, aparece em Divergências e a parcela
+    /// <b>continua aberta</b> pelo saldo (revisão de 17/09/2026).
+    /// </summary>
     [Fact]
-    public async Task Valor_recebido_diferente_do_devido_baixa_e_aparece_em_divergencias()
+    public async Task Valor_recebido_a_menos_deixa_a_parcela_aberta_e_aparece_em_divergencias()
     {
         var turma = await TurmaPronta();
         var ana = await FormandoQueAderiu(turma, "Ana Divergente");
@@ -205,10 +215,35 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         var divergencias = await Ler<PaginaDTO<DivergenciaDTO>>(await turma.Tesoureiro.Cliente.GetAsync("/api/v1/recebimentos/divergencias", Ct));
         var divergencia = divergencias.Itens.ShouldHaveSingleItem();
         divergencia.Parcela.Id.ShouldBe(ana.Parcelas[0]);
-        divergencia.Parcela.Status.ShouldBe(StatusDaParcela.Paga);
+        divergencia.Parcela.Status.ShouldBe(StatusDaParcela.Aberta);
         divergencia.DevidoEmCentavos.ShouldBe(Mensalidade);
         divergencia.RecebidoEmCentavos.ShouldBe(300_000);
         divergencia.BaixadoPor.ShouldBe("Usuário de Teste");
+
+        await using var contexto = fabrica.ContextoDe(turma.FormaturaId);
+        var parcela = await contexto.Parcelas.SingleAsync(p => p.Id == ana.Parcelas[0], Ct);
+        parcela.ValorPagoEmCentavos.ShouldBe(300_000);
+    }
+
+    /// <summary>E o resto, depois, fecha a parcela — duas entradas no caixa para a mesma parcela.</summary>
+    [Fact]
+    public async Task Saldo_pago_depois_fecha_a_parcela()
+    {
+        var turma = await TurmaPronta();
+        var ana = await FormandoQueAderiu(turma, "Ana Parcial");
+        var parcelaId = ana.Parcelas[0];
+        (await Confirmar(turma.Tesoureiro, (await Informar(turma, ana, parcelaId), 300_000))).EnsureSuccessStatusCode();
+
+        // O saldo pela baixa manual: é o caminho de quem pagou o resto em dinheiro e não avisou.
+        (
+            await turma.Tesoureiro.Cliente.PostAsync($"/api/v1/parcelas/{parcelaId}/baixa-manual", BaixaManual(valor: Mensalidade - 300_000), Ct)
+        ).EnsureSuccessStatusCode();
+
+        await using var contexto = fabrica.ContextoDe(turma.FormaturaId);
+        var parcela = await contexto.Parcelas.SingleAsync(p => p.Id == parcelaId, Ct);
+        parcela.Status.ShouldBe(StatusDaParcela.Paga);
+        parcela.ValorPagoEmCentavos.ShouldBe(Mensalidade);
+        (await contexto.Recebimentos.CountAsync(r => r.ParcelaId == parcelaId, Ct)).ShouldBe(2);
     }
 
     [Fact]
@@ -289,7 +324,7 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         (
             await turma.Tesoureiro.Cliente.PutAsJsonAsync(
                 $"/api/v1/cobrancas/planos/{turma.PlanoId}",
-                new PlanoDeCobrancaRequestDTO("Plano 2027", 1_000, 500, 0, 0),
+                new PlanoDeCobrancaRequestDTO("Plano 2027", 1_000, 500, 0, 0, 0),
                 Json,
                 Ct
             )
@@ -315,13 +350,35 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         (await ParcelaNoBanco(turma, ana.Parcelas[0])).Status.ShouldBe(StatusDaParcela.Aberta);
     }
 
+    /// <summary>
+    /// O selo do menu conta a vencida sem aviso — e ela sai da conta no instante em que o formando avisa,
+    /// sem esperar a tesouraria conferir.
+    /// </summary>
+    [Fact]
+    public async Task Pendencias_do_extrato_contam_a_vencida_ate_o_aviso_chegar()
+    {
+        var turma = await TurmaPronta();
+        var ana = await FormandoQueAderiu(turma, "Ana Sinalizada");
+        await MoverVencimento(turma, ana.Parcelas[0], Hoje.AddDays(-30));
+
+        var comVencida = await Ler<PendenciasDoExtratoDTO>(await ana.Membro.Cliente.GetAsync("/api/v1/extrato/eu/pendencias", Ct));
+        (
+            await ana.Membro.Cliente.PostAsync($"/api/v1/parcelas/{ana.Parcelas[0]}/informes", Informe(Hoje, Mensalidade), Ct)
+        ).EnsureSuccessStatusCode();
+        var depoisDoAviso = await Ler<PendenciasDoExtratoDTO>(await ana.Membro.Cliente.GetAsync("/api/v1/extrato/eu/pendencias", Ct));
+
+        comVencida.VencidasSemAviso.ShouldBe(1);
+        depoisDoAviso.VencidasSemAviso.ShouldBe(0);
+    }
+
     [Fact]
     public async Task Busca_acha_as_parcelas_pelo_nome_civil_ou_da_conta_e_o_resumo_soma_o_recebido()
     {
         var turma = await TurmaPronta();
         var ana = await FormandoQueAderiu(turma, "Zuléica Buscada");
+        // Acima do devido: a parcela fecha, e o resumo soma o que entrou de verdade, não o original.
         (
-            await turma.Tesoureiro.Cliente.PostAsync($"/api/v1/parcelas/{ana.Parcelas[0]}/baixa-manual", BaixaManual(valor: 340_000), Ct)
+            await turma.Tesoureiro.Cliente.PostAsync($"/api/v1/parcelas/{ana.Parcelas[0]}/baixa-manual", BaixaManual(valor: 360_000), Ct)
         ).EnsureSuccessStatusCode();
 
         var porNome = await Ler<PaginaDTO<ParcelaDTO>>(await turma.Tesoureiro.Cliente.GetAsync("/api/v1/cobrancas/parcelas?busca=zuleica", Ct));
@@ -332,7 +389,7 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         porNome.Itens.ShouldAllBe(p => p.Nome == "Zuléica Buscada");
         ninguem.Total.ShouldBe(0);
         resumo.Todas.Quantidade.ShouldBe(3);
-        resumo.Paga.ShouldBe(new SomaDeParcelasDTO(1, 340_000));
+        resumo.Paga.ShouldBe(new SomaDeParcelasDTO(1, 360_000));
     }
 
     /// <summary>A API com o IP remoto fixo — o TestServer não preenche, e IP é parte da trilha da baixa.</summary>
@@ -360,7 +417,7 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         var plano = await Ler<PlanoDeCobrancaDTO>(
             await presidente.Cliente.PostAsJsonAsync(
                 "/api/v1/cobrancas/planos",
-                new PlanoDeCobrancaRequestDTO("Plano 2027", 200, 100, 0, 0),
+                new PlanoDeCobrancaRequestDTO("Plano 2027", 200, 100, 0, 0, 0),
                 Json,
                 Ct
             ),
@@ -482,6 +539,14 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         var eventos = await contexto.Eventos.Where(e => e.Nome == nome && e.UsuarioId == autor.UsuarioId).ToListAsync(Ct);
 
         return eventos.Count(e => e.Dados!.Contains(parcelaId.ToString(), StringComparison.Ordinal));
+    }
+
+    /// <summary>O nome da conta, como a trilha de auditoria o resolve a partir da parcela.</summary>
+    private async Task<string> NomeDoUsuario(Guid usuarioId)
+    {
+        await using var contexto = fabrica.ContextoDe(null);
+
+        return await contexto.Users.AsNoTracking().Where(u => u.Id == usuarioId).Select(u => u.Nome).SingleAsync(Ct);
     }
 
     private static async Task<T> Ler<T>(HttpResponseMessage resposta, HttpStatusCode esperado = HttpStatusCode.OK)

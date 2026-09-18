@@ -1,6 +1,7 @@
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Cobrancas.Services;
+using Backend.Business.Common.Datas;
 using NSubstitute;
 using Shouldly;
 
@@ -30,13 +31,14 @@ public sealed class GeracaoDeParcelasServiceTests
         return plano;
     }
 
-    private static DadosDoItem Mensalidade => new(TipoDeCobranca.Mensalidade, null, 840_000, 24, 10, new DateOnly(2026, 3, 1));
+    /// <summary>Mês que vem: a grade cheia, sem nada vencido — o caso de quem adere na publicação.</summary>
+    private static DadosDoItem Mensalidade => new(TipoDeCobranca.Mensalidade, null, 840_000, 24, 10, DataUtils.Hoje().AddMonths(1));
 
     [Fact]
     public async Task Primeira_geracao_marca_a_grade_inteira_de_cada_item_ativo()
     {
         // Arrange
-        var plano = Plano(true, Mensalidade, new DadosDoItem(TipoDeCobranca.Adesao, null, 50_000, 1, 5, new DateOnly(2026, 3, 1)));
+        var plano = Plano(true, Mensalidade, new DadosDoItem(TipoDeCobranca.Adesao, null, 50_000, 1, 5, DataUtils.Hoje().AddMonths(1)));
         _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([]);
 
         // Act
@@ -84,6 +86,65 @@ public sealed class GeracaoDeParcelasServiceTests
         await _parcelas
             .Received(1)
             .Adicionar(Arg.Is<IReadOnlyList<Parcela>>(parcelas => parcelas.Select(p => p.Numero).SequenceEqual(new[] { 21, 22, 23, 24 })), Ct);
+    }
+
+    [Fact]
+    public async Task Rateio_grava_a_grade_do_item_para_cada_vinculo()
+    {
+        // Arrange
+        Guid[] vinculos = [Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7()];
+        var item = ItemDeCobranca.Novo(
+            Guid.CreateVersion7(),
+            new DadosDoItem(TipoDeCobranca.Avulsa, "Rateio do buffet", 10_000, 2, 10, new DateOnly(2027, 2, 1))
+        );
+
+        // Act
+        var resultado = await Servico.GerarDoItem(vinculos, item, Ct);
+
+        // Assert
+        resultado.Valor.ShouldBe(6);
+        await _parcelas
+            .Received(1)
+            .Adicionar(
+                Arg.Is<IReadOnlyList<Parcela>>(parcelas =>
+                    parcelas.All(p => p.ItemDeCobrancaId == item.Id)
+                    && parcelas.Select(p => p.VinculoId).Distinct().Count() == 3
+                    && parcelas.Sum(p => p.ValorOriginalEmCentavos) == 30_000
+                ),
+                Ct
+            );
+    }
+
+    [Fact]
+    public async Task Rateio_sem_ninguem_para_alcancar_nao_marca_nada()
+    {
+        // Act
+        var resultado = await Servico.GerarDoItem([], ItemDeCobranca.Novo(Guid.CreateVersion7(), Mensalidade), Ct);
+
+        // Assert
+        resultado.Valor.ShouldBe(0);
+        await _parcelas.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+    }
+
+    [Fact]
+    public async Task Rateio_nao_toca_nos_outros_itens_do_plano()
+    {
+        // Arrange
+        var plano = Plano(true, Mensalidade);
+        var rateio = ItemDeCobranca.Novo(
+            plano.Id,
+            new DadosDoItem(TipoDeCobranca.Avulsa, "Rateio do buffet", 10_000, 1, 10, new DateOnly(2027, 2, 1))
+        );
+        plano.Itens.Add(rateio);
+
+        // Act
+        await Servico.GerarDoItem([VinculoId], rateio, Ct);
+
+        // Assert
+        await _parcelas
+            .Received(1)
+            .Adicionar(Arg.Is<IReadOnlyList<Parcela>>(parcelas => parcelas.Count == 1 && parcelas[0].ItemDeCobrancaId == rateio.Id), Ct);
+        await _parcelas.DidNotReceiveWithAnyArgs().ListarNumerosGerados(default, default, Ct);
     }
 
     [Fact]

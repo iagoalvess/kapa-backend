@@ -73,6 +73,10 @@ public sealed class PagamentoService(
     /// <summary>Evento do estorno, com a justificativa — a segunda linha da auditoria, ao lado da baixa.</summary>
     public const string EventoDeEstorno = "pagamento.estornado";
 
+    /// <summary>Teto de parcelas num aviso de pagamento só.</summary>
+    /// <remarks>Dois anos de mensalidade: quem se acerta de uma vez cobre o atraso inteiro, e além disso é engano.</remarks>
+    public const int ParcelasPorInforme = 24;
+
     /// <summary>
     /// Comprovante é PDF ou imagem.
     /// </summary>
@@ -101,11 +105,17 @@ public sealed class PagamentoService(
 
     private static readonly Erro ParcelaNaoAberta = Erro.Conflito("pagamento.parcela_nao_aberta", "Esta parcela não está em aberto.");
 
+    private static readonly Erro SemConta = Erro.Conflito(
+        "pagamento.sem_conta",
+        "A comissão ainda está configurando a conta de recebimento da turma. Tente de novo em alguns dias."
+    );
+
     /// <inheritdoc />
     /// <remarks>Em aberto soma o valor do dia — com multa e juros, ou com desconto —, e não o original.</remarks>
     public async Task<Result<ExtratoDoFormando>> ObterExtrato(Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
     {
-        var membro = await perfilRepository.ObterMembro(formaturaId, usuarioId, ct);
+        // Do titular: o extrato é a prova do que a pessoa pagou, e não some com a saída (P5 da Sprint 15).
+        var membro = await perfilRepository.ObterTitular(formaturaId, usuarioId, ct);
         if (membro is null)
             return Erro.NaoEncontrado("membro.nao_encontrado", "Membro não encontrado nesta formatura.");
 
@@ -117,6 +127,16 @@ public sealed class PagamentoService(
             parcelas.FirstOrDefault(p => p.EmAberto && !p.EmConferencia),
             parcelas
         );
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<int>> ContarVencidasSemAviso(Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
+    {
+        var membro = await perfilRepository.ObterTitular(formaturaId, usuarioId, ct);
+        if (membro is null)
+            return Erro.NaoEncontrado("membro.nao_encontrado", "Membro não encontrado nesta formatura.");
+
+        return await parcelaRepository.ContarVencidasSemAviso(membro.VinculoId, DataUtils.Hoje(), ct);
     }
 
     /// <inheritdoc />
@@ -144,10 +164,7 @@ public sealed class PagamentoService(
 
         var conta = await contaRepository.ObterDetalhe(ct);
         if (conta is null)
-            return Erro.Conflito(
-                "pagamento.sem_conta",
-                "A comissão ainda está configurando a conta de recebimento da turma. Tente de novo em alguns dias."
-            );
+            return SemConta;
 
         var identificador = Identificador(parcela.Id);
 
@@ -162,14 +179,57 @@ public sealed class PagamentoService(
 
     /// <inheritdoc />
     /// <remarks>
+    /// Um BR Code só, com a soma do que as parcelas cobram hoje: é o mesmo pagamento, e dois QR Codes
+    /// numa tela viram dois PIX pela metade. As parcelas passam pelas mesmas conferências do aviso
+    /// (<see cref="Conferir"/>) — quem não pode avisar também não deveria ver o QR —, e o identificador
+    /// é o da mais antiga: no PIX estático ele não reconcilia nada, e a mais antiga é a que a tesouraria
+    /// procura no extrato.
+    /// </remarks>
+    public async Task<Result<PixDaParcela>> GerarPixDeVarias(
+        Guid formaturaId,
+        Guid usuarioId,
+        IReadOnlyList<Guid> parcelaIds,
+        CancellationToken ct = default
+    )
+    {
+        if (parcelaIds.Count == 0 || parcelaIds.Count > ParcelasPorInforme)
+            return Erro.Validacao(
+                "pagamento.parcelas_do_informe",
+                $"Escolha de 1 a {ParcelasPorInforme} parcelas para este pagamento.",
+                campo: "parcela_ids"
+            );
+
+        var conferidas = await Conferir(formaturaId, usuarioId, parcelaIds, ct);
+        if (conferidas.Falhou)
+            return Result.Falha<PixDaParcela>(conferidas.Erros);
+
+        var conta = await contaRepository.ObterDetalhe(ct);
+        if (conta is null)
+            return SemConta;
+
+        var parcelas = conferidas.Valor;
+        var total = parcelas.Sum(parcela => parcela.ValorDoDia?.TotalEmCentavos ?? parcela.ValorOriginalEmCentavos);
+        var identificador = Identificador(parcelas[0].Id);
+
+        return new PixDaParcela(
+            BrCode.Montar(conta.Chave, conta.NomeDoTitular, conta.Cidade, total, identificador),
+            total,
+            conta.Chave,
+            conta.NomeDoTitular,
+            identificador
+        );
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
     /// O comprovante é gravado antes do informe: se o informe falhar depois, sobra um arquivo órfão — nunca
     /// um informe apontando para comprovante que não existe. As conferências vêm antes do envio, para o
     /// arquivo não subir à toa.
     /// </remarks>
-    public async Task<Result<ParcelaResumo>> Informar(
+    public async Task<Result<IReadOnlyList<ParcelaResumo>>> Informar(
         Guid formaturaId,
         Guid usuarioId,
-        Guid parcelaId,
+        IReadOnlyList<Guid> parcelaIds,
         NovoInforme dados,
         NovoArquivo? comprovante,
         CancellationToken ct = default
@@ -177,40 +237,88 @@ public sealed class PagamentoService(
     {
         var validacao = informeValidator.Validar(dados);
         if (validacao.Falhou)
-            return Result.Falha<ParcelaResumo>(validacao.Erros);
+            return Result.Falha<IReadOnlyList<ParcelaResumo>>(validacao.Erros);
 
-        var visivel = await ParcelaVisivel(formaturaId, usuarioId, parcelaId, [], ct);
-        if (visivel.Falhou)
-            return visivel;
-
-        var parcela = visivel.Valor;
-
-        if (parcela.Status == StatusDaParcela.Paga)
-            return ParcelaPaga;
-
-        if (!parcela.EmAberto)
-            return ParcelaNaoAberta;
-
-        if (parcela.EmConferencia)
-            return Erro.Conflito(
-                "pagamento.informe_pendente",
-                "Você já avisou este pagamento. A tesouraria vai conferir, e você recebe um e-mail quando for confirmado."
+        if (parcelaIds.Count == 0 || parcelaIds.Count > ParcelasPorInforme)
+            return Erro.Validacao(
+                "pagamento.parcelas_do_informe",
+                $"Escolha de 1 a {ParcelasPorInforme} parcelas para este pagamento.",
+                campo: "parcela_ids"
             );
+
+        var conferidas = await Conferir(formaturaId, usuarioId, parcelaIds, ct);
+        if (conferidas.Falhou)
+            return Result.Falha<IReadOnlyList<ParcelaResumo>>(conferidas.Erros);
 
         var arquivo = await EnviarComprovante(comprovante, usuarioId, ct);
         if (arquivo.Falhou)
-            return Result.Falha<ParcelaResumo>(arquivo.Erros);
+            return Result.Falha<IReadOnlyList<ParcelaResumo>>(arquivo.Erros);
 
-        var informe = InformeDePagamento.Novo(parcela.Id, parcela.VinculoId, dados.PagoEm, dados.ValorEmCentavos, arquivo.Valor);
-        await informeRepository.Adicionar(informe, ct);
+        var parcelas = conferidas.Valor;
+        var aDistribuir = dados.ValorEmCentavos;
+        var informadas = new List<ParcelaResumo>(parcelas.Count);
+
+        foreach (var (parcela, ultima) in parcelas.Select((p, i) => (p, i == parcelas.Count - 1)))
+        {
+            var cabe = ultima ? aDistribuir : Math.Min(aDistribuir, parcela.ValorDoDia?.TotalEmCentavos ?? parcela.ValorOriginalEmCentavos);
+            aDistribuir -= cabe;
+
+            var informe = InformeDePagamento.Novo(parcela.Id, parcela.VinculoId, dados.PagoEm, cabe, arquivo.Valor);
+            await informeRepository.Adicionar(informe, ct);
+
+            informadas.Add(parcela with { EmConferencia = true });
+        }
+
         await unitOfWork.SalvarAsync(ct);
 
-        logger.LogInformation("Informe {InformeId} da parcela {ParcelaId} aguardando conferência.", informe.Id, parcela.Id);
+        logger.LogInformation("{Quantidade} parcelas informadas de uma vez pelo vínculo {VinculoId}.", parcelas.Count, parcelas[0].VinculoId);
 
-        return parcela with
+        return Result.Ok<IReadOnlyList<ParcelaResumo>>(informadas);
+    }
+
+    /// <summary>
+    /// As parcelas do aviso, do vencimento mais antigo ao mais novo, conferidas uma a uma.
+    /// </summary>
+    /// <remarks>
+    /// Uma consulta por parcela: são poucas, e reusar <see cref="ParcelaVisivel"/> mantém a regra de
+    /// quem enxerga a parcela num lugar só. <c>ponytail:</c> vira uma consulta por lista se o teto
+    /// subir muito.
+    /// </remarks>
+    private async Task<Result<IReadOnlyList<ParcelaResumo>>> Conferir(
+        Guid formaturaId,
+        Guid usuarioId,
+        IReadOnlyList<Guid> parcelaIds,
+        CancellationToken ct
+    )
+    {
+        var parcelas = new List<ParcelaResumo>(parcelaIds.Count);
+
+        foreach (var parcelaId in parcelaIds.Distinct())
         {
-            EmConferencia = true,
-        };
+            var visivel = await ParcelaVisivel(formaturaId, usuarioId, parcelaId, [], ct);
+            if (visivel.Falhou)
+                return Result.Falha<IReadOnlyList<ParcelaResumo>>(visivel.Erros);
+
+            var parcela = visivel.Valor;
+
+            if (parcela.Status == StatusDaParcela.Paga)
+                return Result.Falha<IReadOnlyList<ParcelaResumo>>(ParcelaPaga);
+
+            if (!parcela.EmAberto)
+                return Result.Falha<IReadOnlyList<ParcelaResumo>>(ParcelaNaoAberta);
+
+            if (parcela.EmConferencia)
+                return Result.Falha<IReadOnlyList<ParcelaResumo>>(
+                    Erro.Conflito(
+                        "pagamento.informe_pendente",
+                        "Você já avisou o pagamento de uma dessas parcelas. A tesouraria vai conferir, e você recebe um e-mail quando for confirmado."
+                    )
+                );
+
+            parcelas.Add(parcela);
+        }
+
+        return Result.Ok<IReadOnlyList<ParcelaResumo>>([.. parcelas.OrderBy(parcela => parcela.Vencimento).ThenBy(parcela => parcela.Id)]);
     }
 
     /// <inheritdoc />
@@ -497,9 +605,8 @@ public sealed class PagamentoService(
                     return Result.Falha(ParcelaNaoEncontrada);
 
                 var recebimento = await recebimentoRepository.ObterAtivoParaEdicao(parcelaId, token);
-                var desfeita = parcela.Estornar();
 
-                if (recebimento is null || desfeita.Falhou)
+                if (recebimento is null || parcela.Estornar(recebimento.ValorEmCentavos).Falhou)
                     return Result.Falha(Erro.Conflito("pagamento.parcela_nao_paga", "Esta parcela não tem baixa para estornar."));
 
                 recebimento.Estornar(usuarioId, dados.Justificativa, DateTime.UtcNow);

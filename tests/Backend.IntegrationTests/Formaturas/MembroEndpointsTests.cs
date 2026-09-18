@@ -74,9 +74,9 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
         contagens.ShouldNotBeNull();
         contagens.ShouldBe(
             [
-                new ContagemDeMembrosDTO(PapelNaFormatura.Formando, false, 1),
-                new ContagemDeMembrosDTO(PapelNaFormatura.Formando, true, 1),
-                new ContagemDeMembrosDTO(PapelNaFormatura.Presidente, true, 1),
+                new ContagemDeMembrosDTO(PapelNaFormatura.Formando, false, false, true, 1),
+                new ContagemDeMembrosDTO(PapelNaFormatura.Formando, true, false, true, 1),
+                new ContagemDeMembrosDTO(PapelNaFormatura.Presidente, true, false, true, 1),
             ],
             ignoreOrder: true
         );

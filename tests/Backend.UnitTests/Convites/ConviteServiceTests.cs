@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
 using Backend.Business.Common;
@@ -38,6 +39,7 @@ public sealed class ConviteServiceTests
     private readonly IAuthService _auth = Substitute.For<IAuthService>();
     private readonly ITokenService _tokens = Substitute.For<ITokenService>();
     private readonly IEmailService _emails = Substitute.For<IEmailService>();
+    private readonly IAssinaturaRepository _assinaturas = Substitute.For<IAssinaturaRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
     public ConviteServiceTests()
@@ -59,6 +61,7 @@ public sealed class ConviteServiceTests
             _convites,
             _vinculos,
             _formaturas,
+            _assinaturas,
             _usuarios,
             _auth,
             _tokens,
@@ -293,6 +296,7 @@ public sealed class ConviteServiceTests
                 PapelNaFormatura.Tesoureiro,
                 "refresh",
                 "127.0.0.1",
+                null,
                 Arg.Any<CancellationToken>()
             );
     }
@@ -307,7 +311,7 @@ public sealed class ConviteServiceTests
 
         resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.esgotado");
         await _vinculos.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
-        await _auth.DidNotReceiveWithAnyArgs().EmitirSessaoDeFormatura(default, default, default!, default!, default, Ct);
+        await _auth.DidNotReceiveWithAnyArgs().EmitirSessaoDeFormatura(default, default, default!, default!, default, default, Ct);
     }
 
     /// <summary>Convite pessoal devolve quem foi removido, reativando o vínculo antigo em vez de criar outro.</summary>
@@ -339,7 +343,7 @@ public sealed class ConviteServiceTests
 
         resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.vinculo_removido");
         antigo.Ativo.ShouldBeFalse();
-        await _auth.DidNotReceiveWithAnyArgs().EmitirSessaoDeFormatura(default, default, default!, default!, default, Ct);
+        await _auth.DidNotReceiveWithAnyArgs().EmitirSessaoDeFormatura(default, default, default!, default!, default, default, Ct);
     }
 
     /// <summary>E-mail igual não prova posse: sem confirmar, qualquer um com o link encaminhado entraria.</summary>
@@ -403,6 +407,102 @@ public sealed class ConviteServiceTests
         var resultado = await Servico.ObterPublico("token", Ct);
 
         resultado.Valor.EmailMascarado.ShouldBe("j*********a@exemplo.com");
+    }
+
+    /// <summary>
+    /// P3 da Sprint 16: passar do limite do plano bloqueia o convite de formando.
+    /// </summary>
+    /// <remarks>
+    /// <c>LimiteDeFormandos</c> existia no plano e aparecia na vitrine, mas nada o aplicava — uma
+    /// turma no Essencial (60) aceitava o 61º. O que se vende deixa de ser verdade no dia em que
+    /// ninguém confere.
+    /// </remarks>
+    [Fact]
+    public async Task Convite_de_formando_com_a_turma_lotada_devolve_409_sem_gravar()
+    {
+        TurmaLotada(limite: 60, ocupadas: 60);
+
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", null), Ct);
+
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.limite_do_plano");
+        await _convites.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
+    }
+
+    /// <summary>A última vaga ainda entra: o bloqueio é ao <b>atingir</b> o limite, não antes.</summary>
+    [Fact]
+    public async Task Convite_de_formando_com_uma_vaga_livre_passa()
+    {
+        TurmaLotada(limite: 60, ocupadas: 59);
+
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", null), Ct);
+
+        resultado.Sucesso.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// A comissão entra com a turma lotada, de propósito: é ela quem troca de plano.
+    /// </summary>
+    /// <remarks>Barrá-la trancaria a porta pelo lado de dentro — uma turma cheia não substituiria o tesoureiro que saiu.</remarks>
+    [Theory]
+    [InlineData(PapelNaFormatura.Tesoureiro)]
+    [InlineData(PapelNaFormatura.Comissao)]
+    [InlineData(PapelNaFormatura.Presidente)]
+    public async Task Convite_de_comissao_passa_mesmo_com_a_turma_lotada(string papel)
+    {
+        AutorCom(PapelNaFormatura.Presidente);
+        TurmaLotada(limite: 60, ocupadas: 80);
+
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", papel), Ct);
+
+        resultado.Sucesso.ShouldBeTrue();
+    }
+
+    /// <summary>O link da turma é criado antes de encher; quem barra a entrada é o aceite.</summary>
+    [Fact]
+    public async Task Aceite_de_formando_com_a_turma_lotada_devolve_409()
+    {
+        Existe(Link());
+        TurmaLotada(limite: 60, ocupadas: 60);
+
+        var resultado = await Aceitar();
+
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.limite_do_plano");
+        await _vinculos.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+    }
+
+    /// <summary>Turma sem plano contratado não tem limite a aplicar — quem a barra é o status.</summary>
+    [Fact]
+    public async Task Sem_plano_contratado_o_limite_nao_se_aplica()
+    {
+        _assinaturas.ObterLimiteDeFormandosDeTodasAsFormaturas(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((int?)null);
+
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", null), Ct);
+
+        resultado.Sucesso.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Arma uma turma com o limite do plano e as vagas já ocupadas.
+    /// </summary>
+    /// <remarks>
+    /// As vagas entram como vínculo <b>ativo e não desligado</b>: a conta é de quem ocupa lugar na
+    /// turma, e não de quem tem o papel Formando — o presidente também se forma e também paga.
+    /// Quem foi desligado sai do denominador (decisão 6 da Sprint 15).
+    /// </remarks>
+    /// <param name="limite">Quantos formandos o plano comporta.</param>
+    /// <param name="ocupadas">Quantos vínculos ativos a turma já tem.</param>
+    private void TurmaLotada(int limite, int ocupadas)
+    {
+        _assinaturas.ObterLimiteDeFormandosDeTodasAsFormaturas(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(limite);
+        _vinculos
+            .ContarMembros(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns([
+                new ContagemDeMembros(PapelNaFormatura.Formando, true, false, false, ocupadas - 1),
+                new ContagemDeMembros(PapelNaFormatura.Presidente, true, false, false, 1),
+                new ContagemDeMembros(PapelNaFormatura.Formando, true, true, false, 5),
+                new ContagemDeMembros(PapelNaFormatura.Formando, false, false, false, 3),
+            ]);
     }
 
     private VinculoDeFormatura Removido()

@@ -27,9 +27,24 @@ public sealed class ExtratoController(IPagamentoService pagamentoService, IUsuar
 {
     /// <summary>O extrato do próprio formando: em aberto, a próxima a pagar e todas as parcelas.</summary>
     [HttpGet("eu")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    // Aceita o desligado: o extrato é a prova do que ele pagou, e não some com a saída (P5).
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [ProducesResponseType(typeof(ExtratoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ObterExtrato(CancellationToken ct) =>
         Responder((await pagamentoService.ObterExtrato(FormaturaId, usuarioAtual.Id, ct)).Map(extrato => extrato.Adapt<ExtratoDTO>()));
+
+    /// <summary>Quantas parcelas próprias venceram sem aviso de pagamento — o selo do menu.</summary>
+    /// <remarks>
+    /// Existe para não pedir o extrato inteiro em toda tela do app: o selo é um número, e o extrato
+    /// de quem está no fim da turma passa de dezenas de parcelas.
+    /// </remarks>
+    [HttpGet("eu/pendencias")]
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
+    [ProducesResponseType(typeof(PendenciasDoExtratoDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ObterPendencias(CancellationToken ct) =>
+        Responder(
+            (await pagamentoService.ContarVencidasSemAviso(FormaturaId, usuarioAtual.Id, ct)).Map(vencidas => new PendenciasDoExtratoDTO(vencidas))
+        );
 }

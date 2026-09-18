@@ -63,10 +63,24 @@ public sealed record ResumoDoMural(int Quantidade, int Fixados, int Importantes,
 /// <param name="Visibilidade">Para quem aparece. Obrigatória.</param>
 public sealed record DadosDoDocumento(string Titulo, CategoriaDeDocumento? Categoria, Visibilidade? Visibilidade);
 
-/// <summary>Filtros do acervo.</summary>
+/// <summary>
+/// Filtros do acervo.
+/// </summary>
+/// <remarks>
+/// <see cref="Visibilidade"/> <b>estreita</b> o que o papel já podia ver, nunca alarga: quem não vê
+/// documento interno e pedir <c>SomenteComissao</c> recebe lista vazia, e não o acervo da comissão.
+/// Existe para quem precisa escolher um documento que a turma inteira abre — o contrato de um item
+/// da festa (Sprint 17, decisão 7) —, sem filtrar depois da paginação e acabar com uma lista vazia
+/// por acidente.
+/// </remarks>
 /// <param name="Categoria">Só desta categoria.</param>
 /// <param name="Busca">Trecho do título, sem diferenciar acento.</param>
-public sealed record FiltroDeDocumentos(CategoriaDeDocumento? Categoria = null, string? Busca = null);
+/// <param name="Visibilidade">Só os desta visibilidade, dentro do que o papel já enxerga.</param>
+public sealed record FiltroDeDocumentos(
+    CategoriaDeDocumento? Categoria = null,
+    string? Busca = null,
+    Visibilidade? Visibilidade = null
+);
 
 /// <summary>Um documento, como o acervo o lista.</summary>
 /// <param name="Id">Identificador.</param>
@@ -109,3 +123,29 @@ public sealed record ResumoDoAcervo(int Quantidade, long Bytes, DateTime? Ultimo
 /// <param name="EnviadoPorId">Quem enviou — o dono do arquivo lá.</param>
 /// <param name="Nome">Nome original, para a auditoria.</param>
 public sealed record ArquivoDoDocumento(Guid ArquivoId, Guid EnviadoPorId, string Nome);
+
+/// <summary>Um aviso no sino: o mínimo para reconhecê-lo e abri-lo.</summary>
+/// <param name="Id">Aviso.</param>
+/// <param name="Titulo">Como ele aparece na lista.</param>
+/// <param name="PublicadoEm">Quando entrou no mural, em UTC.</param>
+/// <param name="Destaque">Se a comissão o marcou como importante.</param>
+public sealed record NovidadeDoMural(Guid Id, string Titulo, DateTime PublicadoEm, bool Destaque);
+
+/// <summary>
+/// O que há de novo no mural desde a última visita — o conteúdo do sino.
+/// </summary>
+/// <remarks>
+/// A conta é sobre <c>VinculoDeFormatura.MuralVistoEm</c>: novo é o que foi publicado depois dela.
+/// Quem nunca abriu o mural vê tudo como novo, que é o certo para quem acabou de entrar na turma.
+/// <para>
+/// A lista traz só os primeiros; a <see cref="Quantidade"/> é a de todos, e é ela que vai no selo.
+/// Trinta avisos novos não viram trinta linhas num balão de cabeçalho.
+/// </para>
+/// </remarks>
+/// <param name="Quantidade">Quantos avisos novos há ao todo.</param>
+/// <param name="Itens">Os mais recentes, do mais novo para o mais antigo.</param>
+public sealed record NovidadesDoMural(int Quantidade, IReadOnlyList<NovidadeDoMural> Itens)
+{
+    /// <summary>Nada novo — e nada a mostrar.</summary>
+    public static NovidadesDoMural Nenhuma => new(0, []);
+}

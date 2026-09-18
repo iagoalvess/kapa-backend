@@ -33,7 +33,7 @@ namespace Backend.Business.Notificacoes.Services;
 /// <param name="notificacoes">Régua, histórico e seleção de parcelas.</param>
 /// <param name="parcelas">Regras de atraso aceitas na adesão de cada formando.</param>
 /// <param name="vinculos">Quem é a tesouraria da turma.</param>
-/// <param name="canais">Canais disponíveis — nesta sprint, só o e-mail.</param>
+/// <param name="canal">Por onde a mensagem sai.</param>
 /// <param name="aplicacao">Identidade da aplicação, para os links das mensagens.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
@@ -41,7 +41,7 @@ public sealed class ReguaService(
     INotificacaoRepository notificacoes,
     IParcelaRepository parcelas,
     IVinculoRepository vinculos,
-    IEnumerable<ICanalDeNotificacao> canais,
+    ICanalDeNotificacao canal,
     IOptions<AplicacaoSettings> aplicacao,
     IUnitOfWork unitOfWork,
     ILogger<ReguaService> logger
@@ -160,7 +160,7 @@ public sealed class ReguaService(
             var destinatario = itens[0].Parcela;
 
             var mensagem = MontagemDaMensagem.Cobranca(severa, destinatario.Nome, destinatario.Email, formatura.Nome, itens, link);
-            var entrega = await Entregar(severa.Canal, mensagem, ct);
+            var entrega = await Entregar(mensagem, ct);
 
             if (entrega is null)
                 continue;
@@ -170,7 +170,6 @@ public sealed class ReguaService(
                     NotificacaoEnviada.Nova(
                         a.Regra.Id,
                         hoje,
-                        severa.Canal,
                         destinatario.Email,
                         mensagem.Assunto,
                         a.Parcela.ParcelaId,
@@ -278,37 +277,31 @@ public sealed class ReguaService(
         foreach (var email in destinatarios)
         {
             var mensagem = MontagemDaMensagem.Resumo(regra, email, formatura.Nome, quantidade, link, textoDoLink);
-            var entrega = await Entregar(regra.Canal, mensagem, ct);
+            var entrega = await Entregar(mensagem, ct);
 
             if (entrega is not null)
-                envios.Add(NotificacaoEnviada.Nova(regra.Id, hoje, regra.Canal, email, mensagem.Assunto, emailNaFilaId: entrega.ReferenciaExterna));
+                envios.Add(NotificacaoEnviada.Nova(regra.Id, hoje, email, mensagem.Assunto, emailNaFilaId: entrega.ReferenciaExterna));
         }
 
         return envios;
     }
 
     /// <summary>
-    /// Entrega ao canal da regra. Canal sem implementação registrada não vira mensagem engolida.
+    /// Entrega a mensagem. Recusa do canal não vira mensagem engolida.
     /// </summary>
     /// <remarks>
-    /// É o que acontece com o WhatsApp nesta sprint (decisão 6): a regra pode escolher o canal, e
-    /// enquanto ele não existir a régua registra o aviso no log em vez de fingir que mandou.
+    /// Nulo é "não saiu, e está no log": a rodada segue para a próxima pessoa em vez de abortar a
+    /// turma inteira por causa de um endereço.
     /// </remarks>
-    private async Task<EntregaDaMensagem?> Entregar(CanalDeNotificacao canal, MensagemDeNotificacao mensagem, CancellationToken ct)
+    /// <param name="mensagem">Mensagem pronta.</param>
+    private async Task<EntregaDaMensagem?> Entregar(MensagemDeNotificacao mensagem, CancellationToken ct)
     {
-        if (canais.FirstOrDefault(c => c.Canal == canal) is not { } implementacao)
-        {
-            logger.LogWarning("Canal {Canal} não tem implementação registrada. A mensagem não foi enviada.", canal);
-
-            return null;
-        }
-
-        var enviado = await implementacao.Enviar(mensagem, ct);
+        var enviado = await canal.Enviar(mensagem, ct);
 
         if (enviado.Sucesso)
             return enviado.Valor;
 
-        logger.LogWarning("Canal {Canal} recusou a mensagem: {Codigo}.", canal, enviado.PrimeiroErro.Codigo);
+        logger.LogWarning("O canal recusou a mensagem: {Codigo}.", enviado.PrimeiroErro.Codigo);
 
         return null;
     }

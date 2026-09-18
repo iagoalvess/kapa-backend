@@ -55,6 +55,35 @@ public sealed class AvisoRepository(AppDbContext db) : IAvisoRepository
         ?? new ResumoDoMural(0, 0, 0, 0, null);
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Duas consultas sobre o mesmo recorte: a contagem de tudo o que é novo e a lista dos primeiros.
+    /// Sem a primeira, o selo do sino diria "5" numa turma que publicou trinta avisos na semana.
+    /// <para>
+    /// Sem data de visita, tudo é novo — é o caso de quem acabou de entrar na turma.
+    /// </para>
+    /// </remarks>
+    public async Task<NovidadesDoMural> Novidades(string? papel, DateTime? vistoEm, int limite, CancellationToken ct = default)
+    {
+        var novos = VisiveisPara(papel);
+
+        if (vistoEm is { } desde)
+            novos = novos.Where(a => a.PublicadoEm > desde);
+
+        var quantidade = await novos.CountAsync(ct);
+
+        if (quantidade == 0)
+            return NovidadesDoMural.Nenhuma;
+
+        var itens = await novos
+            .OrderByDescending(a => a.PublicadoEm)
+            .Take(limite)
+            .Select(a => new NovidadeDoMural(a.Id, a.Titulo, a.PublicadoEm, a.Destaque))
+            .ToListAsync(ct);
+
+        return new NovidadesDoMural(quantidade, itens);
+    }
+
+    /// <inheritdoc />
     public Task<AvisoResumo?> Obter(Guid id, string? papel, CancellationToken ct = default) =>
         Projetar(VisiveisPara(papel).Where(a => a.Id == id)).FirstOrDefaultAsync(ct);
 

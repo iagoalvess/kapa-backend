@@ -38,6 +38,9 @@ public class PlanoDeCobranca : EntidadeDaFormatura
     /// <summary>Desconto para pagamento antecipado, base 10.000.</summary>
     public int PercentualDeDescontoPorAntecipacao { get; set; }
 
+    /// <summary>Dias de antecedência que o desconto exige. Zero: qualquer dia antes do vencimento.</summary>
+    public int DiasMinimosParaDesconto { get; set; }
+
     /// <summary>Itens do plano, inclusive os encerrados.</summary>
     public List<ItemDeCobranca> Itens { get; private set; } = [];
 
@@ -57,6 +60,7 @@ public class PlanoDeCobranca : EntidadeDaFormatura
         PercentualDeJurosAoMes = dados.PercentualDeJurosAoMes;
         CarenciaEmDias = dados.CarenciaEmDias;
         PercentualDeDescontoPorAntecipacao = dados.PercentualDeDescontoPorAntecipacao;
+        DiasMinimosParaDesconto = dados.DiasMinimosParaDesconto;
     }
 
     /// <summary>

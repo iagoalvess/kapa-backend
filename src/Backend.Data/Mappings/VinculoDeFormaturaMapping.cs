@@ -1,4 +1,5 @@
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Formaturas.Validators;
 using Backend.Business.Usuarios.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -27,6 +28,10 @@ public sealed class VinculoDeFormaturaMapping : IEntityTypeConfiguration<Vinculo
         builder.HasKey(v => v.Id);
 
         builder.Property(v => v.Papel).IsRequired().HasMaxLength(20);
+
+        builder.Property(v => v.MotivoDoDesligamento).HasMaxLength(40);
+
+        builder.Property(v => v.DetalheDoDesligamento).HasMaxLength(DesligarFormandoValidator.TamanhoDoDetalhe);
 
         builder.HasIndex(v => new { v.UsuarioId, v.FormaturaId }).IsUnique();
 

@@ -3,6 +3,7 @@ using Backend.Api.Analytics;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Formaturas;
+using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
@@ -21,17 +22,22 @@ namespace Backend.Api.Controllers.V1.Formaturas;
 /// o cliente escolhe.
 /// </remarks>
 /// <param name="membroService">Gestão de membros.</param>
+/// <param name="usuarioAtual">Quem chama — o autor na trilha de auditoria da saída.</param>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/formaturas/atual/membros")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class MembroController(IMembroService membroService) : MainController
+public sealed class MembroController(IMembroService membroService, IUsuarioAtual usuarioAtual) : MainController
 {
     /// <summary>Lista os vínculos da formatura, paginados, com papel, situação e completude do cadastro.</summary>
     /// <param name="paginacao">Página e tamanho; o teto é aplicado no servidor.</param>
     /// <param name="busca">Trecho do nome de exibição, do nome civil ou do e-mail.</param>
-    /// <param name="ativo"><c>true</c> só ativos, <c>false</c> só removidos; ausente traz todos.</param>
+    /// <param name="ativo"><c>true</c> só ativos, <c>false</c> só quem saiu; ausente traz todos.</param>
     /// <param name="papel">Só este papel; ausente traz todos.</param>
     /// <param name="cadastro"><c>Pendente</c> (falta o essencial), <c>Incompleto</c> ou <c>Completo</c>; ausente traz todos.</param>
+    /// <param name="desligado">
+    /// <c>true</c> só desligados, <c>false</c> só quem nunca foi; ausente traz todos. Com
+    /// <paramref name="ativo"/> <c>false</c>, é o que separa desligado de removido.
+    /// </param>
     [HttpGet]
     [Authorize(Policy = Politicas.Gestao)]
     [ProducesResponseType(typeof(PaginaDTO<MembroDaFormaturaDTO>), StatusCodes.Status200OK)]
@@ -42,10 +48,16 @@ public sealed class MembroController(IMembroService membroService) : MainControl
         [FromQuery] bool? ativo,
         [FromQuery] string? papel,
         [FromQuery] SituacaoDoCadastro? cadastro,
+        [FromQuery] bool? desligado,
         CancellationToken ct
     )
     {
-        var resultado = await membroService.Listar(FormaturaId, paginacao.ParaModelo(), new FiltroDeMembros(busca, ativo, papel, cadastro), ct);
+        var resultado = await membroService.Listar(
+            FormaturaId,
+            paginacao.ParaModelo(),
+            new FiltroDeMembros(busca, ativo, papel, cadastro, desligado),
+            ct
+        );
 
         return Responder(resultado.Map(pagina => pagina.ParaDTO(membro => membro.Adapt<MembroDaFormaturaDTO>())));
     }
@@ -68,7 +80,6 @@ public sealed class MembroController(IMembroService membroService) : MainControl
     [HttpPut("{usuarioId:guid}/papel")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]
-    [RegistrarEvento("membro.papel_alterado", CamposDaRota = ["usuarioId"])]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -76,7 +87,7 @@ public sealed class MembroController(IMembroService membroService) : MainControl
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> AlterarPapel(Guid usuarioId, [FromBody] AlterarPapelRequestDTO requisicao, CancellationToken ct)
     {
-        var resultado = await membroService.AlterarPapel(FormaturaId, usuarioId, new AlterarPapel(requisicao.Papel), ct);
+        var resultado = await membroService.AlterarPapel(FormaturaId, usuarioId, new AlterarPapel(requisicao.Papel), usuarioAtual.Id, ct);
 
         return Responder(resultado);
     }
@@ -86,14 +97,82 @@ public sealed class MembroController(IMembroService membroService) : MainControl
     [HttpDelete("{usuarioId:guid}")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]
-    [RegistrarEvento("membro.removido", CamposDaRota = ["usuarioId"])]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Remover(Guid usuarioId, CancellationToken ct)
     {
-        var resultado = await membroService.Remover(FormaturaId, usuarioId, ct);
+        var resultado = await membroService.Remover(FormaturaId, usuarioId, usuarioAtual.Id, ct);
+
+        return Responder(resultado);
+    }
+
+    /// <summary>
+    /// O que o desligamento de um membro vai mexer: o que ele já pagou, o que deve e o que está em atraso.
+    /// </summary>
+    /// <remarks>
+    /// Alimenta o diálogo de confirmação. É <c>Gestao</c> e não <c>SomentePresidente</c> de propósito:
+    /// o Tesoureiro vê e propõe, o Presidente executa (P3 de 17/09/2026).
+    /// </remarks>
+    /// <param name="usuarioId">Membro que sairia.</param>
+    [HttpGet("{usuarioId:guid}/resumo-da-saida")]
+    [Authorize(Policy = Politicas.Gestao)]
+    [ProducesResponseType(typeof(ResumoDaSaidaDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResumirSaida(Guid usuarioId, CancellationToken ct)
+    {
+        var resultado = await membroService.ResumirSaida(FormaturaId, usuarioId, ct);
+
+        return Responder(resultado.Map(resumo => resumo.Adapt<ResumoDaSaidaDTO>()));
+    }
+
+    /// <summary>
+    /// Desliga um formando: ele deixa de dever o que ainda não venceu, e os números da turma param
+    /// de contar com ele.
+    /// </summary>
+    /// <remarks>
+    /// Idempotente: desligar de novo devolve <c>formatura.membro_ja_desligado</c>, não cancela mais
+    /// nada e não manda o segundo e-mail. Quem nunca aderiu devolve
+    /// <c>formatura.membro_sem_adesao</c> — para ele a ação é Remover (decisão 1).
+    /// </remarks>
+    /// <param name="usuarioId">Membro a desligar.</param>
+    /// <param name="requisicao">Motivo e o que fazer com o atraso.</param>
+    [HttpPost("{usuarioId:guid}/desligar")]
+    [Authorize(Policy = Politicas.SomentePresidente)]
+    [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Desligar(Guid usuarioId, [FromBody] DesligarMembroRequestDTO requisicao, CancellationToken ct)
+    {
+        var dados = new DesligarFormando(requisicao.Motivo, requisicao.Detalhe, requisicao.CancelarAtraso);
+        var resultado = await membroService.Desligar(FormaturaId, usuarioId, dados, usuarioAtual.Id, ct);
+
+        return Responder(resultado);
+    }
+
+    /// <summary>
+    /// Desfaz o desligamento de um membro: o acesso volta.
+    /// </summary>
+    /// <remarks>
+    /// <b>Não</b> ressuscita parcela cancelada — a cobrança volta por lançamento novo. É o desfazer
+    /// do clique errado, não uma renegociação.
+    /// </remarks>
+    /// <param name="usuarioId">Membro a religar.</param>
+    [HttpPost("{usuarioId:guid}/religar")]
+    [Authorize(Policy = Politicas.SomentePresidente)]
+    [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Religar(Guid usuarioId, CancellationToken ct)
+    {
+        var resultado = await membroService.Religar(FormaturaId, usuarioId, usuarioAtual.Id, ct);
 
         return Responder(resultado);
     }

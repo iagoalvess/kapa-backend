@@ -31,8 +31,7 @@ public static class GradeDeParcelas
     /// <param name="item">Item já validado — com ao menos uma parcela.</param>
     public static IReadOnlyList<ParcelaPrevista> Calcular(DadosDoItem item)
     {
-        var basica = item.ValorEmCentavos / item.NumeroDeParcelas;
-        var resto = item.ValorEmCentavos % item.NumeroDeParcelas;
+        var valores = Distribuir(item.ValorEmCentavos, item.NumeroDeParcelas);
         var primeiroMes = PrimeiroDoMes(item.PrimeiroMes);
 
         return
@@ -42,10 +41,72 @@ public static class GradeDeParcelas
                 .Select(numero => new ParcelaPrevista(
                     numero,
                     Vencimento(primeiroMes.AddMonths(numero - 1), item.DiaDeVencimento),
-                    numero == 1 ? basica + resto : basica
+                    valores[numero - 1]
                 )),
         ];
     }
+
+    /// <summary>
+    /// Divide um total em partes iguais de centavos, com o resto na primeira.
+    /// </summary>
+    /// <remarks>
+    /// A conta de <see cref="Calcular"/>, isolada porque a repactuação e a grade de quem adere
+    /// depois precisam dela sobre outra quantidade de parcelas. Divisão do C#: trunca em direção a
+    /// zero, e o resto sai com o sinal do valor — o negativo da bolsa funciona igual.
+    /// </remarks>
+    /// <param name="total">Valor a dividir, em centavos.</param>
+    /// <param name="partes">Em quantas, ao menos uma.</param>
+    public static IReadOnlyList<long> Distribuir(long total, int partes)
+    {
+        var basica = total / partes;
+        var resto = total % partes;
+
+        return [.. Enumerable.Range(1, partes).Select(posicao => posicao == 1 ? basica + resto : basica)];
+    }
+
+    /// <summary>
+    /// A grade de um item para quem adere <paramref name="hoje"/>: o mesmo total, redividido pelas
+    /// parcelas que ainda não venceram.
+    /// </summary>
+    /// <remarks>
+    /// Quem adere no dia da publicação recebe a grade inteira — nada muda para ele. Quem adere em
+    /// setembro num plano que começou em março deve o mesmo total dos colegas, só que em menos
+    /// vezes: paga mais por mês, e nenhuma parcela nasce vencida.
+    /// <para>
+    /// O contrário — gravar a grade inteira — é o que o sistema fazia até 17/09/2026: seis parcelas
+    /// nasciam vencidas, com multa e juros de um atraso que a pessoa não teve como cometer, e a
+    /// régua começava a cobrar no dia seguinte.
+    /// </para>
+    /// <para>
+    /// As posições (<see cref="ParcelaPrevista.Numero"/>) e os vencimentos continuam os do item: é o
+    /// que mantém "1/24" com sentido e o índice único <c>(vínculo, item, número)</c> intacto. Se
+    /// nenhuma posição sobrou — a pessoa adere depois do último vencimento —, o total inteiro vira
+    /// uma parcela na última posição, vencendo no próximo dia de vencimento a partir de hoje.
+    /// </para>
+    /// </remarks>
+    /// <param name="item">Item já validado.</param>
+    /// <param name="hoje">Dia da adesão.</param>
+    public static IReadOnlyList<ParcelaPrevista> DeQuemAdereEm(DadosDoItem item, DateOnly hoje)
+    {
+        var grade = Calcular(item);
+        var restantes = grade.Where(parcela => parcela.Vencimento >= hoje).ToList();
+
+        if (restantes.Count == 0)
+            restantes = [new ParcelaPrevista(grade[^1].Numero, Vencimento(ProximoMesComODia(hoje, item.DiaDeVencimento), item.DiaDeVencimento), 0)];
+
+        if (restantes.Count == grade.Count)
+            return grade;
+
+        var valores = Distribuir(item.ValorEmCentavos, restantes.Count);
+
+        return [.. restantes.Select((parcela, posicao) => parcela with { ValorEmCentavos = valores[posicao] })];
+    }
+
+    /// <summary>O mês em que o dia de vencimento ainda acontece a partir de hoje — este, ou o que vem.</summary>
+    /// <param name="hoje">Dia de referência.</param>
+    /// <param name="dia">Dia do vencimento, de 1 a 31.</param>
+    private static DateOnly ProximoMesComODia(DateOnly hoje, int dia) =>
+        Vencimento(hoje, dia) >= hoje ? PrimeiroDoMes(hoje) : PrimeiroDoMes(hoje).AddMonths(1);
 
     /// <summary>
     /// A grade inteira de um formando: as parcelas de todos os itens, por vencimento.
@@ -55,19 +116,23 @@ public static class GradeDeParcelas
     /// ele leu ser o que ele deve. Ordenação estável: parcelas do mesmo dia seguem a ordem dos itens.
     /// </remarks>
     /// <param name="itens">Itens já validados, na ordem do plano.</param>
-    public static IReadOnlyList<ParcelaSimulada> DoFormando(IEnumerable<DadosDoItem> itens) =>
+    /// <param name="hoje">
+    /// Dia da adesão, para a grade sair como quem adere hoje vai devê-la
+    /// (<see cref="DeQuemAdereEm"/>). Ausente, a grade cheia do plano — é a prévia da tesouraria,
+    /// que descreve o plano e não uma pessoa.
+    /// </param>
+    public static IReadOnlyList<ParcelaSimulada> DoFormando(IEnumerable<DadosDoItem> itens, DateOnly? hoje = null) =>
         [
             .. itens
                 .SelectMany(item =>
-                    Calcular(item)
-                        .Select(parcela => new ParcelaSimulada(
-                            item.Tipo,
-                            string.IsNullOrWhiteSpace(item.Descricao) ? null : item.Descricao.Trim(),
-                            parcela.Numero,
-                            item.NumeroDeParcelas,
-                            parcela.Vencimento,
-                            parcela.ValorEmCentavos
-                        ))
+                    (hoje is { } dia ? DeQuemAdereEm(item, dia) : Calcular(item)).Select(parcela => new ParcelaSimulada(
+                        item.Tipo,
+                        string.IsNullOrWhiteSpace(item.Descricao) ? null : item.Descricao.Trim(),
+                        parcela.Numero,
+                        item.NumeroDeParcelas,
+                        parcela.Vencimento,
+                        parcela.ValorEmCentavos
+                    ))
                 )
                 .OrderBy(parcela => parcela.Vencimento),
         ];

@@ -1,20 +1,125 @@
 using System.Net;
+using System.Text.RegularExpressions;
 
 namespace Backend.Business.Emails.Services;
 
 /// <summary>
-/// O esqueleto HTML comum a todo e-mail da aplicação: título, mensagem, botão opcional e rodapé.
+/// O mascote que abre o e-mail. O nome é o do arquivo em <c>Emails/Recursos</c>, em minúsculas.
+/// </summary>
+/// <remarks>
+/// Enum e não string: mascote digitado errado viraria imagem quebrada no topo de oitenta mensagens,
+/// e isso só aparece na caixa de quem recebeu.
+/// </remarks>
+public enum Mascote
+{
+    /// <summary>Comemorando. O padrão — serve a qualquer aviso que não seja ruim.</summary>
+    Feliz,
+
+    /// <summary>Acenando. Boas-vindas, convite, primeira mensagem.</summary>
+    Acenando,
+
+    /// <summary>De alerta. Segurança: senha trocada, conta de recebimento alterada.</summary>
+    Alerta,
+
+    /// <summary>De binóculo. Procurando alguém — o lembrete de quem ainda não apareceu.</summary>
+    Binoculo,
+
+    /// <summary>Com o canudo. Formatura, adesão fechada, fim de ciclo.</summary>
+    Canudo,
+
+    /// <summary>Com o celular. Código de verificação.</summary>
+    Celular,
+
+    /// <summary>Com a lista. Pendência a cumprir.</summary>
+    Checklist,
+
+    /// <summary>Com o cofrinho. Dinheiro: parcela paga, recibo, extrato.</summary>
+    Cofrinho,
+
+    /// <summary>Com cara de erro. Pagamento recusado, falha, desligamento.</summary>
+    Erro,
+
+    /// <summary>No foguete. Turma ativada, licença confirmada.</summary>
+    Foguete,
+
+    /// <summary>Lendo um documento. Termo, relatório, exportação de dados.</summary>
+    Documento,
+
+    /// <summary>Lendo. Aviso do mural, comunicado da comissão.</summary>
+    Lendo,
+
+    /// <summary>Com a lupa. Conferência, auditoria, algo a verificar.</summary>
+    Lupa,
+}
+
+/// <summary>
+/// O esqueleto HTML comum a todo e-mail da aplicação: marca, mascote, título, mensagem, botão e rodapé.
 /// </summary>
 /// <remarks>
 /// HTML montado em código, sem motor de template — ver <c>EmailsDeConta</c>. Tudo o que vem do
 /// usuário passa por <see cref="Texto"/> antes de entrar no corpo: nome de turma e de pessoa é
 /// texto controlado por terceiro, e e-mail é HTML.
+/// <para>
+/// O desenho é de uma coluna centrada: mascote numa faixa clara no topo do cartão, título grande,
+/// texto e botão no eixo. É o que o Gmail mostra num celular sem precisar de media query — e
+/// media query é justamente o que metade dos clientes de e-mail ignora.
+/// </para>
+/// <para>
+/// O visual segue os tokens do frontend (<c>styles/index.css</c>): fundo creme <c>--page</c>,
+/// cartão branco com borda <c>--line</c> e cantos de <c>--radius</c>, CTA no laranja da marca e
+/// texto em <c>--text-primary</c>/<c>--text-muted</c>. Valores literais, e não variáveis CSS:
+/// cliente de e-mail não lê <c>var()</c> — mudou a paleta lá, muda aqui.
+/// </para>
+/// <para>
+/// Layout em tabela e estilo em atributo <c>style</c>, que é o que o Outlook (motor do Word)
+/// entende: <c>&lt;div&gt;</c> com flex ou folha de estilo externa sai desmontado nele. Cantos
+/// arredondados ele ignora — o cartão vira quadrado, e só.
+/// </para>
+/// <para>
+/// O logo e o mascote vão <b>anexados</b> (<c>cid:</c>), e não por URL. Duas razões: cliente de
+/// e-mail bloqueia imagem remota até a pessoa clicar em "exibir imagens", e em desenvolvimento a
+/// única URL que existe é <c>localhost</c>, que não chega a caixa nenhuma. Quem anexa é o
+/// <see cref="SmtpEmailSender"/>, por <see cref="ImagensDe"/>.
+/// </para>
+/// <para>
+/// O logo é <b>PNG</b>, e não o SVG do front: Gmail, Outlook e Yahoo não desenham SVG em e-mail.
+/// <c>Emails/Recursos/logo.png</c> é o <c>LogoKapa</c> rasterizado com a Plus Jakarta Sans 800 — a
+/// fonte da marca não existe na máquina de quem lê, e escrever "kapa" em Arial era a marca errada.
+/// Mudou o logo lá, gere este de novo.
+/// </para>
 /// </remarks>
-public static class ModeloDeEmail
+public static partial class ModeloDeEmail
 {
+    /// <summary>Pilha de fontes: só o que já existe na máquina de quem lê — webfont não passa no Gmail nem no Outlook.</summary>
+    private const string Fonte = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+    /// <summary>Prefixo do <c>Content-ID</c> de toda imagem nossa, para não colidir com nada do cliente.</summary>
+    private const string Prefixo = "kapa-";
+
+    [GeneratedRegex($@"cid:{Prefixo}(?<nome>[a-z]+)", RegexOptions.CultureInvariant)]
+    private static partial Regex Referencias();
+
     /// <summary>Codifica texto para entrar no HTML.</summary>
     /// <param name="valor">Texto cru.</param>
     public static string Texto(string? valor) => WebUtility.HtmlEncode(valor ?? string.Empty);
+
+    /// <summary>
+    /// As imagens citadas no corpo, para quem for entregar a mensagem anexar.
+    /// </summary>
+    /// <remarks>
+    /// Lê o próprio HTML em vez de receber a lista pronta: assim o dia em que um e-mail ganhar uma
+    /// segunda imagem não mexe no contrato de <c>IEmailSender</c> nem na fila, que guarda só o corpo.
+    /// </remarks>
+    /// <param name="corpoHtml">Corpo montado por <see cref="Montar"/>.</param>
+    /// <returns>O <c>Content-ID</c> e o conteúdo de cada imagem, sem repetir.</returns>
+    public static IEnumerable<(string Cid, Stream Conteudo)> ImagensDe(string corpoHtml) =>
+        Referencias()
+            .Matches(corpoHtml)
+            .Select(correspondencia => correspondencia.Groups["nome"].Value)
+            .Distinct(StringComparer.Ordinal)
+            .Select(nome => (Prefixo + nome, Conteudo: Recurso(nome)))
+            .Where(imagem => imagem.Conteudo is not null)
+            .Select(imagem => (imagem.Item1, imagem.Conteudo!));
 
     /// <summary>Monta o corpo do e-mail.</summary>
     /// <param name="nomeDaAplicacao">Nome exibido no rodapé.</param>
@@ -22,37 +127,103 @@ public static class ModeloDeEmail
     /// <param name="mensagemHtml">Mensagem já em HTML — quem chama codifica o que veio do usuário.</param>
     /// <param name="botao">Texto do botão, ou nulo para nenhum.</param>
     /// <param name="link">Destino do botão.</param>
-    /// <param name="comLogo">
-    /// Abre com a marca da Kapa. Texto e não imagem: cliente de e-mail bloqueia imagem remota por
-    /// padrão e descarta SVG embutido — o logo sumiria justamente no primeiro contato.
-    /// </param>
-    public static string Montar(string nomeDaAplicacao, string titulo, string mensagemHtml, string? botao, string? link, bool comLogo = false)
+    /// <param name="mascote">Qual mascote abre a mensagem.</param>
+    /// <remarks>
+    /// Sem "se o botão não funcionar, copie este endereço": o botão é um <c>&lt;a href&gt;</c>, e ele
+    /// funciona. A linha só emprestava a um e-mail nosso a cara de um phishing, que é quem precisa
+    /// pedir que a pessoa cole uma URL na barra do navegador.
+    /// </remarks>
+    public static string Montar(
+        string nomeDaAplicacao,
+        string titulo,
+        string mensagemHtml,
+        string? botao,
+        string? link,
+        Mascote mascote = Mascote.Feliz
+    )
     {
-        var marca = comLogo
-            ? """<p style="font-size:26px;font-weight:800;letter-spacing:-0.02em;margin:0 0 24px"><span style="color:#F2994A">&#127891;</span> kapa</p>"""
-            : string.Empty;
-
         var acao =
             botao is null || link is null
                 ? string.Empty
                 : $"""
-                    <p style="margin:32px 0">
-                      <a href="{link}" style="background:#111;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">{Texto(
-                        botao
-                    )}</a>
-                    </p>
-                    <p style="color:#666;font-size:13px">Se o botão não funcionar, copie e cole este endereço no navegador:<br>{link}</p>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:32px auto 0">
+                      <tr>
+                        <td align="center" bgcolor="#f2994a" style="border-radius:999px">
+                          <a href="{link}" style="display:inline-block;padding:15px 36px;font-family:{Fonte};font-size:15px;font-weight:700;line-height:20px;color:#ffffff;text-decoration:none;border-radius:999px">{Texto(
+                            botao
+                        )}</a>
+                        </td>
+                      </tr>
+                    </table>
                     """;
 
         return $"""
-            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
-              {marca}
-              <h1 style="font-size:20px;margin:0 0 16px">{Texto(titulo)}</h1>
-              <p style="line-height:1.6;margin:0">{mensagemHtml}</p>
-              {acao}
-              <hr style="border:none;border-top:1px solid #eee;margin:32px 0">
-              <p style="color:#999;font-size:12px;margin:0">{Texto(nomeDaAplicacao)} — mensagem automática, não responda.</p>
-            </div>
+            <!doctype html>
+            <html lang="pt-BR">
+            <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <meta name="color-scheme" content="light">
+            <meta name="supported-color-schemes" content="light">
+            <title>{Texto(titulo)}</title>
+            </head>
+            <body style="margin:0;padding:0;background-color:#f7f6f3">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f7f6f3">
+              <tr>
+                <td align="center" style="padding:40px 16px">
+                  <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px">
+                    <tr>
+                      <td align="center" style="padding:0 0 22px">
+                        <img src="cid:{Prefixo}logo" width="150" height="40" alt="Kapa" style="display:block;width:150px;height:40px;border:0">
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background-color:#ffffff;border:1px solid #e8e7e3;border-radius:16px">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                          <tr>
+                            <td align="center" bgcolor="#fbf1e7" style="padding:28px 24px;border-radius:16px 16px 0 0">
+                              <img src="cid:{Prefixo}{Arquivo(mascote)}" width="132" height="132" alt="" style="display:block;width:132px;height:132px;border:0">
+                            </td>
+                          </tr>
+                          <tr>
+                            <td align="center" style="padding:36px 40px 40px">
+                              <h1 style="margin:0 0 14px;font-family:{Fonte};font-size:26px;font-weight:800;letter-spacing:-0.02em;line-height:32px;color:#1a1a18;text-align:center">{Texto(
+                                  titulo
+                              )}</h1>
+                              <p style="margin:0;font-family:{Fonte};font-size:15px;line-height:25px;color:#55554f;text-align:center">{mensagemHtml}</p>
+                              {acao}
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:28px 0 0">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                          <tr>
+                            <td height="4" bgcolor="#f2994a" style="height:4px;line-height:4px;font-size:0;border-radius:2px">&nbsp;</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td align="center" style="padding:18px 16px 0;font-family:{Fonte};font-size:12px;line-height:19px;color:#9a9a94;text-align:center">{Texto(
+                          nomeDaAplicacao
+                      )} — mensagem automática, não responda.</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+            </body>
+            </html>
             """;
     }
+
+    /// <summary>O arquivo do mascote, que é o nome dele em minúsculas.</summary>
+    private static string Arquivo(Mascote mascote) => mascote.ToString().ToLowerInvariant();
+
+    /// <summary>O PNG embutido no assembly, ou nulo se alguém tiver removido o arquivo.</summary>
+    private static Stream? Recurso(string nome) =>
+        typeof(ModeloDeEmail).Assembly.GetManifestResourceStream($"Backend.Business.Emails.Recursos.{nome}.png");
 }

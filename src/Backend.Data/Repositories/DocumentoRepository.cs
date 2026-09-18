@@ -109,10 +109,23 @@ public sealed class DocumentoRepository(AppDbContext db) : IDocumentoRepository
             select new LinhaDoAcervo { Documento = documento, Arquivo = arquivo };
     }
 
+    /// <summary>
+    /// Aplica categoria, visibilidade e busca sobre o que o papel já podia ver.
+    /// </summary>
+    /// <remarks>
+    /// A visibilidade entra <b>depois</b> do recorte de <see cref="Linhas"/>, e por isso só estreita:
+    /// um formando pedindo <c>SomenteComissao</c> recebe as duas cláusulas em <c>AND</c> e não casa
+    /// com linha nenhuma. Trocar a ordem transformaria um filtro de tela numa porta aberta.
+    /// </remarks>
+    /// <param name="consulta">Linhas que o papel enxerga.</param>
+    /// <param name="filtro">Filtro pedido pela tela.</param>
     private static IQueryable<LinhaDoAcervo> Filtrar(IQueryable<LinhaDoAcervo> consulta, FiltroDeDocumentos filtro)
     {
         if (filtro.Categoria is { } categoria)
             consulta = consulta.Where(linha => linha.Documento.Categoria == categoria);
+
+        if (filtro.Visibilidade is { } visibilidade)
+            consulta = consulta.Where(linha => linha.Documento.Visibilidade == visibilidade);
 
         if (!string.IsNullOrWhiteSpace(filtro.Busca))
         {

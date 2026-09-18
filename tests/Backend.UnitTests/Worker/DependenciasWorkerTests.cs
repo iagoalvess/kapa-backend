@@ -50,7 +50,9 @@ public sealed class DependenciasWorkerTests
     {
         using var provider = Construir(Configuracao);
 
-        provider.GetServices<IHostedService>().Count().ShouldBe(6);
+        // E-mail, refresh tokens, retenção de eventos, conciliação de assinaturas, relatórios,
+        // régua de cobrança e privacidade (Sprint 14).
+        provider.GetServices<IHostedService>().Count().ShouldBe(7);
     }
 
     /// <summary>

@@ -22,6 +22,16 @@ public interface IParcelaRepository
     /// <param name="planoId">Plano.</param>
     Task<int> ContarVinculosComParcela(Guid planoId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Os vínculos <b>ativos</b> com parcela de algum item do plano — quem o rateio extraordinário alcança.
+    /// </summary>
+    /// <remarks>
+    /// Ativo, ao contrário de <see cref="ContarVinculosComParcela"/>, que conta quem já aderiu para a
+    /// tela avisar: aqui nasce dívida, e quem saiu da turma não recebe cobrança nova.
+    /// </remarks>
+    /// <param name="planoId">Plano.</param>
+    Task<IReadOnlyList<Guid>> ListarVinculosAtivosComParcela(Guid planoId, CancellationToken ct = default);
+
     /// <summary>Se o item já gerou alguma parcela.</summary>
     /// <param name="itemId">Item.</param>
     Task<bool> ExisteDoItem(Guid itemId, CancellationToken ct = default);
@@ -30,6 +40,29 @@ public interface IParcelaRepository
     /// <param name="itemId">Item.</param>
     /// <param name="aPartirDe">Primeiro vencimento incluído — tipicamente hoje.</param>
     Task<IReadOnlyList<Parcela>> ListarAbertasParaEdicao(Guid itemId, DateOnly aPartirDe, CancellationToken ct = default);
+
+    /// <summary>
+    /// Todas as parcelas do item, de todos os vínculos, rastreadas para alteração.
+    /// </summary>
+    /// <remarks>
+    /// A repactuação precisa das que <b>não</b> vai mexer para saber quanto de cada formando já está
+    /// comprometido — a grade de quem aderiu depois tem menos parcelas que a do item.
+    /// <c>ponytail:</c> traz a turma inteira do item (dezenas de vínculos × dezenas de parcelas); se
+    /// pesar, vira uma soma agrupada no banco mais a lista só das repactuáveis.
+    /// </remarks>
+    /// <param name="itemId">Item.</param>
+    Task<IReadOnlyList<Parcela>> ListarDoItemParaEdicao(Guid itemId, CancellationToken ct = default);
+
+    /// <summary>
+    /// As parcelas ainda devidas de um vínculo, vencidas incluídas, rastreadas para alteração.
+    /// </summary>
+    /// <remarks>
+    /// O desligamento do formando (Sprint 15) — o recorte é por pessoa, onde o encerramento de item
+    /// recorta por item. Traz as vencidas junto porque quem decide sobre elas é a comissão, na
+    /// confirmação (P1 de 17/09/2026), e não esta consulta.
+    /// </remarks>
+    /// <param name="vinculoId">Vínculo de quem deve.</param>
+    Task<IReadOnlyList<Parcela>> ListarEmAbertoDoVinculoParaEdicao(Guid vinculoId, CancellationToken ct = default);
 
     /// <summary>Uma página das parcelas da turma, por vencimento.</summary>
     /// <param name="paginacao">Página pedida, já normalizada.</param>
@@ -47,6 +80,15 @@ public interface IParcelaRepository
     /// <param name="vinculoId">Vínculo do formando.</param>
     /// <param name="hoje">Dia que separa aberta de vencida.</param>
     Task<IReadOnlyList<ParcelaResumo>> ListarDoVinculo(Guid vinculoId, DateOnly hoje, CancellationToken ct = default);
+
+    /// <summary>Quantas parcelas do vínculo venceram sem aviso de pagamento esperando a tesouraria.</summary>
+    /// <remarks>
+    /// É um <c>COUNT</c>, e não a contagem de <see cref="ListarDoVinculo"/>: quem pergunta é o selo do
+    /// menu, presente em toda tela do app, e ele não tem o que fazer com as dezenas de parcelas.
+    /// </remarks>
+    /// <param name="vinculoId">Vínculo do formando.</param>
+    /// <param name="hoje">Dia que separa aberta de vencida.</param>
+    Task<int> ContarVencidasSemAviso(Guid vinculoId, DateOnly hoje, CancellationToken ct = default);
 
     /// <summary>Quantas parcelas e quanto somam, por situação do dia, numa consulta agrupada.</summary>
     /// <param name="filtro">Formando, período e busca; a situação é ignorada.</param>

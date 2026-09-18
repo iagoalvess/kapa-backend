@@ -10,6 +10,12 @@
   -->
 
   <ItemGroup>
+    <!-- O mascote de cada e-mail. Embutido no assembly porque quem monta o corpo (API) e quem o
+         entrega (Worker) são dois processos: arquivo solto exigiria a mesma pasta nos dois. -->
+    <EmbeddedResource Include="Emails\Recursos\*.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="ClosedXML" />
     <PackageReference Include="FluentValidation" />

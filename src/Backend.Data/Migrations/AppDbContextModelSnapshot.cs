@@ -279,9 +279,19 @@ namespace Backend.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("ultimo_aviso_de_vencimento");
 
+                    b.Property<DateTime?>("UltimoEventoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ultimo_evento_em");
+
                     b.Property<DateTime?>("VigenteAte")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("vigente_ate");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id")
                         .HasName("pk_assinaturas");
@@ -477,6 +487,12 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("usuario_id");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id")
                         .HasName("pk_refresh_tokens");
 
@@ -525,6 +541,11 @@ namespace Backend.Data.Migrations
                     b.Property<int>("NumeroDeParcelas")
                         .HasColumnType("integer")
                         .HasColumnName("numero_de_parcelas");
+
+                    b.Property<string>("OrigemDaDecisao")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("origem_da_decisao");
 
                     b.Property<Guid>("PlanoId")
                         .HasColumnType("uuid")
@@ -646,6 +667,10 @@ namespace Backend.Data.Migrations
                     b.Property<DateTime>("CriadoEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("criado_em");
+
+                    b.Property<int>("DiasMinimosParaDesconto")
+                        .HasColumnType("integer")
+                        .HasColumnName("dias_minimos_para_desconto");
 
                     b.Property<Guid>("FormaturaId")
                         .HasColumnType("uuid")
@@ -1008,6 +1033,10 @@ namespace Backend.Data.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("dados");
 
+                    b.Property<Guid?>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -1030,6 +1059,10 @@ namespace Backend.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_eventos");
 
+                    b.HasIndex("FormaturaId", "OcorridoEm")
+                        .HasDatabaseName("ix_eventos_trilha_da_formatura")
+                        .HasFilter("formatura_id is not null");
+
                     b.HasIndex("OcorridoEm", "Nome")
                         .HasDatabaseName("ix_eventos_ocorrido_em_nome");
 
@@ -1037,6 +1070,83 @@ namespace Backend.Data.Migrations
                         .HasDatabaseName("ix_eventos_usuario_id_ocorrido_em");
 
                     b.ToTable("eventos", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Festa.Models.ItemDaFesta", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime?>("CanceladoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelado_em");
+
+                    b.Property<string>("Categoria")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("categoria");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("DocumentoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("documento_id");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<string>("OQueInclui")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("o_que_inclui");
+
+                    b.Property<int>("Ordem")
+                        .HasColumnType("integer")
+                        .HasColumnName("ordem");
+
+                    b.Property<int>("QuantidadeEstimada")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantidade_estimada");
+
+                    b.Property<string>("Rateio")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("rateio");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("titulo");
+
+                    b.Property<long>("ValorPrevistoEmCentavos")
+                        .HasColumnType("bigint")
+                        .HasColumnName("valor_previsto_em_centavos");
+
+                    b.HasKey("Id")
+                        .HasName("pk_itens_da_festa");
+
+                    b.HasIndex("DocumentoId")
+                        .HasDatabaseName("ix_itens_da_festa_documento_id");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_itens_da_festa_formatura_id");
+
+                    b.HasIndex("FormaturaId", "Ordem")
+                        .HasDatabaseName("ix_itens_da_festa_formatura_id_ordem");
+
+                    b.ToTable("itens_da_festa", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Business.Financeiro.Models.Despesa", b =>
@@ -1082,6 +1192,10 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("fornecedor_id");
 
+                    b.Property<Guid?>("ItemDaFestaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_da_festa_id");
+
                     b.Property<Guid>("LancamentoId")
                         .HasColumnType("uuid")
                         .HasColumnName("lancamento_id");
@@ -1123,6 +1237,12 @@ namespace Backend.Data.Migrations
 
                     b.HasIndex("FornecedorId")
                         .HasDatabaseName("ix_despesas_fornecedor_id");
+
+                    b.HasIndex("ItemDaFestaId")
+                        .HasDatabaseName("ix_despesas_item_da_festa_id");
+
+                    b.HasIndex("FormaturaId", "ItemDaFestaId")
+                        .HasDatabaseName("ix_despesas_formatura_id_item_da_festa_id");
 
                     b.HasIndex("FormaturaId", "LancamentoId")
                         .HasDatabaseName("ix_despesas_formatura_id_lancamento_id");
@@ -1322,6 +1442,12 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("vinculo_id");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id")
                         .HasName("pk_perfis_de_formandos");
 
@@ -1409,6 +1535,12 @@ namespace Backend.Data.Migrations
                         .HasColumnType("character varying(30)")
                         .HasColumnName("status");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id")
                         .HasName("pk_formaturas");
 
@@ -1439,9 +1571,27 @@ namespace Backend.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("criado_em");
 
+                    b.Property<DateTime?>("DesligadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("desligado_em");
+
+                    b.Property<string>("DetalheDoDesligamento")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("detalhe_do_desligamento");
+
                     b.Property<Guid>("FormaturaId")
                         .HasColumnType("uuid")
                         .HasColumnName("formatura_id");
+
+                    b.Property<string>("MotivoDoDesligamento")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("motivo_do_desligamento");
+
+                    b.Property<DateTime?>("MuralVistoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("mural_visto_em");
 
                     b.Property<string>("Papel")
                         .IsRequired()
@@ -1464,6 +1614,110 @@ namespace Backend.Data.Migrations
                         .HasDatabaseName("ix_vinculos_de_formatura_usuario_id_formatura_id");
 
                     b.ToTable("vinculos_de_formatura", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Leads.Models.Lead", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<string>("Campanha")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("campanha");
+
+                    b.Property<DateTime>("ConsentidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consentido_em");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<string>("Curso")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("curso");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("email");
+
+                    b.Property<string>("EnderecoIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)")
+                        .HasColumnName("endereco_ip");
+
+                    b.Property<string>("Instituicao")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("instituicao");
+
+                    b.Property<string>("Meio")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("meio");
+
+                    b.Property<string>("Mensagem")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("mensagem");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("nome");
+
+                    b.Property<string>("Origem")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("origem");
+
+                    b.Property<DateOnly?>("PrevisaoDeColacao")
+                        .HasColumnType("date")
+                        .HasColumnName("previsao_de_colacao");
+
+                    b.Property<string>("PrivacidadeVersao")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("privacidade_versao");
+
+                    b.Property<int>("TamanhoDaTurma")
+                        .HasColumnType("integer")
+                        .HasColumnName("tamanho_da_turma");
+
+                    b.Property<string>("Telefone")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("telefone");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("user_agent");
+
+                    b.HasKey("Id")
+                        .HasName("pk_leads");
+
+                    b.HasIndex("CriadoEm")
+                        .HasDatabaseName("ix_leads_criado_em");
+
+                    b.HasIndex("Email", "CriadoEm")
+                        .HasDatabaseName("ix_leads_email_criado_em");
+
+                    b.ToTable("leads", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Business.Legal.Models.ConsentimentoRegistrado", b =>
@@ -1951,11 +2205,82 @@ namespace Backend.Data.Migrations
                         .HasDatabaseName("ix_recebimentos_informe_id");
 
                     b.HasIndex("ParcelaId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_recebimentos_parcela_id")
-                        .HasFilter("estornado_em IS NULL");
+                        .HasDatabaseName("ix_recebimentos_parcela_id");
 
                     b.ToTable("recebimentos", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Privacidade.Models.SolicitacaoDePrivacidade", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ArquivoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("arquivo_id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime?>("ConcluidaEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("concluida_em");
+
+                    b.Property<DateTime?>("ConfirmadaEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("confirmada_em");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<DateTime?>("ExpiraEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expira_em");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("motivo");
+
+                    b.Property<DateTime>("PrazoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("prazo_em");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<int>("Tentativas")
+                        .HasColumnType("integer")
+                        .HasColumnName("tentativas");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tipo");
+
+                    b.Property<Guid>("TitularUsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("titular_usuario_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_solicitacoes_de_privacidade");
+
+                    b.HasIndex("PrazoEm")
+                        .HasDatabaseName("ix_solicitacoes_de_privacidade_pendentes")
+                        .HasFilter("status = 'Pendente'");
+
+                    b.HasIndex("TitularUsuarioId", "CriadoEm")
+                        .HasDatabaseName("ix_solicitacoes_de_privacidade_titular_usuario_id_criado_em");
+
+                    b.ToTable("solicitacoes_de_privacidade", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Business.Recebimentos.Models.ContaDeRecebimento", b =>
@@ -2179,6 +2504,10 @@ namespace Backend.Data.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer")
                         .HasColumnName("access_failed_count");
+
+                    b.Property<DateTime?>("AnonimizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("anonimizado_em");
 
                     b.Property<bool>("Ativo")
                         .ValueGeneratedOnAdd()
@@ -2593,6 +2922,22 @@ namespace Backend.Data.Migrations
                         .HasConstraintName("fk_convites_formaturas_formatura_id");
                 });
 
+            modelBuilder.Entity("Backend.Business.Festa.Models.ItemDaFesta", b =>
+                {
+                    b.HasOne("Backend.Business.Comunicacao.Models.Documento", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentoId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_itens_da_festa_documentos_documento_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_itens_da_festa_formaturas_formatura_id");
+                });
+
             modelBuilder.Entity("Backend.Business.Financeiro.Models.Despesa", b =>
                 {
                     b.HasOne("Backend.Business.Arquivos.Models.Arquivo", null)
@@ -2613,6 +2958,12 @@ namespace Backend.Data.Migrations
                         .HasForeignKey("FornecedorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_despesas_fornecedores_fornecedor_id");
+
+                    b.HasOne("Backend.Business.Festa.Models.ItemDaFesta", null)
+                        .WithMany()
+                        .HasForeignKey("ItemDaFestaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_despesas_itens_da_festa_item_da_festa_id");
                 });
 
             modelBuilder.Entity("Backend.Business.Financeiro.Models.Fornecedor", b =>
@@ -2917,6 +3268,16 @@ namespace Backend.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_recebimentos_parcelas_parcela_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Privacidade.Models.SolicitacaoDePrivacidade", b =>
+                {
+                    b.HasOne("Backend.Business.Usuarios.Models.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("TitularUsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_solicitacoes_de_privacidade_asp_net_users_titular_usuario_id");
                 });
 
             modelBuilder.Entity("Backend.Business.Recebimentos.Models.ContaDeRecebimento", b =>

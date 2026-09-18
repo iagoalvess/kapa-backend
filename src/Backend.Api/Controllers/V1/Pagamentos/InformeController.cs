@@ -69,7 +69,7 @@ public sealed class InformeController(IPagamentoService pagamentoService, IUsuar
     /// <param name="requisicao">Informes e valores recebidos.</param>
     [HttpPost("confirmar")]
     [Authorize(Policy = Politicas.Tesouraria)]
-    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [Authorize(Policy = Politicas.ExigeFormaturaRecebendo)]
     [RegistrarEvento("pagamento.lote_confirmado")]
     [ProducesResponseType(typeof(ResultadoDaConferenciaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -89,7 +89,7 @@ public sealed class InformeController(IPagamentoService pagamentoService, IUsuar
     /// <param name="requisicao">Motivo.</param>
     [HttpPost("{id:guid}/recusar")]
     [Authorize(Policy = Politicas.Tesouraria)]
-    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [Authorize(Policy = Politicas.ExigeFormaturaRecebendo)]
     [RegistrarEvento("pagamento.informe_recusado", CamposDaRota = ["id"])]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]

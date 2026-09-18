@@ -44,6 +44,12 @@ public sealed record FornecedorResumo(
     long PrevistoEmCentavos
 );
 
+/// <summary>Quantos fornecedores a turma tem em cada situação — os números das pílulas da tela.</summary>
+/// <remarks>Uma consulta agrupada no lugar de duas listas de um item só pedidas pelo <c>total</c>.</remarks>
+/// <param name="Ativos">Os que aparecem na hora de lançar uma despesa.</param>
+/// <param name="Inativos">Os desativados, que ficam pelo histórico das despesas deles.</param>
+public sealed record ContagemDeFornecedores(int Ativos, int Inativos);
+
 /// <summary>Filtros da lista de fornecedores.</summary>
 /// <param name="Ativo">Só os ativos, só os inativos, ou todos.</param>
 /// <param name="Categoria">Só os desta categoria.</param>
@@ -58,6 +64,7 @@ public sealed record FiltroDeFornecedores(bool? Ativo = null, CategoriaDeDespesa
 /// <paramref name="NumeroDeParcelas"/> linhas mensais, com o resto na primeira.
 /// </remarks>
 /// <param name="FornecedorId">A quem se paga. Ausente: gasto sem fornecedor cadastrado.</param>
+/// <param name="ItemDaFestaId">Item da festa que esta despesa paga. Ausente: gasto que não é da festa.</param>
 /// <param name="Descricao">O que é.</param>
 /// <param name="Categoria">Em que a turma gastou.</param>
 /// <param name="ValorEmCentavos">Valor total, em centavos.</param>
@@ -67,6 +74,7 @@ public sealed record FiltroDeFornecedores(bool? Ativo = null, CategoriaDeDespesa
 /// <param name="PagaEm">Dia do pagamento, quando a despesa já nasce paga. Exige comprovante; na parcelada vale para a primeira.</param>
 public sealed record NovaDespesa(
     Guid? FornecedorId,
+    Guid? ItemDaFestaId,
     string Descricao,
     CategoriaDeDespesa Categoria,
     long ValorEmCentavos,
@@ -78,6 +86,7 @@ public sealed record NovaDespesa(
 
 /// <summary>A correção de uma linha já lançada.</summary>
 /// <param name="FornecedorId">A quem se paga.</param>
+/// <param name="ItemDaFestaId">Item da festa que esta despesa paga. Ausente: gasto que não é da festa.</param>
 /// <param name="Descricao">O que é.</param>
 /// <param name="Categoria">Em que a turma gastou.</param>
 /// <param name="ValorEmCentavos">Valor desta linha, em centavos.</param>
@@ -85,6 +94,7 @@ public sealed record NovaDespesa(
 /// <param name="Vencimento">Dia do pagamento desta linha.</param>
 public sealed record DadosDaDespesa(
     Guid? FornecedorId,
+    Guid? ItemDaFestaId,
     string Descricao,
     CategoriaDeDespesa Categoria,
     long ValorEmCentavos,
@@ -120,6 +130,7 @@ public sealed record FiltroDeDespesas(
 /// <param name="Id">Identificador.</param>
 /// <param name="LancamentoId">O lançamento que a criou; as parcelas irmãs têm o mesmo.</param>
 /// <param name="FornecedorId">A quem se paga, se houver.</param>
+/// <param name="ItemDaFestaId">Item da festa que esta despesa paga, se houver.</param>
 /// <param name="Fornecedor">Nome do fornecedor, se houver.</param>
 /// <param name="Descricao">O que é.</param>
 /// <param name="Categoria">Em que a turma gastou.</param>
@@ -136,6 +147,7 @@ public sealed record DespesaResumo(
     Guid Id,
     Guid LancamentoId,
     Guid? FornecedorId,
+    Guid? ItemDaFestaId,
     string? Fornecedor,
     string Descricao,
     CategoriaDeDespesa Categoria,

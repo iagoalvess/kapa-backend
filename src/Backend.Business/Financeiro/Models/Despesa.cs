@@ -33,6 +33,16 @@ public class Despesa : EntidadeDaFormatura
     /// <summary>A quem se paga. Nulo: gasto sem fornecedor cadastrado (uma taxa bancária, um reembolso).</summary>
     public Guid? FornecedorId { get; private set; }
 
+    /// <summary>
+    /// O item da festa que esta despesa paga (Sprint 17). Nulo: gasto que não é da festa.
+    /// </summary>
+    /// <remarks>
+    /// É o que faz o cartão do item mudar de "a contratar" para "contratado" sem ninguém editar o
+    /// item (Sprint 17, decisão 2). Opcional de propósito: a taxa bancária e o reembolso não são
+    /// item nenhum, e obrigar um vínculo transformaria a lista da festa num plano de contas.
+    /// </remarks>
+    public Guid? ItemDaFestaId { get; private set; }
+
     /// <summary>O que é ("Buffet — entrada", "Aluguel do salão").</summary>
     public string Descricao { get; private set; } = string.Empty;
 
@@ -77,6 +87,7 @@ public class Despesa : EntidadeDaFormatura
         {
             LancamentoId = lancamentoId,
             FornecedorId = dados.FornecedorId,
+            ItemDaFestaId = dados.ItemDaFestaId,
             Descricao = dados.Descricao.Trim(),
             Categoria = dados.Categoria,
             ValorEmCentavos = valorEmCentavos,
@@ -101,6 +112,7 @@ public class Despesa : EntidadeDaFormatura
             return Result.Falha(Erro.Conflito("financeiro.despesa_cancelada", "Esta despesa foi cancelada. Lance uma nova."));
 
         FornecedorId = dados.FornecedorId;
+        ItemDaFestaId = dados.ItemDaFestaId;
         Descricao = dados.Descricao.Trim();
         Categoria = dados.Categoria;
         ValorEmCentavos = dados.ValorEmCentavos;

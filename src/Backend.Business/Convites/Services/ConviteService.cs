@@ -2,6 +2,7 @@ using System.Buffers.Text;
 using System.Globalization;
 using System.Security.Cryptography;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
 using Backend.Business.Common;
@@ -25,8 +26,9 @@ namespace Backend.Business.Convites.Services;
 /// Criação, acompanhamento e aceite de convites.
 /// </summary>
 /// <param name="conviteRepository">Convites e aceites.</param>
-/// <param name="vinculoRepository">Vínculos, para o papel do autor e o do convidado.</param>
+/// <param name="vinculoRepository">Vínculos, para o papel do autor, o do convidado e a lotação da turma.</param>
 /// <param name="formaturaRepository">A turma do convite, para o nome e o status.</param>
+/// <param name="assinaturaRepository">O plano contratado, de onde vem o limite de formandos.</param>
 /// <param name="usuarioRepository">E-mail da conta que aceita o convite nominal.</param>
 /// <param name="authService">Emissão da sessão dentro da turma nova.</param>
 /// <param name="tokenService">Hash do token, o mesmo do refresh token.</param>
@@ -38,6 +40,7 @@ public sealed class ConviteService(
     IConviteRepository conviteRepository,
     IVinculoRepository vinculoRepository,
     IFormaturaRepository formaturaRepository,
+    IAssinaturaRepository assinaturaRepository,
     IUsuarioRepository usuarioRepository,
     IAuthService authService,
     ITokenService tokenService,
@@ -103,6 +106,9 @@ public sealed class ConviteService(
                 "convite.formatura_nao_contratada",
                 "Contrate um plano para convidar formandos. Antes disso, dá para convidar a comissão."
             );
+
+        if (await ConferirLimiteDoPlano(formaturaId, papel, ct) is { } lotada)
+            return lotada;
 
         var agora = DateTime.UtcNow;
         var email = dados.Email?.Trim();
@@ -229,6 +235,9 @@ public sealed class ConviteService(
                 if (!await conviteRepository.ConsumirUsoDeTodasAsFormaturas(convite.Id, agora, tentativa))
                     return Erro.Conflito("convite.esgotado", "Este convite acabou de atingir o limite de entradas. Peça um novo à comissão.");
 
+                if (await ConferirLimiteDoPlano(convite.FormaturaId, convite.Papel, tentativa) is { } lotada)
+                    return lotada;
+
                 var vinculo = await vinculoRepository.ObterParaEdicao(usuarioId, convite.FormaturaId, tentativa);
 
                 if (vinculo is { Ativo: true })
@@ -276,7 +285,7 @@ public sealed class ConviteService(
                     convite.Papel,
                     refreshTokenAtual,
                     origem.EnderecoIp,
-                    tentativa
+                    ct: tentativa
                 );
             },
             ct
@@ -346,6 +355,53 @@ public sealed class ConviteService(
             );
     }
 
+    /// <summary>
+    /// Recusa a entrada de formando quando a turma já ocupou todas as vagas do plano contratado.
+    /// </summary>
+    /// <remarks>
+    /// P3 da Sprint 16, respondida em 17/09/2026: passar do limite <b>bloqueia</b>. <c>LimiteDeFormandos</c>
+    /// existia no plano e aparecia na vitrine, mas nada o aplicava — uma turma no Essencial (60)
+    /// aceitava o 61º. O que se vende deixa de ser verdade no dia em que ninguém confere.
+    /// <para>
+    /// Vale só para o papel <c>Formando</c>. A comissão continua entrando com a turma lotada, de
+    /// propósito: é ela quem troca o plano, e barrá-la trancaria a porta pelo lado de dentro —
+    /// uma turma cheia não conseguiria nem substituir o tesoureiro que saiu.
+    /// </para>
+    /// <para>
+    /// A conta é de <b>vagas ocupadas</b>, e não de quem tem o papel Formando: o plano é vendido
+    /// por tamanho de turma, e o presidente também se forma e também paga. Quem foi desligado não
+    /// ocupa vaga — ele saiu.
+    /// </para>
+    /// <para>
+    /// <c>ponytail:</c> no aceite roda sob a trava da linha do convite, então a assembleia inteira
+    /// entrando pelo mesmo link passa uma de cada vez. Dois <b>convites diferentes</b> aceitos no
+    /// mesmo instante ainda cabem os dois — é um a mais numa turma de sessenta, e fechar isso
+    /// exigiria travar a formatura a cada aceite.
+    /// </para>
+    /// </remarks>
+    /// <param name="formaturaId">Turma que recebe.</param>
+    /// <param name="papel">Papel de quem entra.</param>
+    /// <returns>O erro, ou <c>null</c> se ainda há vaga.</returns>
+    private async Task<Erro?> ConferirLimiteDoPlano(Guid formaturaId, string papel, CancellationToken ct)
+    {
+        if (papel != PapelNaFormatura.Formando)
+            return null;
+
+        if (await assinaturaRepository.ObterLimiteDeFormandosDeTodasAsFormaturas(formaturaId, ct) is not { } limite || limite <= 0)
+            return null;
+
+        var ocupadas = (await vinculoRepository.ContarMembros(formaturaId, ct))
+            .Where(c => c is { Ativo: true, Desligado: false })
+            .Sum(c => c.Quantidade);
+
+        return ocupadas < limite
+            ? null
+            : Erro.Conflito(
+                "convite.limite_do_plano",
+                $"O plano contratado comporta {limite} formandos e a turma já tem {ocupadas}. " + "Troque de plano para incluir mais gente."
+            );
+    }
+
     /// <summary>Formando qualquer membro da gestão oferece; os demais papéis, só o Presidente.</summary>
     /// <param name="papel">Papel do convite.</param>
     /// <param name="usuarioId">Autor.</param>
@@ -369,7 +425,7 @@ public sealed class ConviteService(
                 + $"convidou você para entrar na turma como {ModeloDeEmail.Texto(papel)}. O convite é pessoal e vale até {validade}.",
             "Aceitar convite",
             link,
-            comLogo: true
+            Mascote.Acenando
         );
 
         await emailService.Enfileirar(new NovoEmail(email, $"Convite para {formatura.Nome} — {nome}", corpo), ct);

@@ -66,6 +66,7 @@ public sealed class FinanceiroEndpointsTests(ApiFactory fabrica)
         var membro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), papel, Ct);
 
         (await membro.Cliente.GetAsync(Fornecedores, Ct)).StatusCode.ShouldBe(tesouraria);
+        (await membro.Cliente.GetAsync($"{Fornecedores}/resumo", Ct)).StatusCode.ShouldBe(tesouraria);
         (await membro.Cliente.GetAsync($"{Caixa}/projecao", Ct)).StatusCode.ShouldBe(gestao);
 
         (await membro.Cliente.GetAsync(Despesas, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -229,6 +230,9 @@ public sealed class FinanceiroEndpointsTests(ApiFactory fabrica)
         );
         desativacao.EnsureSuccessStatusCode();
         (await desativacao.Content.ReadFromJsonAsync<FornecedorDTO>(Json, Ct))!.Ativo.ShouldBeFalse();
+
+        var resumo = await tesoureiro.Cliente.GetFromJsonAsync<ContagemDeFornecedoresDTO>($"{Fornecedores}/resumo", Json, Ct);
+        resumo.ShouldBe(new ContagemDeFornecedoresDTO(0, 1));
     }
 
     [Fact]
@@ -302,7 +306,8 @@ public sealed class FinanceiroEndpointsTests(ApiFactory fabrica)
         return (await resposta.Content.ReadFromJsonAsync<List<DespesaDTO>>(Json, Ct))!;
     }
 
-    private static NovaDespesaRequestDTO Nova(string descricao) => new(null, descricao, CategoriaDeDespesa.Buffet, 100_000, 1, Hoje, Hoje, null);
+    private static NovaDespesaRequestDTO Nova(string descricao) =>
+        new(null, null, descricao, CategoriaDeDespesa.Buffet, 100_000, 1, Hoje, Hoje, null);
 
     /// <summary>O lançamento como multipart — é assim que o formulário da tela o envia.</summary>
     private static MultipartFormDataContent Multipart(NovaDespesaRequestDTO dados)
@@ -319,6 +324,9 @@ public sealed class FinanceiroEndpointsTests(ApiFactory fabrica)
 
         if (dados.FornecedorId is { } fornecedorId)
             conteudo.Add(new StringContent(fornecedorId.ToString()), "fornecedorId");
+
+        if (dados.ItemDaFestaId is { } itemDaFestaId)
+            conteudo.Add(new StringContent(itemDaFestaId.ToString()), "itemDaFestaId");
 
         if (dados.PagaEm is { } pagaEm)
         {

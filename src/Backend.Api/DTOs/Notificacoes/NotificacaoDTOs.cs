@@ -5,7 +5,6 @@ namespace Backend.Api.DTOs.Notificacoes;
 /// <summary>Um degrau da régua, no corpo da gravação.</summary>
 /// <param name="Gatilho">O que dispara. Com <paramref name="DiasDeDeslocamento"/>, é a identidade do degrau.</param>
 /// <param name="DiasDeDeslocamento">Dias de distância do gatilho; negativo é antes do vencimento.</param>
-/// <param name="Canal">Por onde sai.</param>
 /// <param name="Assunto">Assunto, com as variáveis disponíveis.</param>
 /// <param name="Template">Corpo, com as mesmas variáveis.</param>
 /// <param name="Ativa">Se dispara.</param>
@@ -13,7 +12,6 @@ namespace Backend.Api.DTOs.Notificacoes;
 public sealed record RegraRequestDTO(
     GatilhoDaRegua Gatilho,
     int DiasDeDeslocamento,
-    CanalDeNotificacao Canal,
     string? Assunto,
     string? Template,
     bool Ativa,
@@ -28,7 +26,6 @@ public sealed record ReguaRequestDTO(IReadOnlyList<RegraRequestDTO>? Regras);
 /// <param name="Id">Identificador.</param>
 /// <param name="Gatilho">O que dispara.</param>
 /// <param name="DiasDeDeslocamento">Dias de distância do gatilho.</param>
-/// <param name="Canal">Por onde sai.</param>
 /// <param name="Assunto">Assunto.</param>
 /// <param name="Template">Corpo.</param>
 /// <param name="Ativa">Se dispara.</param>
@@ -37,7 +34,6 @@ public sealed record RegraDTO(
     Guid Id,
     GatilhoDaRegua Gatilho,
     int DiasDeDeslocamento,
-    CanalDeNotificacao Canal,
     string Assunto,
     string Template,
     bool Ativa,
@@ -56,7 +52,6 @@ public sealed record ReguaDTO(IReadOnlyList<RegraDTO> Regras, IReadOnlyList<stri
 /// <param name="Destinatario">Endereço que recebeu.</param>
 /// <param name="Nome">Nome de quem recebeu; ausente no resumo à tesouraria.</param>
 /// <param name="Assunto">Assunto enviado.</param>
-/// <param name="Canal">Por onde saiu.</param>
 /// <param name="Status">Resultado.</param>
 /// <param name="Erro">Por que falhou, quando falhou.</param>
 /// <param name="DataDeReferencia">Dia em que a régua rodou.</param>
@@ -68,7 +63,6 @@ public sealed record NotificacaoDTO(
     string Destinatario,
     string? Nome,
     string Assunto,
-    CanalDeNotificacao Canal,
     StatusDaNotificacao Status,
     string? Erro,
     DateOnly DataDeReferencia,
@@ -78,21 +72,14 @@ public sealed record NotificacaoDTO(
 );
 
 /// <summary>Filtros do histórico, na query string.</summary>
-/// <param name="Canal">Só deste canal.</param>
 /// <param name="Status">Só nesta situação.</param>
 /// <param name="De">A partir deste dia de referência, inclusive.</param>
 /// <param name="Ate">Até este dia de referência, inclusive.</param>
 /// <param name="Busca">Trecho do destinatário ou do nome de quem recebeu.</param>
-public sealed record FiltroDeNotificacoesDTO(
-    CanalDeNotificacao? Canal = null,
-    StatusDaNotificacao? Status = null,
-    DateOnly? De = null,
-    DateOnly? Ate = null,
-    string? Busca = null
-)
+public sealed record FiltroDeNotificacoesDTO(StatusDaNotificacao? Status = null, DateOnly? De = null, DateOnly? Ate = null, string? Busca = null)
 {
     /// <summary>Converte para o filtro da camada de negócio.</summary>
-    public FiltroDeNotificacoes ParaModelo() => new(Canal, Status, De, Ate, Busca);
+    public FiltroDeNotificacoes ParaModelo() => new(Status, De, Ate, Busca);
 }
 
 /// <summary>O que o titular escolheu receber.</summary>
