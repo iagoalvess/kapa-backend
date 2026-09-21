@@ -62,6 +62,12 @@ public sealed class AssinaturaService(
     /// Formatura suspensa contrata sem sair de <c>Suspensa</c>: ela continua em modo leitura até o
     /// pagamento confirmar — é o webhook que a reativa.
     /// </para>
+    /// <para>
+    /// <b>"Já tem plano" é pergunta da assinatura, não do status.</b> Até 18/09/2026 bastava olhar se
+    /// a turma era <c>Ativa</c>, porque só chegava lá quem tinha pago. Com o gratuito, <b>toda</b>
+    /// turma é ativa — o mesmo teste recusaria todo checkout e trancaria o upgrade, que é justamente
+    /// o que o gratuito existe para provocar.
+    /// </para>
     /// </remarks>
     public async Task<Result<SessaoDeCheckout>> IniciarCheckout(Guid formaturaId, IniciarCheckout dados, CancellationToken ct = default)
     {
@@ -74,18 +80,20 @@ public sealed class AssinaturaService(
         if (formatura is null)
             return Erro.NaoEncontrado("formatura.nao_encontrada", "Formatura não encontrada.");
 
-        if (formatura.Status == StatusDaFormatura.Ativa)
-            return Erro.Conflito("assinatura.ja_ativa", "Esta formatura já tem uma assinatura ativa.");
+        if (formatura.Status is StatusDaFormatura.Encerrada or StatusDaFormatura.Descartada)
+            return Erro.Conflito("formatura.encerrada", "Esta turma não contrata assinatura.");
 
-        if (formatura.Status == StatusDaFormatura.Encerrada)
-            return Erro.Conflito("formatura.encerrada", "Uma formatura encerrada não contrata assinatura.");
+        var maisRecente = await assinaturaRepository.ObterMaisRecenteParaEdicao(ct);
+
+        if (maisRecente is { Status: StatusDaAssinatura.Ativa })
+            return Erro.Conflito("assinatura.ja_ativa", "Esta formatura já tem uma assinatura ativa.");
 
         var plano = await assinaturaRepository.ObterPlanoAtivo(dados.PlanoCodigo.Trim(), ct);
 
         if (plano is null)
             return Erro.Validacao("assinatura.plano_invalido", "Plano não encontrado.", campo: "plano_codigo");
 
-        var pendente = await assinaturaRepository.ObterMaisRecenteParaEdicao(ct) is { Status: StatusDaAssinatura.Pendente } atual ? atual : null;
+        var pendente = maisRecente is { Status: StatusDaAssinatura.Pendente } atual ? atual : null;
 
         if (pendente is { IdExterno: { } sessaoAnterior } && pendente.PlanoId != plano.Id)
         {
@@ -109,9 +117,6 @@ public sealed class AssinaturaService(
 
         if (pendente is null)
             await assinaturaRepository.Adicionar(assinatura, ct);
-
-        if (formatura.Status == StatusDaFormatura.Rascunho)
-            formatura.Transicionar(StatusDaFormatura.AguardandoPagamento);
 
         await unitOfWork.SalvarAsync(ct);
 

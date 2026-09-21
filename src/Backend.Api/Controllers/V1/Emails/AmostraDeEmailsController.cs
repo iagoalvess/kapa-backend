@@ -41,9 +41,9 @@ namespace Backend.Api.Controllers.V1.Emails;
 /// </para>
 /// <para>
 /// Chama os <c>EmailsDe*</c> de verdade, com dados de exemplo: amostra que monta o próprio HTML
-/// mostraria o modelo certo com um texto que ninguém recebe. As duas exceções estão em
-/// <see cref="Avulsos"/> — o convite e o aviso ao comercial montam o corpo dentro do service que os
-/// origina, e chegar até eles exigiria uma turma inteira no banco.
+/// mostraria o modelo certo com um texto que ninguém recebe. A exceção está em
+/// <see cref="Avulso"/> — o convite monta o corpo dentro do service que o
+/// origina, e chegar até ele exigiria uma turma inteira no banco.
 /// </para>
 /// </remarks>
 /// <param name="conta">E-mails do ciclo de vida da conta.</param>
@@ -103,7 +103,7 @@ public sealed class AmostraDeEmailsController(
         await DoDesligamento(para, ct);
         await DoRecebimento(para, ct);
         await DaRegua(para, ct);
-        await Avulsos(para, ct);
+        await Avulso(para, ct);
 
         await unitOfWork.SalvarAsync(ct);
 
@@ -167,19 +167,21 @@ public sealed class AmostraDeEmailsController(
         await desligamento.Aviso([para], Turma, "Ana Beatriz", "Dificuldade financeira", cancelado, ct);
     }
 
+    /// <summary>
+    /// A amostra mostra o pior caso: a chave PIX da comissão saiu e sobrou o dinheiro em mãos.
+    /// </summary>
+    /// <remarks>É o desenho da fraude que este e-mail existe para flagrar, e o que ele precisa gritar.</remarks>
     private Task DoRecebimento(string para, CancellationToken ct)
     {
-        var contaPix = new ContaDeRecebimento();
-        contaPix.Aplicar(
-            new Backend.Business.Recebimentos.Models.DadosDaConta(
-                TipoDeChavePix.Email,
-                "tesouraria@odonto.kapa.dev",
-                "Comissão de Formatura Odontologia",
-                "Curitiba"
-            )
+        var antes = new MeiosDaConta(
+            new ChavePixDaConta(TipoDeChavePix.Email, "tesouraria@odonto.kapa.dev", "Comissão de Formatura Odontologia", "Curitiba"),
+            new DadosBancarios("Banco do Brasil", "1234-5", "98765-4", "Corrente", "Comissão de Formatura Odontologia"),
+            null
         );
 
-        return recebimento.ContaAlterada(para, Turma, "Ana Beatriz", contaPix, ct);
+        var depois = new MeiosDaConta(null, antes.Transferencia, new DinheiroComAlguem("Lucas", "no bloco A"));
+
+        return recebimento.ContaAlterada(para, Turma, "Ana Beatriz", antes, depois, ct);
     }
 
     private async Task DaRegua(string para, CancellationToken ct) =>
@@ -195,13 +197,13 @@ public sealed class AmostraDeEmailsController(
             ct
         );
 
-    /// <summary>As duas amostras cujo corpo mora dentro do service que as origina.</summary>
+    /// <summary>A amostra cujo corpo mora dentro do service que a origina.</summary>
     /// <remarks>
-    /// Repetem o texto do <c>ConviteService</c> e do <c>LeadService</c>. É cópia, e some no dia em
-    /// que esses dois ganharem um <c>EmailsDe*</c> como os outros — até lá, é o único jeito de o
+    /// Repete o texto do <c>ConviteService</c>. É cópia, e some no dia em
+    /// que ele ganhar um <c>EmailsDe*</c> como os outros — até lá, é o único jeito de o
     /// convite, que é o e-mail mais visto do produto, aparecer na amostra.
     /// </remarks>
-    private async Task Avulsos(string para, CancellationToken ct)
+    private async Task Avulso(string para, CancellationToken ct)
     {
         var nome = aplicacao.Value.Nome;
 
@@ -216,18 +218,6 @@ public sealed class AmostraDeEmailsController(
         );
 
         await emailService.Enfileirar(new NovoEmail(para, $"Convite para {Turma} — {nome}", convite), ct);
-
-        var lead = ModeloDeEmail.Montar(
-            nome,
-            "Contato novo pela página",
-            "<strong>Ana Beatriz Moraes Rocha</strong><br>Odontologia — UFPR<br>62 formandos · colação em dezembro de 2027<br><br>"
-                + "E-mail: ana@odonto.kapa.dev<br>Telefone: (41) 99999-0000",
-            null,
-            null,
-            Mascote.Lupa
-        );
-
-        await emailService.Enfileirar(new NovoEmail(para, $"Contato novo: UFPR — {nome}", lead), ct);
     }
 
     /// <summary>Um plano de exemplo: uma entrada e três mensalidades.</summary>

@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Backend.Api.DTOs.Auth;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Formaturas.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -25,21 +26,14 @@ public static class FormaturaDeTeste
 {
     private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
 
-    private static readonly Dictionary<StatusDaFormatura, StatusDaFormatura[]> Caminhos = new()
-    {
-        [StatusDaFormatura.Rascunho] = [],
-        [StatusDaFormatura.AguardandoPagamento] = [StatusDaFormatura.AguardandoPagamento],
-        [StatusDaFormatura.Ativa] = [StatusDaFormatura.AguardandoPagamento, StatusDaFormatura.Ativa],
-        [StatusDaFormatura.Suspensa] = [StatusDaFormatura.AguardandoPagamento, StatusDaFormatura.Ativa, StatusDaFormatura.Suspensa],
-        [StatusDaFormatura.Encerrada] = [StatusDaFormatura.AguardandoPagamento, StatusDaFormatura.Ativa, StatusDaFormatura.Encerrada],
-    };
-
     /// <summary>
     /// Monta uma formatura no status pedido, passando pelas transições de verdade.
     /// </summary>
     /// <remarks>
-    /// O criador é sorteado: o índice de "um rascunho por criador" não pode fazer um teste colidir
-    /// com outro.
+    /// O criador é sorteado, para um teste não colidir com outro.
+    /// <para>
+    /// A turma nasce <c>Ativa</c>, então o caminho até qualquer outro status é um passo só.
+    /// </para>
     /// </remarks>
     /// <param name="status">Status final.</param>
     public static Formatura NovaFormatura(StatusDaFormatura status = StatusDaFormatura.Ativa)
@@ -55,29 +49,73 @@ public static class FormaturaDeTeste
             CriadoPorUsuarioId = Guid.CreateVersion7(),
         };
 
-        foreach (var passo in Caminhos[status])
+        foreach (var passo in status == StatusDaFormatura.Ativa ? Array.Empty<StatusDaFormatura>() : [status])
             formatura.Transicionar(passo).Sucesso.ShouldBeTrue();
 
         return formatura;
     }
 
-    /// <summary>Cria uma formatura ativa, sem membros.</summary>
+    /// <summary>Cria uma formatura ativa e contratada, sem membros.</summary>
     /// <param name="fabrica">API de teste.</param>
     public static Task<Guid> CriarFormatura(this ApiFactory fabrica, CancellationToken ct) => fabrica.CriarFormatura(StatusDaFormatura.Ativa, ct);
 
     /// <summary>Cria uma formatura no status pedido, sem membros.</summary>
+    /// <remarks>
+    /// <b>Contratada por padrão</b>, no maior plano. Sem assinatura a turma cai no gratuito, e o
+    /// gratuito não inclui mural, festa, despesas nem caixa — a política de módulo recusaria com
+    /// <c>plano.modulo_nao_incluido</c> e a suíte inteira desses módulos falharia por um motivo que
+    /// não é o que ela testa. Quem quer testar o gratuito passa <c>contratada: false</c>.
+    /// </remarks>
     /// <param name="fabrica">API de teste.</param>
     /// <param name="status">Status da formatura.</param>
-    public static async Task<Guid> CriarFormatura(this ApiFactory fabrica, StatusDaFormatura status, CancellationToken ct)
+    /// <param name="contratada">Se a turma nasce com assinatura ativa no maior plano.</param>
+    public static async Task<Guid> CriarFormatura(this ApiFactory fabrica, StatusDaFormatura status, CancellationToken ct, bool contratada = true)
     {
-        await using var contexto = fabrica.ContextoDe(null);
+        Guid formaturaId;
 
-        var formatura = NovaFormatura(status);
-        contexto.Formaturas.Add(formatura);
+        await using (var contexto = fabrica.ContextoDe(null))
+        {
+            var formatura = NovaFormatura(status);
+            contexto.Formaturas.Add(formatura);
 
+            await contexto.SaveChangesAsync(ct);
+            formaturaId = formatura.Id;
+        }
+
+        if (contratada)
+            await fabrica.Contratar(formaturaId, ct);
+
+        return formaturaId;
+    }
+
+    /// <summary>Dá à turma uma assinatura ativa no plano mais completo do catálogo.</summary>
+    /// <remarks>
+    /// O escopo do contexto é apontado para a turma: <c>Assinatura</c> é <c>EntidadeDaFormatura</c>,
+    /// e o carimbo do <c>AppDbContext</c> recusa gravar sem formatura na sessão.
+    /// <para>
+    /// <b>Ordena por quantidade de módulos, não por limite de formandos.</b> Quem contrata aqui é
+    /// todo teste que exercita área com <c>[ExigeModulo]</c>, e o que ele quer é o plano que libera
+    /// tudo. Por limite havia empate em 400 entre o plano de topo e o <c>ampliado</c> que a
+    /// <c>Inicial</c> gravou sem módulo nenhum — e no dia em que o desempate mudou de lado, metade
+    /// da suíte passou a responder 403 sem que nada de autorização tivesse sido tocado.
+    /// </para>
+    /// </remarks>
+    /// <param name="fabrica">API de teste.</param>
+    /// <param name="formaturaId">Turma que contrata.</param>
+    public static async Task Contratar(this ApiFactory fabrica, Guid formaturaId, CancellationToken ct)
+    {
+        await using var contexto = fabrica.ContextoDe(formaturaId);
+
+        var plano = await contexto
+            .Planos.Where(p => p.Ativo)
+            .OrderByDescending(p => p.Modulos.Count)
+            .ThenByDescending(p => p.LimiteDeFormandos)
+            .FirstAsync(ct);
+        var assinatura = new Assinatura { PlanoId = plano.Id };
+        assinatura.ConfirmarPagamento(DateTime.UtcNow, plano.Ciclo);
+
+        contexto.Assinaturas.Add(assinatura);
         await contexto.SaveChangesAsync(ct);
-
-        return formatura.Id;
     }
 
     /// <summary>Registra uma conta nova, vincula à formatura com o papel e seleciona a formatura.</summary>

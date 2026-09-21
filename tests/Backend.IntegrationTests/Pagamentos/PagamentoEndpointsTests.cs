@@ -82,7 +82,7 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         ).StatusCode.ShouldBe(estornar);
     }
 
-    /// <summary>O fluxo inteiro: extrato, PIX, "já paguei", fila da tesouraria, lote confirmado.</summary>
+    /// <summary>O fluxo inteiro: extrato, cobrança, "já paguei", fila da tesouraria, lote confirmado.</summary>
     [Fact]
     public async Task Formando_avisa_e_o_lote_grava_parcela_recebimento_informe_e_email_juntos()
     {
@@ -91,7 +91,8 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         var primeira = ana.Parcelas[0];
 
         var extrato = await Ler<ExtratoDTO>(await ana.Membro.Cliente.GetAsync("/api/v1/extrato/eu", Ct));
-        var pix = await Ler<PixDaParcelaDTO>(await ana.Membro.Cliente.GetAsync($"/api/v1/parcelas/{primeira}/pix", Ct));
+        var cobranca = await Ler<CobrancaDaParcelaDTO>(await ana.Membro.Cliente.GetAsync($"/api/v1/parcelas/{primeira}/cobranca", Ct));
+        var pix = cobranca.Meios.ShouldHaveSingleItem();
         var informe = await Ler<ParcelaDTO>(
             await ana.Membro.Cliente.PostAsync($"/api/v1/parcelas/{primeira}/informes", Informe(Hoje, Mensalidade, comComprovante: true), Ct)
         );
@@ -101,10 +102,11 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         extrato.Parcelas.Count.ShouldBe(3);
         extrato.EmAbertoEmCentavos.ShouldBe(3 * Mensalidade);
         extrato.Proxima!.Id.ShouldBe(primeira);
-        pix.CopiaECola.ShouldContain("52998224725");
-        pix.CopiaECola.ShouldContain(pix.Identificador);
-        pix.ValorEmCentavos.ShouldBe(Mensalidade);
-        pix.NomeDoTitular.ShouldBe("Comissão Medicina");
+        pix.Meio.ShouldBe(MeioDeRecebimento.Pix);
+        pix.Pix!.CopiaECola.ShouldContain("52998224725");
+        pix.Pix.CopiaECola.ShouldContain(cobranca.Identificador);
+        cobranca.ValorEmCentavos.ShouldBe(Mensalidade);
+        pix.Pix.NomeDoTitular.ShouldBe("Comissão Medicina");
         informe.EmConferencia.ShouldBeTrue();
         informe.Status.ShouldBe(StatusDaParcela.Aberta);
         (await repetido.Codigo(Ct)).ShouldBe("pagamento.informe_pendente");
@@ -159,21 +161,64 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         var parcela = ana.Parcelas[0];
 
         (await bruno.Cliente.GetAsync($"/api/v1/parcelas/{parcela}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        (await bruno.Cliente.GetAsync($"/api/v1/parcelas/{parcela}/pix", Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await bruno.Cliente.GetAsync($"/api/v1/parcelas/{parcela}/cobranca", Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await bruno.Cliente.PostAsync($"/api/v1/parcelas/{parcela}/informes", Informe(Hoje, Mensalidade), Ct)).StatusCode.ShouldBe(
             HttpStatusCode.NotFound
         );
-        (await turma.Tesoureiro.Cliente.GetAsync($"/api/v1/parcelas/{parcela}/pix", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await turma.Tesoureiro.Cliente.GetAsync($"/api/v1/parcelas/{parcela}/cobranca", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
-    /// <summary>P3 de 14/09/2026: só a turma sem chave responde 409 — a não conferida mostra o PIX.</summary>
+    /// <summary>
+    /// Sprint 18 de ponta a ponta: a turma habilita dinheiro ao lado do PIX, o formando escolhe dinheiro
+    /// sem comprovante, e a conferência baixa a parcela como <c>Dinheiro</c> — sem a tesouraria adivinhar.
+    /// </summary>
     [Fact]
-    public async Task Sem_chave_cadastrada_o_pix_e_409()
+    public async Task Turma_com_dois_meios_deixa_o_formando_escolher_e_a_baixa_grava_a_forma_do_meio()
+    {
+        var turma = await TurmaPronta();
+        var ana = await FormandoQueAderiu(turma, "Ana Em Espécie");
+        var parcela = ana.Parcelas[0];
+        (
+            await turma.Presidente.Cliente.PutAsJsonAsync(
+                "/api/v1/recebimentos/conta",
+                new MeiosDaContaDTO(
+                    new ChavePixDTO(TipoDeChavePix.Cpf, "529.982.247-25", "Comissão Medicina", "Curitiba"),
+                    null,
+                    new DinheiroDTO("Bruna Tesoureira", "nas reuniões de quinta")
+                ),
+                Json,
+                Ct
+            )
+        ).EnsureSuccessStatusCode();
+
+        var cobranca = await Ler<CobrancaDaParcelaDTO>(await ana.Membro.Cliente.GetAsync($"/api/v1/parcelas/{parcela}/cobranca", Ct));
+        (
+            await ana.Membro.Cliente.PostAsync(
+                $"/api/v1/parcelas/{parcela}/informes",
+                Informe(Hoje, Mensalidade, meio: MeioDeRecebimento.Dinheiro),
+                Ct
+            )
+        ).EnsureSuccessStatusCode();
+        var fila = await Ler<PaginaDTO<InformeDTO>>(await turma.Tesoureiro.Cliente.GetAsync("/api/v1/informes", Ct));
+        var informeId = fila.Itens.Single(i => i.Parcela.Id == parcela).Id;
+        (await Confirmar(turma.Tesoureiro, (informeId, Mensalidade))).EnsureSuccessStatusCode();
+
+        cobranca.Meios.Select(m => m.Meio).ShouldBe([MeioDeRecebimento.Pix, MeioDeRecebimento.Dinheiro]);
+        cobranca.Meios[1].Instrucao.ShouldBe("Entregue a Bruna Tesoureira, nas reuniões de quinta.");
+        fila.Itens.Single(i => i.Parcela.Id == parcela).MeioEscolhido.ShouldBe(MeioDeRecebimento.Dinheiro);
+        fila.Itens.Single(i => i.Parcela.Id == parcela).TemComprovante.ShouldBeFalse();
+        await using var contexto = fabrica.ContextoDe(turma.FormaturaId);
+        (await contexto.Recebimentos.Where(r => r.ParcelaId == parcela).Select(r => r.Forma).SingleAsync(Ct)).ShouldBe(FormaDePagamento.Dinheiro);
+    }
+
+    /// <summary>P3 de 14/09/2026: só a turma sem meio nenhum responde 409 — a não conferida mostra o PIX.</summary>
+    [Fact]
+    public async Task Sem_meio_cadastrado_a_cobranca_e_409()
     {
         var turma = await TurmaPronta(comConta: false);
         var ana = await FormandoQueAderiu(turma, "Ana Sem Chave");
 
-        var resposta = await ana.Membro.Cliente.GetAsync($"/api/v1/parcelas/{ana.Parcelas[0]}/pix", Ct);
+        var resposta = await ana.Membro.Cliente.GetAsync($"/api/v1/parcelas/{ana.Parcelas[0]}/cobranca", Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await resposta.Codigo(Ct)).ShouldBe("pagamento.sem_conta");
@@ -445,7 +490,7 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
             (
                 await presidente.Cliente.PutAsJsonAsync(
                     "/api/v1/recebimentos/conta",
-                    new ContaDeRecebimentoRequestDTO(TipoDeChavePix.Cpf, "529.982.247-25", "Comissão Medicina", "Curitiba"),
+                    new MeiosDaContaDTO(new ChavePixDTO(TipoDeChavePix.Cpf, "529.982.247-25", "Comissão Medicina", "Curitiba"), null, null),
                     Json,
                     Ct
                 )
@@ -488,12 +533,18 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
     private static Task<HttpResponseMessage> Estornar(MembroDeTeste membro, Guid parcelaId, string justificativa) =>
         membro.Cliente.PostAsJsonAsync($"/api/v1/parcelas/{parcelaId}/estornar-baixa", new EstornarBaixaRequestDTO(justificativa), Json, Ct);
 
-    private static MultipartFormDataContent Informe(DateOnly pagoEm, long valor, bool comComprovante = false)
+    private static MultipartFormDataContent Informe(
+        DateOnly pagoEm,
+        long valor,
+        bool comComprovante = false,
+        MeioDeRecebimento meio = MeioDeRecebimento.Pix
+    )
     {
         var formulario = new MultipartFormDataContent
         {
             { new StringContent(pagoEm.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)), "pagoEm" },
             { new StringContent(valor.ToString(CultureInfo.InvariantCulture)), "valorEmCentavos" },
+            { new StringContent(meio.ToString()), "meio" },
         };
 
         if (comComprovante)

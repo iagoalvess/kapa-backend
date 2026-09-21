@@ -20,6 +20,28 @@ public sealed record DadosDoItemDaFesta(
     int QuantidadeEstimada = 1
 );
 
+/// <summary>Uma proposta, como a comissão a informa.</summary>
+/// <param name="Titulo">Quem está propondo.</param>
+/// <param name="ValorEmCentavos">Quanto ela custa; zero enquanto não há preço.</param>
+/// <param name="OQueInclui">O que ela entrega, em Markdown curto.</param>
+public sealed record DadosDaProposta(string Titulo, long ValorEmCentavos, string? OQueInclui);
+
+/// <summary>
+/// Uma proposta como a turma a vê, com quantos votos tem e se o voto de quem lê é dela.
+/// </summary>
+/// <remarks>
+/// <paramref name="Votos"/> é a contagem das linhas de <see cref="VotoNaProposta"/>, e não um
+/// contador gravado — é a decisão 2 desta sprint aplicada ao placar, pelo mesmo motivo: contador que
+/// alguém esquece de decrementar é um placar que mente para a turma inteira.
+/// </remarks>
+/// <param name="Id">Identificador.</param>
+/// <param name="Titulo">Quem está propondo.</param>
+/// <param name="ValorEmCentavos">Quanto ela custa.</param>
+/// <param name="OQueInclui">O que ela entrega, em Markdown.</param>
+/// <param name="Votos">Quantos formandos escolheram esta.</param>
+/// <param name="MeuVoto">Se o voto de quem está lendo é nesta proposta.</param>
+public sealed record PropostaResumo(Guid Id, string Titulo, long ValorEmCentavos, string? OQueInclui, int Votos, bool MeuVoto);
+
 /// <summary>
 /// O contrato de um item, como o cartão o abre.
 /// </summary>
@@ -54,6 +76,7 @@ public sealed record DocumentoDoItem(Guid Id, string Titulo, string NomeDoArquiv
 /// <param name="ContratadoEmCentavos">Soma das despesas vinculadas, canceladas de fora.</param>
 /// <param name="PagoEmCentavos">Soma das despesas já pagas.</param>
 /// <param name="QuantidadeDeDespesas">Despesas vinculadas, canceladas de fora — é o que define o estado.</param>
+/// <param name="QuantidadeDePropostas">Candidatas levantadas pela comissão; o detalhe traz cada uma.</param>
 /// <param name="Cancelado">A turma desistiu: sai do custo, fica na lista.</param>
 /// <param name="Ordem">Posição na tela.</param>
 public sealed record ItemDaFestaResumo(
@@ -69,6 +92,7 @@ public sealed record ItemDaFestaResumo(
     long ContratadoEmCentavos,
     long PagoEmCentavos,
     int QuantidadeDeDespesas,
+    int QuantidadeDePropostas,
     bool Cancelado,
     int Ordem
 )
@@ -92,6 +116,19 @@ public sealed record ItemDaFestaResumo(
         : PagoEmCentavos >= ContratadoEmCentavos ? EstadoDoItem.Pago
         : EstadoDoItem.Contratado;
 }
+
+/// <summary>
+/// Um item com as propostas levantadas para ele — o que a tela mostra no painel da direita.
+/// </summary>
+/// <remarks>
+/// As propostas não vêm na listagem de propósito: a lista da esquerda só precisa saber que existem
+/// (<see cref="ItemDaFestaResumo.QuantidadeDePropostas"/>), e trazer todas em toda abertura da tela
+/// carregaria a consulta com o que só um item por vez mostra. O detalhe é o único lugar que sabe
+/// <see cref="PropostaResumo.MeuVoto"/>, porque é o único que recebe quem está lendo.
+/// </remarks>
+/// <param name="Item">O item, como a lista o mostra.</param>
+/// <param name="Propostas">As candidatas, da mais votada para a menos.</param>
+public sealed record ItemDaFestaDetalhe(ItemDaFestaResumo Item, IReadOnlyList<PropostaResumo> Propostas);
 
 /// <summary>
 /// A meta da turma: quanto a festa custa, quanto já entrou e quanto dela já foi paga.

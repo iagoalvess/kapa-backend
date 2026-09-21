@@ -70,7 +70,8 @@ public sealed class NotificacaoServiceTests
                     StatusDaFormatura.Ativa,
                     DateTime.UtcNow,
                     DateTime.UtcNow,
-                    null
+                    null,
+                    false
                 )
             );
     }

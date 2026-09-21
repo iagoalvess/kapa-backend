@@ -4,6 +4,7 @@ using Backend.Api.Configuration;
 using Backend.Api.DTOs.Relatorios;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Common.Datas;
 using Backend.Business.Common.Planilhas;
 using Backend.Business.Relatorios.Interfaces;
@@ -29,6 +30,7 @@ namespace Backend.Api.Controllers.V1.Relatorios;
 /// <param name="relatorioService">Balancete, exportações e a fila.</param>
 /// <param name="usuarioAtual">Quem chama — vai na capa do balancete e é dono da solicitação.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Caixa)]
 [Route("api/v{version:apiVersion}/relatorios")]
 [Authorize(Policy = Politicas.Gestao)]
 [EnableRateLimiting(RateLimitConfig.Padrao)]

@@ -27,6 +27,7 @@ public sealed class InformeDePagamentoMapping : IEntityTypeConfiguration<Informe
         builder.HasKey(i => i.Id);
 
         builder.Property(i => i.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(i => i.MeioEscolhido).HasConversion<string>().HasMaxLength(20);
         builder.Property(i => i.MotivoDaRecusa).HasMaxLength(500);
 
         builder.HasIndex(i => i.ParcelaId).IsUnique().HasFilter($"status = '{nameof(StatusDoInforme.Pendente)}'");

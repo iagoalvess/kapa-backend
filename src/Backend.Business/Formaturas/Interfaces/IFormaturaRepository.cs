@@ -23,9 +23,22 @@ public interface IFormaturaRepository
     /// <param name="formaturaId">Formatura a alterar.</param>
     Task<Formatura?> ObterParaEdicao(Guid formaturaId, CancellationToken ct = default);
 
-    /// <summary>Se o usuário já criou uma formatura que continua em rascunho.</summary>
+    /// <summary>
+    /// Se o usuário já criou uma turma que nunca contratou — a dele no plano gratuito.
+    /// </summary>
+    /// <remarks>
+    /// Substituiu "um rascunho por usuário" em 18/09/2026, quando a turma passou a nascer ativa no
+    /// gratuito: não existindo mais rascunho, a regra tinha de mudar de eixo para continuar dizendo
+    /// a mesma coisa — <b>uma turma não paga por conta</b>.
+    /// <para>
+    /// <c>ponytail:</c> a checagem é só do service, então dois cliques simultâneos ainda criam duas.
+    /// A versão antiga tinha índice único parcial cobrindo a corrida, e este eixo não cabe num
+    /// índice — ele depende de <c>assinaturas</c>. Se virar problema real, o caminho é uma coluna
+    /// em <c>formaturas</c> dizendo que a turma nunca contratou, aí o índice parcial volta.
+    /// </para>
+    /// </remarks>
     /// <param name="usuarioId">Criador.</param>
-    Task<bool> ExisteRascunhoCriadoPor(Guid usuarioId, CancellationToken ct = default);
+    Task<bool> ExisteGratuitaCriadaPor(Guid usuarioId, CancellationToken ct = default);
 
     /// <summary>Registra uma formatura nova.</summary>
     /// <param name="formatura">Formatura a persistir.</param>

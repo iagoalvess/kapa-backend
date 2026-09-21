@@ -36,9 +36,6 @@ using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formandos.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Services;
-using Backend.Business.Leads.Interfaces;
-using Backend.Business.Leads.Services;
-using Backend.Business.Leads.Settings;
 using Backend.Business.Legal.Interfaces;
 using Backend.Business.Legal.Services;
 using Backend.Business.Notificacoes.Interfaces;
@@ -82,7 +79,6 @@ public static class DependenciasBusiness
         services.AddOptions<AplicacaoSettings>().Bind(configuration.GetSection(AplicacaoSettings.Secao));
         services.AddOptions<ArmazenamentoSettings>().Bind(configuration.GetSection(ArmazenamentoSettings.Secao));
         services.AddOptions<AssinaturaSettings>().Bind(configuration.GetSection(AssinaturaSettings.Secao));
-        services.AddOptions<LeadsSettings>().Bind(configuration.GetSection(LeadsSettings.Secao));
 
         services.AddValidatorsFromAssembly(typeof(DependenciasBusiness).Assembly, ServiceLifetime.Singleton);
 
@@ -183,6 +179,7 @@ public static class DependenciasBusiness
         services.AddScoped<IContaDeRecebimentoService, ContaDeRecebimentoService>();
         services.AddScoped<EmailsDeRecebimento>();
         services.AddScoped<IItemDaFestaService, ItemDaFestaService>();
+        services.AddScoped<IPropostaService, PropostaService>();
         services.AddScoped<IFornecedorService, FornecedorService>();
         services.AddScoped<IDespesaService, DespesaService>();
         services.AddScoped<ICaixaService, CaixaService>();
@@ -206,7 +203,6 @@ public static class DependenciasBusiness
         services.AddScoped<EmailsDePrivacidade>();
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IAdminService, AdminService>();
-        services.AddScoped<ILeadService, LeadService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IArquivoService, ArquivoService>();
         services.AddScoped<IAssinaturaService, AssinaturaService>();

@@ -324,7 +324,7 @@ public sealed class WebhookService(
         }
     }
 
-    /// <summary>Ativa a formatura, se ainda não estiver. Rascunho, aguardando e suspensa passam; encerrada fica.</summary>
+    /// <summary>Ativa a formatura, se ainda não estiver. Suspensa passa; encerrada e descartada ficam.</summary>
     /// <remarks>A sequência mora em <see cref="Formatura.AtivarPorPagamento"/>, porque o painel de suporte usa a mesma.</remarks>
     /// <param name="formatura">Formatura da assinatura paga.</param>
     private void Ativar(Formatura formatura)

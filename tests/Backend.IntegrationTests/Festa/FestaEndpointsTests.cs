@@ -88,6 +88,110 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         (await vizinha.Cliente.DeleteAsync($"{Itens}/{item.Id}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    /// <summary>
+    /// O detalhe do item traz as propostas ordenadas pelo placar, contra o Postgres de verdade.
+    /// </summary>
+    /// <remarks>
+    /// Existe porque a ordenação por voto é uma subconsulta correlacionada, e o jeito errado de
+    /// escrevê-la — <c>OrderBy</c> sobre a propriedade do record projetado — compila, passa em todo
+    /// teste unitário e só estoura quando o EF tenta traduzir a consulta. Já estourou uma vez.
+    /// </remarks>
+    [Fact]
+    public async Task O_detalhe_traz_as_propostas_da_mais_votada_para_a_menos()
+    {
+        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
+        var item = await Criar(presidente, Novo("Banda"), Ct);
+
+        var x = await Propor(presidente, item.Id, "Banda X", 8_000_00, Ct);
+        await Propor(presidente, item.Id, "Banda Y", 6_500_00, Ct);
+
+        var semVoto = await ObterDetalhe(presidente, item.Id, Ct);
+        semVoto.Propostas.Count().ShouldBe(2);
+        // Empatadas em zero, o desempate é o preço: a mais barata primeiro, sempre na mesma ordem.
+        semVoto.Propostas.Select(p => p.Titulo).ShouldBe(["Banda Y", "Banda X"]);
+        semVoto.Propostas.ShouldAllBe(p => !p.MeuVoto);
+
+        (await presidente.Cliente.PutAsync($"/api/v1/festa/propostas/{x.Id}/voto", null, Ct)).EnsureSuccessStatusCode();
+
+        var votada = await ObterDetalhe(presidente, item.Id, Ct);
+        votada.Propostas.First().Titulo.ShouldBe("Banda X");
+        votada.Propostas.First().Votos.ShouldBe(1);
+        votada.Propostas.First().MeuVoto.ShouldBeTrue();
+    }
+
+    /// <summary>Um voto por formando por item: trocar de proposta move o voto, não soma outro.</summary>
+    [Fact]
+    public async Task Trocar_de_proposta_move_o_voto_em_vez_de_somar_um_segundo()
+    {
+        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
+        var item = await Criar(presidente, Novo("Banda"), Ct);
+        var x = await Propor(presidente, item.Id, "Banda X", 8_000_00, Ct);
+        var y = await Propor(presidente, item.Id, "Banda Y", 6_500_00, Ct);
+
+        (await presidente.Cliente.PutAsync($"/api/v1/festa/propostas/{x.Id}/voto", null, Ct)).EnsureSuccessStatusCode();
+        (await presidente.Cliente.PutAsync($"/api/v1/festa/propostas/{y.Id}/voto", null, Ct)).EnsureSuccessStatusCode();
+
+        var detalhe = await ObterDetalhe(presidente, item.Id, Ct);
+        detalhe.Propostas.Sum(p => p.Votos).ShouldBe(1);
+        detalhe.Propostas.Single(p => p.Id == y.Id).Votos.ShouldBe(1);
+        detalhe.Propostas.Single(p => p.Id == x.Id).Votos.ShouldBe(0);
+    }
+
+    /// <summary>Contratado o item, a disputa fecha: proposta e voto param de aceitar escrita.</summary>
+    [Fact]
+    public async Task Item_com_despesa_nao_aceita_proposta_nem_voto()
+    {
+        var tesoureiro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
+        var item = await Criar(tesoureiro, Novo("Banda"), Ct);
+        var proposta = await Propor(tesoureiro, item.Id, "Banda X", 8_000_00, Ct);
+
+        await Lancar(tesoureiro, item.Id, 8_000_00, Ct);
+
+        var nova = await tesoureiro.Cliente.PostAsJsonAsync(
+            $"{Itens}/{item.Id}/propostas",
+            new PropostaRequestDTO("Banda Z", 7_000_00, null),
+            Json,
+            Ct
+        );
+        nova.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+
+        var voto = await tesoureiro.Cliente.PutAsync($"/api/v1/festa/propostas/{proposta.Id}/voto", null, Ct);
+        voto.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+
+        // A proposta continua legível: é o registro de por que a turma escolheu aquela.
+        (await ObterDetalhe(tesoureiro, item.Id, Ct))
+            .Propostas.Count()
+            .ShouldBe(1);
+    }
+
+    /// <summary>O formando vota, mas não levanta proposta — escrever no catálogo é da Gestão.</summary>
+    [Fact]
+    public async Task O_formando_vota_mas_nao_cadastra_proposta()
+    {
+        var formatura = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formatura, PapelNaFormatura.Presidente, Ct);
+        var formando = await fabrica.NovoMembro(formatura, PapelNaFormatura.Formando, Ct);
+        var item = await Criar(presidente, Novo("Banda"), Ct);
+        var proposta = await Propor(presidente, item.Id, "Banda X", 8_000_00, Ct);
+
+        var tentativa = await formando.Cliente.PostAsJsonAsync(
+            $"{Itens}/{item.Id}/propostas",
+            new PropostaRequestDTO("Banda Z", 7_000_00, null),
+            Json,
+            Ct
+        );
+        tentativa.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        (await formando.Cliente.PutAsync($"/api/v1/festa/propostas/{proposta.Id}/voto", null, Ct)).EnsureSuccessStatusCode();
+
+        // O placar é público; o "meu voto" é de cada um.
+        (await ObterDetalhe(formando, item.Id, Ct))
+            .Propostas.Single()
+            .MeuVoto.ShouldBeTrue();
+        (await ObterDetalhe(presidente, item.Id, Ct)).Propostas.Single().MeuVoto.ShouldBeFalse();
+        (await ObterDetalhe(presidente, item.Id, Ct)).Propostas.Single().Votos.ShouldBe(1);
+    }
+
     [Fact]
     public async Task A_turma_nasce_com_os_seis_sugeridos_a_contratar_e_sem_custo()
     {
@@ -296,6 +400,17 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         resposta.EnsureSuccessStatusCode();
 
         return (await resposta.Content.ReadFromJsonAsync<ItemDaFestaDTO>(Json, ct))!;
+    }
+
+    private static async Task<ItemDaFestaDetalheDTO> ObterDetalhe(MembroDeTeste membro, Guid id, CancellationToken ct) =>
+        (await membro.Cliente.GetFromJsonAsync<ItemDaFestaDetalheDTO>($"{Itens}/{id}/detalhe", Json, ct))!;
+
+    private static async Task<PropostaDTO> Propor(MembroDeTeste membro, Guid itemId, string titulo, long valor, CancellationToken ct)
+    {
+        var resposta = await membro.Cliente.PostAsJsonAsync($"{Itens}/{itemId}/propostas", new PropostaRequestDTO(titulo, valor, null), Json, ct);
+        resposta.EnsureSuccessStatusCode();
+
+        return (await resposta.Content.ReadFromJsonAsync<PropostaDTO>(Json, ct))!;
     }
 
     private static async Task<IReadOnlyList<ItemDaFestaDTO>> Listar(MembroDeTeste membro, CancellationToken ct) =>

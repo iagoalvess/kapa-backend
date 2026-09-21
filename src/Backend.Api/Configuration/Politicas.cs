@@ -1,3 +1,4 @@
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Auth.Services;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Usuarios.Models;
@@ -80,18 +81,8 @@ public static class Politicas
     public const string ExigeFormaturaAtiva = nameof(ExigeFormaturaAtiva);
 
     /// <summary>
-    /// A formatura aceita edição: <c>Rascunho</c>, <c>AguardandoPagamento</c> ou <c>Ativa</c>.
-    /// Vai na montagem da comissão — convidar e ajustar membros.
-    /// </summary>
-    /// <remarks>
-    /// Contratar é decisão da comissão, não do Presidente sozinho: ele precisa chamar o tesoureiro e
-    /// os colegas antes de pagar. Formando só entra depois do pagamento — essa regra é do
-    /// <c>ConviteService</c>, porque depende do papel do convite.
-    /// </remarks>
-    public const string ExigeFormaturaEditavel = nameof(ExigeFormaturaEditavel);
-
-    /// <summary>
-    /// A formatura não foi encerrada nem descartada. Vai no cadastro da própria pessoa.
+    /// A formatura não foi encerrada nem descartada: <c>Ativa</c> ou <c>Suspensa</c>. Vai no
+    /// cadastro da própria pessoa.
     /// </summary>
     /// <remarks>
     /// O dado é do titular, não da turma: o Presidente preenche o dele antes de contratar, e o
@@ -99,6 +90,18 @@ public static class Politicas
     /// (LGPD, art. 18, III), e não pode depender de a licença estar em dia.
     /// </remarks>
     public const string ExigeFormaturaAberta = nameof(ExigeFormaturaAberta);
+
+    /// <summary>
+    /// O plano da turma inclui o módulo. Vai na área inteira — leitura e escrita.
+    /// </summary>
+    /// <remarks>
+    /// Uma política por código de <c>Modulo</c>, registradas em laço: área nova ganha o gate só de
+    /// existir na lista, e <b>o que cada plano libera continua sendo a linha do catálogo</b>, não
+    /// código. Recusa com <c>plano.modulo_nao_incluido</c>.
+    /// </remarks>
+    /// <param name="modulo">Código do módulo, de <c>Modulo</c>.</param>
+    /// <returns>O nome da política.</returns>
+    public static string ExigeModulo(string modulo) => $"ExigeModulo:{modulo}";
 
     /// <summary>
     /// A formatura está <c>Ativa</c> ou <c>Suspensa</c>. Vai só no registro de dinheiro que já entrou:
@@ -179,23 +182,16 @@ public static class Politicas
             )
             .AddPolicy(ExigeFormaturaAtiva, politica => politica.ExigirStatus(StatusDaFormatura.Ativa))
             .AddPolicy(ExigeFormaturaRecebendo, politica => politica.ExigirStatus(StatusDaFormatura.Ativa, StatusDaFormatura.Suspensa))
-            .AddPolicy(
-                ExigeFormaturaEditavel,
-                politica => politica.ExigirStatus(StatusDaFormatura.Rascunho, StatusDaFormatura.AguardandoPagamento, StatusDaFormatura.Ativa)
-            )
-            .AddPolicy(
-                ExigeFormaturaAberta,
-                politica =>
-                    politica.ExigirStatus(
-                        StatusDaFormatura.Rascunho,
-                        StatusDaFormatura.AguardandoPagamento,
-                        StatusDaFormatura.Ativa,
-                        StatusDaFormatura.Suspensa
-                    )
-            );
+            .AddPolicy(ExigeFormaturaAberta, politica => politica.ExigirStatus(StatusDaFormatura.Ativa, StatusDaFormatura.Suspensa));
+
+        var porModulo = services.AddAuthorizationBuilder();
+
+        foreach (var modulo in Modulo.Todos)
+            porModulo.AddPolicy(ExigeModulo(modulo), politica => politica.AddRequirements(new PlanoComModuloRequirement(modulo)));
 
         services.AddScoped<IAuthorizationHandler, PapelNaFormaturaHandler>();
         services.AddScoped<IAuthorizationHandler, FormaturaEmStatusHandler>();
+        services.AddScoped<IAuthorizationHandler, PlanoComModuloHandler>();
 
         return services;
     }

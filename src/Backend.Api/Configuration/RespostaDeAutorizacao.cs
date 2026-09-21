@@ -43,6 +43,14 @@ public sealed class RespostaDeAutorizacao : IAuthorizationMiddlewareResultHandle
                 "Esta formatura não está ativa. A turma está em modo leitura."
             );
 
+        if (authorizeResult.Forbidden && SoFaltouModulo(authorizeResult.AuthorizationFailure))
+            return AuthConfig.EscreverProblema(
+                context,
+                StatusCodes.Status403Forbidden,
+                "plano.modulo_nao_incluido",
+                "Esta área não está incluída no plano da turma."
+            );
+
         return _padrao.HandleAsync(next, context, policy, authorizeResult);
     }
 
@@ -57,6 +65,17 @@ public sealed class RespostaDeAutorizacao : IAuthorizationMiddlewareResultHandle
     /// <param name="falha">Falha de autorização.</param>
     private static bool SoFaltouFormaturaAtiva(AuthorizationFailure? falha) =>
         falha?.FailedRequirements.Any() == true && falha.FailedRequirements.All(requisito => requisito is FormaturaEmStatusRequirement);
+
+    /// <summary>
+    /// A única coisa que faltou foi o módulo estar no plano.
+    /// </summary>
+    /// <remarks>
+    /// Pelo mesmo motivo de <see cref="SoFaltouFormaturaAtiva"/>: se o papel também faltou, dizer
+    /// que o plano não inclui a área sugere que contratar resolveria — e não resolveria.
+    /// </remarks>
+    /// <param name="falha">Falha de autorização.</param>
+    private static bool SoFaltouModulo(AuthorizationFailure? falha) =>
+        falha?.FailedRequirements.Any() == true && falha.FailedRequirements.All(requisito => requisito is PlanoComModuloRequirement);
 
     private static bool FaltouFormatura(AuthorizationFailure? falha) =>
         falha?.FailedRequirements.OfType<ClaimsAuthorizationRequirement>().Any(requisito => requisito.ClaimType == TokenService.ClaimDeFormatura)

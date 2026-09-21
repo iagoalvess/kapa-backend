@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Relatorios;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Relatorios.Interfaces;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
@@ -25,6 +26,7 @@ namespace Backend.Api.Controllers.V1.Relatorios;
 /// </remarks>
 /// <param name="dashboardService">Os indicadores.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Caixa)]
 [Route("api/v{version:apiVersion}/dashboard")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class DashboardController(IDashboardService dashboardService) : MainController

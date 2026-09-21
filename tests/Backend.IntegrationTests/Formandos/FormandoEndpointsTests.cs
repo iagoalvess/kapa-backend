@@ -51,12 +51,11 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
     }
 
     /// <summary>
-    /// O cadastro é do titular: o Presidente preenche o dele antes de pagar, e o formando de turma
-    /// suspensa ainda corrige o próprio dado. Só a turma encerrada é arquivo.
+    /// O cadastro é do titular: o formando de turma suspensa ainda corrige o próprio dado. Só a
+    /// turma encerrada é arquivo.
     /// </summary>
     [Theory]
-    [InlineData(StatusDaFormatura.Rascunho, HttpStatusCode.OK)]
-    [InlineData(StatusDaFormatura.AguardandoPagamento, HttpStatusCode.OK)]
+    [InlineData(StatusDaFormatura.Ativa, HttpStatusCode.OK)]
     [InlineData(StatusDaFormatura.Suspensa, HttpStatusCode.OK)]
     [InlineData(StatusDaFormatura.Encerrada, HttpStatusCode.Forbidden)]
     public async Task Proprio_cadastro_grava_em_qualquer_status_menos_encerrada(StatusDaFormatura status, HttpStatusCode esperado)

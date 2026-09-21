@@ -25,13 +25,16 @@ public sealed class RecebimentoEndpointsTests(ApiFactory fabrica)
 
     private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
 
-    private static readonly ContaDeRecebimentoRequestDTO ChaveCpf = new(TipoDeChavePix.Cpf, "529.982.247-25", "Ana Souza", "Curitiba");
+    private static readonly MeiosDaContaDTO ChaveCpf = new(
+        new ChavePixDTO(TipoDeChavePix.Cpf, "529.982.247-25", "Ana Souza", "Curitiba"),
+        null,
+        null
+    );
 
-    private static readonly ContaDeRecebimentoRequestDTO ChaveCelular = new(
-        TipoDeChavePix.Telefone,
-        "(41) 99876-5432",
-        "Bruno Lima",
-        "São José dos Pinhais"
+    private static readonly MeiosDaContaDTO ChaveCelular = new(
+        new ChavePixDTO(TipoDeChavePix.Telefone, "(41) 99876-5432", "Bruno Lima", "São José dos Pinhais"),
+        null,
+        null
     );
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -65,14 +68,14 @@ public sealed class RecebimentoEndpointsTests(ApiFactory fabrica)
 
         var resposta = await presidente.Cliente.PutAsJsonAsync(
             Rota,
-            new ContaDeRecebimentoRequestDTO(tipo, chave, "Ana Souza", "Curitiba"),
+            new MeiosDaContaDTO(new ChavePixDTO(tipo, chave, "Ana Souza", "Curitiba"), null, null),
             Json,
             Ct
         );
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var problema = await resposta.Content.ReadFromJsonAsync<ValidationProblemDetails>(Json, Ct);
-        problema!.Errors["chave"].ShouldHaveSingleItem().ShouldContain(motivo);
+        problema!.Errors["pix.chave"].ShouldHaveSingleItem().ShouldContain(motivo);
     }
 
     [Fact]
@@ -103,7 +106,7 @@ public sealed class RecebimentoEndpointsTests(ApiFactory fabrica)
         var trocada = await Ler<ContaDeRecebimentoDTO>(await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCelular, Json, Ct));
         var repetida = await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCelular, Json, Ct);
 
-        gravada.Chave.ShouldBe("52998224725");
+        gravada.Meios.Pix!.Chave.ShouldBe("52998224725");
         gravada.ConferidaEm.ShouldBeNull();
         pix!.ValorEmCentavos.ShouldBe(100);
         pix.CopiaECola.ShouldContain("011152998224725");
@@ -111,8 +114,8 @@ public sealed class RecebimentoEndpointsTests(ApiFactory fabrica)
         conferida.ConferidaEm!.Value.ShouldBeInRange(antes.AddSeconds(-1), DateTime.UtcNow);
         conferida.ConferidaPor.ShouldBe("Usuário de Teste");
         (await deNovo.Codigo(Ct)).ShouldBe("recebimento.conta_ja_conferida");
-        trocada.Chave.ShouldBe("+5541998765432");
-        trocada.Cidade.ShouldBe("São José dos Pinhais");
+        trocada.Meios.Pix!.Chave.ShouldBe("+5541998765432");
+        trocada.Meios.Pix.Cidade.ShouldBe("São José dos Pinhais");
         trocada.ConferidaEm.ShouldBeNull();
         (await repetida.Codigo(Ct)).ShouldBe("recebimento.conta_sem_mudanca");
         await using var contexto = fabrica.ContextoDe(formaturaId);
@@ -145,8 +148,45 @@ public sealed class RecebimentoEndpointsTests(ApiFactory fabrica)
         var troca = await contexto.Eventos.Where(e => e.Nome == "recebimento.conta_alterada" && e.UsuarioId == presidente.UsuarioId).SingleAsync(Ct);
         var dados = JsonDocument.Parse(troca.Dados!).RootElement;
         dados.GetProperty("formaturaId").GetGuid().ShouldBe(formaturaId);
-        dados.GetProperty("antes").GetProperty("chave").GetString().ShouldBe("52998224725");
-        dados.GetProperty("depois").GetProperty("chave").GetString().ShouldBe("+5541998765432");
+        dados.GetProperty("antes").GetProperty("pix").GetProperty("chave").GetString().ShouldBe("52998224725");
+        dados.GetProperty("depois").GetProperty("pix").GetProperty("chave").GetString().ShouldBe("+5541998765432");
+    }
+
+    /// <summary>
+    /// P4 de 21/09/2026: a turma que não aceita PIX grava os meios que aceita, e o PIX de teste some.
+    /// Nenhum meio é 400 — a conta existe para o formando ter para onde pagar.
+    /// </summary>
+    [Fact]
+    public async Task Turma_sem_pix_grava_os_outros_meios_e_sem_meio_nenhum_e_400()
+    {
+        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
+        var soDinheiro = new MeiosDaContaDTO(null, null, new DinheiroDTO("Ana Souza", "nas reuniões de quinta"));
+
+        var gravada = await Ler<ContaDeRecebimentoDTO>(await presidente.Cliente.PutAsJsonAsync(Rota, soDinheiro, Json, Ct));
+        var teste = await presidente.Cliente.GetAsync($"{Rota}/pix-de-teste", Ct);
+        var vazia = await presidente.Cliente.PutAsJsonAsync(Rota, new MeiosDaContaDTO(null, null, null), Json, Ct);
+
+        gravada.Meios.Pix.ShouldBeNull();
+        gravada.Meios.Dinheiro!.Nome.ShouldBe("Ana Souza");
+        teste.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await teste.Codigo(Ct)).ShouldBe("recebimento.sem_chave_pix");
+        vazia.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await vazia.Codigo(Ct)).ShouldBe("recebimento.sem_meio");
+    }
+
+    /// <summary>A conferência é do PIX: habilitar TED ao lado dele avisa a comissão, mas não a desfaz.</summary>
+    [Fact]
+    public async Task Habilitar_outro_meio_mantem_a_conferencia_do_pix()
+    {
+        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
+        (await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCpf, Json, Ct)).EnsureSuccessStatusCode();
+        (await presidente.Cliente.PostAsync($"{Rota}/conferir", null, Ct)).EnsureSuccessStatusCode();
+
+        var comTed = ChaveCpf with { Transferencia = new DadosBancariosDTO("Banco do Brasil", "1234-5", "98765-4", "Corrente", "Comissão") };
+        var gravada = await Ler<ContaDeRecebimentoDTO>(await presidente.Cliente.PutAsJsonAsync(Rota, comTed, Json, Ct));
+
+        gravada.ConferidaEm.ShouldNotBeNull();
+        gravada.Meios.Transferencia!.Banco.ShouldBe("Banco do Brasil");
     }
 
     private static async Task<T> Ler<T>(HttpResponseMessage resposta)

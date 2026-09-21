@@ -5,6 +5,7 @@ using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Formaturas;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Mapster;
@@ -24,6 +25,7 @@ namespace Backend.Api.Controllers.V1.Formaturas;
 /// <param name="membroService">Gestão de membros.</param>
 /// <param name="usuarioAtual">Quem chama — o autor na trilha de auditoria da saída.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Membros)]
 [Route("api/v{version:apiVersion}/formaturas/atual/membros")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class MembroController(IMembroService membroService, IUsuarioAtual usuarioAtual) : MainController
@@ -79,7 +81,7 @@ public sealed class MembroController(IMembroService membroService, IUsuarioAtual
     /// <param name="requisicao">Papel novo.</param>
     [HttpPut("{usuarioId:guid}/papel")]
     [Authorize(Policy = Politicas.SomentePresidente)]
-    [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -96,7 +98,7 @@ public sealed class MembroController(IMembroService membroService, IUsuarioAtual
     /// <param name="usuarioId">Membro a remover.</param>
     [HttpDelete("{usuarioId:guid}")]
     [Authorize(Policy = Politicas.SomentePresidente)]
-    [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -141,7 +143,7 @@ public sealed class MembroController(IMembroService membroService, IUsuarioAtual
     /// <param name="requisicao">Motivo e o que fazer com o atraso.</param>
     [HttpPost("{usuarioId:guid}/desligar")]
     [Authorize(Policy = Politicas.SomentePresidente)]
-    [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -165,7 +167,7 @@ public sealed class MembroController(IMembroService membroService, IUsuarioAtual
     /// <param name="usuarioId">Membro a religar.</param>
     [HttpPost("{usuarioId:guid}/religar")]
     [Authorize(Policy = Politicas.SomentePresidente)]
-    [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

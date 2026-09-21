@@ -4,6 +4,7 @@ using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Models;
+using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Models;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,8 @@ namespace Backend.Business.Festa.Services;
 /// <param name="despesaRepository">Despesas, para saber se o item está em uso.</param>
 /// <param name="documentoRepository">Acervo, para recusar um contrato que a turma não pode abrir.</param>
 /// <param name="caixaRepository">O arrecadado da turma — o mesmo número da tela do Caixa.</param>
+/// <param name="propostaRepository">As candidatas de cada item, para o painel de detalhe.</param>
+/// <param name="perfilRepository">Vínculo de quem lê, para saber onde está o voto dele.</param>
 /// <param name="validator">Forma do item.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
@@ -30,6 +33,8 @@ public sealed class ItemDaFestaService(
     IDespesaRepository despesaRepository,
     IDocumentoRepository documentoRepository,
     ICaixaRepository caixaRepository,
+    IPropostaRepository propostaRepository,
+    IPerfilRepository perfilRepository,
     IValidator<DadosDoItemDaFesta> validator,
     IUnitOfWork unitOfWork,
     ILogger<ItemDaFestaService> logger
@@ -81,6 +86,22 @@ public sealed class ItemDaFestaService(
     /// <inheritdoc />
     public async Task<Result<ItemDaFestaResumo>> ObterPorId(Guid id, CancellationToken ct = default) =>
         await itemRepository.Obter(id, ct) is { } item ? item : NaoEncontrado;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// O vínculo de quem lê é opcional para a consulta: quem não tiver um — a Gestão que não é
+    /// formando da turma — vê as propostas e o placar, e nenhuma delas marcada como sua. Não votar
+    /// não é erro, então não devolve erro nenhum.
+    /// </remarks>
+    public async Task<Result<ItemDaFestaDetalhe>> ObterDetalhe(Guid id, Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
+    {
+        if (await itemRepository.Obter(id, ct) is not { } item)
+            return NaoEncontrado;
+
+        var vinculoId = (await perfilRepository.ObterTitular(formaturaId, usuarioId, ct))?.VinculoId;
+
+        return new ItemDaFestaDetalhe(item, await propostaRepository.Listar(id, vinculoId, ct));
+    }
 
     /// <inheritdoc />
     /// <remarks>

@@ -16,7 +16,7 @@ namespace Backend.Business.Privacidade.Models;
 /// </para>
 /// <para>
 /// <c>ponytail:</c> quando o PSP da assinatura for escolhido (P2 da Sprint 16), o nome dele entra
-/// no lugar de "Provedor de pagamento"; e o resumo por IA da Sprint 22 acrescenta a linha do
+/// no lugar de "Provedor de pagamento"; e o resumo por IA da Sprint 23 acrescenta a linha do
 /// provedor de modelo, que é o que a decisão 12 de lá exige.
 /// </para>
 /// </remarks>

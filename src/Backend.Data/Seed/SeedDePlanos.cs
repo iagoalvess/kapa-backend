@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Backend.Data.Seed;
 
 /// <summary>
-/// Catálogo de planos da licença: três pacotes, cada um em ciclo mensal e anual.
+/// Catálogo de planos da licença: dois pacotes, cada um em ciclo mensal e anual.
 /// </summary>
 /// <remarks>
 /// Sem catálogo a tela de planos abre vazia e ninguém contrata — por isso ele nasce com o banco,
@@ -38,44 +38,80 @@ public static class SeedDePlanos
         bool Recomendado
     );
 
-    /// <summary>Anual sai 15% mais barato que doze meses avulsos.</summary>
+    /// <summary>Anual sai 20% mais barato que doze meses avulsos.</summary>
     /// <remarks>
     /// A tela não repete esse número: ela o calcula de <c>PrecoCheioEmCentavos</c>, que sai daqui.
+    /// <para>
+    /// 20% é o teto usual do mercado — acima disso o mensal deixa de se sustentar. A alternativa
+    /// comum, "dois meses grátis" (paga dez, leva doze), dá 16,7%.
+    /// </para>
     /// </remarks>
-    private const int DescontoAnualEmPorcento = 15;
+    private const int DescontoAnualEmPorcento = 20;
 
-    private const string Membros = "Membros e convites";
-    private const string Termo = "Termo de adesão";
-    private const string Cobrancas = "Cobranças e parcelas";
-    private const string Pix = "Recebimento PIX e conferência";
-    private const string Despesas = "Despesas e fornecedores";
-    private const string Caixa = "Caixa e relatórios";
-    private const string Mural = "Mural e acervo de documentos";
-    private const string Avisos = "Avisos e régua de cobrança";
-    private const string Contabil = "Painel e exportação contábil";
-    private const string Auditoria = "Portal LGPD e auditoria";
+    /// <summary>
+    /// O que o Essencial libera: o ciclo do dinheiro fechado, da cobrança ao caixa.
+    /// </summary>
+    /// <remarks>
+    /// Nomeado porque três listas dependem dele — o próprio Essencial, o Premium (que é este mais
+    /// os diferenciais) e o gratuito. Repetir a mão os dez códigos é como o grátis passa a liberar
+    /// um módulo que o pago cobra.
+    /// </remarks>
+    private static readonly string[] ModulosDoEssencial = [Modulo.Membros, Modulo.Termo, Modulo.Cobrancas, Modulo.Pix, Modulo.Despesas, Modulo.Caixa];
 
-    /// <summary>Os três pacotes, do menor para o maior.</summary>
+    /// <summary>O que o Premium acrescenta: os diferenciais, não o necessário.</summary>
+    private static readonly string[] DiferenciaisDoPremium = [Modulo.Mural, Modulo.Avisos, Modulo.Contabil, Modulo.Auditoria];
+
+    /// <summary>Código do plano com que toda turma nasce.</summary>
+    public const string CodigoGratuito = "gratuito";
+
+    /// <summary>
+    /// O plano com que a turma nasce: a comissão monta tudo e conhece o produto sem pagar.
+    /// </summary>
+    /// <remarks>
+    /// <c>LimiteDeFormandos = 0</c> é o paywall inteiro: <c>ConviteService.ConferirLimiteDoPlano</c>
+    /// deixa a comissão entrar sempre e só confere o limite para o papel <c>Formando</c>. Zero vaga
+    /// de formando, comissão à vontade — que é exatamente "só a comissão, para verem o sistema".
+    /// <para>
+    /// <c>Ativo = false</c> de propósito: ele não aparece na vitrine e o checkout não o aceita
+    /// (<c>ObterPlanoAtivo</c> filtra por <c>Ativo</c>). Plano gratuito é atribuído, nunca escolhido.
+    /// </para>
+    /// <para>
+    /// Os módulos são os do Essencial, pela lista <c>ModulosDoEssencial</c> — mexer nela move os
+    /// dois juntos. O que o grátis libera também pode ser editado na linha do catálogo no banco,
+    /// que o seed não reescreve.
+    /// </para>
+    /// </remarks>
+    private static Plano Gratuito() =>
+        new()
+        {
+            Codigo = CodigoGratuito,
+            Nome = "Gratuito",
+            Descricao = "Para a comissão montar a turma e conhecer o Kapa.",
+            PrecoEmCentavos = 0,
+            Ciclo = CicloDeCobranca.Mensal,
+            LimiteDeFormandos = 0,
+            Modulos = [.. ModulosDoEssencial],
+            Ativo = false,
+        };
+
+    /// <summary>Os dois pacotes pagos, do menor para o maior.</summary>
+    /// <remarks>
+    /// Dois, e não três: a escada de antes (Essencial, Completo, Turma Grande) obrigava a comissão
+    /// a comparar três listas de módulos para descobrir de qual precisava. Agora a pergunta é uma
+    /// só — a turma cabe em 50? —, e o Premium se vende pelos quatro diferenciais, não por um
+    /// pedaço do necessário que foi retirado do Essencial.
+    /// </remarks>
     private static readonly Pacote[] Pacotes =
     [
-        new("essencial", "Essencial", "Para a turma que está começando a se organizar.", 14990, 60, [Membros, Termo, Cobrancas, Pix], false),
+        new("essencial", "Essencial", "Cobrar a turma, pagar os fornecedores e fechar o caixa.", 2990, 50, ModulosDoEssencial, false),
         new(
-            "completo",
-            "Completo",
-            "O dia a dia da comissão inteiro, do termo ao caixa.",
-            34990,
-            150,
-            [Membros, Termo, Cobrancas, Pix, Despesas, Caixa, Mural, Avisos],
-            true
-        ),
-        new(
-            "turma-grande",
-            "Turma Grande",
-            "Turmas grandes, com prestação de contas e auditoria.",
-            69990,
+            "premium",
+            "Premium",
+            "Turma grande, com mural, régua de cobrança e prestação de contas.",
+            4990,
             400,
-            [Membros, Termo, Cobrancas, Pix, Despesas, Caixa, Mural, Avisos, Contabil, Auditoria],
-            false
+            [.. ModulosDoEssencial, .. DiferenciaisDoPremium],
+            true
         ),
     ];
 
@@ -87,7 +123,7 @@ public static class SeedDePlanos
         var db = provider.GetRequiredService<AppDbContext>();
 
         var existentes = await db.Planos.Select(p => p.Codigo).ToListAsync(ct);
-        var novos = Pacotes.SelectMany(Ciclos).Where(p => !existentes.Contains(p.Codigo)).ToList();
+        var novos = Pacotes.SelectMany(Ciclos).Append(Gratuito()).Where(p => !existentes.Contains(p.Codigo)).ToList();
 
         if (novos.Count == 0)
             return;
@@ -99,8 +135,8 @@ public static class SeedDePlanos
 
     /// <summary>O mesmo pacote nos dois ciclos.</summary>
     /// <remarks>
-    /// O anual cobra doze meses menos o desconto, arredondado para real cheio: R$ 3.568,98 vira
-    /// R$ 3.569,00 — preço de vitrine não tem centavo quebrado. O preço cheio guardado é o dos doze
+    /// O anual cobra doze meses menos o desconto, arredondado para real cheio: R$ 287,04 vira
+    /// R$ 287,00 — preço de vitrine não tem centavo quebrado. O preço cheio guardado é o dos doze
     /// meses avulsos, que é de onde o card tira o valor riscado e a porcentagem.
     /// </remarks>
     /// <param name="pacote">O pacote.</param>

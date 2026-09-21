@@ -1,5 +1,7 @@
 using Backend.Api.DTOs.Cobrancas;
+using Backend.Api.DTOs.Recebimentos;
 using Backend.Business.Pagamentos.Models;
+using Backend.Business.Recebimentos.Models;
 
 namespace Backend.Api.DTOs.Pagamentos;
 
@@ -13,13 +15,26 @@ public sealed record ExtratoDTO(long EmAbertoEmCentavos, ParcelaDTO? Proxima, IR
 /// <param name="VencidasSemAviso">Parcelas vencidas em que o formando ainda não avisou o pagamento.</param>
 public sealed record PendenciasDoExtratoDTO(int VencidasSemAviso);
 
-/// <summary>O PIX da parcela, montado na hora.</summary>
+/// <summary>O PIX pronto para pagar.</summary>
 /// <param name="CopiaECola">O BR Code — a tela desenha o QR a partir dele, no navegador.</param>
-/// <param name="ValorEmCentavos">O valor de hoje.</param>
 /// <param name="Chave">Chave da comissão.</param>
 /// <param name="NomeDoTitular">O nome que o banco vai mostrar.</param>
+public sealed record PixParaPagarDTO(string CopiaECola, string Chave, string NomeDoTitular);
+
+/// <summary>Um meio que a turma aceita, com o que a tela precisa mostrar.</summary>
+/// <remarks>Só o campo do próprio meio vem preenchido; os outros vêm nulos.</remarks>
+/// <param name="Meio"><c>Pix</c>, <c>Transferencia</c> ou <c>Dinheiro</c>.</param>
+/// <param name="Pix">O PIX pronto, só em <c>Pix</c>.</param>
+/// <param name="Transferencia">Os dados bancários, só em <c>Transferencia</c>.</param>
+/// <param name="Instrucao">O que fazer, em <c>Dinheiro</c>.</param>
+public sealed record MeioDaCobrancaDTO(MeioDeRecebimento Meio, PixParaPagarDTO? Pix, DadosBancariosDTO? Transferencia, string? Instrucao);
+
+/// <summary>A cobrança da parcela, montada na hora: quanto, e por onde a turma aceita receber.</summary>
+/// <remarks>Com um meio só na lista, a tela não desenha seletor — é o caminho de sempre.</remarks>
+/// <param name="ValorEmCentavos">O valor de hoje, somado quando são várias parcelas.</param>
 /// <param name="Identificador">O identificador da parcela no PIX.</param>
-public sealed record PixDaParcelaDTO(string CopiaECola, long ValorEmCentavos, string Chave, string NomeDoTitular, string Identificador);
+/// <param name="Meios">Os meios habilitados, ao menos um.</param>
+public sealed record CobrancaDaParcelaDTO(long ValorEmCentavos, string Identificador, IReadOnlyList<MeioDaCobrancaDTO> Meios);
 
 /// <summary>Um informe na fila da tesouraria.</summary>
 /// <param name="Id">Identificador.</param>
@@ -28,6 +43,7 @@ public sealed record PixDaParcelaDTO(string CopiaECola, long ValorEmCentavos, st
 /// <param name="ValorEmCentavos">Valor informado.</param>
 /// <param name="DevidoEmCentavos">O valor da parcela no dia informado.</param>
 /// <param name="TemComprovante">Se há comprovante — abre em <c>/informes/{id}/comprovante</c>.</param>
+/// <param name="MeioEscolhido">Como o formando diz ter pago; nulo nos avisos anteriores à Sprint 18.</param>
 /// <param name="Status"><c>Pendente</c>, <c>Confirmado</c> ou <c>Recusado</c>.</param>
 /// <param name="InformadoEm">Quando o formando avisou, em UTC.</param>
 /// <param name="ConferidoEm">Quando a tesouraria confirmou ou recusou, em UTC; ausente enquanto pendente.</param>
@@ -38,6 +54,7 @@ public sealed record InformeDTO(
     long ValorEmCentavos,
     long DevidoEmCentavos,
     bool TemComprovante,
+    MeioDeRecebimento? MeioEscolhido,
     StatusDoInforme Status,
     DateTime InformadoEm,
     DateTime? ConferidoEm

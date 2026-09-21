@@ -25,17 +25,17 @@ public sealed class AssinaturaServiceTests
     private readonly IProvedorDeAssinatura _provedor = Substitute.For<IProvedorDeAssinatura>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
-    private static readonly Plano Completo = new()
+    private static readonly Plano Premium = new()
     {
-        Codigo = "completo",
-        Nome = "Completo",
-        PrecoEmCentavos = 34990,
-        LimiteDeFormandos = 150,
+        Codigo = "premium",
+        Nome = "Premium",
+        PrecoEmCentavos = 4990,
+        LimiteDeFormandos = 400,
     };
 
     public AssinaturaServiceTests()
     {
-        _assinaturas.ObterPlanoAtivo("completo", Arg.Any<CancellationToken>()).Returns(Completo);
+        _assinaturas.ObterPlanoAtivo("premium", Arg.Any<CancellationToken>()).Returns(Premium);
         _provedor
             .CriarCheckout(Arg.Any<PedidoDeCheckout>(), Arg.Any<CancellationToken>())
             .Returns(Result.Ok(new SessaoDeCheckout("sessao-1", "https://psp/checkout/sessao-1")));
@@ -55,14 +55,10 @@ public sealed class AssinaturaServiceTests
     private Formatura FormaturaEm(StatusDaFormatura status)
     {
         var formatura = new Formatura();
+        formatura.NascerNoGratuito();
 
-        foreach (var passo in new[] { StatusDaFormatura.AguardandoPagamento, StatusDaFormatura.Ativa, StatusDaFormatura.Suspensa })
-        {
-            if (formatura.Status == status)
-                break;
-
-            formatura.Transicionar(passo);
-        }
+        if (status != StatusDaFormatura.Ativa)
+            formatura.Transicionar(status);
 
         _formaturas.ObterParaEdicao(formatura.Id, Arg.Any<CancellationToken>()).Returns(formatura);
 
@@ -70,47 +66,51 @@ public sealed class AssinaturaServiceTests
     }
 
     [Fact]
-    public async Task Checkout_em_rascunho_cria_pendente_e_passa_a_aguardando_pagamento()
+    public async Task Checkout_cria_assinatura_pendente_sem_mexer_no_status_da_turma()
     {
         // Arrange
-        var formatura = FormaturaEm(StatusDaFormatura.Rascunho);
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
         Assinatura? criada = null;
         await _assinaturas.Adicionar(Arg.Do<Assinatura>(a => criada = a), Arg.Any<CancellationToken>());
 
         // Act
-        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("completo"), Ct);
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
 
         // Assert
         resultado.Valor.Url.ShouldBe("https://psp/checkout/sessao-1");
         criada.ShouldNotBeNull();
         criada.Status.ShouldBe(StatusDaAssinatura.Pendente);
         criada.IdExterno.ShouldBe("sessao-1");
-        formatura.Status.ShouldBe(StatusDaFormatura.AguardandoPagamento);
+        formatura.Status.ShouldBe(StatusDaFormatura.Ativa);
         await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
     }
 
-    /// <summary>R$ 349,90 sai do catálogo e chega ao provedor como 34990, sem passar por decimal.</summary>
+    /// <summary>R$ 49,90 sai do catálogo e chega ao provedor como 4990, sem passar por decimal.</summary>
     [Fact]
     public async Task Valor_chega_ao_provedor_em_centavos_exatos()
     {
-        var formatura = FormaturaEm(StatusDaFormatura.Rascunho);
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
 
-        await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("completo"), Ct);
+        await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
 
         await _provedor
             .Received(1)
             .CriarCheckout(
-                Arg.Is<PedidoDeCheckout>(p => p.PrecoEmCentavos == 34990 && p.UrlDeRetorno == "https://app.kapa/assinatura/retorno"),
+                Arg.Is<PedidoDeCheckout>(p => p.PrecoEmCentavos == 4990 && p.UrlDeRetorno == "https://app.kapa/assinatura/retorno"),
                 Arg.Any<CancellationToken>()
             );
     }
 
+    /// <summary>Quem já tem assinatura ativa não abre outro checkout — a turma estar ativa não basta.</summary>
     [Fact]
-    public async Task Checkout_de_formatura_ativa_devolve_ja_ativa_sem_chamar_o_provedor()
+    public async Task Checkout_com_assinatura_ativa_devolve_ja_ativa_sem_chamar_o_provedor()
     {
         var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        var ativa = new Assinatura();
+        ativa.ConfirmarPagamento(DateTime.UtcNow, CicloDeCobranca.Mensal);
+        _assinaturas.ObterMaisRecenteParaEdicao(Arg.Any<CancellationToken>()).Returns(ativa);
 
-        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("completo"), Ct);
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
 
         resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("assinatura.ja_ativa");
         await _provedor.DidNotReceiveWithAnyArgs().CriarCheckout(default!, Ct);
@@ -120,15 +120,15 @@ public sealed class AssinaturaServiceTests
     [Fact]
     public async Task Provedor_fora_do_ar_nao_grava_nada()
     {
-        var formatura = FormaturaEm(StatusDaFormatura.Rascunho);
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
         _provedor
             .CriarCheckout(Arg.Any<PedidoDeCheckout>(), Arg.Any<CancellationToken>())
             .Returns(Result.Falha<SessaoDeCheckout>(Erro.Indisponivel("assinatura.provedor_fora_do_ar", "Fora do ar.")));
 
-        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("completo"), Ct);
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
 
         resultado.Erros.ShouldHaveSingleItem().Tipo.ShouldBe(ETipoErro.Indisponivel);
-        formatura.Status.ShouldBe(StatusDaFormatura.Rascunho);
+        formatura.Status.ShouldBe(StatusDaFormatura.Ativa);
         await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
         await _assinaturas.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
     }
@@ -137,11 +137,11 @@ public sealed class AssinaturaServiceTests
     [Fact]
     public async Task Checkout_repetido_retoma_a_pendente()
     {
-        var formatura = FormaturaEm(StatusDaFormatura.AguardandoPagamento);
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
         var pendente = new Assinatura();
         _assinaturas.ObterMaisRecenteParaEdicao(Arg.Any<CancellationToken>()).Returns(pendente);
 
-        await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("completo"), Ct);
+        await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
 
         await _assinaturas.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
         await _provedor.Received(1).CriarCheckout(Arg.Is<PedidoDeCheckout>(p => p.AssinaturaId == pendente.Id), Arg.Any<CancellationToken>());
@@ -149,29 +149,29 @@ public sealed class AssinaturaServiceTests
     }
 
     /// <summary>
-    /// Pediu o Essencial, depois o Completo: a sessão do Essencial morre no provedor antes da troca,
-    /// senão pagá-la ativaria o Completo pelo preço do Essencial.
+    /// Pediu o Essencial, depois o Premium: a sessão do Essencial morre no provedor antes da troca,
+    /// senão pagá-la ativaria o Premium pelo preço do Essencial.
     /// </summary>
     [Fact]
     public async Task Trocar_de_plano_invalida_a_sessao_anterior_no_provedor()
     {
-        var formatura = FormaturaEm(StatusDaFormatura.AguardandoPagamento);
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
         var pendente = new Assinatura { PlanoId = Guid.CreateVersion7(), IdExterno = "sessao-essencial" };
         _assinaturas.ObterMaisRecenteParaEdicao(Arg.Any<CancellationToken>()).Returns(pendente);
         _provedor.Cancelar("sessao-essencial", Arg.Any<CancellationToken>()).Returns(Result.Ok());
 
-        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("completo"), Ct);
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
 
         resultado.Sucesso.ShouldBeTrue();
         await _provedor.Received(1).Cancelar("sessao-essencial", Arg.Any<CancellationToken>());
-        pendente.PlanoId.ShouldBe(Completo.Id);
+        pendente.PlanoId.ShouldBe(Premium.Id);
     }
 
     /// <summary>Se o provedor não expirou a sessão antiga, o plano não troca.</summary>
     [Fact]
     public async Task Sessao_anterior_que_nao_expira_mantem_o_plano()
     {
-        var formatura = FormaturaEm(StatusDaFormatura.AguardandoPagamento);
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
         var planoAnterior = Guid.CreateVersion7();
         var pendente = new Assinatura { PlanoId = planoAnterior, IdExterno = "sessao-essencial" };
         _assinaturas.ObterMaisRecenteParaEdicao(Arg.Any<CancellationToken>()).Returns(pendente);
@@ -179,7 +179,7 @@ public sealed class AssinaturaServiceTests
             .Cancelar("sessao-essencial", Arg.Any<CancellationToken>())
             .Returns(Result.Falha(Erro.Indisponivel("assinatura.provedor_fora_do_ar", "Fora do ar.")));
 
-        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("completo"), Ct);
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
 
         resultado.Falhou.ShouldBeTrue();
         pendente.PlanoId.ShouldBe(planoAnterior);
@@ -189,12 +189,12 @@ public sealed class AssinaturaServiceTests
     [Fact]
     public async Task Mesmo_plano_nao_cancela_a_sessao_anterior()
     {
-        var formatura = FormaturaEm(StatusDaFormatura.AguardandoPagamento);
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
         _assinaturas
             .ObterMaisRecenteParaEdicao(Arg.Any<CancellationToken>())
-            .Returns(new Assinatura { PlanoId = Completo.Id, IdExterno = "sessao-anterior" });
+            .Returns(new Assinatura { PlanoId = Premium.Id, IdExterno = "sessao-anterior" });
 
-        await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("completo"), Ct);
+        await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
 
         await _provedor.DidNotReceiveWithAnyArgs().Cancelar(default!, Ct);
     }
@@ -205,7 +205,7 @@ public sealed class AssinaturaServiceTests
     {
         var formatura = FormaturaEm(StatusDaFormatura.Suspensa);
 
-        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("completo"), Ct);
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
 
         resultado.Sucesso.ShouldBeTrue();
         formatura.Status.ShouldBe(StatusDaFormatura.Suspensa);
@@ -214,7 +214,7 @@ public sealed class AssinaturaServiceTests
     [Fact]
     public async Task Plano_inexistente_devolve_validacao_no_campo()
     {
-        var formatura = FormaturaEm(StatusDaFormatura.Rascunho);
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
 
         var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("ouro"), Ct);
 

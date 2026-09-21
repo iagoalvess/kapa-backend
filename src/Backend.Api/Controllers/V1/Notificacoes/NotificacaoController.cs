@@ -5,6 +5,7 @@ using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Notificacoes;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Auth.Services;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
@@ -31,6 +32,7 @@ namespace Backend.Api.Controllers.V1.Notificacoes;
 /// <param name="notificacaoService">Regras da régua.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Avisos)]
 [Route("api/v{version:apiVersion}/notificacoes")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class NotificacaoController(INotificacaoService notificacaoService, IUsuarioAtual usuarioAtual) : MainController

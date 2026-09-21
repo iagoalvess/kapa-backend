@@ -147,7 +147,7 @@ public sealed class PainelDeSuporteTests(ApiFactory fabrica)
     public async Task Ativar_assinatura_pelo_painel_ativa_a_turma_e_grava_evento_com_autor()
     {
         // Arrange — turma aguardando pagamento, com assinatura pendente: o webhook que se perdeu.
-        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.AguardandoPagamento, Ct);
+        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct);
         await CriarAssinaturaPendente(formaturaId);
         var (suporte, suporteId) = await SuporteComId();
 
@@ -177,7 +177,7 @@ public sealed class PainelDeSuporteTests(ApiFactory fabrica)
     [Fact]
     public async Task Ativar_assinatura_duas_vezes_grava_um_evento_so()
     {
-        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.AguardandoPagamento, Ct);
+        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct);
         await CriarAssinaturaPendente(formaturaId);
         var suporte = await Suporte();
 
@@ -194,7 +194,7 @@ public sealed class PainelDeSuporteTests(ApiFactory fabrica)
     [Fact]
     public async Task Ativar_turma_sem_assinatura_devolve_409()
     {
-        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.AguardandoPagamento, Ct);
+        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct, contratada: false);
         var suporte = await Suporte();
 
         var resposta = await suporte.PostAsync($"/api/v1/admin/suporte/formaturas/{formaturaId}/ativar-assinatura", null, Ct);

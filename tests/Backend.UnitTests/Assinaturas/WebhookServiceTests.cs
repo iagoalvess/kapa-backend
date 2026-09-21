@@ -34,8 +34,6 @@ public sealed class WebhookServiceTests
 
     public WebhookServiceTests()
     {
-        _formatura.Transicionar(StatusDaFormatura.AguardandoPagamento);
-
         // O padrão é "o provedor não tem nada a informar". Sem isto, toda conciliação que chega ao
         // ponto de reconsultar a renovação (Sprint 16) receberia um `Result` nulo do substitute.
         _provedor.ConsultarPagamento(Arg.Any<Guid>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Result.Ok<EventoDoProvedor?>(null));
@@ -108,7 +106,7 @@ public sealed class WebhookServiceTests
 
         resultado.Valor.Duplicado.ShouldBeTrue();
         _assinatura.Status.ShouldBe(StatusDaAssinatura.Pendente);
-        _formatura.Status.ShouldBe(StatusDaFormatura.AguardandoPagamento);
+        _formatura.Status.ShouldBe(StatusDaFormatura.Ativa);
     }
 
     /// <summary>Erro para evento que não interessa faz o provedor reentregar para sempre.</summary>

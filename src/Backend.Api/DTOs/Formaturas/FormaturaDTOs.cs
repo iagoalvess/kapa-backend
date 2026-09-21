@@ -59,10 +59,11 @@ public sealed record DadosDaFormaturaRequestDTO(
 /// <param name="PrevisaoDeColacao">Data prevista da colação.</param>
 /// <param name="PrevisaoDaFesta">Data prevista da festa.</param>
 /// <param name="QuantidadeEstimadaDeFormandos">Quantos formandos a comissão espera.</param>
-/// <param name="Status"><c>Rascunho</c>, <c>AguardandoPagamento</c>, <c>Ativa</c>, <c>Suspensa</c> ou <c>Encerrada</c>.</param>
+/// <param name="Status"><c>Ativa</c>, <c>Suspensa</c>, <c>Encerrada</c> ou <c>Descartada</c>.</param>
 /// <param name="CriadoEm">Criação, em UTC.</param>
 /// <param name="AtivadaEm">Primeira ativação, em UTC.</param>
 /// <param name="EncerradaEm">Encerramento, em UTC.</param>
+/// <param name="JaContratou">Se a turma já contratou um plano alguma vez. Falsa é a turma no gratuito.</param>
 public sealed record FormaturaDetalheDTO(
     Guid Id,
     string Nome,
@@ -76,5 +77,6 @@ public sealed record FormaturaDetalheDTO(
     StatusDaFormatura Status,
     DateTime CriadoEm,
     DateTime? AtivadaEm,
-    DateTime? EncerradaEm
+    DateTime? EncerradaEm,
+    bool JaContratou
 );

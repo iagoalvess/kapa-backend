@@ -92,10 +92,10 @@ public sealed class FormaturaService(
         if (validacao.Falhou)
             return Result.Falha<ParDeTokens>(validacao.Erros);
 
-        if (await formaturaRepository.ExisteRascunhoCriadoPor(usuarioId, ct))
+        if (await formaturaRepository.ExisteGratuitaCriadaPor(usuarioId, ct))
             return Erro.Conflito(
-                "formatura.rascunho_pendente",
-                "Você já tem uma formatura aguardando contratação. Conclua ou edite essa antes de criar outra."
+                "formatura.gratuita_pendente",
+                "Você já tem uma turma no plano gratuito. Contrate ou descarte essa antes de criar outra."
             );
 
         return await unitOfWork.EmTransacaoAsync(
@@ -103,6 +103,7 @@ public sealed class FormaturaService(
             {
                 var formatura = new Formatura { CriadoPorUsuarioId = usuarioId };
                 Preencher(formatura, dados);
+                formatura.NascerNoGratuito();
 
                 await formaturaRepository.Adicionar(formatura, token);
                 await vinculoRepository.Adicionar(
@@ -133,7 +134,7 @@ public sealed class FormaturaService(
         await formaturaRepository.ObterDetalhe(formaturaId, ct) is { } detalhe ? detalhe : NaoEncontrada;
 
     /// <inheritdoc />
-    /// <remarks>Rascunho, aguardando pagamento e ativa editam. Suspensa e encerrada, não.</remarks>
+    /// <remarks>Só a turma ativa edita. Suspensa, encerrada e descartada, não.</remarks>
     public async Task<Result<FormaturaDetalhe>> Atualizar(Guid formaturaId, DadosDaFormatura dados, CancellationToken ct = default)
     {
         var validacao = dadosValidator.Validar(dados);
@@ -188,8 +189,13 @@ public sealed class FormaturaService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// Só de <c>Rascunho</c> ou <c>AguardandoPagamento</c> — a transição recusa o resto com
-    /// <c>formatura.transicao_invalida</c>. Turma que já pagou encerra, não descarta.
+    /// Só a turma que <b>nunca contratou</b> — a que está no gratuito. Turma que já pagou encerra,
+    /// não descarta, e é por isso que a condição é a ausência de assinatura e não o status: desde
+    /// 18/09/2026 toda turma nasce <c>Ativa</c>, então o status sozinho não distingue mais as duas.
+    /// <para>
+    /// Sem isso o gratuito seria um beco sem saída: quem criasse a turma com o nome errado não
+    /// conseguiria descartá-la nem criar outra, porque só se tem uma turma não paga por conta.
+    /// </para>
     /// <para>
     /// O checkout em aberto é expirado no provedor <b>antes</b> de gravar: se o PSP não confirmar,
     /// nada muda, e ninguém paga depois por uma turma que não existe mais.
@@ -203,6 +209,9 @@ public sealed class FormaturaService(
 
         if (formatura is null)
             return Result.Falha(NaoEncontrada);
+
+        if (await assinaturaRepository.ExisteAlgumaDeTodasAsFormaturas(formaturaId, ct))
+            return Result.Falha(Erro.Conflito("formatura.ja_contratada", "Esta turma já contratou um plano. Encerre a turma em vez de descartá-la."));
 
         var transicao = formatura.Transicionar(StatusDaFormatura.Descartada);
         if (transicao.Falhou)

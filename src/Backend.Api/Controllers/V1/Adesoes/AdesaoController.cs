@@ -7,6 +7,7 @@ using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Models;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Legal.Models;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
@@ -28,6 +29,7 @@ namespace Backend.Api.Controllers.V1.Adesoes;
 /// <param name="adesaoService">Aceite e acompanhamento.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Termo)]
 [Route("api/v{version:apiVersion}/adesoes")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class AdesaoController(ITermoService termoService, IAdesaoService adesaoService, IUsuarioAtual usuarioAtual) : MainController

@@ -3,6 +3,7 @@ using Backend.Api.Configuration;
 using Backend.Api.DTOs.Pagamentos;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Pagamentos.Interfaces;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
@@ -21,6 +22,7 @@ namespace Backend.Api.Controllers.V1.Pagamentos;
 /// <param name="pagamentoService">Regras do pagamento.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Pix)]
 [Route("api/v{version:apiVersion}/extrato")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class ExtratoController(IPagamentoService pagamentoService, IUsuarioAtual usuarioAtual) : MainController

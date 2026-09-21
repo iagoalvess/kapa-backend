@@ -61,7 +61,7 @@ public sealed class ProvedorFakeTests
         var ct = TestContext.Current.CancellationToken;
         var provedor = Provedor();
         var assinaturaId = Guid.CreateVersion7();
-        var pedido = new PedidoDeCheckout(assinaturaId, "completo", "Completo", 34990, CicloDeCobranca.Mensal, "https://app/retorno");
+        var pedido = new PedidoDeCheckout(assinaturaId, "premium", "Premium", 4990, CicloDeCobranca.Mensal, "https://app/retorno");
         var sessao = (await provedor.CriarCheckout(pedido, ct)).Valor;
 
         (await provedor.ConsultarPagamento(assinaturaId, sessao.IdExterno, ct)).Valor.ShouldBeNull();

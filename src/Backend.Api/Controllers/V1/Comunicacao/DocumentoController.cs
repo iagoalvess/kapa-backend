@@ -6,6 +6,7 @@ using Backend.Api.DTOs.Comunicacao;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Models;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Comunicacao.Interfaces;
 using Backend.Business.Comunicacao.Models;
 using Backend.Business.Comunicacao.Services;
@@ -28,6 +29,7 @@ namespace Backend.Api.Controllers.V1.Comunicacao;
 /// <param name="documentoService">Regras do acervo.</param>
 /// <param name="usuarioAtual">Quem chama — dono do arquivo enviado.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Mural)]
 [Route("api/v{version:apiVersion}/comunicacao/documentos")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class DocumentoController(IDocumentoService documentoService, IUsuarioAtual usuarioAtual) : MainController

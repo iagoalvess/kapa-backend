@@ -1149,6 +1149,106 @@ namespace Backend.Data.Migrations
                     b.ToTable("itens_da_festa", (string)null);
                 });
 
+            modelBuilder.Entity("Backend.Business.Festa.Models.PropostaDoItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<Guid>("ItemDaFestaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_da_festa_id");
+
+                    b.Property<string>("OQueInclui")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("o_que_inclui");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("titulo");
+
+                    b.Property<long>("ValorEmCentavos")
+                        .HasColumnType("bigint")
+                        .HasColumnName("valor_em_centavos");
+
+                    b.HasKey("Id")
+                        .HasName("pk_propostas_do_item");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_propostas_do_item_formatura_id");
+
+                    b.HasIndex("ItemDaFestaId")
+                        .HasDatabaseName("ix_propostas_do_item_item_da_festa_id");
+
+                    b.ToTable("propostas_do_item", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Festa.Models.VotoNaProposta", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<Guid>("ItemDaFestaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_da_festa_id");
+
+                    b.Property<Guid>("PropostaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("proposta_id");
+
+                    b.Property<Guid>("VinculoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vinculo_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_votos_nas_propostas");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_votos_nas_propostas_formatura_id");
+
+                    b.HasIndex("ItemDaFestaId")
+                        .HasDatabaseName("ix_votos_nas_propostas_item_da_festa_id");
+
+                    b.HasIndex("PropostaId")
+                        .HasDatabaseName("ix_votos_nas_propostas_proposta_id");
+
+                    b.HasIndex("VinculoId", "ItemDaFestaId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_votos_nas_propostas_vinculo_id_item_da_festa_id");
+
+                    b.ToTable("votos_nas_propostas", (string)null);
+                });
+
             modelBuilder.Entity("Backend.Business.Financeiro.Models.Despesa", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1544,11 +1644,6 @@ namespace Backend.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_formaturas");
 
-                    b.HasIndex("CriadoPorUsuarioId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_formaturas_rascunho_por_criador")
-                        .HasFilter("status = 'Rascunho'");
-
                     b.ToTable("formaturas", (string)null);
                 });
 
@@ -1614,110 +1709,6 @@ namespace Backend.Data.Migrations
                         .HasDatabaseName("ix_vinculos_de_formatura_usuario_id_formatura_id");
 
                     b.ToTable("vinculos_de_formatura", (string)null);
-                });
-
-            modelBuilder.Entity("Backend.Business.Leads.Models.Lead", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("AtualizadoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("atualizado_em");
-
-                    b.Property<string>("Campanha")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("campanha");
-
-                    b.Property<DateTime>("ConsentidoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("consentido_em");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("criado_em");
-
-                    b.Property<string>("Curso")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)")
-                        .HasColumnName("curso");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("email");
-
-                    b.Property<string>("EnderecoIp")
-                        .HasMaxLength(45)
-                        .HasColumnType("character varying(45)")
-                        .HasColumnName("endereco_ip");
-
-                    b.Property<string>("Instituicao")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)")
-                        .HasColumnName("instituicao");
-
-                    b.Property<string>("Meio")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("meio");
-
-                    b.Property<string>("Mensagem")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("mensagem");
-
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("nome");
-
-                    b.Property<string>("Origem")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("origem");
-
-                    b.Property<DateOnly?>("PrevisaoDeColacao")
-                        .HasColumnType("date")
-                        .HasColumnName("previsao_de_colacao");
-
-                    b.Property<string>("PrivacidadeVersao")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("privacidade_versao");
-
-                    b.Property<int>("TamanhoDaTurma")
-                        .HasColumnType("integer")
-                        .HasColumnName("tamanho_da_turma");
-
-                    b.Property<string>("Telefone")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("telefone");
-
-                    b.Property<string>("UserAgent")
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)")
-                        .HasColumnName("user_agent");
-
-                    b.HasKey("Id")
-                        .HasName("pk_leads");
-
-                    b.HasIndex("CriadoEm")
-                        .HasDatabaseName("ix_leads_criado_em");
-
-                    b.HasIndex("Email", "CriadoEm")
-                        .HasDatabaseName("ix_leads_email_criado_em");
-
-                    b.ToTable("leads", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Business.Legal.Models.ConsentimentoRegistrado", b =>
@@ -2057,6 +2048,11 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("formatura_id");
 
+                    b.Property<string>("MeioEscolhido")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("meio_escolhido");
+
                     b.Property<string>("MotivoDaRecusa")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -2290,18 +2286,26 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Agencia")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("agencia");
+
                     b.Property<DateTime>("AtualizadoEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("atualizado_em");
 
+                    b.Property<string>("Banco")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("banco");
+
                     b.Property<string>("Chave")
-                        .IsRequired()
                         .HasMaxLength(77)
                         .HasColumnType("character varying(77)")
                         .HasColumnName("chave");
 
                     b.Property<string>("Cidade")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("cidade");
@@ -2314,25 +2318,48 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("conferida_por_usuario_id");
 
+                    b.Property<string>("Conta")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("conta");
+
                     b.Property<DateTime>("CriadoEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("criado_em");
+
+                    b.Property<string>("DinheiroCom")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("dinheiro_com");
+
+                    b.Property<string>("DinheiroOnde")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("dinheiro_onde");
 
                     b.Property<Guid>("FormaturaId")
                         .HasColumnType("uuid")
                         .HasColumnName("formatura_id");
 
                     b.Property<string>("NomeDoTitular")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("nome_do_titular");
 
                     b.Property<string>("TipoDeChave")
-                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("tipo_de_chave");
+
+                    b.Property<string>("TipoDeConta")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("tipo_de_conta");
+
+                    b.Property<string>("TitularDaConta")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("titular_da_conta");
 
                     b.HasKey("Id")
                         .HasName("pk_contas_de_recebimento");
@@ -2936,6 +2963,54 @@ namespace Backend.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_itens_da_festa_formaturas_formatura_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Festa.Models.PropostaDoItem", b =>
+                {
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_propostas_do_item_formaturas_formatura_id");
+
+                    b.HasOne("Backend.Business.Festa.Models.ItemDaFesta", null)
+                        .WithMany()
+                        .HasForeignKey("ItemDaFestaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_propostas_do_item_itens_da_festa_item_da_festa_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Festa.Models.VotoNaProposta", b =>
+                {
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_votos_nas_propostas_formaturas_formatura_id");
+
+                    b.HasOne("Backend.Business.Festa.Models.ItemDaFesta", null)
+                        .WithMany()
+                        .HasForeignKey("ItemDaFestaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_votos_nas_propostas_itens_da_festa_item_da_festa_id");
+
+                    b.HasOne("Backend.Business.Festa.Models.PropostaDoItem", null)
+                        .WithMany()
+                        .HasForeignKey("PropostaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_votos_nas_propostas_propostas_do_item_proposta_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.VinculoDeFormatura", null)
+                        .WithMany()
+                        .HasForeignKey("VinculoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_votos_nas_propostas_vinculos_de_formatura_vinculo_id");
                 });
 
             modelBuilder.Entity("Backend.Business.Financeiro.Models.Despesa", b =>

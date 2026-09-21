@@ -5,6 +5,7 @@ using Backend.Api.DTOs.Cobrancas;
 using Backend.Api.DTOs.Comum;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Mapster;
@@ -27,6 +28,7 @@ namespace Backend.Api.Controllers.V1.Cobrancas;
 /// </remarks>
 /// <param name="cobrancaService">Regras do plano.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Cobrancas)]
 [Route("api/v{version:apiVersion}/cobrancas")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class CobrancaController(ICobrancaService cobrancaService, IUsuarioAtual usuarioAtual) : MainController

@@ -2,7 +2,9 @@ using Asp.Versioning;
 using Backend.Api.Analytics;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Festa;
+using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Mapster;
@@ -24,10 +26,12 @@ namespace Backend.Api.Controllers.V1.Festa;
 /// </para>
 /// </remarks>
 /// <param name="itemService">Regras dos itens e da meta.</param>
+/// <param name="usuarioAtual">Quem chama — é o que decide de quem é o voto em cada proposta.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Mural)]
 [Route("api/v{version:apiVersion}/festa")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class ItemDaFestaController(IItemDaFestaService itemService) : MainController
+public sealed class ItemDaFestaController(IItemDaFestaService itemService, IUsuarioAtual usuarioAtual) : MainController
 {
     /// <summary>Nome da rota do detalhe, para o <c>Location</c> da criação.</summary>
     public const string RotaDoItem = "ItemDaFestaPorId";
@@ -58,6 +62,25 @@ public sealed class ItemDaFestaController(IItemDaFestaService itemService) : Mai
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Obter(Guid id, CancellationToken ct) =>
         Responder((await itemService.ObterPorId(id, ct)).Map(item => item.Adapt<ItemDaFestaDTO>()));
+
+    /// <summary>Um item com as propostas levantadas para ele — o painel da direita da tela.</summary>
+    /// <remarks>
+    /// As propostas não vêm na listagem: a lista da esquerda só precisa da contagem, e é este
+    /// endpoint que sabe de quem é o voto, porque é o único que recebe quem está lendo.
+    /// </remarks>
+    /// <param name="id">Item.</param>
+    [HttpGet("itens/{id:guid}/detalhe")]
+    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [ProducesResponseType(typeof(ItemDaFestaDetalheDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ObterDetalhe(Guid id, CancellationToken ct) =>
+        Responder(
+            (await itemService.ObterDetalhe(id, FormaturaId, usuarioAtual.Id, ct)).Map(detalhe => new ItemDaFestaDetalheDTO(
+                detalhe.Item.Adapt<ItemDaFestaDTO>(),
+                detalhe.Propostas.Select(proposta => proposta.Adapt<PropostaDTO>())
+            ))
+        );
 
     /// <summary>Cria um item no fim da lista.</summary>
     /// <param name="requisicao">Título, categoria, o que inclui, rateio e valor.</param>

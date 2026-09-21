@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Financeiro;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Financeiro.Interfaces;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
@@ -19,6 +20,7 @@ namespace Backend.Api.Controllers.V1.Financeiro;
 /// </remarks>
 /// <param name="caixaService">Agregações do caixa.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Caixa)]
 [Route("api/v{version:apiVersion}/financeiro/caixa")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class CaixaController(ICaixaService caixaService) : MainController

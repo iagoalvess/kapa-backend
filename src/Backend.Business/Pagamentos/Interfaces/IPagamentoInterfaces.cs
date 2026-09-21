@@ -35,14 +35,14 @@ public interface IPagamentoService
     /// <param name="parcelaId">Parcela.</param>
     Task<Result<ParcelaResumo>> ObterParcela(Guid formaturaId, Guid usuarioId, Guid parcelaId, CancellationToken ct = default);
 
-    /// <summary>O PIX da parcela com a chave vigente e o valor do dia. O dono, ou a tesouraria.</summary>
+    /// <summary>A cobrança da parcela: o valor do dia e os meios que a turma aceita. O dono, ou a tesouraria.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Quem pede.</param>
     /// <param name="parcelaId">Parcela.</param>
-    Task<Result<PixDaParcela>> GerarPix(Guid formaturaId, Guid usuarioId, Guid parcelaId, CancellationToken ct = default);
+    Task<Result<CobrancaDaParcela>> GerarCobranca(Guid formaturaId, Guid usuarioId, Guid parcelaId, CancellationToken ct = default);
 
     /// <summary>
-    /// O PIX de várias parcelas de uma vez: um BR Code com a soma do que elas cobram hoje. Só o dono.
+    /// A cobrança de várias parcelas de uma vez: a soma do que elas cobram hoje, pelos mesmos meios. Só o dono.
     /// </summary>
     /// <remarks>
     /// O passo que faltava no "paguei vários meses de uma vez": até 17/09/2026 o formando só podia
@@ -53,7 +53,12 @@ public interface IPagamentoService
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Quem pede.</param>
     /// <param name="parcelaIds">Parcelas que o pagamento vai cobrir, ao menos uma.</param>
-    Task<Result<PixDaParcela>> GerarPixDeVarias(Guid formaturaId, Guid usuarioId, IReadOnlyList<Guid> parcelaIds, CancellationToken ct = default);
+    Task<Result<CobrancaDaParcela>> GerarCobrancaDeVarias(
+        Guid formaturaId,
+        Guid usuarioId,
+        IReadOnlyList<Guid> parcelaIds,
+        CancellationToken ct = default
+    );
 
     /// <summary>
     /// O "já paguei": grava os informes pendentes e não muda parcela nenhuma. Só o dono.

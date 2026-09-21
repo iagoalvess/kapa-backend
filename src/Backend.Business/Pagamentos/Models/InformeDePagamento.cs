@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Recebimentos.Models;
 
 namespace Backend.Business.Pagamentos.Models;
 
@@ -28,8 +29,15 @@ public class InformeDePagamento : EntidadeDaFormatura
     /// <summary>Valor que o formando diz ter pago, em centavos.</summary>
     public long ValorEmCentavos { get; private set; }
 
-    /// <summary>Comprovante enviado, se houver. Opcional (P1 da Sprint 9).</summary>
+    /// <summary>Comprovante enviado, se houver. Opcional em qualquer meio (P1 da Sprint 9, mantido no P6 de 21/09/2026).</summary>
     public Guid? ComprovanteArquivoId { get; private set; }
+
+    /// <summary>Como o formando diz ter pago. Nulo nos avisos anteriores à Sprint 18.</summary>
+    /// <remarks>
+    /// É sugestão à tesouraria, não trava: a conferência baixa com a <see cref="FormaDePagamento"/>
+    /// correspondente, e a baixa manual continua deixando-a escolher — quem viu o extrato é ela.
+    /// </remarks>
+    public MeioDeRecebimento? MeioEscolhido { get; private set; }
 
     /// <summary>Situação. Muda só por <see cref="Confirmar"/> e <see cref="Recusar"/>.</summary>
     public StatusDoInforme Status { get; private set; } = StatusDoInforme.Pendente;
@@ -49,7 +57,15 @@ public class InformeDePagamento : EntidadeDaFormatura
     /// <param name="pagoEm">Dia informado.</param>
     /// <param name="valorEmCentavos">Valor informado.</param>
     /// <param name="comprovanteArquivoId">Comprovante, se enviado.</param>
-    public static InformeDePagamento Novo(Guid parcelaId, Guid vinculoId, DateOnly pagoEm, long valorEmCentavos, Guid? comprovanteArquivoId) =>
+    /// <param name="meioEscolhido">Como o formando diz ter pago.</param>
+    public static InformeDePagamento Novo(
+        Guid parcelaId,
+        Guid vinculoId,
+        DateOnly pagoEm,
+        long valorEmCentavos,
+        Guid? comprovanteArquivoId,
+        MeioDeRecebimento? meioEscolhido
+    ) =>
         new()
         {
             ParcelaId = parcelaId,
@@ -57,6 +73,7 @@ public class InformeDePagamento : EntidadeDaFormatura
             PagoEm = pagoEm,
             ValorEmCentavos = valorEmCentavos,
             ComprovanteArquivoId = comprovanteArquivoId,
+            MeioEscolhido = meioEscolhido,
         };
 
     /// <summary>A tesouraria achou o dinheiro. Chamado pela baixa, na mesma transação.</summary>

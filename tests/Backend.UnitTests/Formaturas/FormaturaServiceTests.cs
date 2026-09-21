@@ -39,16 +39,16 @@ public sealed class FormaturaServiceTests
         new("Medicina 2027.1 — UFPR", "UFPR", "Medicina", ano ?? DateTime.UtcNow.Year + 1, 1, null, null, 80);
 
     [Fact]
-    public async Task Criar_com_rascunho_pendente_devolve_conflito_sem_gravar()
+    public async Task Criar_com_gratuita_pendente_devolve_conflito_sem_gravar()
     {
         // Arrange
-        _formaturas.ExisteRascunhoCriadoPor(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(true);
+        _formaturas.ExisteGratuitaCriadaPor(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(true);
 
         // Act
         var resultado = await Servico.Criar(Guid.CreateVersion7(), Dados(), "refresh", null, Ct);
 
         // Assert
-        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("formatura.rascunho_pendente");
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("formatura.gratuita_pendente");
         await _formaturas.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
     }
 
@@ -66,7 +66,8 @@ public sealed class FormaturaServiceTests
 
         resultado.Sucesso.ShouldBeTrue();
         criada.ShouldNotBeNull();
-        criada.Status.ShouldBe(StatusDaFormatura.Rascunho);
+        criada.Status.ShouldBe(StatusDaFormatura.Ativa);
+        criada.AtivadaEm.ShouldNotBeNull();
         criada.CriadoPorUsuarioId.ShouldBe(usuarioId);
         await _vinculos
             .Received(1)
@@ -102,10 +103,11 @@ public sealed class FormaturaServiceTests
         await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
     }
 
+    /// <summary>Turma descartada não encerra: ela já saiu do ciclo.</summary>
     [Fact]
-    public async Task Encerrar_rascunho_devolve_transicao_invalida()
+    public async Task Encerrar_descartada_devolve_transicao_invalida()
     {
-        _formaturas.ObterParaEdicao(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Em(StatusDaFormatura.Rascunho));
+        _formaturas.ObterParaEdicao(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Em(StatusDaFormatura.Descartada));
 
         var resultado = await Servico.Encerrar(Guid.CreateVersion7(), Ct);
 
@@ -130,7 +132,7 @@ public sealed class FormaturaServiceTests
     [Fact]
     public async Task Descartar_aguardando_pagamento_desativa_os_vinculos_e_expira_o_checkout()
     {
-        var formatura = Em(StatusDaFormatura.AguardandoPagamento);
+        var formatura = Em(StatusDaFormatura.Ativa);
         var presidente = new VinculoDeFormatura { Papel = PapelNaFormatura.Presidente, Ativo = true };
         var tesoureiro = new VinculoDeFormatura { Papel = PapelNaFormatura.Tesoureiro, Ativo = true };
         _formaturas.ObterParaEdicao(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(formatura);
@@ -148,17 +150,38 @@ public sealed class FormaturaServiceTests
         await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Turma que já pagou encerra, não descarta.</summary>
+    /// <summary>Turma que já contratou encerra, não descarta — mesmo estando ativa como toda turma.</summary>
     [Fact]
-    public async Task Descartar_ativa_devolve_transicao_invalida_sem_gravar()
+    public async Task Descartar_turma_que_ja_contratou_devolve_conflito_sem_gravar()
+    {
+        var formatura = Em(StatusDaFormatura.Ativa);
+        _formaturas.ObterParaEdicao(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(formatura);
+        _assinaturas.ExisteAlgumaDeTodasAsFormaturas(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(true);
+
+        var resultado = await Servico.Descartar(Guid.CreateVersion7(), Ct);
+
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("formatura.ja_contratada");
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
+    }
+
+    /// <summary>
+    /// A turma do gratuito descarta — é a saída de quem criou com o nome errado.
+    /// </summary>
+    /// <remarks>
+    /// Sem isto o gratuito seria um beco sem saída: só se tem uma turma não paga por conta, então
+    /// não poder descartar é não poder criar outra nunca mais.
+    /// </remarks>
+    [Fact]
+    public async Task Descartar_turma_gratuita_grava_descartada()
     {
         var formatura = Em(StatusDaFormatura.Ativa);
         _formaturas.ObterParaEdicao(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(formatura);
 
         var resultado = await Servico.Descartar(Guid.CreateVersion7(), Ct);
 
-        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("formatura.transicao_invalida");
-        await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
+        resultado.Sucesso.ShouldBeTrue();
+        formatura.Status.ShouldBe(StatusDaFormatura.Descartada);
+        await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
     }
 
     /// <summary>Com a renovação ligada, encerrar deixaria o PSP cobrando uma turma fechada.</summary>
@@ -181,14 +204,10 @@ public sealed class FormaturaServiceTests
     private static Formatura Em(StatusDaFormatura status)
     {
         var formatura = new Formatura();
-        StatusDaFormatura[] caminho = status switch
-        {
-            StatusDaFormatura.Rascunho => [],
-            StatusDaFormatura.AguardandoPagamento => [StatusDaFormatura.AguardandoPagamento],
-            StatusDaFormatura.Ativa => [StatusDaFormatura.AguardandoPagamento, StatusDaFormatura.Ativa],
-            StatusDaFormatura.Suspensa => [StatusDaFormatura.AguardandoPagamento, StatusDaFormatura.Ativa, StatusDaFormatura.Suspensa],
-            _ => [StatusDaFormatura.AguardandoPagamento, StatusDaFormatura.Ativa, StatusDaFormatura.Encerrada],
-        };
+        formatura.NascerNoGratuito();
+
+        // A turma nasce Ativa, então o caminho é no máximo um passo.
+        StatusDaFormatura[] caminho = status == StatusDaFormatura.Ativa ? [] : [status];
 
         foreach (var passo in caminho)
             formatura.Transicionar(passo);

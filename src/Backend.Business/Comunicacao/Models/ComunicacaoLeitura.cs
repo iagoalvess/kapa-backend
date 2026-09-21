@@ -76,11 +76,7 @@ public sealed record DadosDoDocumento(string Titulo, CategoriaDeDocumento? Categ
 /// <param name="Categoria">Só desta categoria.</param>
 /// <param name="Busca">Trecho do título, sem diferenciar acento.</param>
 /// <param name="Visibilidade">Só os desta visibilidade, dentro do que o papel já enxerga.</param>
-public sealed record FiltroDeDocumentos(
-    CategoriaDeDocumento? Categoria = null,
-    string? Busca = null,
-    Visibilidade? Visibilidade = null
-);
+public sealed record FiltroDeDocumentos(CategoriaDeDocumento? Categoria = null, string? Busca = null, Visibilidade? Visibilidade = null);
 
 /// <summary>Um documento, como o acervo o lista.</summary>
 /// <param name="Id">Identificador.</param>

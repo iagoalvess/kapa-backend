@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Backend.Business.Abstractions;
 using Backend.Business.Assinaturas.Interfaces;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
 using Backend.Business.Common;
@@ -363,38 +364,32 @@ public sealed class ConviteServiceTests
         await _convites.DidNotReceiveWithAnyArgs().ConsumirUsoDeTodasAsFormaturas(default, default, Ct);
     }
 
-    /// <summary>Antes de pagar, a comissão já se monta; formando, só com a turma ativa.</summary>
+    /// <summary>
+    /// No gratuito entra a comissão inteira e nenhum formando — o plano tem zero vagas.
+    /// </summary>
+    /// <remarks>
+    /// É a regra que sustenta o plano gratuito, e ela mora no <b>limite do plano</b>. Até 18/09/2026
+    /// morava no status (<c>Rascunho</c> aceitava só comissão); com a turma nascendo ativa, o status
+    /// não distingue mais nada e quem separa os dois é o <c>LimiteDeFormandos = 0</c>.
+    /// </remarks>
+    /// <param name="papel">Papel do convite.</param>
+    /// <param name="aceita">Se a entrada passa.</param>
     [Theory]
     [InlineData(PapelNaFormatura.Tesoureiro, true)]
     [InlineData(PapelNaFormatura.Comissao, true)]
     [InlineData(PapelNaFormatura.Formando, false)]
-    public async Task Rascunho_aceita_convite_so_da_comissao(string papel, bool aceita)
-    {
-        AutorCom(PapelNaFormatura.Presidente);
-        _formaturas.ObterDetalhe(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Formatura(StatusDaFormatura.Rascunho));
-
-        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", papel), Ct);
-
-        resultado.Sucesso.ShouldBe(aceita);
-        if (!aceita)
-            resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.formatura_nao_contratada");
-    }
-
-    [Theory]
-    [InlineData(PapelNaFormatura.Comissao, true)]
-    [InlineData(PapelNaFormatura.Formando, false)]
-    public async Task Aceite_em_turma_aguardando_pagamento_so_para_a_comissao(string papel, bool aceita)
+    public async Task No_gratuito_entra_a_comissao_e_nenhum_formando(string papel, bool aceita)
     {
         var convite = Link();
         convite.Papel = papel;
         Existe(convite);
-        _formaturas.ObterDetalhe(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Formatura(StatusDaFormatura.AguardandoPagamento));
+        TurmaLotada(limite: 0, ocupadas: 1);
 
         var resultado = await Aceitar();
 
         resultado.Sucesso.ShouldBe(aceita);
         if (!aceita)
-            resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.invalido");
+            resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.limite_do_plano");
     }
 
     [Fact]
@@ -471,11 +466,11 @@ public sealed class ConviteServiceTests
         await _vinculos.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
     }
 
-    /// <summary>Turma sem plano contratado não tem limite a aplicar — quem a barra é o status.</summary>
+    /// <summary>Catálogo sem nem o plano gratuito não tem limite a aplicar — quem barra é o status.</summary>
     [Fact]
-    public async Task Sem_plano_contratado_o_limite_nao_se_aplica()
+    public async Task Sem_plano_no_catalogo_o_limite_nao_se_aplica()
     {
-        _assinaturas.ObterLimiteDeFormandosDeTodasAsFormaturas(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((int?)null);
+        _assinaturas.ObterPlanoVigenteDeTodasAsFormaturas(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Plano?)null);
 
         var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", null), Ct);
 
@@ -494,7 +489,9 @@ public sealed class ConviteServiceTests
     /// <param name="ocupadas">Quantos vínculos ativos a turma já tem.</param>
     private void TurmaLotada(int limite, int ocupadas)
     {
-        _assinaturas.ObterLimiteDeFormandosDeTodasAsFormaturas(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(limite);
+        _assinaturas
+            .ObterPlanoVigenteDeTodasAsFormaturas(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new Plano { LimiteDeFormandos = limite });
         _vinculos
             .ContarMembros(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns([
@@ -531,8 +528,11 @@ public sealed class ConviteServiceTests
 
     private static Convite Link() => new() { TokenHash = Hash("token"), ExpiraEm = DateTime.UtcNow.AddDays(1) };
 
-    private static FormaturaDetalhe Formatura(StatusDaFormatura status) =>
-        new(FormaturaId, "Medicina 2027.1", "UFPR", "Medicina", 2027, 1, null, null, 80, status, DateTime.UtcNow, null, null);
+    /// <summary>Turma de teste. Contratada por padrão: no gratuito o formando nem é convidado.</summary>
+    /// <param name="status">Status da turma.</param>
+    /// <param name="jaContratou">Se a turma já contratou algum plano.</param>
+    private static FormaturaDetalhe Formatura(StatusDaFormatura status, bool jaContratou = true) =>
+        new(FormaturaId, "Medicina 2027.1", "UFPR", "Medicina", 2027, 1, null, null, 80, status, DateTime.UtcNow, null, null, jaContratou);
 
     private static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }

@@ -94,6 +94,7 @@ public sealed class ItemDaFestaRepository(AppDbContext db) : IItemDaFestaReposit
             db.Despesas.Where(d => d.ItemDaFestaId == i.Id && d.Status != StatusDaDespesa.Cancelada).Sum(d => (long?)d.ValorEmCentavos) ?? 0,
             db.Despesas.Where(d => d.ItemDaFestaId == i.Id && d.Status == StatusDaDespesa.Paga).Sum(d => (long?)d.ValorEmCentavos) ?? 0,
             db.Despesas.Count(d => d.ItemDaFestaId == i.Id && d.Status != StatusDaDespesa.Cancelada),
+            db.PropostasDoItem.Count(p => p.ItemDaFestaId == i.Id),
             i.CanceladoEm != null,
             i.Ordem
         ));

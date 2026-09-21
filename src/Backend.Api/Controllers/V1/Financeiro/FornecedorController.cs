@@ -4,6 +4,7 @@ using Backend.Api.Configuration;
 using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Financeiro;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Models;
 using Mapster;
@@ -25,6 +26,7 @@ namespace Backend.Api.Controllers.V1.Financeiro;
 /// </remarks>
 /// <param name="fornecedorService">Regras do cadastro.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Despesas)]
 [Route("api/v{version:apiVersion}/financeiro/fornecedores")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class FornecedorController(IFornecedorService fornecedorService) : MainController

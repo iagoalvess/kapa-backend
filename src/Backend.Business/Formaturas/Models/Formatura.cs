@@ -13,9 +13,7 @@ public class Formatura : Entity
 {
     private static readonly Dictionary<StatusDaFormatura, StatusDaFormatura[]> Transicoes = new()
     {
-        [StatusDaFormatura.Rascunho] = [StatusDaFormatura.AguardandoPagamento, StatusDaFormatura.Descartada],
-        [StatusDaFormatura.AguardandoPagamento] = [StatusDaFormatura.Ativa, StatusDaFormatura.Descartada],
-        [StatusDaFormatura.Ativa] = [StatusDaFormatura.Suspensa, StatusDaFormatura.Encerrada],
+        [StatusDaFormatura.Ativa] = [StatusDaFormatura.Suspensa, StatusDaFormatura.Encerrada, StatusDaFormatura.Descartada],
         [StatusDaFormatura.Suspensa] = [StatusDaFormatura.Ativa, StatusDaFormatura.Encerrada],
         [StatusDaFormatura.Encerrada] = [],
         [StatusDaFormatura.Descartada] = [],
@@ -46,7 +44,7 @@ public class Formatura : Entity
     public int QuantidadeEstimadaDeFormandos { get; set; }
 
     /// <summary>Situação no ciclo de vida. Muda só por <see cref="Transicionar"/>.</summary>
-    public StatusDaFormatura Status { get; private set; } = StatusDaFormatura.Rascunho;
+    public StatusDaFormatura Status { get; private set; } = StatusDaFormatura.Ativa;
 
     /// <summary>Quem criou a turma.</summary>
     public Guid CriadoPorUsuarioId { get; set; }
@@ -59,7 +57,7 @@ public class Formatura : Entity
 
     /// <summary>Se os dados cadastrais ainda podem ser editados.</summary>
     /// <remarks>Suspensa é leitura, Encerrada é arquivo e Descartada foi abandonada: nenhuma aceita escrita.</remarks>
-    public bool AceitaEdicao => Status is StatusDaFormatura.Rascunho or StatusDaFormatura.AguardandoPagamento or StatusDaFormatura.Ativa;
+    public bool AceitaEdicao => Status is StatusDaFormatura.Ativa;
 
     /// <summary>Aplica uma transição de status, rejeitando as inválidas.</summary>
     /// <remarks>
@@ -72,29 +70,35 @@ public class Formatura : Entity
     /// </para>
     /// </remarks>
     /// <summary>
-    /// Leva a turma a <c>Ativa</c> porque o pagamento entrou, venha ela de onde vier.
+    /// Traz a turma de volta a <c>Ativa</c> porque o pagamento entrou.
     /// </summary>
     /// <remarks>
-    /// Existe para os dois caminhos que ativam uma turma dizerem a mesma coisa: o webhook do PSP e o
-    /// botão do painel de suporte (Sprint 16). Enquanto a sequência rascunho → aguardando → ativa
-    /// morava dentro do <c>WebhookService</c>, o segundo caminho teria de copiá-la — e uma cópia é
-    /// tudo o que separa "turma ativada pelo suporte" de "turma ativada pelo suporte, sem
-    /// <c>AtivadaEm</c>".
+    /// Existe para os dois caminhos que regularizam uma turma dizerem a mesma coisa: o webhook do
+    /// PSP e o botão do painel de suporte (Sprint 16). Uma cópia da sequência em cada um é tudo o
+    /// que separa "turma ativada pelo suporte" de "turma ativada pelo suporte, sem <c>AtivadaEm</c>".
+    /// <para>
+    /// Hoje só há de onde vir: <c>Suspensa</c> — a turma que deixou a assinatura vencer. Antes de
+    /// 18/09/2026 vinha também de <c>Rascunho</c>, quando contratar era a porta de entrada.
+    /// </para>
     /// <para>
     /// Já ativa responde sucesso: a ação é idempotente de propósito, porque quem clica no painel
     /// está justamente em dúvida sobre o estado da turma.
     /// </para>
     /// </remarks>
-    public Result AtivarPorPagamento()
-    {
-        if (Status == StatusDaFormatura.Ativa)
-            return Result.Ok();
+    public Result AtivarPorPagamento() => Status == StatusDaFormatura.Ativa ? Result.Ok() : Transicionar(StatusDaFormatura.Ativa);
 
-        if (Status == StatusDaFormatura.Rascunho)
-            Transicionar(StatusDaFormatura.AguardandoPagamento);
-
-        return Transicionar(StatusDaFormatura.Ativa);
-    }
+    /// <summary>Marca o começo da turma recém-criada, que já nasce <c>Ativa</c> no gratuito.</summary>
+    /// <remarks>
+    /// Não é transição: <see cref="Status"/> já vale <c>Ativa</c> desde a construção. O que falta é
+    /// <see cref="AtivadaEm"/>, que só <see cref="Transicionar"/> carimbava — e sem ele a turma não
+    /// teria data de início nenhuma.
+    /// <para>
+    /// Ela nasce ativa porque o gratuito trava por <b>capacidade</b>, não por status: quem segura o
+    /// formando é o <c>LimiteDeFormandos = 0</c> do plano, e quem segura as áreas não contratadas é
+    /// a política de módulo. Um estado de espera travaria também o que o gratuito dá.
+    /// </para>
+    /// </remarks>
+    public void NascerNoGratuito() => AtivadaEm ??= DateTime.UtcNow;
 
     /// <param name="destino">Status pretendido.</param>
     public Result Transicionar(StatusDaFormatura destino)

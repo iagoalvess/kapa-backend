@@ -13,6 +13,7 @@ using Backend.Business.Formaturas.Models;
 using Backend.Business.Pagamentos.Interfaces;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Recebimentos.Interfaces;
+using Backend.Business.Recebimentos.Models;
 using Backend.Business.Recebimentos.Services;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
@@ -20,18 +21,19 @@ using Microsoft.Extensions.Logging;
 namespace Backend.Business.Pagamentos.Services;
 
 /// <summary>
-/// O caminho do dinheiro da turma: extrato, PIX, "já paguei", conferência em lote, baixa manual e estorno.
+/// O caminho do dinheiro da turma: extrato, cobrança, "já paguei", conferência em lote, baixa manual e estorno.
 /// </summary>
 /// <remarks>
-/// O Kapa não vê o pagamento: monta o PIX a partir da chave da comissão, e quem confirma é a tesouraria,
-/// olhando o extrato do próprio banco (Sprint 8). Toda baixa passa por <see cref="BaixaService"/>, dentro
-/// de uma transação que trava a parcela antes de ler o informe.
+/// O Kapa não vê o pagamento: monta a cobrança a partir dos meios que a comissão habilitou, e quem
+/// confirma é a tesouraria, olhando o extrato do próprio banco (Sprint 8). Só o PIX vira BR Code; os
+/// demais meios são instrução, e nenhum deles chama ninguém de fora nem cria cobrança. Toda baixa passa
+/// por <see cref="BaixaService"/>, dentro de uma transação que trava a parcela antes de ler o informe.
 /// <para>Log só com ids: parcela e informe dizem quanto alguém deve.</para>
 /// </remarks>
 /// <param name="parcelaRepository">Parcelas e regras aceitas.</param>
 /// <param name="informeRepository">Avisos de pagamento.</param>
 /// <param name="recebimentoRepository">Entradas no caixa.</param>
-/// <param name="contaRepository">A chave PIX da comissão.</param>
+/// <param name="contaRepository">Os meios de recebimento da comissão.</param>
 /// <param name="perfilRepository">Quem pede, e com que papel.</param>
 /// <param name="vinculoRepository">E-mails dos formandos.</param>
 /// <param name="formaturaRepository">Nome da turma, para os e-mails.</param>
@@ -105,6 +107,14 @@ public sealed class PagamentoService(
 
     private static readonly Erro ParcelaNaoAberta = Erro.Conflito("pagamento.parcela_nao_aberta", "Esta parcela não está em aberto.");
 
+    /// <summary>
+    /// A turma não tem por onde receber.
+    /// </summary>
+    /// <remarks>
+    /// O código continua o mesmo — é contrato do front desde a Sprint 8 —, mas passou a falar de conta
+    /// de recebimento, e não de chave PIX (decisão 1): desde o P4 de 21/09/2026 a chave é opcional, e o
+    /// que falta aqui pode ser qualquer meio.
+    /// </remarks>
     private static readonly Erro SemConta = Erro.Conflito(
         "pagamento.sem_conta",
         "A comissão ainda está configurando a conta de recebimento da turma. Tente de novo em alguns dias."
@@ -145,14 +155,15 @@ public sealed class PagamentoService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// Montado na hora e não gravado (decisão 1): a chave é a vigente, e o valor é o de hoje. Conta não
-    /// conferida mostra o PIX do mesmo jeito (P3 de 14/09/2026); só turma sem conta responde 409.
+    /// Montada na hora e não gravada (decisão 1 da Sprint 8): os meios são os vigentes, e o valor é o de
+    /// hoje. Conta não conferida mostra o PIX do mesmo jeito (P3 de 14/09/2026); só turma sem meio
+    /// nenhum responde 409.
     /// </remarks>
-    public async Task<Result<PixDaParcela>> GerarPix(Guid formaturaId, Guid usuarioId, Guid parcelaId, CancellationToken ct = default)
+    public async Task<Result<CobrancaDaParcela>> GerarCobranca(Guid formaturaId, Guid usuarioId, Guid parcelaId, CancellationToken ct = default)
     {
         var visivel = await ParcelaVisivel(formaturaId, usuarioId, parcelaId, PapelNaFormatura.Tesouraria, ct);
         if (visivel.Falhou)
-            return Result.Falha<PixDaParcela>(visivel.Erros);
+            return Result.Falha<CobrancaDaParcela>(visivel.Erros);
 
         var parcela = visivel.Valor;
 
@@ -162,19 +173,7 @@ public sealed class PagamentoService(
         if (parcela.ValorDoDia is not { TotalEmCentavos: > 0 } valor)
             return ParcelaNaoAberta;
 
-        var conta = await contaRepository.ObterDetalhe(ct);
-        if (conta is null)
-            return SemConta;
-
-        var identificador = Identificador(parcela.Id);
-
-        return new PixDaParcela(
-            BrCode.Montar(conta.Chave, conta.NomeDoTitular, conta.Cidade, valor.TotalEmCentavos, identificador),
-            valor.TotalEmCentavos,
-            conta.Chave,
-            conta.NomeDoTitular,
-            identificador
-        );
+        return await Cobrar(valor.TotalEmCentavos, parcela.Id, ct);
     }
 
     /// <inheritdoc />
@@ -185,7 +184,7 @@ public sealed class PagamentoService(
     /// é o da mais antiga: no PIX estático ele não reconcilia nada, e a mais antiga é a que a tesouraria
     /// procura no extrato.
     /// </remarks>
-    public async Task<Result<PixDaParcela>> GerarPixDeVarias(
+    public async Task<Result<CobrancaDaParcela>> GerarCobrancaDeVarias(
         Guid formaturaId,
         Guid usuarioId,
         IReadOnlyList<Guid> parcelaIds,
@@ -201,24 +200,61 @@ public sealed class PagamentoService(
 
         var conferidas = await Conferir(formaturaId, usuarioId, parcelaIds, ct);
         if (conferidas.Falhou)
-            return Result.Falha<PixDaParcela>(conferidas.Erros);
-
-        var conta = await contaRepository.ObterDetalhe(ct);
-        if (conta is null)
-            return SemConta;
+            return Result.Falha<CobrancaDaParcela>(conferidas.Erros);
 
         var parcelas = conferidas.Valor;
-        var total = parcelas.Sum(parcela => parcela.ValorDoDia?.TotalEmCentavos ?? parcela.ValorOriginalEmCentavos);
-        var identificador = Identificador(parcelas[0].Id);
 
-        return new PixDaParcela(
-            BrCode.Montar(conta.Chave, conta.NomeDoTitular, conta.Cidade, total, identificador),
-            total,
-            conta.Chave,
-            conta.NomeDoTitular,
-            identificador
+        return await Cobrar(parcelas.Sum(parcela => parcela.ValorDoDia?.TotalEmCentavos ?? parcela.ValorOriginalEmCentavos), parcelas[0].Id, ct);
+    }
+
+    /// <summary>
+    /// A cobrança de um valor: os meios que a turma aceita, cada um com o que a tela precisa mostrar.
+    /// </summary>
+    /// <remarks>
+    /// O único meio que depende do valor é o PIX, que o carrega dentro do BR Code; os outros são
+    /// instrução, e a mesma instrução serve para qualquer quantia. Por isso a parcela avulsa e o lote
+    /// chegam aqui com um número só.
+    /// </remarks>
+    /// <param name="valorEmCentavos">O que se vai pagar.</param>
+    /// <param name="parcelaId">Parcela que dá o identificador do PIX — a mais antiga, no lote.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    private async Task<Result<CobrancaDaParcela>> Cobrar(long valorEmCentavos, Guid parcelaId, CancellationToken ct)
+    {
+        var conta = await contaRepository.ObterDetalhe(ct);
+        if (conta is null || conta.Meios.Habilitados.Count == 0)
+            return SemConta;
+
+        var meios = conta.Meios;
+        var identificador = Identificador(parcelaId);
+
+        return new CobrancaDaParcela(
+            valorEmCentavos,
+            identificador,
+            [
+                .. meios.Habilitados.Select(meio =>
+                    meio switch
+                    {
+                        MeioDeRecebimento.Pix => new MeioDaCobranca(
+                            meio,
+                            new PixParaPagar(
+                                BrCode.Montar(meios.Pix!.Chave, meios.Pix.NomeDoTitular, meios.Pix.Cidade, valorEmCentavos, identificador),
+                                meios.Pix.Chave,
+                                meios.Pix.NomeDoTitular
+                            ),
+                            null,
+                            null
+                        ),
+                        MeioDeRecebimento.Transferencia => new MeioDaCobranca(meio, null, meios.Transferencia, null),
+                        _ => new MeioDaCobranca(meio, null, null, InstrucaoDoDinheiro(meios.Dinheiro!)),
+                    }
+                ),
+            ]
         );
     }
+
+    /// <summary>Com quem falar para pagar em espécie, e onde quando a comissão disse.</summary>
+    private static string InstrucaoDoDinheiro(DinheiroComAlguem dinheiro) =>
+        dinheiro.Onde is null ? $"Entregue a {dinheiro.Nome}." : $"Entregue a {dinheiro.Nome}, {dinheiro.Onde}.";
 
     /// <inheritdoc />
     /// <remarks>
@@ -263,7 +299,7 @@ public sealed class PagamentoService(
             var cabe = ultima ? aDistribuir : Math.Min(aDistribuir, parcela.ValorDoDia?.TotalEmCentavos ?? parcela.ValorOriginalEmCentavos);
             aDistribuir -= cabe;
 
-            var informe = InformeDePagamento.Novo(parcela.Id, parcela.VinculoId, dados.PagoEm, cabe, arquivo.Valor);
+            var informe = InformeDePagamento.Novo(parcela.Id, parcela.VinculoId, dados.PagoEm, cabe, arquivo.Valor, dados.Meio);
             await informeRepository.Adicionar(informe, ct);
 
             informadas.Add(parcela with { EmConferencia = true });
@@ -380,10 +416,15 @@ public sealed class PagamentoService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// Uma transação para o lote (decisão 4): as parcelas são travadas antes de os informes serem lidos,
+    /// A baixa grava a forma correspondente ao meio que o formando escolheu (decisão 4 da Sprint 18), em
+    /// vez de supor PIX: quem pagou em dinheiro entra no caixa como dinheiro, sem a tesouraria adivinhar.
+    /// Trocar a forma continua possível pela baixa manual — mas essa é sobre parcela sem aviso.
+    /// <para>
+    /// Uma transação para o lote (decisão 4 da Sprint 9): as parcelas são travadas antes de os informes serem lidos,
     /// então a segunda confirmação simultânea espera a primeira e encontra o informe já confirmado — ignora,
     /// em vez de baixar duas vezes. Informe de outra turma derruba o lote com 404: a lista veio da tela, e
     /// um id que não é daqui é erro de quem montou o pedido.
+    /// </para>
     /// </remarks>
     public async Task<Result<ResultadoDaConferencia>> Confirmar(
         Guid formaturaId,
@@ -426,7 +467,15 @@ public sealed class PagamentoService(
 
                     var baixa = await baixaService.Baixar(
                         parcela,
-                        new DadosDaBaixa(FormaDePagamento.Pix, informe.PagoEm, item.ValorRecebidoEmCentavos, null, usuarioId, enderecoIp, agora),
+                        new DadosDaBaixa(
+                            FormasDePagamento.Da(informe.MeioEscolhido),
+                            informe.PagoEm,
+                            item.ValorRecebidoEmCentavos,
+                            null,
+                            usuarioId,
+                            enderecoIp,
+                            agora
+                        ),
                         informe,
                         new ContextoDaBaixa(
                             formaturaId,

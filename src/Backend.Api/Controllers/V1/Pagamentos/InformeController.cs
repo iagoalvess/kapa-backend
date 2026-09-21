@@ -5,6 +5,7 @@ using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Pagamentos;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Pagamentos.Interfaces;
 using Backend.Business.Pagamentos.Models;
 using Mapster;
@@ -25,6 +26,7 @@ namespace Backend.Api.Controllers.V1.Pagamentos;
 /// <param name="pagamentoService">Regras do pagamento.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Pix)]
 [Route("api/v{version:apiVersion}/informes")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class InformeController(IPagamentoService pagamentoService, IUsuarioAtual usuarioAtual) : MainController

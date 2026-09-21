@@ -137,6 +137,7 @@ public sealed class CaixaServiceTests
             StatusDaFormatura.Ativa,
             DateTime.UtcNow,
             DateTime.UtcNow,
-            null
+            null,
+            false
         );
 }

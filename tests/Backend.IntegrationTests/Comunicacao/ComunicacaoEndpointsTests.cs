@@ -142,11 +142,7 @@ public sealed class ComunicacaoEndpointsTests(ApiFactory fabrica)
         internos!.Total.ShouldBe(1);
 
         // O formando pedindo os internos recebe vazio: o recorte do papel vem antes do filtro.
-        var tentativa = await formando.Cliente.GetFromJsonAsync<Pagina<DocumentoDTO>>(
-            $"{Documentos}?visibilidade=SomenteComissao",
-            Json,
-            Ct
-        );
+        var tentativa = await formando.Cliente.GetFromJsonAsync<Pagina<DocumentoDTO>>($"{Documentos}?visibilidade=SomenteComissao", Json, Ct);
         tentativa!.Total.ShouldBe(0);
     }
 

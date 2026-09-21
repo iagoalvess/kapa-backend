@@ -144,8 +144,14 @@ public sealed class PagamentoServiceTests
         return parcela;
     }
 
-    private static ContaDeRecebimentoDetalhe Conta(bool conferida) =>
-        new(TipoDeChavePix.Cpf, "52998224725", "Comissão Medicina", "Curitiba", DateTime.UtcNow, conferida ? DateTime.UtcNow : null, null);
+    private static ContaDeRecebimentoDetalhe Conta(bool conferida) => Conta(conferida, SoPix);
+
+    private static ContaDeRecebimentoDetalhe Conta(bool conferida, MeiosDaConta meios) =>
+        new(meios, DateTime.UtcNow, conferida ? DateTime.UtcNow : null, null);
+
+    private static readonly ChavePixDaConta ChaveDaComissao = new(TipoDeChavePix.Cpf, "52998224725", "Comissão Medicina", "Curitiba");
+
+    private static readonly MeiosDaConta SoPix = new(ChaveDaComissao, null, null);
 
     [Fact]
     public async Task Informe_grava_pendente_e_nao_mexe_na_parcela()
@@ -154,7 +160,14 @@ public sealed class PagamentoServiceTests
         var parcela = DaAna(_hoje.AddDays(5));
 
         // Act
-        var resultado = await Servico.Informar(FormaturaId, Ana.UsuarioId, [parcela.Id], new NovoInforme(_hoje, 350_000), null, Ct);
+        var resultado = await Servico.Informar(
+            FormaturaId,
+            Ana.UsuarioId,
+            [parcela.Id],
+            new NovoInforme(_hoje, 350_000, MeioDeRecebimento.Pix),
+            null,
+            Ct
+        );
 
         // Assert
         resultado.Valor[0].Status.ShouldBe(StatusDaParcela.Aberta);
@@ -177,8 +190,15 @@ public sealed class PagamentoServiceTests
         _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
 
         // Act
-        var informe = await Servico.Informar(FormaturaId, Bruno.UsuarioId, [parcela.Id], new NovoInforme(_hoje, 350_000), null, Ct);
-        var pix = await Servico.GerarPix(FormaturaId, Bruno.UsuarioId, parcela.Id, Ct);
+        var informe = await Servico.Informar(
+            FormaturaId,
+            Bruno.UsuarioId,
+            [parcela.Id],
+            new NovoInforme(_hoje, 350_000, MeioDeRecebimento.Pix),
+            null,
+            Ct
+        );
+        var pix = await Servico.GerarCobranca(FormaturaId, Bruno.UsuarioId, parcela.Id, Ct);
         var leitura = await Servico.ObterParcela(FormaturaId, Bruno.UsuarioId, parcela.Id, Ct);
 
         // Assert
@@ -198,8 +218,8 @@ public sealed class PagamentoServiceTests
 
         // Act
         var leituraDaComissao = await Servico.ObterParcela(FormaturaId, Comissao.UsuarioId, parcela.Id, Ct);
-        var pixDaComissao = await Servico.GerarPix(FormaturaId, Comissao.UsuarioId, parcela.Id, Ct);
-        var pixDaTesouraria = await Servico.GerarPix(FormaturaId, Tesoureira.UsuarioId, parcela.Id, Ct);
+        var pixDaComissao = await Servico.GerarCobranca(FormaturaId, Comissao.UsuarioId, parcela.Id, Ct);
+        var pixDaTesouraria = await Servico.GerarCobranca(FormaturaId, Tesoureira.UsuarioId, parcela.Id, Ct);
 
         // Assert
         leituraDaComissao.Sucesso.ShouldBeTrue();
@@ -215,8 +235,15 @@ public sealed class PagamentoServiceTests
         var paga = DaAna(_hoje.AddDays(-5), StatusDaParcela.Paga);
 
         // Act
-        var segundo = await Servico.Informar(FormaturaId, Ana.UsuarioId, [emConferencia.Id], new NovoInforme(_hoje, 350_000), null, Ct);
-        var naPaga = await Servico.Informar(FormaturaId, Ana.UsuarioId, [paga.Id], new NovoInforme(_hoje, 350_000), null, Ct);
+        var segundo = await Servico.Informar(
+            FormaturaId,
+            Ana.UsuarioId,
+            [emConferencia.Id],
+            new NovoInforme(_hoje, 350_000, MeioDeRecebimento.Pix),
+            null,
+            Ct
+        );
+        var naPaga = await Servico.Informar(FormaturaId, Ana.UsuarioId, [paga.Id], new NovoInforme(_hoje, 350_000, MeioDeRecebimento.Pix), null, Ct);
 
         // Assert
         segundo.PrimeiroErro.Codigo.ShouldBe("pagamento.informe_pendente");
@@ -241,7 +268,7 @@ public sealed class PagamentoServiceTests
             FormaturaId,
             Ana.UsuarioId,
             [maisNova.Id, maisAntiga.Id, doMeio.Id],
-            new NovoInforme(_hoje, 800_000),
+            new NovoInforme(_hoje, 800_000, MeioDeRecebimento.Pix),
             null,
             Ct
         );
@@ -267,7 +294,14 @@ public sealed class PagamentoServiceTests
         var paga = DaAna(_hoje.AddDays(-35), StatusDaParcela.Paga);
 
         // Act
-        var resultado = await Servico.Informar(FormaturaId, Ana.UsuarioId, [aberta.Id, paga.Id], new NovoInforme(_hoje, 700_000), null, Ct);
+        var resultado = await Servico.Informar(
+            FormaturaId,
+            Ana.UsuarioId,
+            [aberta.Id, paga.Id],
+            new NovoInforme(_hoje, 700_000, MeioDeRecebimento.Pix),
+            null,
+            Ct
+        );
 
         // Assert
         resultado.PrimeiroErro.Codigo.ShouldBe("pagamento.parcela_paga");
@@ -279,7 +313,7 @@ public sealed class PagamentoServiceTests
     public async Task Aviso_sem_parcela_nenhuma_e_recusado()
     {
         // Act
-        var resultado = await Servico.Informar(FormaturaId, Ana.UsuarioId, [], new NovoInforme(_hoje, 350_000), null, Ct);
+        var resultado = await Servico.Informar(FormaturaId, Ana.UsuarioId, [], new NovoInforme(_hoje, 350_000, MeioDeRecebimento.Pix), null, Ct);
 
         // Assert
         resultado.PrimeiroErro.Codigo.ShouldBe("pagamento.parcelas_do_informe");
@@ -293,7 +327,14 @@ public sealed class PagamentoServiceTests
         var parcela = DaAna(_hoje.AddDays(5));
 
         // Act
-        var resultado = await Servico.Informar(FormaturaId, Ana.UsuarioId, [parcela.Id], new NovoInforme(_hoje.AddDays(1), 350_000), null, Ct);
+        var resultado = await Servico.Informar(
+            FormaturaId,
+            Ana.UsuarioId,
+            [parcela.Id],
+            new NovoInforme(_hoje.AddDays(1), 350_000, MeioDeRecebimento.Pix),
+            null,
+            Ct
+        );
 
         // Assert
         resultado.PrimeiroErro.Tipo.ShouldBe(ETipoErro.Validacao);
@@ -309,12 +350,14 @@ public sealed class PagamentoServiceTests
         _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: false), (ContaDeRecebimentoDetalhe?)null);
 
         // Act
-        var comConta = await Servico.GerarPix(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
-        var semConta = await Servico.GerarPix(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+        var comConta = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+        var semConta = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
 
         // Assert
-        comConta.Valor.CopiaECola.ShouldContain("52998224725");
-        comConta.Valor.CopiaECola.ShouldContain(comConta.Valor.Identificador);
+        var pix = comConta.Valor.Meios.ShouldHaveSingleItem();
+        pix.Meio.ShouldBe(MeioDeRecebimento.Pix);
+        pix.Pix!.CopiaECola.ShouldContain("52998224725");
+        pix.Pix.CopiaECola.ShouldContain(comConta.Valor.Identificador);
         comConta.Valor.Identificador.ShouldBe(PagamentoService.Identificador(parcela.Id));
         comConta.Valor.Identificador.Length.ShouldBe(25);
         semConta.PrimeiroErro.Codigo.ShouldBe("pagamento.sem_conta");
@@ -331,12 +374,12 @@ public sealed class PagamentoServiceTests
         _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
 
         // Act
-        var pix = await Servico.GerarPixDeVarias(FormaturaId, Ana.UsuarioId, [aVencer.Id, vencida.Id], Ct);
+        var pix = await Servico.GerarCobrancaDeVarias(FormaturaId, Ana.UsuarioId, [aVencer.Id, vencida.Id], Ct);
 
         // Assert
         pix.Valor.ValorEmCentavos.ShouldBe(350_000 + 7_000 + 3_500 + 350_000);
         pix.Valor.Identificador.ShouldBe(PagamentoService.Identificador(vencida.Id));
-        pix.Valor.CopiaECola.ShouldContain("54077105.00");
+        pix.Valor.Meios.ShouldHaveSingleItem().Pix!.CopiaECola.ShouldContain("54077105.00");
     }
 
     /// <summary>Quem não pode avisar também não vê o QR: uma parcela ruim derruba o lote inteiro.</summary>
@@ -349,9 +392,9 @@ public sealed class PagamentoServiceTests
         _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
 
         // Act
-        var vazio = await Servico.GerarPixDeVarias(FormaturaId, Ana.UsuarioId, [], Ct);
-        var deOutro = await Servico.GerarPixDeVarias(FormaturaId, Bruno.UsuarioId, [daAna.Id], Ct);
-        var comAvisada = await Servico.GerarPixDeVarias(FormaturaId, Ana.UsuarioId, [daAna.Id, avisada.Id], Ct);
+        var vazio = await Servico.GerarCobrancaDeVarias(FormaturaId, Ana.UsuarioId, [], Ct);
+        var deOutro = await Servico.GerarCobrancaDeVarias(FormaturaId, Bruno.UsuarioId, [daAna.Id], Ct);
+        var comAvisada = await Servico.GerarCobrancaDeVarias(FormaturaId, Ana.UsuarioId, [daAna.Id, avisada.Id], Ct);
 
         // Assert
         vazio.PrimeiroErro.Codigo.ShouldBe("pagamento.parcelas_do_informe");
@@ -368,11 +411,117 @@ public sealed class PagamentoServiceTests
         _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
 
         // Act
-        var pix = await Servico.GerarPix(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+        var pix = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
 
         // Assert
         pix.Valor.ValorEmCentavos.ShouldBe(350_000 + 7_000 + 3_500);
-        pix.Valor.CopiaECola.ShouldContain("54073605.00");
+        pix.Valor.Meios.ShouldHaveSingleItem().Pix!.CopiaECola.ShouldContain("54073605.00");
+    }
+
+    /// <summary>
+    /// Decisão 2 da Sprint 18: a cobrança traz um item por meio habilitado, cada um com o que a tela
+    /// mostra. Com um meio só não há seletor — é a mesma tela de antes da sprint.
+    /// </summary>
+    [Fact]
+    public async Task Cobranca_traz_um_item_por_meio_habilitado_com_o_que_cada_um_mostra()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        var conta = new DadosBancarios("Banco do Brasil", "1234-5", "98765-4", "Corrente", "Comissão Medicina");
+        var meios = new MeiosDaConta(ChaveDaComissao, conta, new DinheiroComAlguem("Ana Souza", "na sala 12"));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true, meios));
+
+        // Act
+        var cobranca = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+
+        // Assert
+        cobranca.Valor.Meios.Select(m => m.Meio).ShouldBe([MeioDeRecebimento.Pix, MeioDeRecebimento.Transferencia, MeioDeRecebimento.Dinheiro]);
+        cobranca.Valor.Meios[0].Pix!.CopiaECola.ShouldContain("52998224725");
+        cobranca.Valor.Meios[1].Transferencia.ShouldBe(conta);
+        cobranca.Valor.Meios[2].Instrucao.ShouldBe("Entregue a Ana Souza, na sala 12.");
+    }
+
+    /// <summary>P4 de 21/09/2026: sem PIX a cobrança continua existindo, e nenhum item traz BR Code.</summary>
+    [Fact]
+    public async Task Turma_sem_pix_cobra_pelo_meio_que_ela_habilitou()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        var meios = new MeiosDaConta(null, null, new DinheiroComAlguem("Ana Souza", null));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: false, meios));
+
+        // Act
+        var cobranca = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+
+        // Assert
+        var dinheiro = cobranca.Valor.Meios.ShouldHaveSingleItem();
+        dinheiro.Meio.ShouldBe(MeioDeRecebimento.Dinheiro);
+        dinheiro.Pix.ShouldBeNull();
+        dinheiro.Instrucao.ShouldBe("Entregue a Ana Souza.");
+    }
+
+    /// <summary>Decisão 4: o meio do aviso vira a forma da baixa, em vez de a tesouraria adivinhar PIX.</summary>
+    [Theory]
+    [InlineData(MeioDeRecebimento.Dinheiro, FormaDePagamento.Dinheiro)]
+    [InlineData(MeioDeRecebimento.Transferencia, FormaDePagamento.Transferencia)]
+    [InlineData(MeioDeRecebimento.Outro, FormaDePagamento.Outro)]
+    [InlineData(MeioDeRecebimento.Pix, FormaDePagamento.Pix)]
+    public async Task Conferencia_baixa_com_a_forma_do_meio_informado(MeioDeRecebimento meio, FormaDePagamento forma)
+    {
+        // Arrange
+        var parcela = Parcela.Nova(Ana.VinculoId, Guid.CreateVersion7(), new ParcelaPrevista(3, _hoje, 350_000));
+        var informe = InformeDePagamento.Novo(parcela.Id, Ana.VinculoId, _hoje, 350_000, null, meio);
+        Preparar(parcela, informe);
+
+        // Act
+        await Servico.Confirmar(FormaturaId, Tesoureira.UsuarioId, null, new ConfirmarInformes([new ConfirmacaoDeInforme(informe.Id, 350_000)]), Ct);
+
+        // Assert
+        await _recebimentos.Received(1).Adicionar(Arg.Is<Recebimento>(r => r.Forma == forma), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Aviso anterior à Sprint 18 não tem meio, e continua baixando como PIX — era o único caminho.</summary>
+    [Fact]
+    public async Task Aviso_antigo_sem_meio_baixa_como_pix()
+    {
+        // Arrange
+        var parcela = Parcela.Nova(Ana.VinculoId, Guid.CreateVersion7(), new ParcelaPrevista(3, _hoje, 350_000));
+        var informe = InformeDePagamento.Novo(parcela.Id, Ana.VinculoId, _hoje, 350_000, null, null);
+        Preparar(parcela, informe);
+
+        // Act
+        await Servico.Confirmar(FormaturaId, Tesoureira.UsuarioId, null, new ConfirmarInformes([new ConfirmacaoDeInforme(informe.Id, 350_000)]), Ct);
+
+        // Assert
+        await _recebimentos.Received(1).Adicionar(Arg.Is<Recebimento>(r => r.Forma == FormaDePagamento.Pix), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>P6 e P7 de 21/09/2026: o dinheiro entra sem comprovante, e o meio fora da lista não é barrado.</summary>
+    [Fact]
+    public async Task Informe_em_dinheiro_sem_comprovante_e_aceito_e_grava_o_meio()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+
+        // Act
+        var resultado = await Servico.Informar(
+            FormaturaId,
+            Ana.UsuarioId,
+            [parcela.Id],
+            new NovoInforme(_hoje, 350_000, MeioDeRecebimento.Dinheiro),
+            null,
+            Ct
+        );
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        await _informes
+            .Received(1)
+            .Adicionar(
+                Arg.Is<InformeDePagamento>(i => i.MeioEscolhido == MeioDeRecebimento.Dinheiro && i.ComprovanteArquivoId == null),
+                Arg.Any<CancellationToken>()
+            );
     }
 
     [Fact]
@@ -391,7 +540,7 @@ public sealed class PagamentoServiceTests
     {
         // Arrange
         var parcela = DaAna(_hoje.AddDays(5));
-        var informe = InformeDePagamento.Novo(parcela.Id, Ana.VinculoId, _hoje, 350_000, null);
+        var informe = InformeDePagamento.Novo(parcela.Id, Ana.VinculoId, _hoje, 350_000, null, MeioDeRecebimento.Pix);
         _informes.ListarParaEdicao(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns([informe]);
 
         // Act
@@ -418,7 +567,7 @@ public sealed class PagamentoServiceTests
     {
         // Arrange
         var parcela = Parcela.Nova(Ana.VinculoId, Guid.CreateVersion7(), new ParcelaPrevista(3, _hoje.AddDays(-30), 350_000));
-        var informe = InformeDePagamento.Novo(parcela.Id, Ana.VinculoId, _hoje, 350_000, null);
+        var informe = InformeDePagamento.Novo(parcela.Id, Ana.VinculoId, _hoje, 350_000, null, MeioDeRecebimento.Pix);
         Preparar(parcela, informe);
 
         // Act
@@ -462,7 +611,7 @@ public sealed class PagamentoServiceTests
     {
         // Arrange
         var parcela = Parcela.Nova(Ana.VinculoId, Guid.CreateVersion7(), new ParcelaPrevista(3, _hoje, 350_000));
-        var informe = InformeDePagamento.Novo(parcela.Id, Ana.VinculoId, _hoje, 350_000, null);
+        var informe = InformeDePagamento.Novo(parcela.Id, Ana.VinculoId, _hoje, 350_000, null, MeioDeRecebimento.Pix);
         informe.Confirmar(Tesoureira.UsuarioId, DateTime.UtcNow);
         Preparar(parcela, informe);
 

@@ -61,6 +61,7 @@ public sealed record DadosDaFormatura(
 /// <param name="CriadoEm">Criação, em UTC.</param>
 /// <param name="AtivadaEm">Primeira ativação, em UTC.</param>
 /// <param name="EncerradaEm">Encerramento, em UTC.</param>
+/// <param name="JaContratou">Se a turma já contratou um plano alguma vez. Falsa é a turma no gratuito.</param>
 public sealed record FormaturaDetalhe(
     Guid Id,
     string Nome,
@@ -74,7 +75,8 @@ public sealed record FormaturaDetalhe(
     StatusDaFormatura Status,
     DateTime CriadoEm,
     DateTime? AtivadaEm,
-    DateTime? EncerradaEm
+    DateTime? EncerradaEm,
+    bool JaContratou
 );
 
 /// <summary>Vínculo do usuário, do jeito que a emissão de sessão precisa dele.</summary>

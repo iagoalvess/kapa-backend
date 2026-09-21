@@ -101,7 +101,7 @@ public sealed class ConviteService(
         if (formatura is null)
             return Erro.NaoEncontrado("formatura.nao_encontrada", "Formatura não encontrada.");
 
-        if (!AceitaEntrada(formatura.Status, papel))
+        if (papel == PapelNaFormatura.Formando && !formatura.JaContratou)
             return Erro.Proibido(
                 "convite.formatura_nao_contratada",
                 "Contrate um plano para convidar formandos. Antes disso, dá para convidar a comissão."
@@ -318,14 +318,14 @@ public sealed class ConviteService(
 
     /// <summary>Se a turma, neste status, recebe alguém com este papel.</summary>
     /// <remarks>
-    /// A comissão entra desde o rascunho, para decidir junto a contratação. Formando só com a turma
-    /// ativa: é ele que o plano cobra, e antes de pagar não há o que oferecer a ele.
+    /// Só turma ativa recebe gente, de qualquer papel. Até 18/09/2026 havia uma exceção para a
+    /// comissão entrar antes de contratar — ela sumiu junto com <c>Rascunho</c>: a turma já nasce
+    /// ativa, e quem separa comissão de formando passou a ser o <c>LimiteDeFormandos</c> do plano,
+    /// em <see cref="ConferirLimiteDoPlano"/>.
     /// </remarks>
     /// <param name="status">Status da formatura.</param>
     /// <param name="papel">Papel do convite.</param>
-    private static bool AceitaEntrada(StatusDaFormatura status, string papel) =>
-        status == StatusDaFormatura.Ativa
-        || (papel != PapelNaFormatura.Formando && status is StatusDaFormatura.Rascunho or StatusDaFormatura.AguardandoPagamento);
+    private static bool AceitaEntrada(StatusDaFormatura status, string papel) => status == StatusDaFormatura.Ativa;
 
     /// <summary>
     /// Confere que a conta é dona do e-mail do convite pessoal: o mesmo endereço, já confirmado.
@@ -378,6 +378,11 @@ public sealed class ConviteService(
     /// mesmo instante ainda cabem os dois — é um a mais numa turma de sessenta, e fechar isso
     /// exigiria travar a formatura a cada aceite.
     /// </para>
+    /// <para>
+    /// <b>Zero é zero vaga</b>, e não "sem limite" — é o plano gratuito barrando o formando, e foi o
+    /// que essa conta passou a significar em 18/09/2026. Negativo continua sendo plano mal
+    /// cadastrado, e aí não se tranca a turma.
+    /// </para>
     /// </remarks>
     /// <param name="formaturaId">Turma que recebe.</param>
     /// <param name="papel">Papel de quem entra.</param>
@@ -387,8 +392,10 @@ public sealed class ConviteService(
         if (papel != PapelNaFormatura.Formando)
             return null;
 
-        if (await assinaturaRepository.ObterLimiteDeFormandosDeTodasAsFormaturas(formaturaId, ct) is not { } limite || limite <= 0)
+        if (await assinaturaRepository.ObterPlanoVigenteDeTodasAsFormaturas(formaturaId, ct) is not { } plano || plano.LimiteDeFormandos < 0)
             return null;
+
+        var limite = plano.LimiteDeFormandos;
 
         var ocupadas = (await vinculoRepository.ContarMembros(formaturaId, ct))
             .Where(c => c is { Ativo: true, Desligado: false })

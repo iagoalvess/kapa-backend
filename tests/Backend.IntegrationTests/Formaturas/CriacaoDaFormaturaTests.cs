@@ -60,7 +60,8 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
 
         await using var contexto = fabrica.ContextoDe(null);
         var formatura = await contexto.Formaturas.SingleAsync(f => f.Id == formaturaId, Ct);
-        formatura.Status.ShouldBe(StatusDaFormatura.Rascunho);
+        formatura.Status.ShouldBe(StatusDaFormatura.Ativa);
+        formatura.AtivadaEm.ShouldNotBeNull();
         formatura.CriadoPorUsuarioId.ShouldBe(usuarioId);
         formatura.PrevisaoDaFesta.ShouldBe(new DateOnly(DateTime.UtcNow.Year + 1, 7, 18));
         var vinculo = await contexto.Vinculos.SingleAsync(v => v.FormaturaId == formaturaId, Ct);
@@ -78,7 +79,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
         var resposta = await cliente.PostAsJsonAsync(Rota, Dados("Outra turma"), Json, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await resposta.Codigo(Ct)).ShouldBe("formatura.rascunho_pendente");
+        (await resposta.Codigo(Ct)).ShouldBe("formatura.gratuita_pendente");
     }
 
     /// <summary>
@@ -133,7 +134,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
     [Fact]
     public async Task Editar_grava_os_dados_novos()
     {
-        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(StatusDaFormatura.Rascunho, Ct), PapelNaFormatura.Presidente, Ct);
+        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct), PapelNaFormatura.Presidente, Ct);
 
         var resposta = await presidente.Cliente.PutAsJsonAsync($"{Rota}/atual", Dados("  Nome novo  "), Json, Ct);
 
@@ -154,16 +155,12 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
         (await resposta.Codigo(Ct)).ShouldBe("formatura.inativa");
     }
 
-    /// <summary>
-    /// A comissão se monta antes de pagar — contratar é decisão dela —, mas turma suspensa ou
-    /// encerrada é leitura.
-    /// </summary>
+    /// <summary>A comissão se monta com a turma ativa; suspensa ou encerrada é leitura.</summary>
     [Theory]
-    [InlineData(StatusDaFormatura.Rascunho, HttpStatusCode.NoContent)]
-    [InlineData(StatusDaFormatura.AguardandoPagamento, HttpStatusCode.NoContent)]
+    [InlineData(StatusDaFormatura.Ativa, HttpStatusCode.NoContent)]
     [InlineData(StatusDaFormatura.Suspensa, HttpStatusCode.Forbidden)]
     [InlineData(StatusDaFormatura.Encerrada, HttpStatusCode.Forbidden)]
-    public async Task Montar_a_comissao_vale_antes_de_pagar_e_nao_em_modo_leitura(StatusDaFormatura status, HttpStatusCode esperado)
+    public async Task Montar_a_comissao_vale_na_turma_ativa_e_nao_em_modo_leitura(StatusDaFormatura status, HttpStatusCode esperado)
     {
         var formaturaId = await fabrica.CriarFormatura(status, Ct);
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
@@ -177,9 +174,9 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
     }
 
     [Fact]
-    public async Task Descartar_rascunho_tira_a_turma_da_lista_de_todos()
+    public async Task Descartar_turma_gratuita_tira_a_turma_da_lista_de_todos()
     {
-        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Rascunho, Ct);
+        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct, contratada: false);
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
         var comissao = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Comissao, Ct);
 
@@ -200,7 +197,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
         var resposta = await presidente.Cliente.PostAsync($"{Rota}/atual/descartar", null, Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await resposta.Codigo(Ct)).ShouldBe("formatura.transicao_invalida");
+        (await resposta.Codigo(Ct)).ShouldBe("formatura.ja_contratada");
     }
 
     /// <summary>Suspensa é leitura, não bloqueio: o dado continua visível para todo membro.</summary>
@@ -230,7 +227,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
     [Fact]
     public async Task Encerrar_formatura_ativa_grava_encerrada()
     {
-        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct, contratada: false);
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
 
         var resposta = await presidente.Cliente.PostAsync($"{Rota}/atual/encerrar", null, Ct);
@@ -242,9 +239,13 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
     }
 
     [Fact]
-    public async Task Encerrar_rascunho_devolve_409_transicao_invalida()
+    public async Task Encerrar_turma_descartada_devolve_409_transicao_invalida()
     {
-        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(StatusDaFormatura.Rascunho, Ct), PapelNaFormatura.Presidente, Ct);
+        var presidente = await fabrica.NovoMembro(
+            await fabrica.CriarFormatura(StatusDaFormatura.Descartada, Ct, contratada: false),
+            PapelNaFormatura.Presidente,
+            Ct
+        );
 
         var resposta = await presidente.Cliente.PostAsync($"{Rota}/atual/encerrar", null, Ct);
 

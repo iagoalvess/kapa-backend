@@ -6,6 +6,7 @@ using Backend.Api.DTOs.Financeiro;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Models;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Models;
 using Backend.Business.Financeiro.Services;
@@ -31,6 +32,7 @@ namespace Backend.Api.Controllers.V1.Financeiro;
 /// <param name="despesaService">Regras da despesa.</param>
 /// <param name="usuarioAtual">Quem chama — dono do comprovante enviado.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Despesas)]
 [Route("api/v{version:apiVersion}/financeiro/despesas")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class DespesaController(IDespesaService despesaService, IUsuarioAtual usuarioAtual) : MainController

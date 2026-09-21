@@ -13,7 +13,6 @@ using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Models;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Models;
-using Backend.Business.Leads.Models;
 using Backend.Business.Legal.Models;
 using Backend.Business.Notificacoes.Models;
 using Backend.Business.Pagamentos.Models;
@@ -129,6 +128,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>O que a turma está comprando: buffet, espaço, fotografia — o combinado, não o vencimento.</summary>
     public DbSet<ItemDaFesta> ItensDaFesta => Set<ItemDaFesta>();
 
+    /// <summary>Candidatas a serem contratadas para um item "a contratar".</summary>
+    public DbSet<PropostaDoItem> PropostasDoItem => Set<PropostaDoItem>();
+
+    /// <summary>Em qual proposta cada formando votou — uma linha por formando por item.</summary>
+    public DbSet<VotoNaProposta> VotosNasPropostas => Set<VotoNaProposta>();
+
     /// <summary>Saídas do caixa: o que a turma deve e o que já pagou, uma linha por vencimento.</summary>
     public DbSet<Despesa> Despesas => Set<Despesa>();
 
@@ -155,15 +160,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// (decisão 2 da Sprint 14).
     /// </remarks>
     public DbSet<SolicitacaoDePrivacidade> SolicitacoesDePrivacidade => Set<SolicitacaoDePrivacidade>();
-
-    /// <summary>
-    /// Contatos deixados no formulário da página institucional.
-    /// </summary>
-    /// <remarks>
-    /// Sem <c>formatura_id</c>, como as solicitações de privacidade e pela razão oposta: quem
-    /// preenche ainda <b>não tem</b> turma — é por isso que está preenchendo.
-    /// </remarks>
-    public DbSet<Lead> Leads => Set<Lead>();
 
     /// <summary>
     /// Formatura que os filtros globais enxergam.

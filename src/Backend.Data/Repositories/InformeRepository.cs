@@ -90,6 +90,7 @@ public sealed class InformeRepository(AppDbContext db) : IInformeRepository
                     informe.ValorEmCentavos,
                     0,
                     informe.ComprovanteArquivoId is not null,
+                    informe.MeioEscolhido,
                     informe.Status,
                     informe.CriadoEm,
                     informe.ConferidoEm

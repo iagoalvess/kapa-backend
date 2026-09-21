@@ -1,6 +1,7 @@
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Assinaturas.Models;
 using Backend.Data.Context;
+using Backend.Data.Seed;
 using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Data.Repositories;
@@ -89,14 +90,37 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
             .FirstOrDefaultAsync(ct);
 
     /// <inheritdoc />
-    public Task<int?> ObterLimiteDeFormandosDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default) =>
-        (
+    public Task<bool> ExisteAlgumaDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default) =>
+        db.Assinaturas.AsNoTracking().IgnoreQueryFilters().AnyAsync(a => a.FormaturaId == formaturaId, ct);
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Só <c>Ativa</c> e <c>Cancelada</c> valem. <c>Pendente</c> de fora é o que impede o checkout de
+    /// virar o próprio pagamento: quem abre a sessão do Premium e nunca paga ficaria com os
+    /// módulos dele. <c>Cancelada</c> entra porque a vigência paga é respeitada até o fim, como o
+    /// diálogo de cancelamento promete; <c>Vencida</c> cai no gratuito, e a turma suspensa continua
+    /// dando baixa no que já entrou, que é módulo do gratuito.
+    /// </remarks>
+    public async Task<Plano?> ObterPlanoVigenteDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default) =>
+        await (
             from assinatura in db.Assinaturas.AsNoTracking().IgnoreQueryFilters()
             join plano in db.Planos.AsNoTracking() on assinatura.PlanoId equals plano.Id
-            where assinatura.FormaturaId == formaturaId
+            where
+                assinatura.FormaturaId == formaturaId
+                && (assinatura.Status == StatusDaAssinatura.Ativa || assinatura.Status == StatusDaAssinatura.Cancelada)
             orderby assinatura.CriadoEm descending, assinatura.Id descending
-            select (int?)plano.LimiteDeFormandos
-        ).FirstOrDefaultAsync(ct);
+            select plano
+        ).FirstOrDefaultAsync(ct) ?? await ObterPlanoPorCodigo(SeedDePlanos.CodigoGratuito, ct);
+
+    /// <summary>O plano do catálogo pelo código, inclusive o que não está mais à venda.</summary>
+    /// <remarks>
+    /// Sem o filtro de <c>Ativo</c>, diferente de <see cref="ObterPlanoAtivo"/>: o gratuito é
+    /// <c>Ativo = false</c> justamente para não aparecer na vitrine nem ser aceito no checkout, e
+    /// ainda assim é ele que responde por toda turma que não contratou.
+    /// </remarks>
+    /// <param name="codigo">Código do plano.</param>
+    private Task<Plano?> ObterPlanoPorCodigo(string codigo, CancellationToken ct) =>
+        db.Planos.AsNoTracking().FirstOrDefaultAsync(p => p.Codigo == codigo, ct);
 
     /// <inheritdoc />
     /// <remarks>Mais recentes primeiro: se o lote não couber, quem acabou de pagar não espera atrás de checkout esquecido.</remarks>

@@ -28,10 +28,21 @@ public sealed class ContaDeRecebimentoRepository(AppDbContext db) : IContaDeRece
             join usuario in db.Users.AsNoTracking() on conta.ConferidaPorUsuarioId equals (Guid?)usuario.Id into conferentes
             from conferente in conferentes.DefaultIfEmpty()
             select new ContaDeRecebimentoDetalhe(
-                conta.TipoDeChave,
-                conta.Chave,
-                conta.NomeDoTitular,
-                conta.Cidade,
+                new MeiosDaConta(
+                    conta.TipoDeChave == null || conta.Chave == null
+                        ? null
+                        : new ChavePixDaConta(conta.TipoDeChave.Value, conta.Chave, conta.NomeDoTitular ?? "", conta.Cidade ?? ""),
+                    conta.Banco == null
+                        ? null
+                        : new DadosBancarios(
+                            conta.Banco,
+                            conta.Agencia ?? "",
+                            conta.Conta ?? "",
+                            conta.TipoDeConta ?? "",
+                            conta.TitularDaConta ?? ""
+                        ),
+                    conta.DinheiroCom == null ? null : new DinheiroComAlguem(conta.DinheiroCom, conta.DinheiroOnde)
+                ),
                 conta.AtualizadoEm,
                 conta.ConferidaEm,
                 conferente == null ? null : conferente.Nome

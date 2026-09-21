@@ -8,10 +8,10 @@ namespace Backend.Data.Mappings;
 /// Mapeamento das formaturas.
 /// </summary>
 /// <remarks>
-/// O índice único parcial em <c>criado_por_usuario_id</c> onde <c>status = 'Rascunho'</c> é a
-/// regra "um rascunho por usuário" no banco. O service confere antes e devolve o 409 com código,
-/// mas um clique duplo manda as duas requisições juntas e as duas passam pela checagem — aí quem
-/// barra a segunda é o índice.
+/// Sem índice para "uma turma não paga por conta": essa regra passou a depender de <c>assinaturas</c>
+/// em 18/09/2026, quando <c>Rascunho</c> deixou de existir, e índice parcial não enxerga outra
+/// tabela. Quem confere é <c>FormaturaService.Criar</c>. Ver o <c>ponytail:</c> em
+/// <c>IFormaturaRepository.ExisteGratuitaCriadaPor</c>.
 /// </remarks>
 public sealed class FormaturaMapping : IEntityTypeConfiguration<Formatura>
 {
@@ -28,11 +28,5 @@ public sealed class FormaturaMapping : IEntityTypeConfiguration<Formatura>
         builder.Property(f => f.Instituicao).IsRequired().HasMaxLength(120);
         builder.Property(f => f.Curso).IsRequired().HasMaxLength(120);
         builder.Property(f => f.Status).HasConversion<string>().HasMaxLength(30);
-
-        builder
-            .HasIndex(f => f.CriadoPorUsuarioId)
-            .IsUnique()
-            .HasFilter($"status = '{nameof(StatusDaFormatura.Rascunho)}'")
-            .HasDatabaseName("ix_formaturas_rascunho_por_criador");
     }
 }

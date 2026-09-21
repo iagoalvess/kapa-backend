@@ -31,7 +31,14 @@ internal static class LimitesDoPagamento
             .WithMessage("O valor deve ser de no máximo R$ 1.000.000,00.");
 }
 
-/// <summary>Forma do "já paguei".</summary>
+/// <summary>
+/// Forma do "já paguei".
+/// </summary>
+/// <remarks>
+/// O meio não é conferido contra os que a turma habilitou (P7 de 21/09/2026): o formando pode ter
+/// pago de um jeito que ninguém previu, e recusar o aviso não desfaz o pagamento — só o esconde da
+/// tesouraria. O comprovante segue opcional em todo meio (P6).
+/// </remarks>
 public sealed class NovoInformeValidator : AbstractValidator<NovoInforme>
 {
     /// <summary>Registra as regras de validação.</summary>
@@ -39,6 +46,7 @@ public sealed class NovoInformeValidator : AbstractValidator<NovoInforme>
     {
         RuleFor(x => x.PagoEm).DiaDoPagamento();
         RuleFor(x => x.ValorEmCentavos).ValorDoPagamento();
+        RuleFor(x => x.Meio).IsInEnum().WithMessage("Meio de pagamento inválido. Use Pix, Transferencia, Dinheiro ou Outro.");
     }
 }
 

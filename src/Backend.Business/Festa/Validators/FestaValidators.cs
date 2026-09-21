@@ -56,3 +56,37 @@ public sealed class DadosDoItemDaFestaValidator : AbstractValidator<DadosDoItemD
             .When(x => x.Rateio == TipoDeRateio.PorFormando);
     }
 }
+
+/// <summary>
+/// Forma de uma proposta.
+/// </summary>
+/// <remarks>
+/// O valor é opcional pelo mesmo motivo do item: a comissão levanta o nome da banda antes de ter o
+/// preço dela. O teto é o mesmo do item, porque a proposta aceita vira a despesa.
+/// </remarks>
+public sealed class DadosDaPropostaValidator : AbstractValidator<DadosDaProposta>
+{
+    /// <summary>Título da proposta.</summary>
+    public const int TituloMaximo = 120;
+
+    /// <summary>O que ela entrega, em Markdown.</summary>
+    public const int OQueIncluiMaximo = 1000;
+
+    /// <summary>Registra as regras de validação.</summary>
+    public DadosDaPropostaValidator()
+    {
+        RuleFor(x => x.Titulo)
+            .NotEmpty()
+            .WithMessage("Informe quem está propondo.")
+            .MaximumLength(TituloMaximo)
+            .WithMessage($"O título deve ter no máximo {TituloMaximo} caracteres.");
+
+        RuleFor(x => x.ValorEmCentavos)
+            .GreaterThanOrEqualTo(0)
+            .WithMessage("O valor não pode ser negativo.")
+            .LessThanOrEqualTo(DadosDoItemDaFestaValidator.ValorMaximo)
+            .WithMessage("O valor deve ser de no máximo R$ 1.000.000,00.");
+
+        RuleFor(x => x.OQueInclui).MaximumLength(OQueIncluiMaximo).WithMessage($"O que inclui deve ter no máximo {OQueIncluiMaximo} caracteres.");
+    }
+}

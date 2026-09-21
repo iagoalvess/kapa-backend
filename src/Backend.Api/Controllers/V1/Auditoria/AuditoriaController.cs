@@ -3,6 +3,7 @@ using Backend.Api.Configuration;
 using Backend.Api.DTOs.Auditoria;
 using Backend.Api.DTOs.Comum;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
 using Mapster;
@@ -31,6 +32,7 @@ namespace Backend.Api.Controllers.V1.Auditoria;
 /// </remarks>
 /// <param name="auditoriaService">A trilha.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Auditoria)]
 [Route("api/v{version:apiVersion}/auditoria")]
 [Authorize(Policy = Politicas.Gestao)]
 [EnableRateLimiting(RateLimitConfig.Padrao)]

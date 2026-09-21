@@ -57,11 +57,15 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
         (await resposta.Codigo(Ct)).ShouldBe("convite.papel_restrito");
     }
 
-    /// <summary>Antes de pagar, o Presidente monta a comissão; formando só entra com a turma ativa.</summary>
+    /// <summary>No gratuito o Presidente monta a comissão; formando só entra depois de contratar.</summary>
     [Fact]
-    public async Task Rascunho_convida_a_comissao_mas_nao_formandos()
+    public async Task No_gratuito_convida_a_comissao_mas_nao_formandos()
     {
-        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(StatusDaFormatura.Rascunho, Ct), PapelNaFormatura.Presidente, Ct);
+        var presidente = await fabrica.NovoMembro(
+            await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct, contratada: false),
+            PapelNaFormatura.Presidente,
+            Ct
+        );
 
         var formando = await presidente.Cliente.PostAsJsonAsync(Gestao, new CriarConviteRequestDTO(null, null), Ct);
         var tesoureiro = await presidente.Cliente.PostAsJsonAsync(
@@ -80,7 +84,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     public async Task Comissao_convidada_antes_do_pagamento_entra_no_rascunho()
     {
         var email = $"tesoureira-{Guid.CreateVersion7():N}@testes.local";
-        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Rascunho, Ct);
+        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct);
         var token = await Semear(
             formaturaId,
             c =>

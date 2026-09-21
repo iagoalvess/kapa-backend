@@ -7,6 +7,7 @@ using Backend.Business.Festa.Services;
 using Backend.Business.Festa.Validators;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Models;
+using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -26,6 +27,8 @@ public sealed class ItemDaFestaServiceTests
     private readonly IDespesaRepository _despesas = Substitute.For<IDespesaRepository>();
     private readonly IDocumentoRepository _documentos = Substitute.For<IDocumentoRepository>();
     private readonly ICaixaRepository _caixa = Substitute.For<ICaixaRepository>();
+    private readonly IPropostaRepository _propostas = Substitute.For<IPropostaRepository>();
+    private readonly IPerfilRepository _perfis = Substitute.For<IPerfilRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
     public ItemDaFestaServiceTests()
@@ -34,7 +37,17 @@ public sealed class ItemDaFestaServiceTests
     }
 
     private ItemDaFestaService Servico =>
-        new(_itens, _despesas, _documentos, _caixa, new DadosDoItemDaFestaValidator(), _unitOfWork, NullLogger<ItemDaFestaService>.Instance);
+        new(
+            _itens,
+            _despesas,
+            _documentos,
+            _caixa,
+            _propostas,
+            _perfis,
+            new DadosDoItemDaFestaValidator(),
+            _unitOfWork,
+            NullLogger<ItemDaFestaService>.Instance
+        );
 
     [Fact]
     public async Task Turma_sem_nenhum_item_recebe_os_seis_sugeridos()
@@ -285,6 +298,7 @@ public sealed class ItemDaFestaServiceTests
             contratado,
             pago,
             despesas,
+            0,
             cancelado,
             1
         );

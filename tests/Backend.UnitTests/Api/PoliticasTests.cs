@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Backend.Api.Configuration;
+using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Auth.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
@@ -33,18 +34,15 @@ public sealed class PoliticasTests
         services.AddLogging(opcoes => opcoes.SetMinimumLevel(LogLevel.None));
         services.AddSingleton(Substitute.For<IVinculoRepository>());
         services.AddSingleton(formaturas);
+        services.AddSingleton(Substitute.For<IAssinaturaRepository>());
         services.AddPoliticas();
 
         return services.BuildServiceProvider().CreateScope().ServiceProvider.GetRequiredService<IAuthorizationService>();
     }
 
-    /// <summary>
-    /// Só <c>Ativa</c> escreve. Rascunho e aguardando pagamento ainda não contrataram; suspensa e
-    /// encerrada são leitura.
-    /// </summary>
+    /// <summary>Só <c>Ativa</c> escreve; suspensa, encerrada e descartada são leitura.</summary>
     [Theory]
-    [InlineData(StatusDaFormatura.Rascunho, false)]
-    [InlineData(StatusDaFormatura.AguardandoPagamento, false)]
+    [InlineData(StatusDaFormatura.Descartada, false)]
     [InlineData(StatusDaFormatura.Ativa, true)]
     [InlineData(StatusDaFormatura.Suspensa, false)]
     [InlineData(StatusDaFormatura.Encerrada, false)]

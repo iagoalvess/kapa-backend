@@ -6,9 +6,11 @@ using Backend.Api.DTOs.Pagamentos;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Models;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Pagamentos.Interfaces;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Pagamentos.Services;
+using Backend.Business.Recebimentos.Models;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,17 +19,18 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Backend.Api.Controllers.V1.Pagamentos;
 
 /// <summary>
-/// Uma parcela e o que se faz com ela: consultar, gerar o PIX, avisar que pagou, baixar na mão e
+/// Uma parcela e o que se faz com ela: consultar, gerar a cobrança, avisar que pagou, baixar na mão e
 /// estornar a baixa.
 /// </summary>
 /// <remarks>
-/// Consulta, PIX e "já paguei" entram pela política de membro: "é o dono, ou a gestão" é regra do
+/// Consulta, cobrança e "já paguei" entram pela política de membro: "é o dono, ou a gestão" é regra do
 /// service, e parcela de outro formando responde 404, não 403. Baixar na mão é da Tesouraria;
 /// estornar, só do Presidente. Toda escrita exige a turma ativa.
 /// </remarks>
 /// <param name="pagamentoService">Regras do pagamento.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Cobrancas)]
 [Route("api/v{version:apiVersion}/parcelas")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuarioAtual usuarioAtual) : MainController
@@ -41,18 +44,27 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     public async Task<IActionResult> ObterParcela(Guid id, CancellationToken ct) =>
         Responder((await pagamentoService.ObterParcela(FormaturaId, usuarioAtual.Id, id, ct)).Map(parcela => parcela.Adapt<ParcelaDTO>()));
 
-    /// <summary>O PIX da parcela: a chave vigente, o valor de hoje e o identificador. O dono, ou a tesouraria.</summary>
-    /// <remarks>409 <c>pagamento.sem_conta</c> se a turma ainda não cadastrou a chave; <c>pagamento.parcela_paga</c> se já está paga.</remarks>
+    /// <summary>A cobrança da parcela: o valor de hoje e os meios que a turma aceita. O dono, ou a tesouraria.</summary>
+    /// <remarks>
+    /// Cada meio vem com o que a tela precisa mostrar — o PIX com o BR Code, a transferência com os
+    /// dados bancários, o dinheiro com quem procurar. Com um meio só a tela não tem seletor.
+    /// <para>
+    /// 409 <c>pagamento.sem_conta</c> se a turma ainda não habilitou meio nenhum;
+    /// <c>pagamento.parcela_paga</c> se já está paga.
+    /// </para>
+    /// </remarks>
     /// <param name="id">Parcela.</param>
-    [HttpGet("{id:guid}/pix")]
+    [HttpGet("{id:guid}/cobranca")]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
-    [ProducesResponseType(typeof(PixDaParcelaDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(CobrancaDaParcelaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> GerarPix(Guid id, CancellationToken ct) =>
-        Responder((await pagamentoService.GerarPix(FormaturaId, usuarioAtual.Id, id, ct)).Map(pix => pix.Adapt<PixDaParcelaDTO>()));
+    public async Task<IActionResult> GerarCobranca(Guid id, CancellationToken ct) =>
+        Responder(
+            (await pagamentoService.GerarCobranca(FormaturaId, usuarioAtual.Id, id, ct)).Map(cobranca => cobranca.Adapt<CobrancaDaParcelaDTO>())
+        );
 
-    /// <summary>O PIX de várias parcelas: um BR Code só, com a soma do que elas cobram hoje. Só o dono.</summary>
+    /// <summary>A cobrança de várias parcelas: a soma do que elas cobram hoje, pelos mesmos meios. Só o dono.</summary>
     /// <remarks>
     /// É o passo 1 do "paguei vários meses de uma vez"; o passo 2 é <c>POST /parcelas/informes</c>, com a
     /// mesma lista. 400 <c>pagamento.parcelas_do_informe</c> fora de 1 a 24 parcelas; 409
@@ -60,15 +72,17 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     /// qualquer uma delas não aceitar o pagamento.
     /// </remarks>
     /// <param name="parcelaIds">Parcelas que o pagamento vai cobrir.</param>
-    [HttpGet("pix")]
+    [HttpGet("cobranca")]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
-    [ProducesResponseType(typeof(PixDaParcelaDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(CobrancaDaParcelaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> GerarPixDeVarias([FromQuery] IReadOnlyList<Guid> parcelaIds, CancellationToken ct) =>
+    public async Task<IActionResult> GerarCobrancaDeVarias([FromQuery] IReadOnlyList<Guid> parcelaIds, CancellationToken ct) =>
         Responder(
-            (await pagamentoService.GerarPixDeVarias(FormaturaId, usuarioAtual.Id, parcelaIds ?? [], ct)).Map(pix => pix.Adapt<PixDaParcelaDTO>())
+            (await pagamentoService.GerarCobrancaDeVarias(FormaturaId, usuarioAtual.Id, parcelaIds ?? [], ct)).Map(cobranca =>
+                cobranca.Adapt<CobrancaDaParcelaDTO>()
+            )
         );
 
     /// <summary>O "já paguei" de uma parcela: avisa a tesouraria. A parcela não muda até ela conferir.</summary>
@@ -80,7 +94,8 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     /// <param name="id">Parcela.</param>
     /// <param name="pagoEm">Dia do pagamento, <c>aaaa-mm-dd</c>.</param>
     /// <param name="valorEmCentavos">Valor pago, em centavos.</param>
-    /// <param name="comprovante">PDF ou imagem, opcional.</param>
+    /// <param name="meio">Como pagou: <c>Pix</c>, <c>Transferencia</c>, <c>Dinheiro</c> ou <c>Outro</c>.</param>
+    /// <param name="comprovante">PDF ou imagem, opcional em qualquer meio.</param>
     [HttpPost("{id:guid}/informes")]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
     [Authorize(Policy = Politicas.ExigeFormaturaRecebendo)]
@@ -94,6 +109,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
         Guid id,
         [FromForm] DateOnly pagoEm,
         [FromForm] long valorEmCentavos,
+        [FromForm] MeioDeRecebimento meio,
         IFormFile? comprovante,
         CancellationToken ct
     )
@@ -104,7 +120,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
             FormaturaId,
             usuarioAtual.Id,
             [id],
-            new NovoInforme(pagoEm, valorEmCentavos),
+            new NovoInforme(pagoEm, valorEmCentavos, meio),
             Comprovante(comprovante, conteudo),
             ct
         );
@@ -128,7 +144,8 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     /// <param name="parcelaIds">Parcelas cobertas pelo pagamento.</param>
     /// <param name="pagoEm">Dia do pagamento, <c>aaaa-mm-dd</c>.</param>
     /// <param name="valorEmCentavos">Valor total pago, em centavos.</param>
-    /// <param name="comprovante">PDF ou imagem, opcional.</param>
+    /// <param name="meio">Como pagou: <c>Pix</c>, <c>Transferencia</c>, <c>Dinheiro</c> ou <c>Outro</c>.</param>
+    /// <param name="comprovante">PDF ou imagem, opcional em qualquer meio.</param>
     [HttpPost("informes")]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
     [Authorize(Policy = Politicas.ExigeFormaturaRecebendo)]
@@ -142,6 +159,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
         [FromForm] IReadOnlyList<Guid> parcelaIds,
         [FromForm] DateOnly pagoEm,
         [FromForm] long valorEmCentavos,
+        [FromForm] MeioDeRecebimento meio,
         IFormFile? comprovante,
         CancellationToken ct
     )
@@ -152,7 +170,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
             FormaturaId,
             usuarioAtual.Id,
             parcelaIds ?? [],
-            new NovoInforme(pagoEm, valorEmCentavos),
+            new NovoInforme(pagoEm, valorEmCentavos, meio),
             Comprovante(comprovante, conteudo),
             ct
         );

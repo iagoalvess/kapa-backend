@@ -29,7 +29,8 @@ public sealed class FormaturaRepository(AppDbContext db) : IFormaturaRepository
                 f.Status,
                 f.CriadoEm,
                 f.AtivadaEm,
-                f.EncerradaEm
+                f.EncerradaEm,
+                db.Assinaturas.IgnoreQueryFilters().Any(a => a.FormaturaId == f.Id)
             ))
             .FirstOrDefaultAsync(ct);
 
@@ -42,8 +43,15 @@ public sealed class FormaturaRepository(AppDbContext db) : IFormaturaRepository
         db.Formaturas.FirstOrDefaultAsync(f => f.Id == formaturaId, ct);
 
     /// <inheritdoc />
-    public Task<bool> ExisteRascunhoCriadoPor(Guid usuarioId, CancellationToken ct = default) =>
-        db.Formaturas.AnyAsync(f => f.CriadoPorUsuarioId == usuarioId && f.Status == StatusDaFormatura.Rascunho, ct);
+    public Task<bool> ExisteGratuitaCriadaPor(Guid usuarioId, CancellationToken ct = default) =>
+        db.Formaturas.AnyAsync(
+            f =>
+                f.CriadoPorUsuarioId == usuarioId
+                && f.Status != StatusDaFormatura.Descartada
+                && f.Status != StatusDaFormatura.Encerrada
+                && !db.Assinaturas.IgnoreQueryFilters().Any(a => a.FormaturaId == f.Id),
+            ct
+        );
 
     /// <inheritdoc />
     public async Task Adicionar(Formatura formatura, CancellationToken ct = default) => await db.Formaturas.AddAsync(formatura, ct);

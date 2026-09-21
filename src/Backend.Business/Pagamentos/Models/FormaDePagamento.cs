@@ -1,3 +1,5 @@
+using Backend.Business.Recebimentos.Models;
+
 namespace Backend.Business.Pagamentos.Models;
 
 /// <summary>Como o dinheiro chegou à conta da turma.</summary>
@@ -15,4 +17,28 @@ public enum FormaDePagamento
 
     /// <summary>Qualquer outro meio.</summary>
     Outro,
+}
+
+/// <summary>A ponte entre os dois eixos: o meio que o formando escolheu e a forma que a baixa grava.</summary>
+/// <remarks>
+/// São eixos separados de propósito — <see cref="MeioDeRecebimento"/> é o que o Kapa oferece antes do
+/// pagamento, <see cref="FormaDePagamento"/> é o que se registra depois, e está gravada como texto em
+/// todo recebimento desde a Sprint 9. Esta função é o único lugar que os relaciona.
+/// </remarks>
+public static class FormasDePagamento
+{
+    /// <summary>A forma correspondente ao meio escolhido no aviso (decisão 4 da Sprint 18).</summary>
+    /// <remarks>
+    /// Sem meio é PIX: é o que a conferência já gravava antes da Sprint 18, e todo aviso anterior a
+    /// ela foi de fato um PIX — era o único caminho que o produto oferecia.
+    /// </remarks>
+    /// <param name="meio">Meio escolhido, ou nulo nos avisos antigos.</param>
+    public static FormaDePagamento Da(MeioDeRecebimento? meio) =>
+        meio switch
+        {
+            MeioDeRecebimento.Transferencia => FormaDePagamento.Transferencia,
+            MeioDeRecebimento.Dinheiro => FormaDePagamento.Dinheiro,
+            MeioDeRecebimento.Outro => FormaDePagamento.Outro,
+            _ => FormaDePagamento.Pix,
+        };
 }

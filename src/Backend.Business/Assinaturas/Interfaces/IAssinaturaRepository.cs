@@ -38,15 +38,33 @@ public interface IAssinaturaRepository
     Task<Assinatura?> ObterParaEdicaoDeTodasAsFormaturas(Guid assinaturaId, CancellationToken ct = default);
 
     /// <summary>
-    /// Quantos formandos cabem no plano da assinatura mais recente da formatura. Nulo se ela nunca
-    /// contratou.
+    /// Se a formatura já teve alguma assinatura — ou seja, se ela saiu do gratuito alguma vez.
     /// </summary>
     /// <remarks>
-    /// Atravessa formaturas de propósito — e o nome diz isso: quem pergunta é o aceite de convite,
-    /// que roda na sessão de quem <b>ainda não</b> pertence à turma e portanto não tem a claim dela.
+    /// Quem pergunta é o descarte: turma que nunca contratou pode ser jogada fora, turma que pagou
+    /// encerra. Conta assinatura em <b>qualquer</b> status, inclusive vencida — quem já pagou um
+    /// ciclo tem histórico financeiro, e histórico não se descarta.
     /// </remarks>
     /// <param name="formaturaId">Formatura consultada.</param>
-    Task<int?> ObterLimiteDeFormandosDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default);
+    Task<bool> ExisteAlgumaDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default);
+
+    /// <summary>
+    /// O plano que vale para a formatura agora: o da assinatura mais recente ou, quando ela nunca
+    /// contratou, o <b>gratuito</b>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Não ter assinatura é estar no gratuito</b> — é assim que a turma nasce, sem uma linha de
+    /// <c>Assinatura</c> por turma que ninguém leria. Por isso este é o único lugar que responde
+    /// "qual o plano": o gate de módulo e o limite de formandos passam os dois por aqui, e um
+    /// terceiro que pergunte no futuro herda o mesmo padrão em vez de inventar o seu.
+    /// <para>
+    /// Atravessa formaturas de propósito — e o nome diz isso: quem pergunta é o aceite de convite,
+    /// que roda na sessão de quem <b>ainda não</b> pertence à turma e portanto não tem a claim dela.
+    /// </para>
+    /// </remarks>
+    /// <param name="formaturaId">Formatura consultada.</param>
+    /// <returns>O plano vigente, ou nulo se nem o gratuito existir no catálogo.</returns>
+    Task<Plano?> ObterPlanoVigenteDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default);
 
     /// <summary>A assinatura mais recente de uma formatura qualquer, rastreada para alteração.</summary>
     /// <remarks>

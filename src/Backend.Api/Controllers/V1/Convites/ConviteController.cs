@@ -4,6 +4,7 @@ using Backend.Api.Configuration;
 using Backend.Api.DTOs.Convites;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Convites.Interfaces;
 using Backend.Business.Convites.Models;
 using Mapster;
@@ -24,6 +25,7 @@ namespace Backend.Api.Controllers.V1.Convites;
 /// <param name="conviteService">Criação e revogação.</param>
 /// <param name="usuarioAtual">Quem está fazendo a requisição.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Membros)]
 [Route("api/v{version:apiVersion}/formaturas/atual/convites")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class ConviteController(IConviteService conviteService, IUsuarioAtual usuarioAtual) : MainController
@@ -38,7 +40,7 @@ public sealed class ConviteController(IConviteService conviteService, IUsuarioAt
     /// <param name="requisicao">E-mail, papel, validade e limite de entradas.</param>
     [HttpPost]
     [Authorize(Policy = Politicas.Gestao)]
-    [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [RegistrarEvento("convite.criado")]
     [ProducesResponseType(typeof(ConviteCriadoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -66,7 +68,7 @@ public sealed class ConviteController(IConviteService conviteService, IUsuarioAt
     /// <param name="id">Convite.</param>
     [HttpDelete("{id:guid}")]
     [Authorize(Policy = Politicas.Gestao)]
-    [Authorize(Policy = Politicas.ExigeFormaturaEditavel)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [RegistrarEvento("convite.revogado", CamposDaRota = ["id"])]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]

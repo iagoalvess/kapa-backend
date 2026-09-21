@@ -1,11 +1,13 @@
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Recebimentos.Models;
 
 namespace Backend.Business.Pagamentos.Models;
 
 /// <summary>O "já paguei", como o formando informa.</summary>
 /// <param name="PagoEm">Dia em que pagou.</param>
 /// <param name="ValorEmCentavos">Quanto pagou.</param>
-public sealed record NovoInforme(DateOnly PagoEm, long ValorEmCentavos);
+/// <param name="Meio">Como pagou. Pode ser um meio que a turma não habilitou (P7 de 21/09/2026).</param>
+public sealed record NovoInforme(DateOnly PagoEm, long ValorEmCentavos, MeioDeRecebimento Meio);
 
 /// <summary>A baixa sem informe: dinheiro, TED, o formando que pagou e não avisou.</summary>
 /// <param name="Forma">Como o dinheiro chegou.</param>
@@ -66,13 +68,35 @@ public sealed record ResultadoDaConferencia(int Confirmados, int Ignorados);
 /// <param name="Parcelas">Todas as parcelas, por vencimento.</param>
 public sealed record ExtratoDoFormando(long EmAbertoEmCentavos, ParcelaResumo? Proxima, IReadOnlyList<ParcelaResumo> Parcelas);
 
-/// <summary>O PIX de uma parcela, montado na hora e não gravado.</summary>
+/// <summary>O PIX pronto para pagar, montado na hora e não gravado.</summary>
 /// <param name="CopiaECola">O BR Code, que a tela transforma em QR.</param>
-/// <param name="ValorEmCentavos">O valor do dia.</param>
 /// <param name="Chave">Chave da comissão.</param>
 /// <param name="NomeDoTitular">O nome que o banco vai mostrar.</param>
+public sealed record PixParaPagar(string CopiaECola, string Chave, string NomeDoTitular);
+
+/// <summary>Um meio que a turma aceita, com o que a tela do formando precisa mostrar.</summary>
+/// <remarks>
+/// Só o campo do próprio meio vem preenchido: o PIX traz o BR Code, a transferência traz a conta e o
+/// dinheiro traz a instrução. É o que permite à tela desenhar cada um do seu jeito sem perguntar nada
+/// de volta.
+/// </remarks>
+/// <param name="Meio">Qual é o meio.</param>
+/// <param name="Pix">O PIX pronto, só em <see cref="MeioDeRecebimento.Pix"/>.</param>
+/// <param name="Transferencia">Os dados bancários, só em <see cref="MeioDeRecebimento.Transferencia"/>.</param>
+/// <param name="Instrucao">Com quem falar, em dinheiro.</param>
+public sealed record MeioDaCobranca(MeioDeRecebimento Meio, PixParaPagar? Pix, DadosBancarios? Transferencia, string? Instrucao);
+
+/// <summary>
+/// A cobrança de uma parcela — ou de várias no mesmo pagamento: quanto, e por onde a turma aceita.
+/// </summary>
+/// <remarks>
+/// Montada na hora e não gravada: os meios são os vigentes e o valor é o de hoje. Com um meio só, a
+/// tela não tem seletor — é a mesma tela de sempre (decisão 3).
+/// </remarks>
+/// <param name="ValorEmCentavos">O valor do dia, somado quando são várias parcelas.</param>
 /// <param name="Identificador">O identificador da parcela no PIX.</param>
-public sealed record PixDaParcela(string CopiaECola, long ValorEmCentavos, string Chave, string NomeDoTitular, string Identificador);
+/// <param name="Meios">Os meios habilitados, ao menos um.</param>
+public sealed record CobrancaDaParcela(long ValorEmCentavos, string Identificador, IReadOnlyList<MeioDaCobranca> Meios);
 
 /// <summary>Um informe na fila da tesouraria.</summary>
 /// <param name="Id">Identificador.</param>
@@ -81,6 +105,7 @@ public sealed record PixDaParcela(string CopiaECola, long ValorEmCentavos, strin
 /// <param name="ValorEmCentavos">Valor informado.</param>
 /// <param name="DevidoEmCentavos">O valor da parcela no dia informado, pelas regras aceitas.</param>
 /// <param name="TemComprovante">Se o formando anexou comprovante.</param>
+/// <param name="MeioEscolhido">Como o formando diz ter pago; nulo nos avisos anteriores à Sprint 18.</param>
 /// <param name="Status">Situação.</param>
 /// <param name="InformadoEm">Quando o formando avisou, em UTC.</param>
 /// <param name="ConferidoEm">Quando a tesouraria confirmou ou recusou, em UTC; nulo enquanto pendente.</param>
@@ -91,6 +116,7 @@ public sealed record InformeNaFila(
     long ValorEmCentavos,
     long DevidoEmCentavos,
     bool TemComprovante,
+    MeioDeRecebimento? MeioEscolhido,
     StatusDoInforme Status,
     DateTime InformadoEm,
     DateTime? ConferidoEm = null
