@@ -27,27 +27,31 @@ public sealed record FormaturaDoUsuario(
     DateTime? DesligadoEm
 );
 
-/// <summary>Dados cadastrais da formatura, informados na criação e na edição.</summary>
+/// <summary>
+/// Dados cadastrais da formatura, informados na criação e na edição.
+/// </summary>
+/// <remarks>
+/// <b>Sem as datas de colação e de festa</b> desde a Sprint 19: elas são eventos da agenda, e quem
+/// as escreve é <c>POST /agenda</c>. Mantê-las aqui daria dois caminhos de escrita para o mesmo
+/// dia — que é exatamente o que a decisão 1 fecha.
+/// </remarks>
 /// <param name="Nome">Nome da turma.</param>
 /// <param name="Instituicao">Instituição de ensino.</param>
 /// <param name="Curso">Curso.</param>
 /// <param name="Ano">Ano de conclusão.</param>
 /// <param name="Semestre">Semestre de conclusão: 1 ou 2.</param>
-/// <param name="PrevisaoDeColacao">Data prevista da colação, se houver.</param>
-/// <param name="PrevisaoDaFesta">Data prevista da festa, se houver.</param>
 /// <param name="QuantidadeEstimadaDeFormandos">Quantos formandos a comissão espera.</param>
-public sealed record DadosDaFormatura(
-    string Nome,
-    string Instituicao,
-    string Curso,
-    int Ano,
-    int Semestre,
-    DateOnly? PrevisaoDeColacao,
-    DateOnly? PrevisaoDaFesta,
-    int QuantidadeEstimadaDeFormandos
-);
+public sealed record DadosDaFormatura(string Nome, string Instituicao, string Curso, int Ano, int Semestre, int QuantidadeEstimadaDeFormandos);
 
-/// <summary>A formatura selecionada, como a tela de configurações e a faixa de status a enxergam.</summary>
+/// <summary>
+/// A formatura selecionada, como a tela de configurações e a faixa de status a enxergam.
+/// </summary>
+/// <remarks>
+/// <c>PrevisaoDeColacao</c> e <c>PrevisaoDaFesta</c> <b>não são colunas</b> desde a
+/// Sprint 19: saem dos eventos de tipo <c>Colacao</c> e <c>Festa</c> da agenda, por subconsulta. O
+/// contrato ficou idêntico de propósito — é o que faz o contador do Início, os três marcos e a
+/// janela da projeção do caixa continuarem certos sem nenhuma alteração neles.
+/// </remarks>
 /// <param name="Id">Identificador.</param>
 /// <param name="Nome">Nome da turma.</param>
 /// <param name="Instituicao">Instituição de ensino.</param>

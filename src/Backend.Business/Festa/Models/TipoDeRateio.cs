@@ -21,7 +21,7 @@ namespace Backend.Business.Festa.Models;
 /// a turma realmente paga o fotógrafo do caixa dela. É receita sem caminho.
 /// </para>
 /// <para>
-/// Quem fecha o circuito é o pedido do formando (Sprint 19, decisão 11): um item de catálogo aponta
+/// Quem fecha o circuito é o pedido do formando (Sprint 20, decisão 11): um item de catálogo aponta
 /// para o item da festa, o pedido vira parcela no nome de quem comprou, e o cartão troca
 /// <c>QuantidadeEstimada</c> pela contagem de pedidos confirmados.
 /// </para>

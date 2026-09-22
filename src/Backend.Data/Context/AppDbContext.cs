@@ -1,6 +1,7 @@
 using System.Reflection;
 using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Models;
+using Backend.Business.Agenda.Models;
 using Backend.Business.Arquivos.Models;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Auth.Models;
@@ -133,6 +134,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
 
     /// <summary>Em qual proposta cada formando votou — uma linha por formando por item.</summary>
     public DbSet<VotoNaProposta> VotosNasPropostas => Set<VotoNaProposta>();
+
+    /// <summary>
+    /// As datas da turma: colação, festa, reunião, prazo.
+    /// </summary>
+    /// <remarks>
+    /// Desde a Sprint 19 é aqui que moram a colação e a festa. A <c>Formatura</c> não as guarda mais
+    /// em coluna — o que a leitura dela devolve é projeção destas linhas.
+    /// </remarks>
+    public DbSet<EventoDaTurma> EventosDaTurma => Set<EventoDaTurma>();
 
     /// <summary>Saídas do caixa: o que a turma deve e o que já pagou, uma linha por vencimento.</summary>
     public DbSet<Despesa> Despesas => Set<Despesa>();

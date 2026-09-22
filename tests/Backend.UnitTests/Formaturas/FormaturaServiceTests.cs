@@ -36,7 +36,7 @@ public sealed class FormaturaServiceTests
     private FormaturaService Servico => new(_formaturas, _vinculos, _assinaturas, _provedor, _auth, new DadosDaFormaturaValidator(), _unitOfWork);
 
     private static DadosDaFormatura Dados(int? ano = null) =>
-        new("Medicina 2027.1 — UFPR", "UFPR", "Medicina", ano ?? DateTime.UtcNow.Year + 1, 1, null, null, 80);
+        new("Medicina 2027.1 — UFPR", "UFPR", "Medicina", ano ?? DateTime.UtcNow.Year + 1, 1, 80);
 
     [Fact]
     public async Task Criar_com_gratuita_pendente_devolve_conflito_sem_gravar()

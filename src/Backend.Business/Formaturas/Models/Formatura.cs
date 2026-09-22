@@ -8,6 +8,11 @@ namespace Backend.Business.Formaturas.Models;
 /// <remarks>
 /// Herda de <see cref="Entity"/>, e não de <see cref="EntidadeDaFormatura"/>: é a raiz do
 /// isolamento, então não pertence a si mesma. Quem filtra o acesso a ela é o vínculo.
+/// <para>
+/// <b>Sem as datas de colação e de festa</b> desde a Sprint 19: elas eram dois campos de cadastro
+/// que quatro telas liam como calendário, e viraram eventos da agenda (decisão 1). A
+/// <c>FormaturaDetalhe</c> continua devolvendo as duas — por projeção, não por coluna.
+/// </para>
 /// </remarks>
 public class Formatura : Entity
 {
@@ -33,12 +38,6 @@ public class Formatura : Entity
 
     /// <summary>Semestre de conclusão: 1 ou 2.</summary>
     public int Semestre { get; set; }
-
-    /// <summary>Data prevista da colação de grau, se já houver.</summary>
-    public DateOnly? PrevisaoDeColacao { get; set; }
-
-    /// <summary>Data prevista da festa (baile), se já houver.</summary>
-    public DateOnly? PrevisaoDaFesta { get; set; }
 
     /// <summary>Quantos formandos a comissão espera.</summary>
     public int QuantidadeEstimadaDeFormandos { get; set; }

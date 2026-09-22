@@ -1,3 +1,4 @@
+using Backend.Business.Agenda.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Data.Context;
@@ -12,6 +13,17 @@ namespace Backend.Data.Repositories;
 public sealed class FormaturaRepository(AppDbContext db) : IFormaturaRepository
 {
     /// <inheritdoc />
+    /// <remarks>
+    /// As duas datas saem da agenda (Sprint 19, decisão 1), por subconsulta correlacionada, ao lado
+    /// da que já existia para <c>JaContratou</c>. O contrato não mudou — é o que faz o contador do
+    /// Início, os três marcos e a janela da projeção do caixa seguirem certos sem uma linha de
+    /// alteração neles — e nada mais no produto lê estas datas de outro lugar.
+    /// <para>
+    /// A cláusula de formatura é explícita <b>além</b> do filtro global: sem ela, chamar este método
+    /// com uma turma diferente da que está na sessão devolveria a data da turma da sessão no detalhe
+    /// da outra. O filtro global sozinho não repara nisso, porque quem varia aqui é o parâmetro.
+    /// </para>
+    /// </remarks>
     public Task<FormaturaDetalhe?> ObterDetalhe(Guid formaturaId, CancellationToken ct = default) =>
         db
             .Formaturas.AsNoTracking()
@@ -23,8 +35,8 @@ public sealed class FormaturaRepository(AppDbContext db) : IFormaturaRepository
                 f.Curso,
                 f.Ano,
                 f.Semestre,
-                f.PrevisaoDeColacao,
-                f.PrevisaoDaFesta,
+                db.EventosDaTurma.Where(e => e.FormaturaId == f.Id && e.Tipo == TipoDeEvento.Colacao).Select(e => (DateOnly?)e.Data).FirstOrDefault(),
+                db.EventosDaTurma.Where(e => e.FormaturaId == f.Id && e.Tipo == TipoDeEvento.Festa).Select(e => (DateOnly?)e.Data).FirstOrDefault(),
                 f.QuantidadeEstimadaDeFormandos,
                 f.Status,
                 f.CriadoEm,

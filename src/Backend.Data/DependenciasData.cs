@@ -1,6 +1,7 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Admin.Interfaces;
+using Backend.Business.Agenda.Interfaces;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Auth.Interfaces;
@@ -128,6 +129,7 @@ public static class DependenciasData
         services.AddScoped<IInformeRepository, InformeRepository>();
         services.AddScoped<IRecebimentoRepository, RecebimentoRepository>();
         services.AddScoped<IItemDaFestaRepository, ItemDaFestaRepository>();
+        services.AddScoped<IEventoDaTurmaRepository, EventoDaTurmaRepository>();
         services.AddScoped<IPropostaRepository, PropostaRepository>();
         services.AddScoped<IFornecedorRepository, FornecedorRepository>();
         services.AddScoped<IDespesaRepository, DespesaRepository>();

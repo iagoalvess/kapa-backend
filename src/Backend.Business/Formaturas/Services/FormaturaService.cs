@@ -242,8 +242,6 @@ public sealed class FormaturaService(
         formatura.Curso = dados.Curso.Trim();
         formatura.Ano = dados.Ano;
         formatura.Semestre = dados.Semestre;
-        formatura.PrevisaoDeColacao = dados.PrevisaoDeColacao;
-        formatura.PrevisaoDaFesta = dados.PrevisaoDaFesta;
         formatura.QuantidadeEstimadaDeFormandos = dados.QuantidadeEstimadaDeFormandos;
     }
 }

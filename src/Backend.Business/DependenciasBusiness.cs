@@ -4,6 +4,8 @@ using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Services;
 using Backend.Business.Admin.Interfaces;
 using Backend.Business.Admin.Services;
+using Backend.Business.Agenda.Interfaces;
+using Backend.Business.Agenda.Services;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Services;
 using Backend.Business.Arquivos.Settings;
@@ -179,6 +181,7 @@ public static class DependenciasBusiness
         services.AddScoped<IContaDeRecebimentoService, ContaDeRecebimentoService>();
         services.AddScoped<EmailsDeRecebimento>();
         services.AddScoped<IItemDaFestaService, ItemDaFestaService>();
+        services.AddScoped<IAgendaService, AgendaService>();
         services.AddScoped<IPropostaService, PropostaService>();
         services.AddScoped<IFornecedorService, FornecedorService>();
         services.AddScoped<IDespesaService, DespesaService>();

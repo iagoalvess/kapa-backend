@@ -25,14 +25,18 @@ public sealed record FormaturaDoUsuarioDTO(
     DateTime? DesligadoEm
 );
 
-/// <summary>Corpo da criação e da edição de formatura.</summary>
+/// <summary>
+/// Corpo da criação e da edição de formatura.
+/// </summary>
+/// <remarks>
+/// Sem as datas de colação e de festa desde a Sprint 19: quem as grava é <c>POST /agenda</c>, e é a
+/// agenda que as devolve no detalhe da turma.
+/// </remarks>
 /// <param name="Nome">Nome da turma.</param>
 /// <param name="Instituicao">Instituição de ensino.</param>
 /// <param name="Curso">Curso.</param>
 /// <param name="Ano">Ano de conclusão.</param>
 /// <param name="Semestre">1 ou 2.</param>
-/// <param name="PrevisaoDeColacao">Data prevista da colação (<c>yyyy-MM-dd</c>), opcional.</param>
-/// <param name="PrevisaoDaFesta">Data prevista da festa (<c>yyyy-MM-dd</c>), opcional.</param>
 /// <param name="QuantidadeEstimadaDeFormandos">Quantos formandos a comissão espera.</param>
 /// <param name="RefreshToken">
 /// Refresh token atual, só na criação e só com o modo cookie desligado — com ele ligado, é ignorado.
@@ -43,8 +47,6 @@ public sealed record DadosDaFormaturaRequestDTO(
     string Curso,
     int Ano,
     int Semestre,
-    DateOnly? PrevisaoDeColacao,
-    DateOnly? PrevisaoDaFesta,
     int QuantidadeEstimadaDeFormandos,
     string? RefreshToken = null
 );
@@ -56,8 +58,8 @@ public sealed record DadosDaFormaturaRequestDTO(
 /// <param name="Curso">Curso.</param>
 /// <param name="Ano">Ano de conclusão.</param>
 /// <param name="Semestre">Semestre de conclusão.</param>
-/// <param name="PrevisaoDeColacao">Data prevista da colação.</param>
-/// <param name="PrevisaoDaFesta">Data prevista da festa.</param>
+/// <param name="PrevisaoDeColacao">Data prevista da colação, lida do evento da agenda.</param>
+/// <param name="PrevisaoDaFesta">Data prevista da festa, lida do evento da agenda.</param>
 /// <param name="QuantidadeEstimadaDeFormandos">Quantos formandos a comissão espera.</param>
 /// <param name="Status"><c>Ativa</c>, <c>Suspensa</c>, <c>Encerrada</c> ou <c>Descartada</c>.</param>
 /// <param name="CriadoEm">Criação, em UTC.</param>

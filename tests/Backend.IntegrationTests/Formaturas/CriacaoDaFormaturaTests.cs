@@ -29,16 +29,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
     private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
 
     private static DadosDaFormaturaRequestDTO Dados(string nome = "Medicina 2027.1 — UFPR") =>
-        new(
-            nome,
-            "UFPR",
-            "Medicina",
-            DateTime.UtcNow.Year + 1,
-            1,
-            new DateOnly(DateTime.UtcNow.Year + 1, 7, 15),
-            new DateOnly(DateTime.UtcNow.Year + 1, 7, 18),
-            80
-        );
+        new(nome, "UFPR", "Medicina", DateTime.UtcNow.Year + 1, 1, 80);
 
     [Fact]
     public async Task Criar_grava_rascunho_com_vinculo_de_presidente_e_devolve_tokens_na_formatura()
@@ -63,7 +54,6 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
         formatura.Status.ShouldBe(StatusDaFormatura.Ativa);
         formatura.AtivadaEm.ShouldNotBeNull();
         formatura.CriadoPorUsuarioId.ShouldBe(usuarioId);
-        formatura.PrevisaoDaFesta.ShouldBe(new DateOnly(DateTime.UtcNow.Year + 1, 7, 18));
         var vinculo = await contexto.Vinculos.SingleAsync(v => v.FormaturaId == formaturaId, Ct);
         vinculo.UsuarioId.ShouldBe(usuarioId);
         vinculo.Papel.ShouldBe(PapelNaFormatura.Presidente);
@@ -109,7 +99,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         cliente.ComToken((await cliente.RegistrarUsuarioComum(Ct)).AccessToken);
 
-        var resposta = await cliente.PostAsJsonAsync(Rota, new DadosDaFormaturaRequestDTO("AB", "", "", 1999, 3, null, null, 0), Ct);
+        var resposta = await cliente.PostAsJsonAsync(Rota, new DadosDaFormaturaRequestDTO("AB", "", "", 1999, 3, 0), Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var corpo = await resposta.Content.ReadAsStringAsync(Ct);
