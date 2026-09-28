@@ -61,6 +61,13 @@ public sealed class ProvedorFake(IOptions<AssinaturaSettings> options) : IProved
     }
 
     /// <inheritdoc />
+    public Task<Result> AtualizarValor(string idExterno, long valorEmCentavos, CancellationToken ct = default) => Task.FromResult(Result.Ok());
+
+    /// <inheritdoc />
+    public Task<Result> Estornar(string idDoPagamento, long valorEmCentavos, Guid chave, CancellationToken ct = default) =>
+        Task.FromResult(Result.Ok());
+
+    /// <inheritdoc />
     public Result<EventoDoProvedor> LerWebhook(string corpo, string? assinaturaHmac)
     {
         if (string.IsNullOrEmpty(Settings.SegredoDoWebhook) || string.IsNullOrWhiteSpace(assinaturaHmac))
@@ -85,9 +92,15 @@ public sealed class ProvedorFake(IOptions<AssinaturaSettings> options) : IProved
     }
 
     /// <inheritdoc />
-    public Task<Result<EventoDoProvedor?>> ConsultarPagamento(Guid assinaturaId, string? idExterno, CancellationToken ct = default) =>
+    /// <remarks>A referência é a assinatura ou a cobrança avulsa, como no provedor real.</remarks>
+    public Task<Result<EventoDoProvedor?>> ConsultarPagamento(Guid referencia, string? idExterno, CancellationToken ct = default) =>
         Task.FromResult(
-            Result.Ok(_sessoes.Values.FirstOrDefault(sessao => sessao.Pedido.AssinaturaId == assinaturaId && sessao.Pagamento is not null)?.Pagamento)
+            Result.Ok(
+                _sessoes
+                    .Values.Where(sessao => sessao.Pagamento is not null)
+                    .FirstOrDefault(sessao => (sessao.Pedido.CobrancaId ?? sessao.Pedido.AssinaturaId) == referencia)
+                    ?.Pagamento
+            )
         );
 
     /// <summary>Sessão de checkout aberta, para a página fake desenhar.</summary>
@@ -99,7 +112,8 @@ public sealed class ProvedorFake(IOptions<AssinaturaSettings> options) : IProved
     /// </summary>
     /// <remarks>
     /// Pagamento aprovado fica registrado na sessão — é o que <see cref="ConsultarPagamento"/> devolve
-    /// quando o webhook se perde.
+    /// quando o webhook se perde. A recorrência que começa depois (a troca do PIX para o cartão) só é autorizada:
+    /// o primeiro débito é no fim da vigência, como no provedor real.
     /// </remarks>
     /// <param name="id">Id da sessão.</param>
     /// <param name="aprovado">Pagou (<c>true</c>) ou o pagamento foi recusado.</param>
@@ -109,17 +123,38 @@ public sealed class ProvedorFake(IOptions<AssinaturaSettings> options) : IProved
         if (!_sessoes.TryGetValue(id, out var sessao))
             return null;
 
+        if (aprovado && sessao.Pagamento is { } jaPago)
+            return Webhook(jaPago);
+
+        var pedido = sessao.Pedido;
+        var tipo = (aprovado, pedido.ComecaEm) switch
+        {
+            (false, _) => TiposDeEvento.PagamentoRecusado,
+            (true, not null) => TiposDeEvento.RecorrenciaAutorizada,
+            _ => TiposDeEvento.PagamentoConfirmado,
+        };
+        var pago = tipo == TiposDeEvento.PagamentoConfirmado;
+
         var evento = new EventoDoProvedor(
             $"evt_{Guid.CreateVersion7():N}",
-            aprovado ? TiposDeEvento.PagamentoConfirmado : TiposDeEvento.PagamentoRecusado,
-            sessao.Pedido.AssinaturaId,
-            id,
-            DateTime.UtcNow
+            tipo,
+            pedido.AssinaturaId,
+            pedido.CobrancaId is null ? id : null,
+            DateTime.UtcNow,
+            pedido.CobrancaId,
+            pago ? $"pag_{Guid.CreateVersion7():N}" : null,
+            pago ? pedido.PrecoEmCentavos : null
         );
 
-        if (aprovado)
+        if (pago)
             _sessoes[id] = sessao with { Pagamento = evento };
 
+        return Webhook(evento);
+    }
+
+    /// <summary>O evento como o PSP o entrega: JSON assinado. Pagar de novo a mesma sessão devolve o mesmo evento, como no PSP real.</summary>
+    private WebhookFake Webhook(EventoDoProvedor evento)
+    {
         var corpo = JsonSerializer.Serialize(evento, Json);
 
         return new WebhookFake(corpo, Assinar(corpo, Settings.SegredoDoWebhook));

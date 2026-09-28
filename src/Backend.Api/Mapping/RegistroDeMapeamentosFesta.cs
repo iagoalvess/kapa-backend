@@ -43,5 +43,9 @@ public sealed class RegistroDeMapeamentosFesta : IRegister
         config.NewConfig<MesaResumo, MesaDTO>();
         config.NewConfig<CompradorDeMesa, CompradorDeMesaDTO>();
         config.NewConfig<MapaDeMesas, MapaDeMesasDTO>();
+        config.NewConfig<ElementoDoSalao, ElementoDoSalaoDTO>();
+        config.NewConfig<PlantaDoSalao, PlantaDoSalaoDTO>();
+        config.NewConfig<MesaNoSalao, MesaNoSalaoDTO>();
+        config.NewConfig<SalaoDoFormando, SalaoDoFormandoDTO>();
     }
 }

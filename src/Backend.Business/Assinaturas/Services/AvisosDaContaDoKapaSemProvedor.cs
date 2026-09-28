@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace Backend.Business.Assinaturas.Services;
 
 /// <summary>
-/// Enquanto o Kapa não recebe os planos pelo Mercado Pago (a assinatura roda no <c>ProvedorFake</c>), o aviso
+/// Com a assinatura no <c>ProvedorFake</c> (<c>Assinaturas:Provedor=Fake</c>), o aviso
 /// da conta do Kapa é registrado e respondido com sucesso — senão o Mercado Pago o reentregaria para sempre.
 /// </summary>
 /// <param name="logger">Log estruturado.</param>

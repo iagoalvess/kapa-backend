@@ -7,6 +7,7 @@ using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Formaturas.Services;
 using Backend.Business.Formaturas.Validators;
+using Backend.Business.Pagamentos.Models;
 using NSubstitute;
 using Shouldly;
 
@@ -191,7 +192,20 @@ public sealed class FormaturaServiceTests
         _formaturas.ObterParaEdicao(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(formatura);
         _assinaturas
             .ObterDetalheDaMaisRecente(Arg.Any<CancellationToken>())
-            .Returns(new AssinaturaDetalhe(Guid.CreateVersion7(), StatusDaAssinatura.Ativa, null!, null, null, null, DateTime.UtcNow));
+            .Returns(
+                new AssinaturaDetalhe(
+                    Guid.CreateVersion7(),
+                    StatusDaAssinatura.Ativa,
+                    null!,
+                    null,
+                    null,
+                    null,
+                    DateTime.UtcNow,
+                    MeioDePagamento.Cartao,
+                    null,
+                    false
+                )
+            );
 
         var resultado = await Servico.Encerrar(Guid.CreateVersion7(), Ct);
 

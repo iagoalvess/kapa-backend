@@ -91,6 +91,37 @@ public sealed class AdminController(IAdminService adminService, IUsuarioAtual us
     public async Task<IActionResult> AtivarAssinatura(Guid id, CancellationToken ct) =>
         Responder((await adminService.AtivarAssinatura(id, usuarioAtual.Id, ct)).Map(turma => turma.Adapt<TurmaNoSuporteDTO>()));
 
+    /// <summary>
+    /// Estorna um pagamento do plano e encerra a assinatura na hora: a renovação é cancelada no provedor e a turma
+    /// fica só para consulta (Sprint 37, P7).
+    /// </summary>
+    /// <remarks>
+    /// <c>Integral</c> só até 7 dias do pagamento (desistência); <c>Proporcional</c> devolve o que falta do ciclo — os
+    /// casos das seções 13 e 14 dos Termos. Grava evento de auditoria com a formatura.
+    /// </remarks>
+    /// <param name="id">Formatura.</param>
+    /// <param name="cobrancaId">Pagamento.</param>
+    /// <param name="requisicao">Modo do estorno.</param>
+    [HttpPost("suporte/formaturas/{id:guid}/pagamentos/{cobrancaId:guid}/estornar")]
+    [ProducesResponseType(typeof(TurmaNoSuporteDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> Estornar(Guid id, Guid cobrancaId, [FromBody] EstornarPagamentoRequestDTO requisicao, CancellationToken ct) =>
+        Responder((await adminService.Estornar(id, cobrancaId, requisicao.Modo, usuarioAtual.Id, ct)).Map(turma => turma.Adapt<TurmaNoSuporteDTO>()));
+
+    /// <summary>A planilha (.xlsx) dos pagamentos do plano confirmados no mês — a base da nota fiscal manual (P6).</summary>
+    /// <remarks>Traz o CPF inteiro do Presidente, o tomador: é o que o portal da prefeitura pede.</remarks>
+    /// <param name="ano">Ano.</param>
+    /// <param name="mes">Mês, de 1 a 12.</param>
+    [HttpGet("suporte/pagamentos")]
+    [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ExportarPagamentos([FromQuery] int ano, [FromQuery] int mes, CancellationToken ct) =>
+        Arquivo(await adminService.ExportarPagamentos(ano, mes, ct));
+
     /// <summary>A conta: acesso, bloqueio por tentativas e em que turmas a pessoa está.</summary>
     /// <param name="id">Conta.</param>
     [HttpGet("suporte/usuarios/{id:guid}")]

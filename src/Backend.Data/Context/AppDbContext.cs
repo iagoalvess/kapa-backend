@@ -93,6 +93,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Eventos recebidos do provedor de assinatura.</summary>
     public DbSet<EventoDeCobranca> EventosDeCobranca => Set<EventoDeCobranca>();
 
+    /// <summary>Pagamentos do plano: o PIX de cada ciclo, a diferença de plano e os débitos do cartão.</summary>
+    public DbSet<CobrancaDaAssinatura> CobrancasDaAssinatura => Set<CobrancaDaAssinatura>();
+
     /// <summary>Versões publicadas dos documentos legais da plataforma.</summary>
     public DbSet<DocumentoLegal> DocumentosLegais => Set<DocumentoLegal>();
 
@@ -170,6 +173,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
 
     /// <summary>Mesas do jantar: nome, lugares e o dono da mesa vendida (Sprint 27).</summary>
     public DbSet<Mesa> Mesas => Set<Mesa>();
+
+    /// <summary>O salão do jantar de cada turma: tamanho, palco, pista e o resto do mapa (28/09/2026).</summary>
+    public DbSet<Salao> Saloes => Set<Salao>();
 
     /// <summary>Saídas do caixa: o que a turma deve e o que já pagou, uma linha por vencimento.</summary>
     public DbSet<Despesa> Despesas => Set<Despesa>();

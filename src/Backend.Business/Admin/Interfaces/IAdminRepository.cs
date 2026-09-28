@@ -37,4 +37,12 @@ public interface IAdminRepository
     /// <summary>A conta inteira como o suporte a vê, ou nulo se não existir.</summary>
     /// <param name="usuarioId">Conta.</param>
     Task<UsuarioNoSuporte?> ObterUsuarioDeTodasAsFormaturas(Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Os pagamentos do plano confirmados no período, de todas as turmas, com o Presidente como tomador — a lista da
+    /// nota fiscal manual (P6). O CPF sai inteiro.
+    /// </summary>
+    /// <param name="inicio">Início do período, em UTC, inclusive.</param>
+    /// <param name="fim">Fim do período, em UTC, exclusive.</param>
+    Task<IReadOnlyList<PagamentoParaNota>> ListarPagamentosParaNotaDeTodasAsFormaturas(DateTime inicio, DateTime fim, CancellationToken ct = default);
 }

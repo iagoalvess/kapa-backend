@@ -69,4 +69,7 @@ public static class TiposDeEvento
 
     /// <summary>Provedor desistiu de cobrar.</summary>
     public const string AssinaturaVencida = "assinatura.vencida";
+
+    /// <summary>A recorrência no cartão foi autorizada na página do provedor — a troca do PIX para o cartão (P5).</summary>
+    public const string RecorrenciaAutorizada = "recorrencia.autorizada";
 }

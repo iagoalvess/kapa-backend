@@ -7,6 +7,7 @@ using Backend.Business.Assinaturas.Validators;
 using Backend.Business.Common;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Pagamentos.Models;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -258,5 +259,211 @@ public sealed class AssinaturaServiceTests
 
         resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("assinatura.nao_ativa");
         await _provedor.DidNotReceiveWithAnyArgs().Cancelar(default!, Ct);
+    }
+
+    private static readonly Plano Essencial = new()
+    {
+        Codigo = "essencial",
+        Nome = "Essencial",
+        PrecoEmCentavos = 2990,
+        LimiteDeFormandos = 50,
+    };
+
+    /// <summary>Uma assinatura ativa no plano, paga há <paramref name="diasPagos"/> dias, devolvida pelo repositório.</summary>
+    private Assinatura AtivaEm(Plano plano, int diasPagos = 0, MeioDePagamento meio = MeioDePagamento.Cartao, string? recorrencia = "pre_1")
+    {
+        var assinatura = new Assinatura
+        {
+            PlanoId = plano.Id,
+            Meio = meio,
+            IdExterno = recorrencia,
+        };
+        assinatura.ConfirmarPagamento(DateTime.UtcNow.AddDays(-diasPagos), plano.Ciclo);
+
+        _assinaturas.ObterMaisRecenteParaEdicao(Arg.Any<CancellationToken>()).Returns(assinatura);
+        _assinaturas.ObterPlano(plano.Id, Arg.Any<CancellationToken>()).Returns(plano);
+        _assinaturas.ObterPlano(Essencial.Id, Arg.Any<CancellationToken>()).Returns(Essencial);
+        _assinaturas.ObterPlano(Premium.Id, Arg.Any<CancellationToken>()).Returns(Premium);
+        _assinaturas.ObterPlanoAtivo("essencial", Arg.Any<CancellationToken>()).Returns(Essencial);
+        _assinaturas
+            .ObterDetalheDaMaisRecente(Arg.Any<CancellationToken>())
+            .Returns(new AssinaturaDetalhe(assinatura.Id, assinatura.Status, null!, null, null, null, DateTime.UtcNow, meio, null, false));
+        _provedor.Cancelar(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Result.Ok());
+        _provedor.AtualizarValor(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(Result.Ok());
+
+        return assinatura;
+    }
+
+    /// <summary>Sprint 37: pelo PIX a contratação é uma cobrança aberta, com a página do provedor; não há recorrência.</summary>
+    [Fact]
+    public async Task Checkout_no_pix_abre_a_cobranca_do_ciclo_sem_recorrencia()
+    {
+        // Arrange
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        Assinatura? criada = null;
+        CobrancaDaAssinatura? cobranca = null;
+        await _assinaturas.Adicionar(Arg.Do<Assinatura>(a => criada = a), Arg.Any<CancellationToken>());
+        await _assinaturas.AdicionarCobranca(Arg.Do<CobrancaDaAssinatura>(c => cobranca = c), Arg.Any<CancellationToken>());
+
+        // Act
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium", MeioDePagamento.Pix, "p@turma.com"), Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        criada!.Meio.ShouldBe(MeioDePagamento.Pix);
+        criada.IdExterno.ShouldBeNull();
+        cobranca!.ValorEmCentavos.ShouldBe(4990);
+        cobranca.Url.ShouldBe("https://psp/checkout/sessao-1");
+        await _provedor
+            .Received(1)
+            .CriarCheckout(Arg.Is<PedidoDeCheckout>(p => p.CobrancaId == cobranca.Id && p.Meio == MeioDePagamento.Pix), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>P4: faltando metade do ciclo, a subida cobra metade da diferença — e o plano só muda quando ela for paga.</summary>
+    [Fact]
+    public async Task Subida_de_plano_cobra_a_diferenca_proporcional()
+    {
+        // Arrange
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        var assinatura = AtivaEm(Essencial, diasPagos: 15);
+        CobrancaDaAssinatura? diferenca = null;
+        await _assinaturas.AdicionarCobranca(Arg.Do<CobrancaDaAssinatura>(c => diferenca = c), Arg.Any<CancellationToken>());
+
+        // Act
+        var resultado = await Servico.TrocarPlano(formatura.Id, "premium", "p@turma.com", Ct);
+
+        // Assert
+        resultado.Valor.Url.ShouldBe("https://psp/checkout/sessao-1");
+        diferenca!.Motivo.ShouldBe(MotivoDaCobranca.Diferenca);
+        diferenca.PlanoId.ShouldBe(Premium.Id);
+        diferenca.ValorEmCentavos.ShouldBeInRange(950, 1050);
+        assinatura.PlanoId.ShouldBe(Essencial.Id);
+    }
+
+    /// <summary>P4: a descida vale na renovação, se a turma couber — e a recorrência já passa a cobrar o preço novo.</summary>
+    [Fact]
+    public async Task Descida_de_plano_agenda_e_ajusta_a_recorrencia()
+    {
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        var assinatura = AtivaEm(Premium);
+
+        var resultado = await Servico.TrocarPlano(formatura.Id, "essencial", null, Ct);
+
+        resultado.Valor.Url.ShouldBeNull();
+        assinatura.PlanoId.ShouldBe(Premium.Id);
+        assinatura.PlanoDoProximoCicloId.ShouldBe(Essencial.Id);
+        await _provedor.Received(1).AtualizarValor("pre_1", 2990, Arg.Any<CancellationToken>());
+        await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Descida_para_plano_menor_que_a_turma_e_recusada()
+    {
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        AtivaEm(Premium);
+        _vinculos
+            .ContarMembros(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns([new ContagemDeMembros(PapelNaFormatura.Formando, true, false, false, 51)]);
+
+        var resultado = await Servico.TrocarPlano(formatura.Id, "essencial", null, Ct);
+
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("assinatura.plano_menor_que_a_turma");
+        await _provedor.DidNotReceiveWithAnyArgs().AtualizarValor(default!, default, Ct);
+    }
+
+    [Fact]
+    public async Task Troca_entre_mensal_e_anual_e_recusada()
+    {
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        AtivaEm(Essencial);
+        _assinaturas
+            .ObterPlanoAtivo("premium-anual", Arg.Any<CancellationToken>())
+            .Returns(
+                new Plano
+                {
+                    Codigo = "premium-anual",
+                    PrecoEmCentavos = 47900,
+                    Ciclo = CicloDeCobranca.Anual,
+                    LimiteDeFormandos = 400,
+                }
+            );
+
+        var resultado = await Servico.TrocarPlano(formatura.Id, "premium-anual", null, Ct);
+
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("assinatura.troca_de_ciclo");
+    }
+
+    /// <summary>P5: do cartão para o PIX, a recorrência é cancelada agora e o próximo ciclo vira um PIX.</summary>
+    [Fact]
+    public async Task Trocar_para_o_pix_cancela_a_recorrencia()
+    {
+        var assinatura = AtivaEm(Premium);
+
+        var resultado = await Servico.TrocarMeio(MeioDePagamento.Pix, null, Ct);
+
+        resultado.Valor.Url.ShouldBeNull();
+        assinatura.Meio.ShouldBe(MeioDePagamento.Pix);
+        assinatura.IdExterno.ShouldBeNull();
+        await _provedor.Received(1).Cancelar("pre_1", Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>P5: do PIX para o cartão, o primeiro débito é no fim da vigência e o PIX aberto do ciclo é cancelado.</summary>
+    [Fact]
+    public async Task Trocar_para_o_cartao_comeca_no_fim_da_vigencia_sem_cobrar_em_dobro()
+    {
+        // Arrange
+        var assinatura = AtivaEm(Premium, meio: MeioDePagamento.Pix, recorrencia: null);
+        var aberta = CobrancaDaAssinatura.Abrir(assinatura.Id, Premium.Id, MotivoDaCobranca.Ciclo, MeioDePagamento.Pix, 4990);
+        _assinaturas.ObterCobrancaAbertaParaEdicao(assinatura.Id, MotivoDaCobranca.Ciclo, Arg.Any<CancellationToken>()).Returns(aberta);
+
+        // Act
+        var resultado = await Servico.TrocarMeio(MeioDePagamento.Cartao, "p@turma.com", Ct);
+
+        // Assert
+        resultado.Valor.Url.ShouldBe("https://psp/checkout/sessao-1");
+        assinatura.Meio.ShouldBe(MeioDePagamento.Pix);
+        assinatura.IdExterno.ShouldBe("sessao-1");
+        aberta.Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Cancelada);
+        await _provedor
+            .Received(1)
+            .CriarCheckout(
+                Arg.Is<PedidoDeCheckout>(p => p.CobrancaId == null && p.ComecaEm == assinatura.VigenteAte && p.EmailDoPagador == "p@turma.com"),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    [Fact]
+    public async Task Trocar_para_o_mesmo_meio_e_conflito()
+    {
+        AtivaEm(Premium);
+
+        var resultado = await Servico.TrocarMeio(MeioDePagamento.Cartao, null, Ct);
+
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("assinatura.mesmo_meio");
+    }
+
+    /// <summary>O PIX da renovação abre sete dias antes do vencimento, como o aviso por e-mail.</summary>
+    [Theory]
+    [InlineData(10, false)]
+    [InlineData(25, true)]
+    public async Task Pix_da_renovacao_abre_sete_dias_antes(int diasPagos, bool abre)
+    {
+        AtivaEm(Premium, diasPagos, MeioDePagamento.Pix, recorrencia: null);
+
+        var resultado = await Servico.PagarCiclo("p@turma.com", Ct);
+
+        resultado.Sucesso.ShouldBe(abre);
+        if (!abre)
+            resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("assinatura.renovacao_ainda_nao_aberta");
+    }
+
+    [Fact]
+    public async Task Pix_da_renovacao_no_cartao_e_conflito()
+    {
+        AtivaEm(Premium, diasPagos: 25);
+
+        var resultado = await Servico.PagarCiclo(null, Ct);
+
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("assinatura.renovacao_automatica");
     }
 }

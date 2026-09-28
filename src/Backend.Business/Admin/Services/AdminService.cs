@@ -1,17 +1,22 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Admin.Interfaces;
 using Backend.Business.Admin.Models;
+using Backend.Business.Arquivos.Models;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Assinaturas.Services;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
+using Backend.Business.Common.Datas;
 using Backend.Business.Common.Texto;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
 using Backend.Business.Eventos.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Pagamentos.Models;
+using Backend.Business.Relatorios.Models;
+using Backend.Business.Relatorios.Services;
 using Backend.Business.Usuarios.Interfaces;
 using Backend.Business.Usuarios.Models;
 using Microsoft.AspNetCore.Identity;
@@ -52,6 +57,7 @@ namespace Backend.Business.Admin.Services;
 /// <param name="emails">E-mails da assinatura.</param>
 /// <param name="eventos">Trilha de auditoria.</param>
 /// <param name="userManager">API do Identity, para levantar o bloqueio por tentativas.</param>
+/// <param name="provedor">O PSP da licença, para o estorno.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class AdminService(
@@ -64,10 +70,14 @@ public sealed class AdminService(
     EmailsDeAssinatura emails,
     IEventoRepository eventos,
     UserManager<Usuario> userManager,
+    IProvedorDeAssinatura provedor,
     IUnitOfWork unitOfWork,
     ILogger<AdminService> logger
 ) : IAdminService
 {
+    /// <summary>A janela da desistência com reembolso integral: 7 dias do pagamento (Termos, seção 7; art. 49 do CDC).</summary>
+    private const int DiasDeDesistencia = 7;
+
     /// <summary>
     /// Piso do termo de busca.
     /// </summary>
@@ -194,6 +204,159 @@ public sealed class AdminService(
             },
             ct
         );
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A ordem protege o dinheiro: a renovação é cancelada no provedor <b>antes</b> do estorno — se o provedor falhar
+    /// ali, nada foi devolvido e nada muda. Depois do estorno, o que resta é gravar; o aviso de recorrência cancelada
+    /// que o provedor manda em seguida acerta a assinatura se a gravação falhar.
+    /// <para>
+    /// O proporcional é o que falta da vigência sobre o ciclo do plano. <c>ponytail:</c> mede pela vigência atual —
+    /// estornar um ciclo antigo pelo proporcional devolve o que falta do ciclo corrente; o suporte estorna o último.
+    /// </para>
+    /// </remarks>
+    public Task<Result<TurmaNoSuporte>> Estornar(
+        Guid formaturaId,
+        Guid cobrancaId,
+        ModoDeEstorno modo,
+        Guid autorId,
+        CancellationToken ct = default
+    ) =>
+        unitOfWork.EmTransacaoAsync<Result<TurmaNoSuporte>>(
+            async token =>
+            {
+                var cobranca = await assinaturaRepository.ObterCobrancaParaEdicaoDeTodasAsFormaturas(cobrancaId, token);
+                var assinatura = cobranca is null
+                    ? null
+                    : await assinaturaRepository.ObterParaEdicaoDeTodasAsFormaturas(cobranca.AssinaturaId, token);
+
+                if (cobranca is null || assinatura is null || assinatura.FormaturaId != formaturaId)
+                    return Erro.NaoEncontrado("suporte.pagamento_nao_encontrado", "Pagamento não encontrado nesta turma.");
+
+                if (cobranca is not { Situacao: SituacaoDaCobrancaDoPlano.Paga, IdDoPagamento: { } idDoPagamento, PagaEm: { } pagaEm })
+                    return Erro.Conflito("estorno.cobranca_nao_paga", "Só um pagamento confirmado, e ainda não estornado, pode ser estornado.");
+
+                var agora = DateTime.UtcNow;
+                var ciclo = (await assinaturaRepository.ObterPlano(assinatura.PlanoId, token))?.Ciclo ?? CicloDeCobranca.Mensal;
+
+                if (modo == ModoDeEstorno.Integral && pagaEm < agora.AddDays(-DiasDeDesistencia))
+                    return Erro.Conflito(
+                        "estorno.fora_do_prazo",
+                        "O reembolso integral vale até 7 dias depois do pagamento. Depois disso, só o proporcional, nos casos dos Termos."
+                    );
+
+                var valor =
+                    modo == ModoDeEstorno.Integral
+                        ? cobranca.ValorEmCentavos
+                        : (long)Math.Round(cobranca.ValorEmCentavos * assinatura.FracaoRestante(agora, ciclo));
+
+                if (valor <= 0)
+                    return Erro.Conflito("estorno.nada_a_devolver", "A vigência deste pagamento já acabou: não há o que devolver pelo proporcional.");
+
+                if (assinatura.IdExterno is { } recorrencia)
+                {
+                    var cancelada = await provedor.Cancelar(recorrencia, token);
+                    if (cancelada.Falhou)
+                        return Result.Falha<TurmaNoSuporte>(cancelada.Erros);
+                }
+
+                var devolvido = await provedor.Estornar(idDoPagamento, valor, cobranca.Id, token);
+                if (devolvido.Falhou)
+                    return Result.Falha<TurmaNoSuporte>(devolvido.Erros);
+
+                cobranca.Estornar(valor, agora);
+                assinatura.IdExterno = null;
+                assinatura.Encerrar(agora);
+
+                var formatura = await formaturaRepository.ObterParaEdicao(formaturaId, token);
+                formatura?.Transicionar(StatusDaFormatura.Suspensa);
+
+                await eventos.Auditar(
+                    NomesDeAuditoria.SuportePagamentoEstornado,
+                    autorId,
+                    new
+                    {
+                        formaturaId,
+                        assinaturaId = assinatura.Id,
+                        cobrancaId,
+                        modo = modo.ToString(),
+                        valorEmCentavos = valor,
+                    },
+                    token
+                );
+
+                logger.LogWarning(
+                    "Suporte estornou {Valor} centavos do pagamento {CobrancaId} da formatura {FormaturaId}.",
+                    valor,
+                    cobrancaId,
+                    formaturaId
+                );
+
+                await unitOfWork.SalvarAsync(token);
+
+                return await adminRepository.ObterTurmaDeTodasAsFormaturas(formaturaId, token) is { } turma ? Result.Ok(turma) : TurmaNaoEncontrada;
+            },
+            ct
+        );
+
+    /// <inheritdoc />
+    /// <remarks>O mês é o do fuso de exibição: o pagamento das 22h do dia 30 em Brasília é de setembro, ainda que em UTC já seja outubro.</remarks>
+    public async Task<Result<ArquivoParaDownload>> ExportarPagamentos(int ano, int mes, CancellationToken ct = default)
+    {
+        if (mes is < 1 or > 12 || ano is < 2000 or > 2100)
+            return Erro.Validacao("suporte.mes_invalido", "Escolha um mês válido.", campo: "mes");
+
+        var primeiro = new DateOnly(ano, mes, 1);
+        var pagamentos = await adminRepository.ListarPagamentosParaNotaDeTodasAsFormaturas(
+            DataUtils.InicioDoDiaEmUtc(primeiro),
+            DataUtils.InicioDoDiaEmUtc(primeiro.AddMonths(1)),
+            ct
+        );
+
+        var tabela = new TabelaDoRelatorio(
+            $"Pagamentos dos planos — {mes:00}/{ano}",
+            $"{pagamentos.Count} pagamento(s), {FormatosBrasileiros.Reais(pagamentos.Sum(p => p.ValorEmCentavos))} — base da nota fiscal manual",
+            [
+                new("Data", 1, Direita: true),
+                new("Turma", 2),
+                new("Instituição", 2),
+                new("Plano", 1),
+                new("Motivo", 1),
+                new("Meio", 1),
+                new("Valor", 1, Direita: true),
+                new("Estornado", 1, Direita: true),
+                new("Tomador (Presidente)", 2),
+                new("E-mail", 2),
+                new("CPF", 1),
+                new("Pagamento no provedor", 1),
+            ],
+            [
+                .. pagamentos.Select(p =>
+                    (IReadOnlyList<Celula>)
+                        [
+                            Celula.Data(DateOnly.FromDateTime(DataUtils.ParaExibicao(p.PagaEm))),
+                            Celula.De(p.Turma),
+                            Celula.De(p.Instituicao),
+                            Celula.De(p.Plano),
+                            Celula.De(p.Motivo == MotivoDaCobranca.Diferenca ? "Diferença de plano" : "Ciclo"),
+                            Celula.De(MeiosDePagamento.Rotulo(p.Meio)),
+                            Celula.Reais(p.ValorEmCentavos),
+                            Celula.Reais(p.ValorEstornadoEmCentavos),
+                            Celula.De(p.PresidenteNome),
+                            Celula.De(p.PresidenteEmail),
+                            Celula.De(p.PresidenteCpf is { } cpf ? FormatosBrasileiros.FormatarCpf(cpf) : null),
+                            Celula.De(p.IdDoPagamento),
+                        ]
+                ),
+            ]
+        );
+
+        return new ArquivoParaDownload(
+            new MemoryStream(RelatorioEmExcel.Gerar(tabela)),
+            $"pagamentos-dos-planos-{ano}-{mes:00}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+    }
 
     /// <inheritdoc />
     public Task<Result> ReenviarConfirmacao(Guid usuarioId, Guid autorId, CancellationToken ct = default) =>

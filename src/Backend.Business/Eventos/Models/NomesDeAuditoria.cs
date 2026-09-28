@@ -120,6 +120,10 @@ public static class NomesDeAuditoria
     /// <summary>Bloqueio por tentativas de senha levantado pelo suporte.</summary>
     public const string SuporteContaDesbloqueada = "suporte.conta_desbloqueada";
 
+    /// <summary>Pagamento do plano estornado pelo suporte, e a assinatura encerrada (Sprint 37, P7).</summary>
+    /// <remarks>Leva a <c>formaturaId</c>, como a ativação: a comissão vê na trilha dela quem devolveu e quanto.</remarks>
+    public const string SuportePagamentoEstornado = "suporte.pagamento_estornado";
+
     /// <summary>Convite da festa emitido antes da quitação, pela Gestão, com motivo (Sprint 21, P2).</summary>
     public const string ConvitesLiberados = "festa.convites_liberados";
 
@@ -175,5 +179,6 @@ public static class NomesDeAuditoria
         SuporteConfirmacaoReenviada,
         SuporteRedefinicaoDisparada,
         SuporteContaDesbloqueada,
+        SuportePagamentoEstornado,
     ];
 }

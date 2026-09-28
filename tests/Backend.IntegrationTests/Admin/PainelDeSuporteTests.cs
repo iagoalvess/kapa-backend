@@ -34,6 +34,8 @@ public sealed class PainelDeSuporteTests(ApiFactory fabrica)
             { "POST", $"/api/v1/admin/suporte/usuarios/{Guid.Empty}/reenviar-confirmacao" },
             { "POST", $"/api/v1/admin/suporte/usuarios/{Guid.Empty}/redefinir-senha" },
             { "POST", $"/api/v1/admin/suporte/usuarios/{Guid.Empty}/desbloquear" },
+            { "POST", $"/api/v1/admin/suporte/formaturas/{Guid.Empty}/pagamentos/{Guid.Empty}/estornar" },
+            { "GET", "/api/v1/admin/suporte/pagamentos?ano=2026&mes=9" },
         };
 
     /// <summary>

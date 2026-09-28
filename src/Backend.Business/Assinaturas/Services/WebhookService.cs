@@ -5,6 +5,7 @@ using Backend.Business.Assinaturas.Models;
 using Backend.Business.Assinaturas.Settings;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Pagamentos.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -50,6 +51,7 @@ public sealed class WebhookService(
         TiposDeEvento.AssinaturaRenovada,
         TiposDeEvento.AssinaturaCancelada,
         TiposDeEvento.AssinaturaVencida,
+        TiposDeEvento.RecorrenciaAutorizada,
     ];
 
     private TimeSpan Carencia => TimeSpan.FromDays(settings.Value.DiasDeCarencia);
@@ -71,6 +73,10 @@ public sealed class WebhookService(
 
         return await Processar(leitura.Valor, corpo, DateTime.UtcNow, ct);
     }
+
+    /// <inheritdoc />
+    public Task<Result<ReciboDeWebhook>> Aplicar(EventoDoProvedor evento, CancellationToken ct = default) =>
+        Processar(evento, JsonSerializer.Serialize(evento), DateTime.UtcNow, ct);
 
     /// <inheritdoc />
     /// <remarks>
@@ -148,20 +154,51 @@ public sealed class WebhookService(
     /// </remarks>
     /// <param name="assinatura">Assinatura passada da vigência.</param>
     /// <param name="agoraUtc">Momento da rodada.</param>
-    private async Task<bool> AcharRenovacaoPerdida(Assinatura assinatura, DateTime agoraUtc, CancellationToken ct)
-    {
-        if (assinatura.Status != StatusDaAssinatura.Ativa)
-            return false;
+    private async Task<bool> AcharRenovacaoPerdida(Assinatura assinatura, DateTime agoraUtc, CancellationToken ct) =>
+        assinatura is { Status: StatusDaAssinatura.Ativa, Meio: MeioDePagamento.Cartao }
+        && await Reconsultar(assinatura.Id, assinatura.IdExterno, agoraUtc, ct)
+        && !assinatura.DeveVencer(agoraUtc, Carencia);
 
-        var consulta = await provedor.ConsultarPagamento(assinatura.Id, assinatura.IdExterno, ct);
+    /// <summary>
+    /// As assinaturas pendentes no cartão e as cobranças avulsas abertas (o PIX de um ciclo, a diferença de plano)
+    /// que o aviso deixou para trás.
+    /// </summary>
+    /// <remarks>
+    /// A pendente no PIX não é consultada pela assinatura: quem é paga é a cobrança aberta dela, que a segunda
+    /// lista já cobre — e é por ela que a renovação no PIX também é achada antes de a turma ser suspensa.
+    /// </remarks>
+    private async Task<int> ConciliarPendentes(DateTime agoraUtc, CancellationToken ct)
+    {
+        var confirmadas = 0;
+        var antesDe = agoraUtc.AddMinutes(-settings.Value.MinutosAntesDeConciliar);
+        var depoisDe = agoraUtc.AddDays(-DiasDeJanelaDaPendente);
+
+        var pendentes = await assinaturaRepository.ListarPendentesDeTodasAsFormaturas(antesDe, depoisDe, Lote, ct);
+
+        foreach (var pendente in pendentes.Where(pendente => pendente.Meio == MeioDePagamento.Cartao))
+            if (await Reconsultar(pendente.Id, pendente.IdExterno, agoraUtc, ct))
+                confirmadas++;
+
+        var abertas = await assinaturaRepository.ListarCobrancasAbertasDeTodasAsFormaturas(antesDe, depoisDe, Lote, ct);
+
+        foreach (var aberta in abertas)
+            if (await Reconsultar(aberta.Id, null, agoraUtc, ct))
+                confirmadas++;
+
+        return confirmadas;
+    }
+
+    /// <summary>Pergunta ao provedor por um pagamento com a referência e o aplica pelo caminho do webhook. Diz se aplicou.</summary>
+    /// <param name="referencia">A assinatura, na recorrência; a cobrança, no avulso.</param>
+    /// <param name="idExterno">Id da recorrência ou da sessão no provedor.</param>
+    /// <param name="agoraUtc">Momento da rodada.</param>
+    private async Task<bool> Reconsultar(Guid referencia, string? idExterno, DateTime agoraUtc, CancellationToken ct)
+    {
+        var consulta = await provedor.ConsultarPagamento(referencia, idExterno, ct);
 
         if (consulta.Falhou)
         {
-            logger.LogWarning(
-                "Conciliação não reconsultou a assinatura {AssinaturaId} antes de vencê-la: {Codigo}.",
-                assinatura.Id,
-                consulta.PrimeiroErro.Codigo
-            );
+            logger.LogWarning("Conciliação não consultou a referência {Referencia}: {Codigo}.", referencia, consulta.PrimeiroErro.Codigo);
             return false;
         }
 
@@ -170,48 +207,12 @@ public sealed class WebhookService(
 
         var recibo = await Processar(evento, JsonSerializer.Serialize(evento), agoraUtc, ct);
 
-        if (recibo.Falhou || recibo.Valor.Duplicado || assinatura.DeveVencer(agoraUtc, Carencia))
+        if (recibo.Falhou || recibo.Valor.Duplicado)
             return false;
 
-        logger.LogInformation("Conciliação achou a renovação da assinatura {AssinaturaId} sem webhook.", assinatura.Id);
+        logger.LogInformation("Conciliação achou o pagamento da referência {Referencia} sem webhook.", referencia);
 
         return true;
-    }
-
-    private async Task<int> ConciliarPendentes(DateTime agoraUtc, CancellationToken ct)
-    {
-        var confirmadas = 0;
-
-        var pendentes = await assinaturaRepository.ListarPendentesDeTodasAsFormaturas(
-            agoraUtc.AddMinutes(-settings.Value.MinutosAntesDeConciliar),
-            agoraUtc.AddDays(-DiasDeJanelaDaPendente),
-            Lote,
-            ct
-        );
-
-        foreach (var pendente in pendentes)
-        {
-            var consulta = await provedor.ConsultarPagamento(pendente.Id, pendente.IdExterno, ct);
-
-            if (consulta.Falhou)
-            {
-                logger.LogWarning("Conciliação não consultou a assinatura {AssinaturaId}: {Codigo}.", pendente.Id, consulta.PrimeiroErro.Codigo);
-                continue;
-            }
-
-            if (consulta.Valor is not { } evento)
-                continue;
-
-            var recibo = await Processar(evento, JsonSerializer.Serialize(evento), agoraUtc, ct);
-
-            if (recibo.Sucesso && !recibo.Valor.Duplicado)
-            {
-                logger.LogInformation("Conciliação confirmou a assinatura {AssinaturaId} sem webhook.", pendente.Id);
-                confirmadas++;
-            }
-        }
-
-        return confirmadas;
     }
 
     /// <summary>
@@ -223,7 +224,14 @@ public sealed class WebhookService(
     /// <para>
     /// Fora de ordem é evento cuja data no provedor é anterior à do último já aplicado. Ele é
     /// gravado — o corpo fica na tabela, para quem for investigar — mas não aplicado: "fatura
-    /// criada" chegando depois de "paga" devolveria a turma para pendente.
+    /// criada" chegando depois de "paga" devolveria a turma para pendente. <b>Menos o pagamento
+    /// confirmado</b> (Sprint 37): cada pagamento é dinheiro que entrou, e o PIX de um ciclo pago antes
+    /// da diferença de plano, chegando depois dela, não pode ser descartado.
+    /// </para>
+    /// <para>
+    /// O pagamento avulso chega pela cobrança; a assinatura sai dela. Referência que não é cobrança é tentada
+    /// como assinatura: o Mercado Pago não garante como marca o pagamento de uma recorrência, e gravar o evento sem
+    /// assinatura travaria o id dele — o débito, chegando pelo outro aviso, viraria "repetido".
     /// </para>
     /// </remarks>
     /// <param name="evento">Evento verificado.</param>
@@ -233,8 +241,12 @@ public sealed class WebhookService(
         unitOfWork.EmTransacaoAsync(
             async token =>
             {
-                var assinatura = evento.AssinaturaId is { } id ? await assinaturaRepository.ObterParaEdicaoDeTodasAsFormaturas(id, token) : null;
-                var foraDeOrdem = assinatura?.EhAnteriorAoUltimoEvento(evento.OcorridoEm) == true;
+                var cobranca = evento.CobrancaId is { } cobrancaId
+                    ? await assinaturaRepository.ObterCobrancaParaEdicaoDeTodasAsFormaturas(cobrancaId, token)
+                    : null;
+                var assinaturaId = cobranca?.AssinaturaId ?? evento.AssinaturaId ?? evento.CobrancaId;
+                var assinatura = assinaturaId is { } id ? await assinaturaRepository.ObterParaEdicaoDeTodasAsFormaturas(id, token) : null;
+                var foraDeOrdem = evento.Tipo != TiposDeEvento.PagamentoConfirmado && assinatura?.EhAnteriorAoUltimoEvento(evento.OcorridoEm) == true;
                 var aplicavel = assinatura is not null && Tratados.Contains(evento.Tipo) && !foraDeOrdem;
 
                 if (foraDeOrdem)
@@ -250,7 +262,7 @@ public sealed class WebhookService(
                     {
                         IdExterno = evento.Id,
                         Tipo = evento.Tipo,
-                        AssinaturaId = evento.AssinaturaId,
+                        AssinaturaId = assinatura?.Id ?? evento.AssinaturaId,
                         FormaturaId = assinatura?.FormaturaId,
                         Payload = payload,
                         RecebidoEm = agoraUtc,
@@ -266,7 +278,7 @@ public sealed class WebhookService(
                 }
 
                 if (aplicavel)
-                    await Aplicar(evento, assinatura!, agoraUtc, token);
+                    await Aplicar(evento, assinatura!, cobranca, agoraUtc, token);
                 else if (!foraDeOrdem)
                     logger.LogWarning("Evento de cobrança {EventoId} ({Tipo}) gravado e ignorado.", evento.Id, evento.Tipo);
 
@@ -275,25 +287,48 @@ public sealed class WebhookService(
             ct
         );
 
-    private async Task Aplicar(EventoDoProvedor evento, Assinatura assinatura, DateTime agoraUtc, CancellationToken ct)
+    /// <summary>O efeito do evento na assinatura, na formatura e no histórico de pagamentos.</summary>
+    /// <remarks>
+    /// Pagamento confirmado é uma de três coisas: a <b>diferença</b> da subida de plano (o plano novo vale já), a
+    /// <b>contratação</b> (a assinatura pendente passa a valer) ou a <b>renovação</b> (o PIX do ciclo ou o débito do
+    /// cartão). O pagamento fica no histórico mesmo quando o efeito não se aplica — a turma que pagou o PIX depois de
+    /// cancelar pagou, e é o suporte quem estorna.
+    /// </remarks>
+    /// <param name="evento">Evento novo, já registrado.</param>
+    /// <param name="assinatura">Assinatura do evento.</param>
+    /// <param name="cobranca">A cobrança avulsa paga, quando o evento é de uma.</param>
+    /// <param name="agoraUtc">Momento do processamento.</param>
+    private async Task Aplicar(
+        EventoDoProvedor evento,
+        Assinatura assinatura,
+        CobrancaDaAssinatura? cobranca,
+        DateTime agoraUtc,
+        CancellationToken ct
+    )
     {
         var formatura =
             await formaturaRepository.ObterParaEdicao(assinatura.FormaturaId, ct)
             ?? throw new InvalidOperationException($"Assinatura {assinatura.Id} sem formatura.");
 
-        var ciclo = (await assinaturaRepository.ObterPlano(assinatura.PlanoId, ct))?.Ciclo ?? CicloDeCobranca.Mensal;
-
-        if (evento.IdExternoDaAssinatura is { } idExterno)
-            assinatura.IdExterno = idExterno;
+        var ciclo = (await assinaturaRepository.ObterPlano(cobranca?.PlanoId ?? assinatura.PlanoId, ct))?.Ciclo ?? CicloDeCobranca.Mensal;
+        var pago = evento.Tipo == TiposDeEvento.PagamentoConfirmado;
+        var diferenca = pago && cobranca?.Motivo == MotivoDaCobranca.Diferenca;
+        var contratacao = pago && !diferenca && assinatura.Status == StatusDaAssinatura.Pendente;
 
         var efeito = evento.Tipo switch
         {
-            TiposDeEvento.PagamentoConfirmado => assinatura.ConfirmarPagamento(agoraUtc, ciclo),
-            TiposDeEvento.AssinaturaRenovada => assinatura.Renovar(agoraUtc, ciclo),
-            TiposDeEvento.AssinaturaCancelada => assinatura.Cancelar(agoraUtc),
+            TiposDeEvento.PagamentoConfirmado when diferenca => assinatura.SubirDePlano(cobranca!.PlanoId),
+            TiposDeEvento.PagamentoConfirmado when contratacao => Contratar(assinatura, evento, cobranca, agoraUtc, ciclo),
+            TiposDeEvento.PagamentoConfirmado or TiposDeEvento.AssinaturaRenovada => assinatura.Renovar(agoraUtc, ciclo),
+            TiposDeEvento.AssinaturaCancelada when DaRecorrenciaAtual(evento, assinatura) => assinatura.Cancelar(agoraUtc),
+            TiposDeEvento.RecorrenciaAutorizada when DaRecorrenciaAtual(evento, assinatura) => AutorizarCartao(assinatura),
+            TiposDeEvento.AssinaturaCancelada or TiposDeEvento.RecorrenciaAutorizada => RecorrenciaAntiga,
             TiposDeEvento.AssinaturaVencida => assinatura.Vencer(),
             _ => Result.Ok(),
         };
+
+        if (pago)
+            await RegistrarPagamento(evento, assinatura, cobranca, agoraUtc, ct);
 
         if (efeito.Falhou)
         {
@@ -303,25 +338,121 @@ public sealed class WebhookService(
 
         assinatura.RegistrarEvento(evento.OcorridoEm);
 
-        switch (evento.Tipo)
+        if (diferenca)
+            await AjustarRecorrencia(assinatura, ct);
+        else if (contratacao)
         {
-            case TiposDeEvento.PagamentoConfirmado:
-                Ativar(formatura);
-                await emails.BoasVindas(formatura, await Presidentes(formatura, ct), assinatura.VigenteAte!.Value, ct);
-                break;
-
-            case TiposDeEvento.AssinaturaRenovada:
-                Ativar(formatura);
-                break;
-
-            case TiposDeEvento.AssinaturaVencida:
-                await Suspender(formatura, ct);
-                break;
-
-            case TiposDeEvento.PagamentoRecusado:
-                await emails.PagamentoRecusado(formatura, await Presidentes(formatura, ct), ct);
-                break;
+            Ativar(formatura);
+            await emails.BoasVindas(formatura, await Presidentes(formatura, ct), assinatura.VigenteAte!.Value, ct);
         }
+        else if (pago || evento.Tipo == TiposDeEvento.AssinaturaRenovada)
+            Ativar(formatura);
+        else if (evento.Tipo == TiposDeEvento.AssinaturaVencida)
+            await Suspender(formatura, ct);
+        else if (evento.Tipo == TiposDeEvento.PagamentoRecusado)
+            await emails.PagamentoRecusado(formatura, await Presidentes(formatura, ct), ct);
+    }
+
+    /// <summary>O aviso é de uma recorrência que a assinatura já trocou — a turma saiu do cartão, ou autorizou outro.</summary>
+    private static readonly Result RecorrenciaAntiga = Result.Falha(
+        Erro.Conflito("assinatura.recorrencia_antiga", "O aviso é de uma recorrência que a assinatura não usa mais.")
+    );
+
+    /// <summary>
+    /// Se o aviso é da recorrência que a assinatura usa agora. O Kapa cancela a recorrência antiga quando a turma troca
+    /// de meio (P5), e o "cancelada" que o Mercado Pago manda em seguida não pode cancelar a assinatura.
+    /// </summary>
+    private static bool DaRecorrenciaAtual(EventoDoProvedor evento, Assinatura assinatura) =>
+        evento.IdExternoDaAssinatura is null || evento.IdExternoDaAssinatura == assinatura.IdExterno;
+
+    /// <summary>A troca para o cartão foi autorizada: os próximos ciclos saem da recorrência.</summary>
+    private static Result AutorizarCartao(Assinatura assinatura)
+    {
+        assinatura.Meio = MeioDePagamento.Cartao;
+
+        return Result.Ok();
+    }
+
+    /// <summary>
+    /// A contratação paga: pelo PIX, vale o plano da cobrança — a turma pode ter trocado de plano antes de pagar; no
+    /// cartão, a recorrência que o provedor informa passa a ser a da assinatura.
+    /// </summary>
+    private static Result Contratar(
+        Assinatura assinatura,
+        EventoDoProvedor evento,
+        CobrancaDaAssinatura? cobranca,
+        DateTime agoraUtc,
+        CicloDeCobranca ciclo
+    )
+    {
+        if (cobranca is not null)
+            assinatura.PlanoId = cobranca.PlanoId;
+        else if (evento.IdExternoDaAssinatura is { } recorrencia)
+            assinatura.IdExterno = recorrencia;
+
+        return assinatura.ConfirmarPagamento(agoraUtc, ciclo);
+    }
+
+    /// <summary>
+    /// Registra o pagamento no histórico: a cobrança avulsa vira paga; o débito do cartão, que o Kapa não abriu, nasce
+    /// paga, no plano que a assinatura tem depois do efeito — o da descida agendada, quando a renovação a aplicou.
+    /// </summary>
+    private async Task RegistrarPagamento(
+        EventoDoProvedor evento,
+        Assinatura assinatura,
+        CobrancaDaAssinatura? cobranca,
+        DateTime agoraUtc,
+        CancellationToken ct
+    )
+    {
+        if (cobranca is null)
+        {
+            var plano = await assinaturaRepository.ObterPlano(assinatura.PlanoId, ct);
+
+            cobranca = CobrancaDaAssinatura.Abrir(
+                assinatura.Id,
+                assinatura.PlanoId,
+                MotivoDaCobranca.Ciclo,
+                MeioDePagamento.Cartao,
+                evento.ValorEmCentavos ?? plano?.PrecoEmCentavos ?? 0
+            );
+            await assinaturaRepository.AdicionarCobranca(cobranca, ct);
+        }
+
+        var registro = cobranca.Pagar(evento.IdDoPagamento ?? evento.Id, evento.ValorEmCentavos, agoraUtc);
+
+        if (registro.Falhou)
+            logger.LogWarning(
+                "Pagamento {EventoId} da cobrança {CobrancaId} não registrado: {Codigo}.",
+                evento.Id,
+                cobranca.Id,
+                registro.PrimeiroErro.Codigo
+            );
+    }
+
+    /// <summary>
+    /// Depois da diferença paga, o débito do cartão passa a cobrar o plano novo. Falhar aqui não desfaz nada: o log
+    /// avisa, e o próximo débito sai pelo valor antigo até o suporte acertar.
+    /// </summary>
+    private async Task AjustarRecorrencia(Assinatura assinatura, CancellationToken ct)
+    {
+        if (assinatura is not { Meio: MeioDePagamento.Cartao, IdExterno: { } recorrencia })
+            return;
+
+        var plano = await assinaturaRepository.ObterPlano(assinatura.PlanoId, ct);
+
+        if (plano is null)
+            return;
+
+        var ajuste = await provedor.AtualizarValor(recorrencia, plano.PrecoEmCentavos, ct);
+
+        if (ajuste.Falhou)
+            logger.LogWarning(
+                "A recorrência da assinatura {AssinaturaId} não passou para o valor do plano {Plano}: {Codigo}.",
+                assinatura.Id,
+                plano.Codigo,
+                ajuste.PrimeiroErro.Codigo
+            );
     }
 
     /// <summary>Ativa a formatura, se ainda não estiver. Suspensa passa; encerrada e descartada ficam.</summary>
@@ -378,6 +509,7 @@ public sealed class WebhookService(
             vigenteAte,
             cancelada ? vigenteAte : vigenteAte + Carencia,
             cancelada,
+            assinatura.Meio == MeioDePagamento.Pix,
             ct
         );
     }

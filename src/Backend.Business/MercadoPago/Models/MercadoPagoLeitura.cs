@@ -88,13 +88,89 @@ public sealed record PedidoConsultado(
 /// <param name="EmailDoPagador">E-mail de quem paga.</param>
 /// <param name="MesesPorCiclo">De quantos em quantos meses cobra — 1 no mensal, 12 no anual.</param>
 /// <param name="UrlDeRetorno">Para onde o navegador volta depois de autorizar.</param>
+/// <param name="ComecaEm">Primeiro débito, em UTC; nulo é na autorização.</param>
 public sealed record PedidoDeRecorrencia(
     Guid Referencia,
     string Motivo,
     long ValorEmCentavos,
     string EmailDoPagador,
     int MesesPorCiclo,
-    string UrlDeRetorno
+    string UrlDeRetorno,
+    DateTime? ComecaEm = null
+);
+
+/// <summary>
+/// Um pagamento avulso na página do Mercado Pago (Checkout Pro): o PIX de um ciclo do plano ou a diferença da
+/// subida de plano (Sprint 37). O Kapa não vê cartão nem desenha QR — a página é deles (P1).
+/// </summary>
+/// <param name="Referencia">O id no Kapa — referência externa e chave de idempotência.</param>
+/// <param name="Titulo">O que aparece para quem paga ("Kapa — plano Premium").</param>
+/// <param name="ValorEmCentavos">Valor.</param>
+/// <param name="Meio">Só PIX, ou só cartão de crédito à vista.</param>
+/// <param name="EmailDoPagador">Quem paga, quando se sabe.</param>
+/// <param name="UrlDeRetorno">Para onde o navegador volta.</param>
+/// <param name="Validade">Até quando a página aceita pagamento, em UTC.</param>
+public sealed record PedidoDePagamentoAvulso(
+    Guid Referencia,
+    string Titulo,
+    long ValorEmCentavos,
+    MeioDePagamento Meio,
+    string? EmailDoPagador,
+    string UrlDeRetorno,
+    DateTime Validade
+);
+
+/// <summary>A página de pagamento criada no Mercado Pago.</summary>
+/// <param name="IdExterno">Id da preferência.</param>
+/// <param name="Url">A página (<c>init_point</c>).</param>
+public sealed record PaginaDePagamento(string IdExterno, string Url);
+
+/// <summary>Em que pé está um pagamento (<c>v1/payments</c>).</summary>
+public enum SituacaoDoPagamento
+{
+    /// <summary>Esperando: PIX não pago, cartão em análise.</summary>
+    Pendente,
+
+    /// <summary>Aprovado e creditado.</summary>
+    Aprovado,
+
+    /// <summary>Recusado, cancelado ou vencido.</summary>
+    Recusado,
+
+    /// <summary>Devolvido, total ou em parte, ou contestado.</summary>
+    Devolvido,
+}
+
+/// <summary>Um pagamento consultado no Mercado Pago.</summary>
+/// <param name="Id">Id do pagamento lá.</param>
+/// <param name="Referencia">A referência externa.</param>
+/// <param name="Situacao">Pendente, aprovado, recusado ou devolvido.</param>
+/// <param name="ValorEmCentavos">O valor da transação.</param>
+/// <param name="AprovadoEm">Quando foi aprovado, em UTC.</param>
+/// <param name="DaRecorrencia">Se foi gerado por uma recorrência (<c>recurring_payment</c>) — esse chega também pelo aviso do débito.</param>
+public sealed record PagamentoNoMercadoPago(
+    string Id,
+    string? Referencia,
+    SituacaoDoPagamento Situacao,
+    long ValorEmCentavos,
+    DateTime? AprovadoEm,
+    bool DaRecorrencia
+);
+
+/// <summary>Um débito de uma recorrência (<c>authorized_payments</c>): a fatura de um ciclo e o pagamento dela.</summary>
+/// <param name="Id">Id do débito.</param>
+/// <param name="IdDaRecorrencia">A recorrência.</param>
+/// <param name="IdDoPagamento">O pagamento, quando já houve tentativa.</param>
+/// <param name="Situacao">Situação do pagamento; pendente enquanto não houve tentativa.</param>
+/// <param name="ValorEmCentavos">Valor do débito.</param>
+/// <param name="OcorridoEm">Última mudança, em UTC.</param>
+public sealed record DebitoDaRecorrencia(
+    string Id,
+    string? IdDaRecorrencia,
+    string? IdDoPagamento,
+    SituacaoDoPagamento Situacao,
+    long ValorEmCentavos,
+    DateTime? OcorridoEm
 );
 
 /// <summary>Em que pé está uma recorrência no Mercado Pago.</summary>

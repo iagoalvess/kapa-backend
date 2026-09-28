@@ -11,10 +11,15 @@ public interface IMesaService
     /// <summary>A faixa do topo, as mesas e os compradores — a tela inteira da Gestão.</summary>
     Task<Result<MapaDeMesas>> Mapa(CancellationToken ct = default);
 
-    /// <summary>As mesas do próprio formando, só para ler.</summary>
+    /// <summary>O mapa do formando, só para ler: o salão e as mesas sem o nome dos donos, com as dele marcadas.</summary>
     /// <param name="formaturaId">Turma da sessão.</param>
     /// <param name="usuarioId">O próprio.</param>
-    Task<Result<IReadOnlyList<MesaResumo>>> ListarMinhas(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+    Task<Result<SalaoDoFormando>> SalaoDoFormando(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>Grava o salão e o lugar das mesas de uma vez — o botão "Salvar mapa".</summary>
+    /// <remarks>Mesa que não é da turma, ou foi excluída enquanto o mapa estava aberto, é ignorada.</remarks>
+    /// <param name="desenho">Tamanho, elementos e posições.</param>
+    Task<Result> SalvarSalao(DesenhoDoSalao desenho, CancellationToken ct = default);
 
     /// <summary>Cadastra uma mesa.</summary>
     /// <param name="dados">Identificação, lugares, observação e reserva.</param>
@@ -73,6 +78,20 @@ public interface IMesaRepository
     /// </remarks>
     /// <param name="vinculoId">Formando.</param>
     Task TravarDono(Guid vinculoId, CancellationToken ct = default);
+
+    /// <summary>O salão da turma, só para ler; nulo enquanto a comissão não desenhou nada.</summary>
+    Task<PlantaDoSalao?> ObterSalao(CancellationToken ct = default);
+
+    /// <summary>O salão rastreado para alteração; nulo se ainda não existe.</summary>
+    Task<Salao?> ObterSalaoParaEdicao(CancellationToken ct = default);
+
+    /// <summary>Marca o salão novo para inclusão.</summary>
+    /// <param name="salao">Salão.</param>
+    Task AdicionarSalao(Salao salao, CancellationToken ct = default);
+
+    /// <summary>As mesas pedidas, rastreadas; as que não existem aqui ficam de fora.</summary>
+    /// <param name="ids">Mesas.</param>
+    Task<IReadOnlyList<Mesa>> ListarParaEdicao(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 
     /// <summary>Uma mesa rastreada para alteração; nula se não existir aqui.</summary>
     /// <param name="id">Mesa.</param>

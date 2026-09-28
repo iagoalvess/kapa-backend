@@ -135,8 +135,9 @@ public sealed class AmostraDeEmailsController(
         await assinatura.BoasVindas(formatura, presidentes, hoje.AddYears(1), ct);
         await assinatura.PagamentoRecusado(formatura, presidentes, ct);
         await assinatura.Suspensao(formatura, presidentes, ct);
-        await assinatura.AvisoDeVencimento(formatura, presidentes, 7, hoje.AddDays(7), hoje.AddDays(14), false, ct);
-        await assinatura.AvisoDeVencimento(formatura, presidentes, -1, hoje.AddDays(-1), hoje.AddDays(6), true, ct);
+        await assinatura.AvisoDeVencimento(formatura, presidentes, 7, hoje.AddDays(7), hoje.AddDays(14), false, false, ct);
+        await assinatura.AvisoDeVencimento(formatura, presidentes, 7, hoje.AddDays(7), hoje.AddDays(14), false, true, ct);
+        await assinatura.AvisoDeVencimento(formatura, presidentes, -1, hoje.AddDays(-1), hoje.AddDays(6), true, false, ct);
     }
 
     private async Task DoPagamento(string para, CancellationToken ct)

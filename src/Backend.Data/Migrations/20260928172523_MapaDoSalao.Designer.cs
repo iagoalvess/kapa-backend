@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Backend.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Backend.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928172523_MapaDoSalao")]
+    partial class MapaDoSalao
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -381,16 +384,6 @@ namespace Backend.Data.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("id_externo");
 
-                    b.Property<string>("Meio")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("meio");
-
-                    b.Property<Guid?>("PlanoDoProximoCicloId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("plano_do_proximo_ciclo_id");
-
                     b.Property<Guid>("PlanoId")
                         .HasColumnType("uuid")
                         .HasColumnName("plano_id");
@@ -425,9 +418,6 @@ namespace Backend.Data.Migrations
                     b.HasIndex("FormaturaId")
                         .HasDatabaseName("ix_assinaturas_formatura_id");
 
-                    b.HasIndex("PlanoDoProximoCicloId")
-                        .HasDatabaseName("ix_assinaturas_plano_do_proximo_ciclo_id");
-
                     b.HasIndex("PlanoId")
                         .HasDatabaseName("ix_assinaturas_plano_id");
 
@@ -440,93 +430,6 @@ namespace Backend.Data.Migrations
                         .HasFilter("status = 'Pendente'");
 
                     b.ToTable("assinaturas", (string)null);
-                });
-
-            modelBuilder.Entity("Backend.Business.Assinaturas.Models.CobrancaDaAssinatura", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("AssinaturaId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("assinatura_id");
-
-                    b.Property<DateTime>("AtualizadoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("atualizado_em");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("criado_em");
-
-                    b.Property<DateTime?>("EstornadaEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("estornada_em");
-
-                    b.Property<string>("IdDoPagamento")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("id_do_pagamento");
-
-                    b.Property<string>("Meio")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("meio");
-
-                    b.Property<string>("Motivo")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("motivo");
-
-                    b.Property<DateTime?>("PagaEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("paga_em");
-
-                    b.Property<Guid>("PlanoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("plano_id");
-
-                    b.Property<string>("Situacao")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("situacao");
-
-                    b.Property<string>("Url")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("url");
-
-                    b.Property<long>("ValorEmCentavos")
-                        .HasColumnType("bigint")
-                        .HasColumnName("valor_em_centavos");
-
-                    b.Property<long?>("ValorEstornadoEmCentavos")
-                        .HasColumnType("bigint")
-                        .HasColumnName("valor_estornado_em_centavos");
-
-                    b.HasKey("Id")
-                        .HasName("pk_cobrancas_da_assinatura");
-
-                    b.HasIndex("AssinaturaId")
-                        .HasDatabaseName("ix_cobrancas_da_assinatura_assinatura_id");
-
-                    b.HasIndex("IdDoPagamento")
-                        .IsUnique()
-                        .HasDatabaseName("ix_cobrancas_da_assinatura_id_do_pagamento")
-                        .HasFilter("id_do_pagamento IS NOT NULL");
-
-                    b.HasIndex("PlanoId")
-                        .HasDatabaseName("ix_cobrancas_da_assinatura_plano_id");
-
-                    b.HasIndex("Situacao", "CriadoEm")
-                        .HasDatabaseName("ix_cobrancas_da_assinatura_situacao_criado_em");
-
-                    b.ToTable("cobrancas_da_assinatura", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Business.Assinaturas.Models.EventoDeCobranca", b =>
@@ -3912,33 +3815,10 @@ namespace Backend.Data.Migrations
 
                     b.HasOne("Backend.Business.Assinaturas.Models.Plano", null)
                         .WithMany()
-                        .HasForeignKey("PlanoDoProximoCicloId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_assinaturas_planos_plano_do_proximo_ciclo_id");
-
-                    b.HasOne("Backend.Business.Assinaturas.Models.Plano", null)
-                        .WithMany()
                         .HasForeignKey("PlanoId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_assinaturas_planos_plano_id");
-                });
-
-            modelBuilder.Entity("Backend.Business.Assinaturas.Models.CobrancaDaAssinatura", b =>
-                {
-                    b.HasOne("Backend.Business.Assinaturas.Models.Assinatura", null)
-                        .WithMany()
-                        .HasForeignKey("AssinaturaId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_cobrancas_da_assinatura_assinaturas_assinatura_id");
-
-                    b.HasOne("Backend.Business.Assinaturas.Models.Plano", null)
-                        .WithMany()
-                        .HasForeignKey("PlanoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_cobrancas_da_assinatura_planos_plano_id");
                 });
 
             modelBuilder.Entity("Backend.Business.Auth.Models.RefreshToken", b =>

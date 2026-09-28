@@ -103,6 +103,33 @@ public interface IAssinaturaRepository
     /// <param name="limite">Máximo de linhas.</param>
     Task<IReadOnlyList<Assinatura>> ListarVencendoDeTodasAsFormaturas(DateTime vigentesAte, int limite, CancellationToken ct = default);
 
+    /// <summary>Marca uma cobrança do plano para inclusão.</summary>
+    /// <param name="cobranca">Cobrança nova.</param>
+    Task AdicionarCobranca(CobrancaDaAssinatura cobranca, CancellationToken ct = default);
+
+    /// <summary>A cobrança aberta da assinatura com o motivo, rastreada, ou nula. Enxerga só a formatura da sessão.</summary>
+    /// <param name="assinaturaId">Assinatura.</param>
+    /// <param name="motivo">Ciclo ou diferença.</param>
+    Task<CobrancaDaAssinatura?> ObterCobrancaAbertaParaEdicao(Guid assinaturaId, MotivoDaCobranca motivo, CancellationToken ct = default);
+
+    /// <summary>As cobranças do plano da formatura da sessão, de todas as assinaturas dela, mais recentes primeiro.</summary>
+    Task<IReadOnlyList<CobrancaDoPlanoResumo>> ListarCobrancas(CancellationToken ct = default);
+
+    /// <summary>Uma cobrança do plano de qualquer formatura, rastreada. É o webhook que chama: não há sessão.</summary>
+    /// <param name="cobrancaId">Cobrança.</param>
+    Task<CobrancaDaAssinatura?> ObterCobrancaParaEdicaoDeTodasAsFormaturas(Guid cobrancaId, CancellationToken ct = default);
+
+    /// <summary>Cobranças abertas de todas as formaturas, criadas dentro da janela — a conciliação do aviso perdido.</summary>
+    /// <param name="criadasAntesDe">Paradas há pelo menos este tempo.</param>
+    /// <param name="criadasDepoisDe">Mas não há mais que este.</param>
+    /// <param name="limite">Máximo de linhas.</param>
+    Task<IReadOnlyList<CobrancaDaAssinatura>> ListarCobrancasAbertasDeTodasAsFormaturas(
+        DateTime criadasAntesDe,
+        DateTime criadasDepoisDe,
+        int limite,
+        CancellationToken ct = default
+    );
+
     /// <summary>
     /// Grava o evento se o id ainda não existir, e diz se gravou.
     /// </summary>

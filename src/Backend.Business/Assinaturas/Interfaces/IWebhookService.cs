@@ -20,6 +20,13 @@ public interface IWebhookService
     Task<Result<ReciboDeWebhook>> Receber(string corpo, string? assinaturaHmac, CancellationToken ct = default);
 
     /// <summary>
+    /// Aplica um evento que já chegou verificado — o aviso da conta do Kapa no Mercado Pago, que o recebedor único
+    /// autenticou e o provedor traduziu. Mesmo registro único e mesma transação do <see cref="Receber"/>.
+    /// </summary>
+    /// <param name="evento">Evento traduzido.</param>
+    Task<Result<ReciboDeWebhook>> Aplicar(EventoDoProvedor evento, CancellationToken ct = default);
+
+    /// <summary>
     /// Uma rodada da conciliação: pendentes paradas, vencimentos e avisos.
     /// </summary>
     /// <param name="agoraUtc">Relógio da rodada — parâmetro para o teste controlar o tempo.</param>

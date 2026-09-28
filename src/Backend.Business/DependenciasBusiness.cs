@@ -272,7 +272,6 @@ public static class DependenciasBusiness
         services.AddScoped<BaixaService>();
         services.AddScoped<BaixaAutomatica>();
         services.AddScoped<AvisoDoMercadoPago>();
-        services.AddScoped<IAvisosDaContaDoKapa, AvisosDaContaDoKapaSemProvedor>();
         services.AddScoped<IProvedorDaTurmaService, ProvedorDaTurmaService>();
         services.AddScoped<EmissaoNoMercadoPago>();
         services.TryAddScoped<FormaturaDoProcessamento>();

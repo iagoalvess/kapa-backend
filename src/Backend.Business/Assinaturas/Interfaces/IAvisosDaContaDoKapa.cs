@@ -7,8 +7,9 @@ namespace Backend.Business.Assinaturas.Interfaces;
 /// único (<c>AvisoDoMercadoPago</c>) já conferiu a assinatura e separou estes dos da conta de uma turma.
 /// </summary>
 /// <remarks>
-/// <c>ponytail:</c> uma implementação por enquanto, a que só registra; a Sprint 37 troca pela que consulta a
-/// recorrência ou o pedido com o token do Kapa e aplica o evento na assinatura.
+/// Duas implementações, pela mesma chave que escolhe o provedor (<c>Assinaturas:Provedor</c>): com o Mercado Pago,
+/// <c>AvisosDaContaDoKapa</c> consulta o recurso com o token do Kapa e aplica o evento na assinatura; com o fake,
+/// <c>AvisosDaContaDoKapaSemProvedor</c> só registra.
 /// </remarks>
 public interface IAvisosDaContaDoKapa
 {

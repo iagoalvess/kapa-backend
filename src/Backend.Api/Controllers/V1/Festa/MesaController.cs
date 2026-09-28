@@ -14,10 +14,10 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Backend.Api.Controllers.V1.Festa;
 
 /// <summary>
-/// As mesas do jantar (Sprint 27).
+/// As mesas do jantar (Sprint 27) e o mapa do salão (28/09/2026).
 /// </summary>
 /// <remarks>
-/// A comissão cadastra e atribui (P1); o formando só lê as dele. Toda escrita vira evento de negócio —
+/// A comissão cadastra, atribui e desenha o salão (P1); o formando só lê o mapa, sem o nome dos donos. Toda escrita vira evento de negócio —
 /// é a auditoria que a P4 pede para o ajuste depois do fechamento da lista, e ela vale para qualquer
 /// hora, sem janela a conferir.
 /// </remarks>
@@ -35,13 +35,26 @@ public sealed class MesaController(IMesaService mesas, IUsuarioAtual usuarioAtua
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Mapa(CancellationToken ct) => Responder((await mesas.Mapa(ct)).Map(mapa => mapa.Adapt<MapaDeMesasDTO>()));
 
-    /// <summary>As mesas do próprio formando.</summary>
-    [HttpGet("minhas")]
+    /// <summary>O mapa do salão para o formando: as mesas sem o dono, e as dele marcadas.</summary>
+    [HttpGet("salao")]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
-    [ProducesResponseType(typeof(IReadOnlyList<MesaDTO>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(SalaoDoFormandoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> ListarMinhas(CancellationToken ct) =>
-        Responder((await mesas.ListarMinhas(FormaturaId, usuarioAtual.Id, ct)).Map(lista => lista.Adapt<IReadOnlyList<MesaDTO>>()));
+    public async Task<IActionResult> SalaoDoFormando(CancellationToken ct) =>
+        Responder((await mesas.SalaoDoFormando(FormaturaId, usuarioAtual.Id, ct)).Map(salao => salao.Adapt<SalaoDoFormandoDTO>()));
+
+    /// <summary>Grava o mapa de uma vez: o tamanho do salão, os elementos e o lugar das mesas.</summary>
+    /// <remarks>Os elementos vêm sempre todos; das mesas, só as que mudaram de lugar.</remarks>
+    /// <param name="requisicao">O salão e as posições.</param>
+    [HttpPut("salao")]
+    [Authorize(Policy = Politicas.Gestao)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [RegistrarEvento("festa.salao_salvo")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> SalvarSalao([FromBody] SalaoRequestDTO requisicao, CancellationToken ct) =>
+        Responder(await mesas.SalvarSalao(ParaModelo(requisicao), ct));
 
     /// <summary>Cadastra uma mesa.</summary>
     /// <param name="requisicao">Identificação, lugares, observação e reserva.</param>
@@ -103,5 +116,31 @@ public sealed class MesaController(IMesaService mesas, IUsuarioAtual usuarioAtua
         Responder((await mesas.DefinirDono(id, requisicao.VinculoId, ct)).Map(mesa => mesa.Adapt<MesaDTO>()));
 
     private static DadosDaMesa ParaModelo(MesaRequestDTO requisicao) =>
-        new(requisicao.Identificacao ?? string.Empty, requisicao.Lugares, requisicao.Observacao, requisicao.Reservada ?? false);
+        new(
+            requisicao.Identificacao ?? string.Empty,
+            requisicao.Lugares,
+            requisicao.Observacao,
+            requisicao.Reservada ?? false,
+            requisicao.Formato ?? FormatoDaMesa.Redonda
+        );
+
+    private static DesenhoDoSalao ParaModelo(SalaoRequestDTO requisicao) =>
+        new(
+            new PlantaDoSalao(
+                requisicao.Largura,
+                requisicao.Altura,
+                [
+                    .. (requisicao.Elementos ?? []).Select(elemento => new ElementoDoSalao(
+                        elemento.Tipo,
+                        elemento.Rotulo ?? string.Empty,
+                        elemento.X,
+                        elemento.Y,
+                        elemento.Largura,
+                        elemento.Altura,
+                        elemento.Cor
+                    )),
+                ]
+            ),
+            [.. (requisicao.Posicoes ?? []).Select(posicao => new PosicaoDaMesa(posicao.MesaId, posicao.X, posicao.Y, posicao.Girada ?? false))]
+        );
 }

@@ -56,6 +56,9 @@ public sealed class AssinaturaMapping : IEntityTypeConfiguration<Assinatura>
 
         builder.Property(a => a.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(a => a.IdExterno).HasMaxLength(200);
+        builder.Property(a => a.Meio).HasConversion<string>().HasMaxLength(20);
+
+        builder.HasOne<Plano>().WithMany().HasForeignKey(a => a.PlanoDoProximoCicloId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<Plano>().WithMany().HasForeignKey(a => a.PlanoId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Formatura>().WithMany().HasForeignKey(a => a.FormaturaId).OnDelete(DeleteBehavior.Restrict);
@@ -67,6 +70,37 @@ public sealed class AssinaturaMapping : IEntityTypeConfiguration<Assinatura>
             .HasDatabaseName("ix_assinaturas_pendente_por_formatura");
 
         builder.HasIndex(a => new { a.Status, a.VigenteAte });
+    }
+}
+
+/// <summary>
+/// Mapeamento das cobranças do plano.
+/// </summary>
+/// <remarks>
+/// O índice único parcial em <c>id_do_pagamento</c> é o último muro contra o mesmo pagamento registrado duas vezes —
+/// o primeiro é o índice de <c>eventos_de_cobranca</c>. O de <c>(situacao, criado_em)</c> serve à conciliação, que
+/// procura as abertas paradas.
+/// </remarks>
+public sealed class CobrancaDaAssinaturaMapping : IEntityTypeConfiguration<CobrancaDaAssinatura>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<CobrancaDaAssinatura> builder)
+    {
+        builder.ToTable("cobrancas_da_assinatura");
+
+        builder.HasKey(c => c.Id);
+
+        builder.Property(c => c.Motivo).HasConversion<string>().HasMaxLength(20);
+        builder.Property(c => c.Meio).HasConversion<string>().HasMaxLength(20);
+        builder.Property(c => c.Situacao).HasConversion<string>().HasMaxLength(20);
+        builder.Property(c => c.Url).HasMaxLength(500);
+        builder.Property(c => c.IdDoPagamento).HasMaxLength(100);
+
+        builder.HasOne<Assinatura>().WithMany().HasForeignKey(c => c.AssinaturaId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Plano>().WithMany().HasForeignKey(c => c.PlanoId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(c => c.IdDoPagamento).IsUnique().HasFilter("id_do_pagamento IS NOT NULL");
+        builder.HasIndex(c => new { c.Situacao, c.CriadoEm });
     }
 }
 

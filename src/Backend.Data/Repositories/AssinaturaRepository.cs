@@ -1,5 +1,6 @@
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Assinaturas.Models;
+using Backend.Business.Pagamentos.Models;
 using Backend.Data.Context;
 using Backend.Data.Seed;
 using Microsoft.EntityFrameworkCore;
@@ -42,10 +43,16 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
         db.Planos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == planoId, ct);
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A próxima cobrança só existe na ativa. No cartão é o débito automático; no PIX, o vencimento do PIX do
+    /// ciclo — a data é a mesma, o fim da vigência.
+    /// </remarks>
     public Task<AssinaturaDetalhe?> ObterDetalheDaMaisRecente(CancellationToken ct = default) =>
         (
             from assinatura in db.Assinaturas.AsNoTracking()
             join plano in db.Planos.AsNoTracking() on assinatura.PlanoId equals plano.Id
+            join proximo in db.Planos.AsNoTracking() on assinatura.PlanoDoProximoCicloId equals proximo.Id into proximos
+            from proximo in proximos.DefaultIfEmpty()
             orderby assinatura.CriadoEm descending, assinatura.Id descending
             select new AssinaturaDetalhe(
                 assinatura.Id,
@@ -65,7 +72,23 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
                 assinatura.VigenteAte,
                 assinatura.Status == StatusDaAssinatura.Ativa ? assinatura.VigenteAte : null,
                 assinatura.CanceladaEm,
-                assinatura.CriadoEm
+                assinatura.CriadoEm,
+                assinatura.Meio,
+                proximo == null
+                    ? null
+                    : new PlanoResumo(
+                        proximo.Id,
+                        proximo.Codigo,
+                        proximo.Nome,
+                        proximo.Descricao,
+                        proximo.PrecoEmCentavos,
+                        proximo.PrecoCheioEmCentavos,
+                        proximo.Ciclo,
+                        proximo.LimiteDeFormandos,
+                        proximo.Modulos,
+                        proximo.Recomendado
+                    ),
+                assinatura.Meio == MeioDePagamento.Pix && assinatura.IdExterno != null
             )
         ).FirstOrDefaultAsync(ct);
 
@@ -154,6 +177,64 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
             )
             .OrderBy(a => a.VigenteAte)
             .ThenBy(a => a.Id)
+            .Take(limite)
+            .ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task AdicionarCobranca(CobrancaDaAssinatura cobranca, CancellationToken ct = default) =>
+        await db.CobrancasDaAssinatura.AddAsync(cobranca, ct);
+
+    /// <inheritdoc />
+    /// <remarks>A junção com a assinatura é o que prende a leitura à formatura da sessão.</remarks>
+    public Task<CobrancaDaAssinatura?> ObterCobrancaAbertaParaEdicao(Guid assinaturaId, MotivoDaCobranca motivo, CancellationToken ct = default) =>
+        (
+            from cobranca in db.CobrancasDaAssinatura
+            join assinatura in db.Assinaturas on cobranca.AssinaturaId equals assinatura.Id
+            where cobranca.AssinaturaId == assinaturaId && cobranca.Motivo == motivo && cobranca.Situacao == SituacaoDaCobrancaDoPlano.Aberta
+            orderby cobranca.CriadoEm descending
+            select cobranca
+        ).FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    /// <remarks>A junção com a assinatura é o que prende a leitura à formatura da sessão.</remarks>
+    public async Task<IReadOnlyList<CobrancaDoPlanoResumo>> ListarCobrancas(CancellationToken ct = default) =>
+        await (
+            from cobranca in db.CobrancasDaAssinatura.AsNoTracking()
+            join assinatura in db.Assinaturas.AsNoTracking() on cobranca.AssinaturaId equals assinatura.Id
+            join plano in db.Planos.AsNoTracking() on cobranca.PlanoId equals plano.Id
+            orderby cobranca.CriadoEm descending, cobranca.Id descending
+            select new CobrancaDoPlanoResumo(
+                cobranca.Id,
+                plano.Nome,
+                cobranca.Motivo,
+                cobranca.Meio,
+                cobranca.ValorEmCentavos,
+                cobranca.Situacao,
+                cobranca.Url,
+                cobranca.CriadoEm,
+                cobranca.PagaEm,
+                cobranca.ValorEstornadoEmCentavos,
+                cobranca.EstornadaEm
+            )
+        ).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public Task<CobrancaDaAssinatura?> ObterCobrancaParaEdicaoDeTodasAsFormaturas(Guid cobrancaId, CancellationToken ct = default) =>
+        db.CobrancasDaAssinatura.FirstOrDefaultAsync(c => c.Id == cobrancaId, ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<CobrancaDaAssinatura>> ListarCobrancasAbertasDeTodasAsFormaturas(
+        DateTime criadasAntesDe,
+        DateTime criadasDepoisDe,
+        int limite,
+        CancellationToken ct = default
+    ) =>
+        await db
+            .CobrancasDaAssinatura.Where(c =>
+                c.Situacao == SituacaoDaCobrancaDoPlano.Aberta && c.CriadoEm <= criadasAntesDe && c.CriadoEm >= criadasDepoisDe
+            )
+            .OrderByDescending(c => c.CriadoEm)
+            .ThenBy(c => c.Id)
             .Take(limite)
             .ToListAsync(ct);
 

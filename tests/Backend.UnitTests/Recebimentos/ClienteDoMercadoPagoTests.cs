@@ -288,6 +288,153 @@ public sealed class ClienteDoMercadoPagoTests
         EstadoDaConexao.Ler(null, agora, "cs").ShouldBeNull();
     }
 
+    /// <summary>
+    /// Sprint 37: a página avulsa do PIX fecha cartão, boleto e saldo em conta; a referência externa é a cobrança do
+    /// Kapa, e o endereço devolvido é o <c>init_point</c>.
+    /// </summary>
+    [Fact]
+    public async Task Pagina_avulsa_no_pix_fecha_os_outros_meios()
+    {
+        // Arrange
+        var pedidos = new List<HttpRequestMessage>();
+        string? corpo = null;
+        var cliente = Cliente(
+            requisicao =>
+            {
+                corpo = requisicao.Content!.ReadAsStringAsync().Result;
+                return Json("""{"id":"123-abc","init_point":"https://mp/checkout/123-abc"}""");
+            },
+            pedidos
+        );
+        var referencia = Guid.CreateVersion7();
+
+        // Act
+        var pagina = await cliente.CriarPagamentoAvulso(
+            "token",
+            new PedidoDePagamentoAvulso(
+                referencia,
+                "Kapa — plano Essencial",
+                2990,
+                MeioDePagamento.Pix,
+                null,
+                "https://app.kapa/assinatura/retorno",
+                new DateTime(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc)
+            ),
+            Ct
+        );
+
+        // Assert
+        pagina.Valor.ShouldBe(new PaginaDePagamento("123-abc", "https://mp/checkout/123-abc"));
+        pedidos.ShouldHaveSingleItem().RequestUri!.ToString().ShouldBe("https://api.mercadopago.com/checkout/preferences");
+        using var json = JsonDocument.Parse(corpo!);
+        json.RootElement.GetProperty("external_reference").GetString().ShouldBe(referencia.ToString("N"));
+        json.RootElement.GetProperty("items")[0].GetProperty("unit_price").GetDecimal().ShouldBe(29.90m);
+        json.RootElement.GetProperty("expiration_date_to").GetString().ShouldBe("2026-10-05T12:00:00.000Z");
+        json.RootElement.TryGetProperty("payer", out _).ShouldBeFalse();
+        var excluidos = json
+            .RootElement.GetProperty("payment_methods")
+            .GetProperty("excluded_payment_types")
+            .EnumerateArray()
+            .Select(tipo => tipo.GetProperty("id").GetString())
+            .ToList();
+        excluidos.ShouldContain("credit_card");
+        excluidos.ShouldContain("ticket");
+        excluidos.ShouldNotContain("bank_transfer");
+    }
+
+    /// <summary>O pagamento que a recorrência gerou é marcado — o aviso dele chega também como débito.</summary>
+    [Theory]
+    [InlineData("approved", "recurring_payment", SituacaoDoPagamento.Aprovado, true)]
+    [InlineData("rejected", "regular_payment", SituacaoDoPagamento.Recusado, false)]
+    [InlineData("refunded", "regular_payment", SituacaoDoPagamento.Devolvido, false)]
+    [InlineData("in_process", "regular_payment", SituacaoDoPagamento.Pendente, false)]
+    public async Task Pagamento_consultado_traduz_a_situacao(string status, string operacao, SituacaoDoPagamento situacao, bool daRecorrencia)
+    {
+        var cliente = Cliente(_ =>
+            Json(
+                $$"""{"id":123,"status":"{{status}}","operation_type":"{{operacao}}","external_reference":"ref","transaction_amount":49.9,"date_approved":"2026-09-28T10:00:00.000-03:00"}"""
+            )
+        );
+
+        var lido = await cliente.ConsultarPagamento("token", "123", Ct);
+
+        lido.Valor.Situacao.ShouldBe(situacao);
+        lido.Valor.DaRecorrencia.ShouldBe(daRecorrencia);
+        lido.Valor.ValorEmCentavos.ShouldBe(4990);
+        lido.Valor.Id.ShouldBe("123");
+    }
+
+    [Fact]
+    public async Task Debito_da_recorrencia_traz_o_pagamento_e_a_recorrencia()
+    {
+        var cliente = Cliente(_ =>
+            Json(
+                """{"id":7001,"preapproval_id":"PRE1","transaction_amount":29.9,"last_modified":"2026-09-28T10:00:00.000-03:00","payment":{"id":8001,"status":"rejected"}}"""
+            )
+        );
+
+        var debito = await cliente.ConsultarDebitoDaRecorrencia("token", "7001", Ct);
+
+        debito.Valor.ShouldBe(
+            new DebitoDaRecorrencia("7001", "PRE1", "8001", SituacaoDoPagamento.Recusado, 2990, new DateTime(2026, 9, 28, 13, 0, 0, DateTimeKind.Utc))
+        );
+    }
+
+    /// <summary>O estorno leva o valor em reais e a chave de idempotência: a nova tentativa não devolve duas vezes.</summary>
+    [Fact]
+    public async Task Estorno_leva_o_valor_e_a_idempotencia()
+    {
+        var pedidos = new List<HttpRequestMessage>();
+        string? corpo = null;
+        var cliente = Cliente(
+            requisicao =>
+            {
+                corpo = requisicao.Content!.ReadAsStringAsync().Result;
+                return Json("""{"id":1,"status":"approved"}""");
+            },
+            pedidos
+        );
+        var chave = Guid.CreateVersion7();
+
+        var estorno = await cliente.Estornar("token", "8001", 1495, chave, Ct);
+
+        estorno.Sucesso.ShouldBeTrue();
+        var pedido = pedidos.ShouldHaveSingleItem();
+        pedido.RequestUri!.ToString().ShouldBe("https://api.mercadopago.com/v1/payments/8001/refunds");
+        pedido.Headers.GetValues("X-Idempotency-Key").ShouldHaveSingleItem().ShouldBe(chave.ToString("N"));
+        JsonDocument.Parse(corpo!).RootElement.GetProperty("amount").GetDecimal().ShouldBe(14.95m);
+    }
+
+    /// <summary>A troca de meio (P5): a recorrência nova começa no fim da vigência.</summary>
+    [Fact]
+    public async Task Recorrencia_com_inicio_leva_a_data_do_primeiro_debito()
+    {
+        string? corpo = null;
+        var cliente = Cliente(requisicao =>
+        {
+            corpo = requisicao.Content!.ReadAsStringAsync().Result;
+            return Json("""{"id":"PRE2","status":"pending","init_point":"https://mp/autorizar/PRE2"}""");
+        });
+
+        await cliente.CriarRecorrencia(
+            "token",
+            new PedidoDeRecorrencia(
+                Guid.CreateVersion7(),
+                "Kapa",
+                2990,
+                "p@turma.dev",
+                12,
+                "https://app",
+                new DateTime(2026, 10, 28, 15, 0, 0, DateTimeKind.Utc)
+            ),
+            Ct
+        );
+
+        var ciclo = JsonDocument.Parse(corpo!).RootElement.GetProperty("auto_recurring");
+        ciclo.GetProperty("frequency").GetInt32().ShouldBe(12);
+        ciclo.GetProperty("start_date").GetString().ShouldBe("2026-10-28T15:00:00.000Z");
+    }
+
     private static HttpResponseMessage Json(string corpo) =>
         new(HttpStatusCode.OK) { Content = new StringContent(corpo, Encoding.UTF8, "application/json") };
 

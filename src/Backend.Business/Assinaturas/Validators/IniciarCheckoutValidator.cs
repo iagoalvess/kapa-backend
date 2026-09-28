@@ -10,5 +10,6 @@ public sealed class IniciarCheckoutValidator : AbstractValidator<IniciarCheckout
     public IniciarCheckoutValidator()
     {
         RuleFor(x => x.PlanoCodigo).NotEmpty().WithMessage("Escolha um plano.").MaximumLength(40);
+        RuleFor(x => x.Meio).IsInEnum().WithMessage("Escolha cartão ou PIX.");
     }
 }

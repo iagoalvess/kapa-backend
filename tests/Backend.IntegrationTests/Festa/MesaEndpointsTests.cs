@@ -5,6 +5,7 @@ using Backend.Api.DTOs.Cobrancas;
 using Backend.Api.DTOs.Festa;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
+using Backend.Business.Festa.Models;
 using Backend.IntegrationTests.Infra;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -13,7 +14,7 @@ using Shouldly;
 namespace Backend.IntegrationTests.Festa;
 
 /// <summary>
-/// As mesas do jantar contra a API e o Postgres: cadastro, a mesa vendida e quem pode mexer.
+/// As mesas do jantar contra a API e o Postgres: cadastro, a mesa vendida, o mapa do salão e quem pode mexer.
 /// </summary>
 /// <remarks>
 /// A trava das atribuições e o <c>CHECK</c> da mesa reservada moram no banco — é aqui que se provam.
@@ -54,20 +55,109 @@ public sealed class MesaEndpointsTests(ApiFactory fabrica)
         mapa.Lista.Select(mesa => mesa.Identificacao).ShouldBe(["Mesa 2", "Mesa 12", "Mesa dos pais"]);
     }
 
+    /// <summary>
+    /// P9 (28/09/2026): o formando lê o mapa do salão, com a mesa dele marcada e sem o nome de dono
+    /// nenhum; não lê o mapa da Gestão nem escreve.
+    /// </summary>
     [Fact]
-    public async Task Formando_nao_le_o_mapa_nem_escreve_mas_ve_as_proprias_mesas()
+    public async Task Formando_ve_o_salao_sem_os_donos_com_a_mesa_dele_marcada_e_nao_escreve()
     {
         var cenario = await Montar(quantidade: 1);
         var formando = cenario.Formando.Cliente;
 
         (await formando.GetAsync(Mesas, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await formando.PostAsJsonAsync(Mesas, new MesaRequestDTO("Minha", 10, null, null), Json, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await formando.PutAsJsonAsync($"{Mesas}/salao", new SalaoRequestDTO(2400, 1600, null, null), Json, Ct)).StatusCode.ShouldBe(
+            HttpStatusCode.Forbidden
+        );
 
-        var mesa = await Criar(cenario.Turma.Presidente.Cliente, "Mesa 5", 10);
-        (await Atribuir(cenario.Turma.Presidente, mesa.Id, cenario.VinculoId)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var dele = await Criar(cenario.Turma.Presidente.Cliente, "Mesa 5", 10);
+        await Criar(cenario.Turma.Presidente.Cliente, "Mesa 6", 10);
+        (await Atribuir(cenario.Turma.Presidente, dele.Id, cenario.VinculoId)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        var minhas = await formando.GetFromJsonAsync<List<MesaDTO>>($"{Mesas}/minhas", Json, Ct);
-        minhas!.Single().Identificacao.ShouldBe("Mesa 5");
+        var resposta = await formando.GetAsync($"{Mesas}/salao", Ct);
+        var corpo = await resposta.Content.ReadAsStringAsync(Ct);
+        var salao = JsonSerializer.Deserialize<SalaoDoFormandoDTO>(corpo, Json)!;
+
+        salao.Salao.Largura.ShouldBe(2400);
+        salao.Mesas.Select(mesa => (mesa.Identificacao, mesa.Minha)).ShouldBe([("Mesa 5", true), ("Mesa 6", false)]);
+        corpo.ShouldNotContain("vinculo_id");
+        corpo.ShouldNotContain("dono");
+    }
+
+    /// <summary>O "Salvar mapa" grava o salão e move só as mesas que vieram; a que não veio fica onde estava.</summary>
+    [Fact]
+    public async Task Salvar_o_salao_grava_os_elementos_e_move_so_as_mesas_enviadas()
+    {
+        var turma = await fabrica.TurmaComPlano();
+        var gestao = turma.Presidente.Cliente;
+        var primeira = await Criar(gestao, "Mesa 1", 10);
+        var segunda = await Criar(gestao, "Mesa 2", 8, formato: FormatoDaMesa.Retangular);
+        var palco = new ElementoDoSalaoDTO(TipoDeElemento.Palco, "  Palco  ", 800, 0, 800, 300, null);
+        var familia = new ElementoDoSalaoDTO(TipoDeElemento.Area, "Família", 0, 400, 600, 600, CorDaArea.Lilas);
+
+        var primeiraVez = await gestao.PutAsJsonAsync(
+            $"{Mesas}/salao",
+            new SalaoRequestDTO(3000, 2000, [palco, familia], [new(primeira.Id, 300, 700, null), new(segunda.Id, 1500, 1200, true)]),
+            Json,
+            Ct
+        );
+        var segundaVez = await gestao.PutAsJsonAsync(
+            $"{Mesas}/salao",
+            new SalaoRequestDTO(3000, 2000, [palco], [new(primeira.Id, null, null, null)]),
+            Json,
+            Ct
+        );
+
+        primeiraVez.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        segundaVez.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var mapa = await Mapa(turma.Presidente);
+        mapa.Salao.Largura.ShouldBe(3000);
+        mapa.Salao.Elementos.ShouldHaveSingleItem().Rotulo.ShouldBe("Palco");
+        var mesas = mapa.Lista.ToDictionary(mesa => mesa.Identificacao);
+        (mesas["Mesa 1"].X, mesas["Mesa 1"].Y).ShouldBe((null, null));
+        (mesas["Mesa 2"].X, mesas["Mesa 2"].Y, mesas["Mesa 2"].Girada, mesas["Mesa 2"].Formato).ShouldBe(
+            (1500, 1200, true, FormatoDaMesa.Retangular)
+        );
+    }
+
+    [Fact]
+    public async Task Salao_com_elemento_ou_mesa_fora_dele_e_recusado_e_o_banco_exige_as_duas_coordenadas()
+    {
+        var turma = await fabrica.TurmaComPlano();
+        var gestao = turma.Presidente.Cliente;
+        var mesa = await Criar(gestao, "Mesa 1", 10);
+
+        var elementoFora = await gestao.PutAsJsonAsync(
+            $"{Mesas}/salao",
+            new SalaoRequestDTO(1000, 1000, [new(TipoDeElemento.Pista, "Pista", 800, 0, 400, 400, null)], null),
+            Json,
+            Ct
+        );
+        var mesaFora = await gestao.PutAsJsonAsync(
+            $"{Mesas}/salao",
+            new SalaoRequestDTO(1000, 1000, null, [new(mesa.Id, 1200, 500, null)]),
+            Json,
+            Ct
+        );
+        var meiaCoordenada = await gestao.PutAsJsonAsync(
+            $"{Mesas}/salao",
+            new SalaoRequestDTO(1000, 1000, null, [new(mesa.Id, 500, null, null)]),
+            Json,
+            Ct
+        );
+        var salaoMinusculo = await gestao.PutAsJsonAsync($"{Mesas}/salao", new SalaoRequestDTO(100, 1000, null, null), Json, Ct);
+
+        elementoFora.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        mesaFora.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        meiaCoordenada.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        salaoMinusculo.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        await using var contexto = fabrica.ContextoDe(turma.FormaturaId);
+        var erro = await Should.ThrowAsync<PostgresException>(() =>
+            contexto.Database.ExecuteSqlAsync($"UPDATE mesas SET x = 10 WHERE id = {mesa.Id}", Ct)
+        );
+        erro.ConstraintName.ShouldBe("ck_mesas_posicao");
     }
 
     [Fact]
@@ -168,9 +258,15 @@ public sealed class MesaEndpointsTests(ApiFactory fabrica)
         return new Cenario(turma, formando, vinculoId, pedidoId);
     }
 
-    private static async Task<MesaDTO> Criar(HttpClient gestao, string identificacao, int lugares, bool reservada = false)
+    private static async Task<MesaDTO> Criar(
+        HttpClient gestao,
+        string identificacao,
+        int lugares,
+        bool reservada = false,
+        FormatoDaMesa formato = FormatoDaMesa.Redonda
+    )
     {
-        var resposta = await gestao.PostAsJsonAsync(Mesas, new MesaRequestDTO(identificacao, lugares, null, reservada), Json, Ct);
+        var resposta = await gestao.PostAsJsonAsync(Mesas, new MesaRequestDTO(identificacao, lugares, null, reservada, formato), Json, Ct);
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         return (await resposta.Content.ReadFromJsonAsync<MesaDTO>(Json, Ct))!;

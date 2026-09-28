@@ -17,12 +17,14 @@ namespace Backend.Business.Festa.Services;
 /// <param name="mesas">Mesas da turma e o direito de cada formando.</param>
 /// <param name="perfis">Vínculo de quem lê as próprias mesas.</param>
 /// <param name="validator">Forma do cadastro.</param>
+/// <param name="validatorDoSalao">Forma do mapa salvo.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class MesaService(
     IMesaRepository mesas,
     IPerfilRepository perfis,
     IValidator<DadosDaMesa> validator,
+    IValidator<DesenhoDoSalao> validatorDoSalao,
     IUnitOfWork unitOfWork,
     ILogger<MesaService> logger
 ) : IMesaService
@@ -45,6 +47,7 @@ public sealed class MesaService(
     {
         var lista = await mesas.Listar(null, ct);
         var compradores = await mesas.ListarCompradores(ct);
+        var salao = await mesas.ObterSalao(ct) ?? PlantaDoSalao.Padrao;
 
         return new MapaDeMesas(
             lista.Count,
@@ -53,15 +56,73 @@ public sealed class MesaService(
             lista.Count(mesa => mesa.VinculoId is not null),
             compradores.Sum(comprador => Math.Max(0, comprador.Compradas - comprador.Atribuidas)),
             lista,
-            compradores
+            compradores,
+            salao
         );
     }
 
     /// <inheritdoc />
-    public async Task<Result<IReadOnlyList<MesaResumo>>> ListarMinhas(Guid formaturaId, Guid usuarioId, CancellationToken ct = default) =>
-        await perfis.ObterMembro(formaturaId, usuarioId, ct) is { } membro
-            ? Result.Ok(await mesas.Listar(membro.VinculoId, ct))
-            : Erro.NaoEncontrado("formatura.vinculo_nao_encontrado", "Você não é membro ativo desta turma.");
+    /// <remarks>
+    /// Todas as mesas, mas sem o dono (P9, 28/09/2026): o formando vê onde fica a própria mesa e o que
+    /// há em volta, e não de quem é cada uma.
+    /// </remarks>
+    public async Task<Result<SalaoDoFormando>> SalaoDoFormando(Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
+    {
+        if (await perfis.ObterMembro(formaturaId, usuarioId, ct) is not { } membro)
+            return Erro.NaoEncontrado("formatura.vinculo_nao_encontrado", "Você não é membro ativo desta turma.");
+
+        var lista = await mesas.Listar(null, ct);
+
+        return new SalaoDoFormando(
+            await mesas.ObterSalao(ct) ?? PlantaDoSalao.Padrao,
+            [
+                .. lista.Select(mesa => new MesaNoSalao(
+                    mesa.Id,
+                    mesa.Identificacao,
+                    mesa.Lugares,
+                    mesa.Reservada,
+                    mesa.Formato,
+                    mesa.X,
+                    mesa.Y,
+                    mesa.Girada,
+                    mesa.VinculoId == membro.VinculoId
+                )),
+            ]
+        );
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Uma gravação só, para o salão e as mesas: o mapa que a comissão vê depois de salvar é o que ela
+    /// montou, e não metade dele. Duas pessoas salvando o mapa ao mesmo tempo: vence a última — é o
+    /// comportamento de qualquer editor de documento sem trava, e a comissão é de três ou quatro.
+    /// <para>
+    /// ponytail: sem controle de versão do mapa. Se duas pessoas passarem a perder trabalho uma da
+    /// outra, o salão ganha <c>xmin</c> e o segundo a salvar recebe 409.
+    /// </para>
+    /// </remarks>
+    public async Task<Result> SalvarSalao(DesenhoDoSalao desenho, CancellationToken ct = default)
+    {
+        var validacao = validatorDoSalao.Validar(desenho);
+        if (validacao.Falhou)
+            return Result.Falha(validacao.Erros);
+
+        if (await mesas.ObterSalaoParaEdicao(ct) is { } salao)
+            salao.Redesenhar(desenho.Planta);
+        else
+            await mesas.AdicionarSalao(Salao.Novo(desenho.Planta), ct);
+
+        var posicoes = desenho.Posicoes.DistinctBy(posicao => posicao.MesaId).ToDictionary(posicao => posicao.MesaId);
+        foreach (var mesa in await mesas.ListarParaEdicao(posicoes.Keys, ct))
+        {
+            var posicao = posicoes[mesa.Id];
+            mesa.Posicionar(posicao.X, posicao.Y, posicao.Girada);
+        }
+
+        await unitOfWork.SalvarAsync(ct);
+
+        return Result.Ok();
+    }
 
     /// <inheritdoc />
     public async Task<Result<MesaResumo>> Criar(DadosDaMesa dados, CancellationToken ct = default)

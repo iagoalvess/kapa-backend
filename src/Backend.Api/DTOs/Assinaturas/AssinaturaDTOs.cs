@@ -1,4 +1,5 @@
 using Backend.Business.Assinaturas.Models;
+using Backend.Business.Pagamentos.Models;
 
 namespace Backend.Api.DTOs.Assinaturas;
 
@@ -34,6 +35,9 @@ public sealed record PlanoDTO(
 /// <param name="ProximaCobrancaEm">Próxima cobrança automática, em UTC; nulo se não houver.</param>
 /// <param name="CanceladaEm">Quando a renovação foi cancelada, em UTC.</param>
 /// <param name="CriadoEm">Início do checkout, em UTC.</param>
+/// <param name="Meio"><c>Cartao</c> (recorrente) ou <c>Pix</c> (avulso, um por ciclo).</param>
+/// <param name="ProximoPlano">Plano que passa a valer na próxima renovação; nulo sem descida agendada.</param>
+/// <param name="CartaoAguardandoAutorizacao">Se a troca para o cartão espera a autorização na página do provedor.</param>
 public sealed record AssinaturaDTO(
     Guid Id,
     StatusDaAssinatura Status,
@@ -41,12 +45,55 @@ public sealed record AssinaturaDTO(
     DateTime? VigenteAte,
     DateTime? ProximaCobrancaEm,
     DateTime? CanceladaEm,
-    DateTime CriadoEm
+    DateTime CriadoEm,
+    MeioDePagamento Meio,
+    PlanoDTO? ProximoPlano,
+    bool CartaoAguardandoAutorizacao
 );
+
+/// <summary>Um pagamento do plano, no histórico.</summary>
+/// <param name="Id">Cobrança.</param>
+/// <param name="PlanoNome">Plano pago.</param>
+/// <param name="Motivo"><c>Ciclo</c> ou <c>Diferenca</c> (subida de plano).</param>
+/// <param name="Meio"><c>Cartao</c> ou <c>Pix</c>.</param>
+/// <param name="ValorEmCentavos">Valor, em centavos.</param>
+/// <param name="Situacao"><c>Aberta</c>, <c>Paga</c>, <c>Cancelada</c> ou <c>Estornada</c>.</param>
+/// <param name="Url">Página de pagamento, enquanto aberta; nula depois.</param>
+/// <param name="CriadaEm">Quando nasceu, em UTC.</param>
+/// <param name="PagaEm">Quando foi paga, em UTC; nula enquanto não.</param>
+/// <param name="ValorEstornadoEmCentavos">Quanto voltou, se estornada.</param>
+/// <param name="EstornadaEm">Quando foi estornada, em UTC.</param>
+public sealed record CobrancaDoPlanoDTO(
+    Guid Id,
+    string PlanoNome,
+    MotivoDaCobranca Motivo,
+    MeioDePagamento Meio,
+    long ValorEmCentavos,
+    SituacaoDaCobrancaDoPlano Situacao,
+    string? Url,
+    DateTime CriadaEm,
+    DateTime? PagaEm,
+    long? ValorEstornadoEmCentavos,
+    DateTime? EstornadaEm
+);
+
+/// <summary>Corpo da troca de plano.</summary>
+/// <param name="PlanoCodigo">Plano novo, do mesmo ciclo.</param>
+public sealed record TrocarPlanoRequestDTO(string PlanoCodigo);
+
+/// <summary>Corpo da troca de meio.</summary>
+/// <param name="Meio"><c>Cartao</c> ou <c>Pix</c>.</param>
+public sealed record TrocarMeioRequestDTO(MeioDePagamento Meio);
+
+/// <summary>O que a troca de plano ou de meio deu.</summary>
+/// <param name="Url">Página do provedor para pagar a diferença ou autorizar o cartão; nula quando nada precisa ser pago agora.</param>
+/// <param name="Assinatura">A assinatura depois da troca.</param>
+public sealed record TrocaDTO(string? Url, AssinaturaDTO Assinatura);
 
 /// <summary>Corpo do checkout.</summary>
 /// <param name="PlanoCodigo">Plano escolhido.</param>
-public sealed record IniciarCheckoutRequestDTO(string PlanoCodigo);
+/// <param name="Meio"><c>Cartao</c> (recorrente) ou <c>Pix</c> (avulso). Nulo é cartão.</param>
+public sealed record IniciarCheckoutRequestDTO(string PlanoCodigo, MeioDePagamento? Meio = null);
 
 /// <summary>Sessão de pagamento criada.</summary>
 /// <param name="Url">Página do provedor, para onde o navegador deve ir.</param>

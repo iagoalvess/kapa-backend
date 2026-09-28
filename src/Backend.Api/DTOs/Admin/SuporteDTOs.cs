@@ -1,3 +1,6 @@
+using Backend.Api.DTOs.Assinaturas;
+using Backend.Business.Admin.Models;
+
 namespace Backend.Api.DTOs.Admin;
 
 /// <summary>O que a busca do painel de suporte encontrou.</summary>
@@ -37,6 +40,7 @@ public sealed record UsuarioEncontradoDTO(Guid Id, string Nome, string Email, bo
 /// <param name="Parcelas">Parcelas geradas, sem as canceladas.</param>
 /// <param name="ParcelasPagas">Parcelas já baixadas.</param>
 /// <param name="Adesoes">Termos assinados.</param>
+/// <param name="Pagamentos">Pagamentos do plano, mais recentes primeiro — de onde o suporte estorna.</param>
 public sealed record TurmaNoSuporteDTO(
     Guid Id,
     string Nome,
@@ -51,8 +55,13 @@ public sealed record TurmaNoSuporteDTO(
     IReadOnlyList<MembroNoSuporteDTO> Membros,
     int Parcelas,
     int ParcelasPagas,
-    int Adesoes
+    int Adesoes,
+    IReadOnlyList<CobrancaDoPlanoDTO> Pagamentos
 );
+
+/// <summary>Corpo do estorno.</summary>
+/// <param name="Modo"><c>Integral</c> (até 7 dias do pagamento) ou <c>Proporcional</c> (o que falta do ciclo).</param>
+public sealed record EstornarPagamentoRequestDTO(ModoDeEstorno Modo);
 
 /// <summary>A licença da turma.</summary>
 /// <param name="Id">Assinatura.</param>

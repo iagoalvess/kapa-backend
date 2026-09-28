@@ -16,5 +16,7 @@ public sealed class RegistroDeMapeamentosAssinaturas : IRegister
         config.NewConfig<AssinaturaDetalhe, AssinaturaDTO>();
         config.NewConfig<SessaoDeCheckout, CheckoutDTO>();
         config.NewConfig<ReciboDeWebhook, ReciboDeWebhookDTO>();
+        config.NewConfig<CobrancaDoPlanoResumo, CobrancaDoPlanoDTO>();
+        config.NewConfig<ResultadoDaTroca, TrocaDTO>();
     }
 }

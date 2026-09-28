@@ -150,4 +150,65 @@ public sealed class AssinaturaTests
 
         assinatura.UltimoAvisoDeVencimento.ShouldBeNull();
     }
+
+    /// <summary>P4: a descida agendada vale no ciclo que a renovação abre, e o agendamento some.</summary>
+    [Fact]
+    public void Renovar_aplica_o_plano_do_proximo_ciclo()
+    {
+        var assinatura = Ativa(Agora);
+        var essencial = Guid.CreateVersion7();
+        assinatura.AgendarPlano(essencial).Sucesso.ShouldBeTrue();
+
+        assinatura.Renovar(assinatura.VigenteAte!.Value, CicloDeCobranca.Mensal);
+
+        assinatura.PlanoId.ShouldBe(essencial);
+        assinatura.PlanoDoProximoCicloId.ShouldBeNull();
+    }
+
+    /// <summary>Agendar o próprio plano atual é desistir da descida.</summary>
+    [Fact]
+    public void Agendar_o_plano_atual_desfaz_a_descida()
+    {
+        var assinatura = Ativa(Agora);
+        assinatura.AgendarPlano(Guid.CreateVersion7());
+
+        assinatura.AgendarPlano(assinatura.PlanoId);
+
+        assinatura.PlanoDoProximoCicloId.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Subir_de_plano_exige_assinatura_ativa()
+    {
+        new Assinatura().SubirDePlano(Guid.CreateVersion7()).Erros.ShouldHaveSingleItem().Codigo.ShouldBe("assinatura.nao_ativa");
+    }
+
+    /// <summary>P7: o estorno encerra a vigência na hora, e a assinatura fica vencida.</summary>
+    [Fact]
+    public void Encerrar_acaba_a_vigencia_agora()
+    {
+        var assinatura = Ativa(Agora);
+        var estorno = Agora.AddDays(3);
+
+        assinatura.Encerrar(estorno).Sucesso.ShouldBeTrue();
+
+        assinatura.Status.ShouldBe(StatusDaAssinatura.Vencida);
+        assinatura.VigenteAte.ShouldBe(estorno);
+        assinatura.CanceladaEm.ShouldBe(estorno);
+    }
+
+    [Theory]
+    [InlineData(0, 1.0)]
+    [InlineData(15, 0.5)]
+    [InlineData(30, 0.0)]
+    [InlineData(45, 0.0)]
+    public void Fracao_restante_e_o_que_falta_do_ciclo(int diasDepois, double fracao)
+    {
+        var assinatura = new Assinatura();
+        assinatura.ConfirmarPagamento(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc), CicloDeCobranca.Mensal);
+
+        var restante = assinatura.FracaoRestante(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(diasDepois), CicloDeCobranca.Mensal);
+
+        ((double)restante).ShouldBe(fracao, 0.001);
+    }
 }

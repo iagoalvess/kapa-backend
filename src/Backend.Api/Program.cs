@@ -1,5 +1,6 @@
 using Backend.Api.Configuration;
 using Backend.Business;
+using Backend.Business.Assinaturas.Settings;
 using Backend.Data;
 using Backend.Data.Seed;
 
@@ -30,6 +31,14 @@ if (app.Environment.IsProduction() && app.Configuration.GetValue<bool>("Seed:AoI
 {
     throw new InvalidOperationException(
         "'Seed:AoIniciar' não pode ficar ligado em produção: a conta inicial é criada manualmente. Ver docs/operacao.md."
+    );
+}
+
+// O provedor fake ativa qualquer turma sem cobrar nada: em produção ele é um buraco, não um modo de teste (Sprint 37).
+if (app.Environment.IsProduction() && app.Configuration.GetValue("Assinaturas:Provedor", EProvedorDeAssinatura.Fake) == EProvedorDeAssinatura.Fake)
+{
+    throw new InvalidOperationException(
+        "'Assinaturas:Provedor' não pode ser Fake em produção: configure MercadoPago e o token da conta do Kapa. Ver docs/deploy.md."
     );
 }
 

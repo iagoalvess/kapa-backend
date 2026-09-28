@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Pagamentos.Models;
 
 namespace Backend.Business.Assinaturas.Models;
 
@@ -26,7 +27,18 @@ public class Assinatura : EntidadeDaFormatura
     public StatusDaAssinatura Status { get; private set; } = StatusDaAssinatura.Pendente;
 
     /// <summary>Identificador da assinatura (ou da sessão de checkout) no provedor.</summary>
+    /// <remarks>
+    /// No cartão é a recorrência. No PIX avulso fica nulo — cada ciclo é uma <see cref="CobrancaDaAssinatura"/> —,
+    /// menos enquanto a troca para o cartão espera a autorização: aí guarda a recorrência nova, e
+    /// <see cref="Meio"/> só vira cartão quando ela for autorizada.
+    /// </remarks>
     public string? IdExterno { get; set; }
+
+    /// <summary>Como a turma paga: cartão recorrente ou um PIX avulso por ciclo (Sprint 37).</summary>
+    public MeioDePagamento Meio { get; set; } = MeioDePagamento.Cartao;
+
+    /// <summary>Plano que passa a valer na próxima renovação — a descida do Premium para o Essencial (P4).</summary>
+    public Guid? PlanoDoProximoCicloId { get; private set; }
 
     /// <summary>Até quando a licença paga vale, em UTC. Nulo enquanto não houver pagamento.</summary>
     public DateTime? VigenteAte { get; private set; }
@@ -84,7 +96,68 @@ public class Assinatura : EntidadeDaFormatura
         VigenteAte = ciclo.Somar(inicio);
         UltimoAvisoDeVencimento = null;
 
+        if (PlanoDoProximoCicloId is { } proximo)
+        {
+            PlanoId = proximo;
+            PlanoDoProximoCicloId = null;
+        }
+
         return Result.Ok();
+    }
+
+    /// <summary>A diferença da subida de plano foi paga: o plano novo vale já, até o fim da vigência (P4).</summary>
+    /// <param name="planoId">Plano novo.</param>
+    public Result SubirDePlano(Guid planoId)
+    {
+        if (Status != StatusDaAssinatura.Ativa)
+            return Result.Falha(Erro.Conflito("assinatura.nao_ativa", "Só uma assinatura ativa muda de plano."));
+
+        PlanoId = planoId;
+        PlanoDoProximoCicloId = null;
+
+        return Result.Ok();
+    }
+
+    /// <summary>Agenda o plano da próxima renovação. O próprio plano atual desfaz o agendamento.</summary>
+    /// <param name="planoId">Plano do próximo ciclo.</param>
+    public Result AgendarPlano(Guid planoId)
+    {
+        if (Status != StatusDaAssinatura.Ativa)
+            return Result.Falha(Erro.Conflito("assinatura.nao_ativa", "Só uma assinatura ativa muda de plano."));
+
+        PlanoDoProximoCicloId = planoId == PlanoId ? null : planoId;
+
+        return Result.Ok();
+    }
+
+    /// <summary>Encerra a vigência agora — o estorno pelo suporte (P7). Quem chama suspende a formatura.</summary>
+    /// <param name="agoraUtc">Momento do estorno.</param>
+    public Result Encerrar(DateTime agoraUtc)
+    {
+        if (Status is not (StatusDaAssinatura.Ativa or StatusDaAssinatura.Cancelada))
+            return Invalida(StatusDaAssinatura.Vencida);
+
+        Status = StatusDaAssinatura.Vencida;
+        VigenteAte = agoraUtc;
+        CanceladaEm ??= agoraUtc;
+        PlanoDoProximoCicloId = null;
+
+        return Result.Ok();
+    }
+
+    /// <summary>
+    /// Quanto do ciclo pago ainda falta, de 0 a 1. É a régua da diferença na subida de plano e do estorno proporcional.
+    /// </summary>
+    /// <param name="agoraUtc">Momento do cálculo.</param>
+    /// <param name="ciclo">Ciclo do plano.</param>
+    public decimal FracaoRestante(DateTime agoraUtc, CicloDeCobranca ciclo)
+    {
+        if (VigenteAte is not { } ate || ate <= agoraUtc)
+            return 0;
+
+        var inicio = ciclo == CicloDeCobranca.Anual ? ate.AddYears(-1) : ate.AddMonths(-1);
+
+        return Math.Min(1m, (decimal)(ate - agoraUtc).Ticks / (ate - inicio).Ticks);
     }
 
     /// <summary>Cancela a renovação. A vigência corrente continua valendo.</summary>

@@ -1,3 +1,5 @@
+using Backend.Business.Pagamentos.Models;
+
 namespace Backend.Business.Assinaturas.Models;
 
 /// <summary>Plano como a tela de planos o mostra.</summary>
@@ -32,6 +34,9 @@ public sealed record PlanoResumo(
 /// <param name="ProximaCobrancaEm">Próxima cobrança automática, em UTC. Nulo se não houver renovação por vir.</param>
 /// <param name="CanceladaEm">Quando a renovação foi cancelada, em UTC.</param>
 /// <param name="CriadoEm">Início do checkout, em UTC.</param>
+/// <param name="Meio">Cartão recorrente ou PIX avulso.</param>
+/// <param name="ProximoPlano">Plano que vale a partir da próxima renovação, quando a turma agendou a descida.</param>
+/// <param name="CartaoAguardandoAutorizacao">Se a troca para o cartão espera a autorização na página do provedor.</param>
 public sealed record AssinaturaDetalhe(
     Guid Id,
     StatusDaAssinatura Status,
@@ -39,18 +44,58 @@ public sealed record AssinaturaDetalhe(
     DateTime? VigenteAte,
     DateTime? ProximaCobrancaEm,
     DateTime? CanceladaEm,
-    DateTime CriadoEm
+    DateTime CriadoEm,
+    MeioDePagamento Meio,
+    PlanoResumo? ProximoPlano,
+    bool CartaoAguardandoAutorizacao
+);
+
+/// <summary>Um pagamento do plano, como o histórico da tela o mostra.</summary>
+/// <param name="Id">Cobrança.</param>
+/// <param name="PlanoNome">Plano pago.</param>
+/// <param name="Motivo">Ciclo ou diferença de plano.</param>
+/// <param name="Meio">Meio.</param>
+/// <param name="ValorEmCentavos">Valor.</param>
+/// <param name="Situacao">Aberta, paga, cancelada ou estornada.</param>
+/// <param name="Url">Página de pagamento, enquanto aberta.</param>
+/// <param name="CriadaEm">Quando nasceu, em UTC.</param>
+/// <param name="PagaEm">Quando foi paga, em UTC.</param>
+/// <param name="ValorEstornadoEmCentavos">Quanto voltou, se estornada.</param>
+/// <param name="EstornadaEm">Quando foi estornada, em UTC.</param>
+public sealed record CobrancaDoPlanoResumo(
+    Guid Id,
+    string PlanoNome,
+    MotivoDaCobranca Motivo,
+    MeioDePagamento Meio,
+    long ValorEmCentavos,
+    SituacaoDaCobrancaDoPlano Situacao,
+    string? Url,
+    DateTime CriadaEm,
+    DateTime? PagaEm,
+    long? ValorEstornadoEmCentavos,
+    DateTime? EstornadaEm
 );
 
 /// <summary>Pedido de checkout vindo da tela de planos.</summary>
 /// <param name="PlanoCodigo">Plano escolhido.</param>
-public sealed record IniciarCheckout(string PlanoCodigo);
+/// <param name="Meio">Cartão recorrente ou PIX avulso. Nulo é cartão — o contrato de antes da Sprint 37.</param>
+/// <param name="EmailDoPagador">E-mail de quem contrata: o provedor exige na recorrência.</param>
+public sealed record IniciarCheckout(string PlanoCodigo, MeioDePagamento? Meio = null, string? EmailDoPagador = null);
+
+/// <summary>O que a troca de plano ou de meio deu.</summary>
+/// <param name="Url">Página do provedor para pagar a diferença ou autorizar o cartão; nula quando nada precisa ser pago agora.</param>
+/// <param name="Assinatura">A assinatura depois da troca.</param>
+public sealed record ResultadoDaTroca(string? Url, AssinaturaDetalhe Assinatura);
 
 /// <summary>O que o provedor precisa para montar a página de pagamento.</summary>
 /// <remarks>
 /// Desacoplado das entidades de propósito: o provedor não precisa, e não deve, conhecer o modelo
 /// de dados. <see cref="AssinaturaId"/> vai como referência externa — é por ele que o webhook
 /// encontra a assinatura de volta.
+/// <para>
+/// Dois pedidos num tipo só (Sprint 37): sem <see cref="CobrancaId"/> é a recorrência no cartão; com ele, uma
+/// cobrança avulsa — o PIX de um ciclo ou a diferença da subida de plano —, e a referência externa é a cobrança.
+/// </para>
 /// </remarks>
 /// <param name="AssinaturaId">Referência que volta nos eventos.</param>
 /// <param name="PlanoCodigo">Plano escolhido.</param>
@@ -58,13 +103,21 @@ public sealed record IniciarCheckout(string PlanoCodigo);
 /// <param name="PrecoEmCentavos">Valor de um ciclo, em centavos.</param>
 /// <param name="Ciclo">Periodicidade.</param>
 /// <param name="UrlDeRetorno">Para onde o provedor devolve o navegador.</param>
+/// <param name="Meio">Cartão ou PIX.</param>
+/// <param name="EmailDoPagador">Quem paga; a recorrência exige.</param>
+/// <param name="CobrancaId">A cobrança avulsa; nulo na recorrência.</param>
+/// <param name="ComecaEm">Primeiro débito da recorrência, em UTC; nulo é agora. É a troca de meio (P5): sem cobrança em dobro.</param>
 public sealed record PedidoDeCheckout(
     Guid AssinaturaId,
     string PlanoCodigo,
     string PlanoNome,
     long PrecoEmCentavos,
     CicloDeCobranca Ciclo,
-    string UrlDeRetorno
+    string UrlDeRetorno,
+    MeioDePagamento Meio = MeioDePagamento.Cartao,
+    string? EmailDoPagador = null,
+    Guid? CobrancaId = null,
+    DateTime? ComecaEm = null
 );
 
 /// <summary>Sessão de pagamento criada no provedor.</summary>
@@ -80,6 +133,9 @@ public sealed record SessaoDeCheckout(string IdExterno, string Url);
 /// <param name="OcorridoEm">
 /// Quando o evento aconteceu <b>no provedor</b>, em UTC. É o que ordena os eventos entre si.
 /// </param>
+/// <param name="CobrancaId">A cobrança avulsa paga, quando o pagamento é de uma (PIX do ciclo, diferença).</param>
+/// <param name="IdDoPagamento">O id do pagamento no provedor — o que o estorno usa.</param>
+/// <param name="ValorEmCentavos">O que o provedor creditou.</param>
 /// <remarks>
 /// <see cref="OcorridoEm"/> não é o momento em que o webhook chegou: reentrega, fila do PSP e
 /// retentativa fazem um evento antigo chegar depois de um novo, e aplicar na ordem de chegada
@@ -90,7 +146,16 @@ public sealed record SessaoDeCheckout(string IdExterno, string Url);
 /// evento sem data pararia a cobrança inteira de um provedor que simplesmente não manda o campo.
 /// </para>
 /// </remarks>
-public sealed record EventoDoProvedor(string Id, string Tipo, Guid? AssinaturaId, string? IdExternoDaAssinatura, DateTime? OcorridoEm = null);
+public sealed record EventoDoProvedor(
+    string Id,
+    string Tipo,
+    Guid? AssinaturaId,
+    string? IdExternoDaAssinatura,
+    DateTime? OcorridoEm = null,
+    Guid? CobrancaId = null,
+    string? IdDoPagamento = null,
+    long? ValorEmCentavos = null
+);
 
 /// <summary>Resposta do webhook.</summary>
 /// <param name="EventoId">Id do evento recebido.</param>

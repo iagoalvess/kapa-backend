@@ -1,3 +1,6 @@
+using Backend.Business.Assinaturas.Models;
+using Backend.Business.Pagamentos.Models;
+
 namespace Backend.Business.Admin.Models;
 
 /// <summary>
@@ -46,6 +49,7 @@ public sealed record UsuarioEncontrado(Guid Id, string Nome, string Email, bool 
 /// <param name="Parcelas">Quantas parcelas a turma tem geradas.</param>
 /// <param name="ParcelasPagas">Quantas já foram baixadas.</param>
 /// <param name="Adesoes">Quantos membros assinaram o termo.</param>
+/// <param name="Pagamentos">Os pagamentos do plano, mais recentes primeiro — de onde o suporte estorna (Sprint 37).</param>
 public sealed record TurmaNoSuporte(
     Guid Id,
     string Nome,
@@ -60,7 +64,46 @@ public sealed record TurmaNoSuporte(
     IReadOnlyList<MembroNoSuporte> Membros,
     int Parcelas,
     int ParcelasPagas,
-    int Adesoes
+    int Adesoes,
+    IReadOnlyList<CobrancaDoPlanoResumo> Pagamentos
+);
+
+/// <summary>Como o suporte estorna um pagamento do plano (P7).</summary>
+public enum ModoDeEstorno
+{
+    /// <summary>Tudo de volta: desistência em até 7 dias do pagamento (Termos, seção 7; art. 49 do CDC).</summary>
+    Integral,
+
+    /// <summary>O que falta do ciclo pago: o Kapa encerrou sem culpa da turma, ou ela recusou os Termos novos (seções 13 e 14).</summary>
+    Proporcional,
+}
+
+/// <summary>Um pagamento do plano na lista mensal da nota fiscal (P6).</summary>
+/// <param name="PagaEm">Quando foi pago, em UTC.</param>
+/// <param name="Turma">Nome da turma.</param>
+/// <param name="Instituicao">Instituição.</param>
+/// <param name="Plano">Plano pago.</param>
+/// <param name="Motivo">Ciclo ou diferença de plano.</param>
+/// <param name="Meio">Meio.</param>
+/// <param name="ValorEmCentavos">Valor pago.</param>
+/// <param name="ValorEstornadoEmCentavos">Quanto voltou, se estornado.</param>
+/// <param name="PresidenteNome">O tomador: nome do Presidente.</param>
+/// <param name="PresidenteEmail">E-mail do Presidente.</param>
+/// <param name="PresidenteCpf">CPF inteiro do Presidente — o portal da prefeitura pede (decisão de 28/09/2026).</param>
+/// <param name="IdDoPagamento">Id do pagamento no provedor, para conferir com o extrato.</param>
+public sealed record PagamentoParaNota(
+    DateTime PagaEm,
+    string Turma,
+    string Instituicao,
+    string Plano,
+    MotivoDaCobranca Motivo,
+    MeioDePagamento Meio,
+    long ValorEmCentavos,
+    long? ValorEstornadoEmCentavos,
+    string? PresidenteNome,
+    string? PresidenteEmail,
+    string? PresidenteCpf,
+    string? IdDoPagamento
 );
 
 /// <summary>A licença da turma, como o suporte a vê.</summary>

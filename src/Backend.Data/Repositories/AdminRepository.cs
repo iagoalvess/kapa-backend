@@ -1,7 +1,9 @@
 using Backend.Business.Admin.Interfaces;
 using Backend.Business.Admin.Models;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Texto;
+using Backend.Business.Formaturas.Models;
 using Backend.Business.Usuarios.Models;
 using Backend.Data.Context;
 using Microsoft.EntityFrameworkCore;
@@ -158,6 +160,27 @@ public sealed class AdminRepository(AppDbContext db) : IAdminRepository
                 })
                 .FirstOrDefaultAsync(ct);
 
+        var pagamentos = await (
+            from c in db.CobrancasDaAssinatura.AsNoTracking()
+            join a in db.Assinaturas.AsNoTracking().IgnoreQueryFilters() on c.AssinaturaId equals a.Id
+            join p in db.Planos.AsNoTracking() on c.PlanoId equals p.Id
+            where a.FormaturaId == formaturaId
+            orderby c.CriadoEm descending, c.Id descending
+            select new CobrancaDoPlanoResumo(
+                c.Id,
+                p.Nome,
+                c.Motivo,
+                c.Meio,
+                c.ValorEmCentavos,
+                c.Situacao,
+                c.Url,
+                c.CriadoEm,
+                c.PagaEm,
+                c.ValorEstornadoEmCentavos,
+                c.EstornadaEm
+            )
+        ).ToListAsync(ct);
+
         var membros = await (
             from v in db.Vinculos.AsNoTracking().IgnoreQueryFilters()
             join u in db.Users.AsNoTracking() on v.UsuarioId equals u.Id
@@ -211,8 +234,85 @@ public sealed class AdminRepository(AppDbContext db) : IAdminRepository
             ],
             turma.Parcelas,
             turma.ParcelasPagas,
-            turma.Adesoes
+            turma.Adesoes,
+            pagamentos
         );
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Paga e estornada entram — a estornada saiu na nota do mês em que foi paga, e quem emite precisa ver a devolução
+    /// ao lado. O Presidente é o de vínculo ativo mais antigo; o CPF é decifrado ao materializar e sai inteiro, ao
+    /// contrário do resto do painel: é o que o portal da prefeitura pede para identificar o tomador.
+    /// </remarks>
+    public async Task<IReadOnlyList<PagamentoParaNota>> ListarPagamentosParaNotaDeTodasAsFormaturas(
+        DateTime inicio,
+        DateTime fim,
+        CancellationToken ct = default
+    )
+    {
+        var linhas = await (
+            from c in db.CobrancasDaAssinatura.AsNoTracking()
+            join a in db.Assinaturas.AsNoTracking().IgnoreQueryFilters() on c.AssinaturaId equals a.Id
+            join f in db.Formaturas.AsNoTracking() on a.FormaturaId equals f.Id
+            join p in db.Planos.AsNoTracking() on c.PlanoId equals p.Id
+            where
+                c.PagaEm >= inicio
+                && c.PagaEm < fim
+                && (c.Situacao == SituacaoDaCobrancaDoPlano.Paga || c.Situacao == SituacaoDaCobrancaDoPlano.Estornada)
+            orderby c.PagaEm, c.Id
+            select new
+            {
+                PagaEm = c.PagaEm!.Value,
+                Turma = f.Nome,
+                f.Instituicao,
+                Plano = p.Nome,
+                c.Motivo,
+                c.Meio,
+                c.ValorEmCentavos,
+                c.ValorEstornadoEmCentavos,
+                c.IdDoPagamento,
+                Presidente = (
+                    from v in db.Vinculos.IgnoreQueryFilters()
+                    join u in db.Users on v.UsuarioId equals u.Id
+                    where v.FormaturaId == f.Id && v.Ativo && v.Papel == PapelNaFormatura.Presidente
+                    orderby v.CriadoEm
+                    select new
+                    {
+                        u.Nome,
+                        u.Email,
+                        v.Id,
+                    }
+                ).FirstOrDefault(),
+            }
+        ).ToListAsync(ct);
+
+        var vinculos = linhas.Where(l => l.Presidente != null).Select(l => l.Presidente!.Id).Distinct().ToList();
+
+        var cpfs = await db
+            .PerfisDeFormandos.AsNoTracking()
+            .IgnoreQueryFilters()
+            .Where(perfil => vinculos.Contains(perfil.VinculoId))
+            .Select(perfil => new { perfil.VinculoId, perfil.Cpf })
+            .ToListAsync(ct);
+
+        return
+        [
+            .. linhas.Select(l => new PagamentoParaNota(
+                l.PagaEm,
+                l.Turma,
+                l.Instituicao,
+                l.Plano,
+                l.Motivo,
+                l.Meio,
+                l.ValorEmCentavos,
+                l.ValorEstornadoEmCentavos,
+                l.Presidente?.Nome,
+                l.Presidente?.Email,
+                cpfs.FirstOrDefault(cpf => cpf.VinculoId == l.Presidente?.Id)?.Cpf,
+                l.IdDoPagamento
+            )),
+        ];
     }
 
     /// <inheritdoc />

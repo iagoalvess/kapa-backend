@@ -1,5 +1,6 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Admin.Models;
+using Backend.Business.Arquivos.Models;
 
 namespace Backend.Business.Admin.Interfaces;
 
@@ -38,6 +39,21 @@ public interface IAdminService
     /// <param name="formaturaId">Formatura.</param>
     /// <param name="autorId">Quem do suporte executou.</param>
     Task<Result<TurmaNoSuporte>> AtivarAssinatura(Guid formaturaId, Guid autorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Estorna um pagamento do plano e encerra a assinatura na hora (P7): a renovação é cancelada no provedor e a turma
+    /// fica só para consulta.
+    /// </summary>
+    /// <param name="formaturaId">Formatura.</param>
+    /// <param name="cobrancaId">Pagamento a estornar.</param>
+    /// <param name="modo">Integral (até 7 dias do pagamento) ou proporcional ao que falta do ciclo.</param>
+    /// <param name="autorId">Quem do suporte executou.</param>
+    Task<Result<TurmaNoSuporte>> Estornar(Guid formaturaId, Guid cobrancaId, ModoDeEstorno modo, Guid autorId, CancellationToken ct = default);
+
+    /// <summary>A planilha dos pagamentos do plano confirmados no mês, para a nota fiscal manual (P6).</summary>
+    /// <param name="ano">Ano.</param>
+    /// <param name="mes">Mês, de 1 a 12, no fuso de exibição.</param>
+    Task<Result<ArquivoParaDownload>> ExportarPagamentos(int ano, int mes, CancellationToken ct = default);
 
     /// <summary>Reenvia o e-mail de confirmação da conta.</summary>
     /// <param name="usuarioId">Conta.</param>

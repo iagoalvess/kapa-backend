@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Backend.Api.Analytics;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Assinaturas;
+using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Assinaturas.Models;
@@ -20,10 +21,11 @@ namespace Backend.Api.Controllers.V1.Assinaturas;
 /// suspensa voltar. Cancelar exige: só se cancela a renovação do que está valendo.
 /// </remarks>
 /// <param name="assinaturaService">Contratação e cancelamento.</param>
+/// <param name="usuarioAtual">Quem contrata — o e-mail vai para o provedor, que o exige na recorrência.</param>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/formaturas/atual/assinatura")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class AssinaturaController(IAssinaturaService assinaturaService) : MainController
+public sealed class AssinaturaController(IAssinaturaService assinaturaService, IUsuarioAtual usuarioAtual) : MainController
 {
     /// <summary>Status, plano, vigência e próxima cobrança. É o que a tela de retorno consulta enquanto espera.</summary>
     [HttpGet]
@@ -52,7 +54,11 @@ public sealed class AssinaturaController(IAssinaturaService assinaturaService) :
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> IniciarCheckout([FromBody] IniciarCheckoutRequestDTO requisicao, CancellationToken ct)
     {
-        var resultado = await assinaturaService.IniciarCheckout(FormaturaId, new IniciarCheckout(requisicao.PlanoCodigo), ct);
+        var resultado = await assinaturaService.IniciarCheckout(
+            FormaturaId,
+            new IniciarCheckout(requisicao.PlanoCodigo, requisicao.Meio, usuarioAtual.Email),
+            ct
+        );
 
         return Responder(resultado.Map(sessao => sessao.Adapt<CheckoutDTO>()));
     }
@@ -70,5 +76,72 @@ public sealed class AssinaturaController(IAssinaturaService assinaturaService) :
         var resultado = await assinaturaService.Cancelar(ct);
 
         return Responder(resultado.Map(assinatura => assinatura.Adapt<AssinaturaDTO>()));
+    }
+
+    /// <summary>
+    /// Troca o plano da assinatura ativa: a subida devolve a página da diferença proporcional, e o plano novo vale
+    /// quando ela for paga; a descida vale na próxima renovação e devolve <c>url</c> nula.
+    /// </summary>
+    /// <param name="requisicao">Plano novo, do mesmo ciclo.</param>
+    [HttpPost("trocar-plano")]
+    [Authorize(Policy = Politicas.SomentePresidente)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [RegistrarEvento("assinatura.plano_trocado")]
+    [ProducesResponseType(typeof(TrocaDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> TrocarPlano([FromBody] TrocarPlanoRequestDTO requisicao, CancellationToken ct)
+    {
+        var resultado = await assinaturaService.TrocarPlano(FormaturaId, requisicao.PlanoCodigo, usuarioAtual.Email, ct);
+
+        return Responder(resultado.Map(troca => troca.Adapt<TrocaDTO>()));
+    }
+
+    /// <summary>
+    /// Troca o meio de pagamento: a recorrência antiga é cancelada e a nova começa no próximo vencimento. Para o cartão,
+    /// devolve a página de autorização; para o PIX, <c>url</c> nula.
+    /// </summary>
+    /// <param name="requisicao">Meio novo.</param>
+    [HttpPost("trocar-meio")]
+    [Authorize(Policy = Politicas.SomentePresidente)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [RegistrarEvento("assinatura.meio_trocado")]
+    [ProducesResponseType(typeof(TrocaDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> TrocarMeio([FromBody] TrocarMeioRequestDTO requisicao, CancellationToken ct)
+    {
+        var resultado = await assinaturaService.TrocarMeio(requisicao.Meio, usuarioAtual.Email, ct);
+
+        return Responder(resultado.Map(troca => troca.Adapt<TrocaDTO>()));
+    }
+
+    /// <summary>A página do PIX da renovação — só no PIX avulso, a partir de 7 dias antes do vencimento.</summary>
+    [HttpPost("pagar-ciclo")]
+    [Authorize(Policy = Politicas.SomentePresidente)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [ProducesResponseType(typeof(CheckoutDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> PagarCiclo(CancellationToken ct)
+    {
+        var resultado = await assinaturaService.PagarCiclo(usuarioAtual.Email, ct);
+
+        return Responder(resultado.Map(sessao => sessao.Adapt<CheckoutDTO>()));
+    }
+
+    /// <summary>O histórico de pagamentos do plano: PIX de cada ciclo, débitos do cartão e diferenças de plano.</summary>
+    [HttpGet("cobrancas")]
+    [Authorize(Policy = Politicas.Gestao)]
+    [ProducesResponseType(typeof(IReadOnlyList<CobrancaDoPlanoDTO>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListarCobrancas(CancellationToken ct)
+    {
+        var resultado = await assinaturaService.ListarCobrancas(ct);
+
+        return Responder(resultado.Map(cobrancas => cobrancas.Adapt<IReadOnlyList<CobrancaDoPlanoDTO>>()));
     }
 }

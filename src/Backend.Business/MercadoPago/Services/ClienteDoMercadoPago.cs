@@ -199,7 +199,7 @@ public sealed class ClienteDoMercadoPago(HttpClient http, IOptions<MercadoPagoSe
                 pedido.Motivo,
                 pedido.Referencia.ToString("N"),
                 pedido.EmailDoPagador,
-                new CicloDaRecorrencia(pedido.MesesPorCiclo, "months", pedido.ValorEmCentavos / 100m, "BRL"),
+                new CicloDaRecorrencia(pedido.MesesPorCiclo, "months", pedido.ValorEmCentavos / 100m, "BRL") { StartDate = Data(pedido.ComecaEm) },
                 pedido.UrlDeRetorno,
                 "pending",
                 null,
@@ -229,6 +229,158 @@ public sealed class ClienteDoMercadoPago(HttpClient http, IOptions<MercadoPagoSe
 
         return cancelada.Falhou ? Result.Falha(cancelada.Erros) : Result.Ok();
     }
+
+    /// <inheritdoc />
+    public async Task<Result> AtualizarValorDaRecorrencia(string accessToken, string idExterno, long valorEmCentavos, CancellationToken ct = default)
+    {
+        using var requisicao = Requisicao(HttpMethod.Put, $"preapproval/{Uri.EscapeDataString(idExterno)}", accessToken);
+        requisicao.Content = JsonContent.Create(
+            new { AutoRecurring = new { TransactionAmount = valorEmCentavos / 100m, CurrencyId = "BRL" } },
+            options: Json
+        );
+
+        var atualizada = await Ler<Recorrencia>(requisicao, $"valor da recorrência {idExterno}", ct);
+
+        return atualizada.Falhou ? Result.Falha(atualizada.Erros) : Result.Ok();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// O débito sem tentativa ainda (<c>payment</c> nulo) é pendente. O que o Mercado Pago ainda vai retentar
+    /// (<c>recycling</c>) chega aqui como recusado se a tentativa foi recusada — é o aviso da primeira recusa (P3).
+    /// </remarks>
+    public async Task<Result<DebitoDaRecorrencia>> ConsultarDebitoDaRecorrencia(string accessToken, string idExterno, CancellationToken ct = default)
+    {
+        using var requisicao = Requisicao(HttpMethod.Get, $"authorized_payments/{Uri.EscapeDataString(idExterno)}", accessToken);
+
+        var lido = await Ler<Debito>(requisicao, $"consulta do débito {idExterno}", ct);
+        if (lido.Falhou)
+            return Result.Falha<DebitoDaRecorrencia>(lido.Erros);
+
+        var debito = lido.Valor;
+
+        return new DebitoDaRecorrencia(
+            debito.Id?.ToString(CultureInfo.InvariantCulture) ?? idExterno,
+            debito.PreapprovalId,
+            debito.Payment?.Id?.ToString(CultureInfo.InvariantCulture),
+            debito.Payment is { } pagamento ? SituacaoDoPagamentoDe(pagamento.Status) : SituacaoDoPagamento.Pendente,
+            (long)Math.Round((debito.TransactionAmount ?? 0) * 100m),
+            (debito.LastModified ?? debito.DebitDate)?.ToUniversalTime()
+        );
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Checkout Pro (<c>checkout/preferences</c>): a página do Mercado Pago, com os meios fechados no que o Kapa
+    /// pediu — só PIX, ou só cartão de crédito em uma vez; boleto fica de fora (Sprint 35). O saldo em conta não sai: o
+    /// Checkout Pro responde 400 <c>account_money cannot be excluded</c> (sandbox, 28/09/2026) — e ele cai na conta do
+    /// Kapa como qualquer outro meio. A referência externa é o id da cobrança no Kapa, que volta no pagamento.
+    /// </remarks>
+    public async Task<Result<PaginaDePagamento>> CriarPagamentoAvulso(
+        string accessToken,
+        PedidoDePagamentoAvulso pedido,
+        CancellationToken ct = default
+    )
+    {
+        var referencia = pedido.Referencia.ToString("N");
+        string[] excluidos =
+            pedido.Meio == MeioDePagamento.Pix
+                ? ["credit_card", "debit_card", "prepaid_card", "ticket", "atm"]
+                : ["debit_card", "prepaid_card", "ticket", "atm", "bank_transfer"];
+
+        using var requisicao = Requisicao(HttpMethod.Post, "checkout/preferences", accessToken);
+        requisicao.Headers.Add("X-Idempotency-Key", referencia);
+        requisicao.Content = JsonContent.Create(
+            new
+            {
+                Items = new[] { new ItemDaPagina(referencia, pedido.Titulo, 1, pedido.ValorEmCentavos / 100m, "BRL") },
+                Payer = pedido.EmailDoPagador is { } email ? new { Email = email } : null,
+                ExternalReference = referencia,
+                BackUrls = new
+                {
+                    Success = pedido.UrlDeRetorno,
+                    Pending = pedido.UrlDeRetorno,
+                    Failure = pedido.UrlDeRetorno,
+                },
+                PaymentMethods = new { ExcludedPaymentTypes = excluidos.Select(id => new { Id = id }), Installments = 1 },
+                Expires = true,
+                ExpirationDateTo = Data(pedido.Validade),
+                StatementDescriptor = "KAPA",
+            },
+            options: Json
+        );
+
+        var criada = await Ler<Preferencia>(requisicao, $"página de pagamento {referencia}", ct);
+        if (criada.Falhou)
+            return Result.Falha<PaginaDePagamento>(criada.Erros);
+
+        if (criada.Valor is not { Id: { } id, InitPoint: { } url })
+        {
+            logger.LogWarning("Mercado Pago devolveu a página de pagamento {Referencia} sem id ou endereço.", referencia);
+            return Indisponivel;
+        }
+
+        return new PaginaDePagamento(id, url);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<PagamentoNoMercadoPago>> ConsultarPagamento(string accessToken, string idExterno, CancellationToken ct = default)
+    {
+        using var requisicao = Requisicao(HttpMethod.Get, $"v1/payments/{Uri.EscapeDataString(idExterno)}", accessToken);
+
+        return (await Ler<PagamentoLido>(requisicao, $"consulta do pagamento {idExterno}", ct)).Map(ParaPagamento);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<PagamentoNoMercadoPago?>> BuscarPagamentoAprovado(string accessToken, Guid referencia, CancellationToken ct = default)
+    {
+        using var requisicao = Requisicao(
+            HttpMethod.Get,
+            $"v1/payments/search?external_reference={referencia:N}&status=approved&sort=date_created&criteria=desc&limit=1",
+            accessToken
+        );
+
+        var busca = await Ler<BuscaDePagamentos>(requisicao, $"busca do pagamento {referencia:N}", ct);
+        if (busca.Falhou)
+            return Result.Falha<PagamentoNoMercadoPago?>(busca.Erros);
+
+        return busca.Valor.Results is [var primeiro, ..] ? ParaPagamento(primeiro) : Result.Ok<PagamentoNoMercadoPago?>(null);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result> Estornar(string accessToken, string idDoPagamento, long valorEmCentavos, Guid chave, CancellationToken ct = default)
+    {
+        using var requisicao = Requisicao(HttpMethod.Post, $"v1/payments/{Uri.EscapeDataString(idDoPagamento)}/refunds", accessToken);
+        requisicao.Headers.Add("X-Idempotency-Key", chave.ToString("N"));
+        requisicao.Content = JsonContent.Create(new { Amount = valorEmCentavos / 100m }, options: Json);
+
+        var estorno = await Ler<Devolucao>(requisicao, $"estorno do pagamento {idDoPagamento}", ct);
+
+        return estorno.Falhou ? Result.Falha(estorno.Erros) : Result.Ok();
+    }
+
+    private static PagamentoNoMercadoPago ParaPagamento(PagamentoLido pagamento) =>
+        new(
+            pagamento.Id.ToString(CultureInfo.InvariantCulture),
+            pagamento.ExternalReference,
+            SituacaoDoPagamentoDe(pagamento.Status),
+            (long)Math.Round((pagamento.TransactionAmount ?? 0) * 100m),
+            pagamento.DateApproved?.ToUniversalTime(),
+            pagamento.OperationType == "recurring_payment"
+        );
+
+    /// <summary>O <c>status</c> de um pagamento como o Kapa o entende; o que não é conhecido fica pendente.</summary>
+    private static SituacaoDoPagamento SituacaoDoPagamentoDe(string? status) =>
+        status switch
+        {
+            "approved" => SituacaoDoPagamento.Aprovado,
+            "rejected" or "cancelled" => SituacaoDoPagamento.Recusado,
+            "refunded" or "charged_back" => SituacaoDoPagamento.Devolvido,
+            _ => SituacaoDoPagamento.Pendente,
+        };
+
+    /// <summary>A data como as APIs de assinatura e de preferência escrevem: ISO 8601 com milissegundos, em UTC.</summary>
+    private static string? Data(DateTime? utc) => utc?.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
 
     /// <inheritdoc />
     public async Task<Result<PedidoConsultado>> ConsultarPedido(string accessToken, string idExterno, CancellationToken ct = default)
@@ -471,5 +623,36 @@ public sealed class ClienteDoMercadoPago(HttpClient http, IOptions<MercadoPagoSe
         DateTime? NextPaymentDate
     );
 
-    private sealed record CicloDaRecorrencia(int Frequency, string FrequencyType, decimal TransactionAmount, string CurrencyId);
+    private sealed record CicloDaRecorrencia(int Frequency, string FrequencyType, decimal TransactionAmount, string CurrencyId)
+    {
+        public string? StartDate { get; init; }
+    }
+
+    private sealed record Debito(
+        long? Id,
+        string? PreapprovalId,
+        decimal? TransactionAmount,
+        DateTime? DebitDate,
+        DateTime? LastModified,
+        PagamentoDoDebito? Payment
+    );
+
+    private sealed record PagamentoDoDebito(long? Id, string? Status);
+
+    private sealed record Preferencia(string? Id, string? InitPoint);
+
+    private sealed record ItemDaPagina(string Id, string Title, int Quantity, decimal UnitPrice, string CurrencyId);
+
+    private sealed record PagamentoLido(
+        long Id,
+        string? ExternalReference,
+        string? Status,
+        decimal? TransactionAmount,
+        DateTime? DateApproved,
+        string? OperationType
+    );
+
+    private sealed record BuscaDePagamentos(IReadOnlyList<PagamentoLido>? Results);
+
+    private sealed record Devolucao(long? Id, string? Status);
 }

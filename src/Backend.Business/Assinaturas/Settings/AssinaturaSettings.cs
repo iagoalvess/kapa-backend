@@ -1,5 +1,15 @@
 namespace Backend.Business.Assinaturas.Settings;
 
+/// <summary>Quem cobra a licença.</summary>
+public enum EProvedorDeAssinatura
+{
+    /// <summary>A página simulada da própria API — desenvolvimento, testes e demonstração.</summary>
+    Fake,
+
+    /// <summary>A conta do Kapa no Mercado Pago (Sprint 37).</summary>
+    MercadoPago,
+}
+
 /// <summary>
 /// Configuração da cobrança da licença.
 /// </summary>
@@ -11,6 +21,12 @@ public sealed class AssinaturaSettings
 {
     /// <summary>Nome da seção correspondente no arquivo de configuração.</summary>
     public const string Secao = "Assinaturas";
+
+    /// <summary>
+    /// Quem cobra. Produção não sobe com o <see cref="EProvedorDeAssinatura.Fake"/>: a API recusa a partida
+    /// (<c>DependenciasData</c>), porque com ele qualquer turma se ativa de graça.
+    /// </summary>
+    public EProvedorDeAssinatura Provedor { get; init; } = EProvedorDeAssinatura.Fake;
 
     /// <summary>Segredo compartilhado com o provedor para o HMAC do webhook.</summary>
     public string SegredoDoWebhook { get; init; } = string.Empty;

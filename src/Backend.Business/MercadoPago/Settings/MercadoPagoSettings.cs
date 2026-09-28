@@ -56,6 +56,15 @@ public sealed class MercadoPagoSettings
     /// </remarks>
     public long? ContaDoKapa { get; init; }
 
+    /// <summary>
+    /// O token de acesso da conta do próprio Kapa — é com ele que os planos são cobrados (Sprint 37), sem OAuth.
+    /// </summary>
+    /// <remarks>
+    /// O de produção mora em <c>.env.production</c>; em desenvolvimento, o do vendedor de teste do sandbox, nos
+    /// user-secrets. Nunca vai para log.
+    /// </remarks>
+    public string AccessTokenDoKapa { get; init; } = string.Empty;
+
     /// <summary>Se a aplicação está configurada — sem ela, nenhuma turma conecta.</summary>
     public bool Ligado => !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret);
 }

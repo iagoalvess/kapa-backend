@@ -4,6 +4,8 @@ using Backend.Business.Admin.Interfaces;
 using Backend.Business.Agenda.Interfaces;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Assinaturas.Interfaces;
+using Backend.Business.Assinaturas.Services;
+using Backend.Business.Assinaturas.Settings;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Busca.Interfaces;
 using Backend.Business.Cobrancas.Interfaces;
@@ -17,6 +19,7 @@ using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Legal.Interfaces;
 using Backend.Business.Loja.Interfaces;
+using Backend.Business.MercadoPago.Settings;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Pagamentos.Interfaces;
 using Backend.Business.Privacidade.Interfaces;
@@ -80,7 +83,7 @@ public static class DependenciasData
 
         services.AddDataProtection().SetApplicationName(NomeDaAplicacaoNaProtecao).PersistKeysToDbContext<AppDbContext>();
 
-        return services.AdicionarRepositorios().AdicionarProvedorDeAssinatura();
+        return services.AdicionarRepositorios().AdicionarProvedorDeAssinatura(configuration);
     }
 
     /// <summary>
@@ -90,15 +93,33 @@ public static class DependenciasData
     /// Singleton: o provedor não guarda estado por requisição (o fake guarda as sessões dele, que
     /// precisam sobreviver entre o checkout e o pagamento).
     /// <para>
-    /// ponytail: só existe o fake, então não há o que escolher. Com o PSP real, entra a chave
-    /// <c>Assinaturas:Provedor</c> e um <c>switch</c> sobre ela aqui — nada fora deste método muda.
+    /// Os avisos da conta do Kapa no Mercado Pago acompanham a escolha: com o fake, só são registrados. Mercado Pago
+    /// sem o token da conta do Kapa recusa a partida — a primeira turma a contratar descobriria com um 503.
     /// </para>
     /// </remarks>
     /// <param name="services">Coleção de serviços.</param>
-    private static IServiceCollection AdicionarProvedorDeAssinatura(this IServiceCollection services)
+    /// <param name="configuration">De onde sai <c>Assinaturas:Provedor</c>.</param>
+    private static IServiceCollection AdicionarProvedorDeAssinatura(this IServiceCollection services, IConfiguration configuration)
     {
+        var provedor = configuration.GetValue($"{AssinaturaSettings.Secao}:{nameof(AssinaturaSettings.Provedor)}", EProvedorDeAssinatura.Fake);
+
+        if (provedor == EProvedorDeAssinatura.MercadoPago)
+        {
+            if (string.IsNullOrWhiteSpace(configuration[$"{MercadoPagoSettings.Secao}:{nameof(MercadoPagoSettings.AccessTokenDoKapa)}"]))
+                throw new InvalidOperationException(
+                    "'Assinaturas:Provedor' é MercadoPago, mas 'MercadoPago:AccessTokenDoKapa' está vazio: sem o token da conta do Kapa nenhuma turma contrata."
+                );
+
+            services.AddSingleton<ProvedorMercadoPago>();
+            services.AddSingleton<IProvedorDeAssinatura>(sp => sp.GetRequiredService<ProvedorMercadoPago>());
+            services.AddScoped<IAvisosDaContaDoKapa, AvisosDaContaDoKapa>();
+
+            return services;
+        }
+
         services.AddSingleton<ProvedorFake>();
         services.AddSingleton<IProvedorDeAssinatura>(sp => sp.GetRequiredService<ProvedorFake>());
+        services.AddScoped<IAvisosDaContaDoKapa, AvisosDaContaDoKapaSemProvedor>();
 
         return services;
     }

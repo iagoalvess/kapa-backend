@@ -53,6 +53,39 @@ public interface IMercadoPago
     /// <param name="idExterno">Id da recorrência.</param>
     Task<Result<RecorrenciaNoMercadoPago>> ConsultarRecorrencia(string accessToken, string idExterno, CancellationToken ct = default);
 
+    /// <summary>Muda o valor dos próximos débitos da recorrência — a troca de plano (Sprint 37, P4).</summary>
+    /// <param name="accessToken">Token da conta que recebe.</param>
+    /// <param name="idExterno">Id da recorrência.</param>
+    /// <param name="valorEmCentavos">Valor novo de cada ciclo.</param>
+    Task<Result> AtualizarValorDaRecorrencia(string accessToken, string idExterno, long valorEmCentavos, CancellationToken ct = default);
+
+    /// <summary>Um débito da recorrência, pelo id que chega no aviso <c>subscription_authorized_payment</c>.</summary>
+    /// <param name="accessToken">Token da conta que recebe.</param>
+    /// <param name="idExterno">Id do débito.</param>
+    Task<Result<DebitoDaRecorrencia>> ConsultarDebitoDaRecorrencia(string accessToken, string idExterno, CancellationToken ct = default);
+
+    /// <summary>Cria a página de pagamento avulso do Mercado Pago (Checkout Pro).</summary>
+    /// <param name="accessToken">Token da conta que recebe.</param>
+    /// <param name="pedido">Valor, meio, referência e retorno.</param>
+    Task<Result<PaginaDePagamento>> CriarPagamentoAvulso(string accessToken, PedidoDePagamentoAvulso pedido, CancellationToken ct = default);
+
+    /// <summary>Um pagamento, pelo id que chega no aviso <c>payment</c>.</summary>
+    /// <param name="accessToken">Token da conta que recebe.</param>
+    /// <param name="idExterno">Id do pagamento.</param>
+    Task<Result<PagamentoNoMercadoPago>> ConsultarPagamento(string accessToken, string idExterno, CancellationToken ct = default);
+
+    /// <summary>O pagamento aprovado mais recente com a referência externa, ou nulo — a conciliação do aviso perdido.</summary>
+    /// <param name="accessToken">Token da conta que recebe.</param>
+    /// <param name="referencia">A referência externa.</param>
+    Task<Result<PagamentoNoMercadoPago?>> BuscarPagamentoAprovado(string accessToken, Guid referencia, CancellationToken ct = default);
+
+    /// <summary>Devolve um pagamento, inteiro ou em parte.</summary>
+    /// <param name="accessToken">Token da conta que recebeu.</param>
+    /// <param name="idDoPagamento">Id do pagamento.</param>
+    /// <param name="valorEmCentavos">Quanto devolver.</param>
+    /// <param name="chave">Chave de idempotência: a mesma, em nova tentativa, não devolve duas vezes.</param>
+    Task<Result> Estornar(string accessToken, string idDoPagamento, long valorEmCentavos, Guid chave, CancellationToken ct = default);
+
     /// <summary>Cancela a recorrência: nenhum débito sai depois disto.</summary>
     /// <param name="accessToken">Token da conta que recebe.</param>
     /// <param name="idExterno">Id da recorrência.</param>

@@ -78,6 +78,20 @@ public sealed class MesaRepository(AppDbContext db) : IMesaRepository
         await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({vinculoId.ToString()}, 0))", ct);
 
     /// <inheritdoc />
+    public async Task<PlantaDoSalao?> ObterSalao(CancellationToken ct = default) =>
+        await db.Saloes.AsNoTracking().FirstOrDefaultAsync(ct) is { } salao ? new PlantaDoSalao(salao.Largura, salao.Altura, salao.Elementos) : null;
+
+    /// <inheritdoc />
+    public Task<Salao?> ObterSalaoParaEdicao(CancellationToken ct = default) => db.Saloes.FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    public async Task AdicionarSalao(Salao salao, CancellationToken ct = default) => await db.Saloes.AddAsync(salao, ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Mesa>> ListarParaEdicao(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+        await db.Mesas.Where(mesa => ids.Contains(mesa.Id)).ToListAsync(ct);
+
+    /// <inheritdoc />
     public Task<Mesa?> ObterParaEdicao(Guid id, CancellationToken ct = default) => db.Mesas.FirstOrDefaultAsync(mesa => mesa.Id == id, ct);
 
     /// <inheritdoc />
@@ -124,6 +138,10 @@ public sealed class MesaRepository(AppDbContext db) : IMesaRepository
             mesa.VinculoId,
             perfil != null && perfil.NomeCompleto != null ? perfil.NomeCompleto
                 : usuario != null ? usuario.Nome
-                : null
+                : null,
+            mesa.Formato,
+            mesa.X,
+            mesa.Y,
+            mesa.Girada
         );
 }

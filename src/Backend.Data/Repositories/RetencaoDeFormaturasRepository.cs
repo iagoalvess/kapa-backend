@@ -58,6 +58,7 @@ public sealed class RetencaoDeFormaturasRepository(AppDbContext db) : IRetencaoD
         typeof(PerfilDoFormando),
         typeof(EventoDaTurma),
         typeof(Mesa),
+        typeof(Salao),
         typeof(Aviso),
         typeof(PreferenciaDeNotificacao),
         typeof(RegraDeNotificacao),

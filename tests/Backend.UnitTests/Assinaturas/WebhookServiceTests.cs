@@ -8,6 +8,7 @@ using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Pagamentos.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -260,5 +261,203 @@ public sealed class WebhookServiceTests
         resumo.Renovadas.ShouldBe(0);
         resumo.Vencidas.ShouldBe(1);
         _formatura.Status.ShouldBe(StatusDaFormatura.Suspensa);
+    }
+
+    private CobrancaDaAssinatura Cobranca(MotivoDaCobranca motivo, Guid planoId, MeioDePagamento meio = MeioDePagamento.Pix)
+    {
+        var cobranca = CobrancaDaAssinatura.Abrir(_assinatura.Id, planoId, motivo, meio, 2990);
+        _assinaturas.ObterCobrancaParaEdicaoDeTodasAsFormaturas(cobranca.Id, Arg.Any<CancellationToken>()).Returns(cobranca);
+
+        return cobranca;
+    }
+
+    private static EventoDoProvedor Pago(Guid? cobrancaId = null, Guid? assinaturaId = null, string? recorrencia = null, DateTime? em = null) =>
+        new($"mp_pagamento_{Guid.CreateVersion7():N}", TiposDeEvento.PagamentoConfirmado, assinaturaId, recorrencia, em, cobrancaId, "pag_1", 2990);
+
+    /// <summary>Sprint 37: o PIX da contratação chega pela cobrança, e vale o plano dela.</summary>
+    [Fact]
+    public async Task Pix_pago_contrata_no_plano_da_cobranca_e_registra_o_pagamento()
+    {
+        // Arrange
+        var plano = Guid.CreateVersion7();
+        var cobranca = Cobranca(MotivoDaCobranca.Ciclo, plano);
+
+        // Act
+        var resultado = await Servico.Aplicar(Pago(cobranca.Id), Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        _assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
+        _assinatura.PlanoId.ShouldBe(plano);
+        cobranca.Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Paga);
+        cobranca.IdDoPagamento.ShouldBe("pag_1");
+        _formatura.Status.ShouldBe(StatusDaFormatura.Ativa);
+    }
+
+    /// <summary>O débito do cartão não tem cobrança no Kapa: renova e nasce paga no histórico.</summary>
+    [Fact]
+    public async Task Debito_do_cartao_renova_e_entra_no_historico()
+    {
+        // Arrange
+        var agora = DateTime.UtcNow;
+        _assinatura.ConfirmarPagamento(agora.AddDays(-29), CicloDeCobranca.Mensal);
+        var vigenteAte = _assinatura.VigenteAte!.Value;
+        CobrancaDaAssinatura? registrada = null;
+        await _assinaturas.AdicionarCobranca(Arg.Do<CobrancaDaAssinatura>(c => registrada = c), Arg.Any<CancellationToken>());
+
+        // Act
+        await Servico.Aplicar(Pago(assinaturaId: _assinatura.Id, recorrencia: "pre_1"), Ct);
+
+        // Assert
+        _assinatura.VigenteAte.ShouldBe(vigenteAte.AddMonths(1));
+        registrada.ShouldNotBeNull();
+        registrada.Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Paga);
+        registrada.Meio.ShouldBe(MeioDePagamento.Cartao);
+        registrada.ValorEmCentavos.ShouldBe(2990);
+    }
+
+    /// <summary>P4: a diferença paga sobe o plano sem mexer na vigência, e a recorrência passa a cobrar o plano novo.</summary>
+    [Fact]
+    public async Task Diferenca_paga_sobe_o_plano_e_ajusta_a_recorrencia()
+    {
+        // Arrange
+        _assinatura.ConfirmarPagamento(DateTime.UtcNow.AddDays(-10), CicloDeCobranca.Mensal);
+        _assinatura.IdExterno = "pre_1";
+        var vigenteAte = _assinatura.VigenteAte;
+        var premium = new Plano { PrecoEmCentavos = 4990, Codigo = "premium" };
+        _assinaturas.ObterPlano(premium.Id, Arg.Any<CancellationToken>()).Returns(premium);
+        _provedor.AtualizarValor(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(Result.Ok());
+        var cobranca = Cobranca(MotivoDaCobranca.Diferenca, premium.Id, MeioDePagamento.Cartao);
+
+        // Act
+        await Servico.Aplicar(Pago(cobranca.Id), Ct);
+
+        // Assert
+        _assinatura.PlanoId.ShouldBe(premium.Id);
+        _assinatura.VigenteAte.ShouldBe(vigenteAte);
+        await _provedor.Received(1).AtualizarValor("pre_1", 4990, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>P5: o Kapa cancelou a recorrência antiga na troca de meio, e o aviso dela não cancela a assinatura.</summary>
+    [Fact]
+    public async Task Cancelamento_de_recorrencia_antiga_nao_cancela_a_assinatura()
+    {
+        _assinatura.ConfirmarPagamento(DateTime.UtcNow, CicloDeCobranca.Mensal);
+        _assinatura.IdExterno = null;
+
+        await Servico.Aplicar(new EventoDoProvedor("evt_c", TiposDeEvento.AssinaturaCancelada, _assinatura.Id, "pre_velha"), Ct);
+
+        _assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
+    }
+
+    /// <summary>A pessoa cancelou a recorrência atual no app do Mercado Pago: a renovação para.</summary>
+    [Fact]
+    public async Task Cancelamento_da_recorrencia_atual_cancela_a_renovacao()
+    {
+        _assinatura.ConfirmarPagamento(DateTime.UtcNow, CicloDeCobranca.Mensal);
+        _assinatura.IdExterno = "pre_1";
+
+        await Servico.Aplicar(new EventoDoProvedor("evt_c", TiposDeEvento.AssinaturaCancelada, _assinatura.Id, "pre_1"), Ct);
+
+        _assinatura.Status.ShouldBe(StatusDaAssinatura.Cancelada);
+    }
+
+    /// <summary>P5: a troca do PIX para o cartão vale quando a recorrência nova é autorizada.</summary>
+    [Fact]
+    public async Task Recorrencia_autorizada_passa_a_assinatura_para_o_cartao()
+    {
+        _assinatura.ConfirmarPagamento(DateTime.UtcNow, CicloDeCobranca.Mensal);
+        _assinatura.Meio = MeioDePagamento.Pix;
+        _assinatura.IdExterno = "pre_1";
+
+        await Servico.Aplicar(new EventoDoProvedor("evt_a", TiposDeEvento.RecorrenciaAutorizada, _assinatura.Id, "pre_1"), Ct);
+
+        _assinatura.Meio.ShouldBe(MeioDePagamento.Cartao);
+    }
+
+    /// <summary>Pagamento é dinheiro que entrou: chegar depois de um evento mais novo não o descarta.</summary>
+    [Fact]
+    public async Task Pagamento_anterior_ao_ultimo_evento_ainda_e_aplicado()
+    {
+        var agora = DateTime.UtcNow;
+        _assinatura.ConfirmarPagamento(agora.AddDays(-20), CicloDeCobranca.Mensal);
+        _assinatura.RegistrarEvento(agora);
+        var vigenteAte = _assinatura.VigenteAte!.Value;
+
+        await Servico.Aplicar(Pago(assinaturaId: _assinatura.Id, em: agora.AddDays(-1)), Ct);
+
+        _assinatura.VigenteAte.ShouldBe(vigenteAte.AddMonths(1));
+    }
+
+    /// <summary>
+    /// Referência que não é cobrança é tentada como assinatura: gravar o evento sem assinatura travaria o id dele, e o
+    /// débito chegando pelo outro aviso viraria "repetido".
+    /// </summary>
+    [Fact]
+    public async Task Referencia_que_nao_e_cobranca_vale_como_assinatura()
+    {
+        await Servico.Aplicar(Pago(cobrancaId: _assinatura.Id), Ct);
+
+        _assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
+    }
+
+    /// <summary>O PIX pago cujo aviso se perdeu: a conciliação pergunta pela cobrança aberta.</summary>
+    [Fact]
+    public async Task Conciliacao_acha_a_cobranca_aberta_paga_sem_aviso()
+    {
+        // Arrange
+        var cobranca = Cobranca(MotivoDaCobranca.Ciclo, Guid.CreateVersion7());
+        _assinaturas
+            .ListarCobrancasAbertasDeTodasAsFormaturas(Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([cobranca]);
+        _provedor.ConsultarPagamento(cobranca.Id, null, Arg.Any<CancellationToken>()).Returns(Result.Ok<EventoDoProvedor?>(Pago(cobranca.Id)));
+
+        // Act
+        var resumo = (await Servico.Conciliar(DateTime.UtcNow, Ct)).Valor;
+
+        // Assert
+        resumo.Confirmadas.ShouldBe(1);
+        _assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
+    }
+
+    /// <summary>A pendente no PIX é paga pela cobrança, não pela assinatura: a conciliação não a consulta duas vezes.</summary>
+    [Fact]
+    public async Task Pendente_no_pix_nao_e_consultada_pela_assinatura()
+    {
+        _assinatura.Meio = MeioDePagamento.Pix;
+        _assinaturas
+            .ListarPendentesDeTodasAsFormaturas(Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([_assinatura]);
+
+        await Servico.Conciliar(DateTime.UtcNow, Ct);
+
+        await _provedor.DidNotReceive().ConsultarPagamento(_assinatura.Id, Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>No PIX a renovação não é automática: o aviso de D-7 pede o PIX pela tela.</summary>
+    [Fact]
+    public async Task Aviso_de_vencimento_no_pix_pede_o_pix_da_renovacao()
+    {
+        var agora = DateTime.UtcNow;
+        _assinatura.ConfirmarPagamento(agora.AddDays(-25), CicloDeCobranca.Mensal);
+        _assinatura.Meio = MeioDePagamento.Pix;
+        _assinaturas.ListarVencendoDeTodasAsFormaturas(Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns([_assinatura]);
+
+        var resumo = (await Servico.Conciliar(agora, Ct)).Valor;
+
+        resumo.Avisos.ShouldBe(1);
+        await _email.Received(1).Enfileirar(Arg.Is<NovoEmail>(e => e.CorpoHtml.Contains("PIX da renovação")), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>P3: o cartão recusado avisa o Presidente, e a assinatura segue na carência.</summary>
+    [Fact]
+    public async Task Debito_recusado_avisa_o_presidente_sem_mexer_na_assinatura()
+    {
+        _assinatura.ConfirmarPagamento(DateTime.UtcNow, CicloDeCobranca.Mensal);
+
+        await Servico.Aplicar(new EventoDoProvedor("mp_recusa_1", TiposDeEvento.PagamentoRecusado, _assinatura.Id, "pre_1"), Ct);
+
+        _assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
+        await _email.Received(1).Enfileirar(Arg.Is<NovoEmail>(e => e.Assunto.Contains("Pagamento recusado")), Arg.Any<CancellationToken>());
     }
 }
