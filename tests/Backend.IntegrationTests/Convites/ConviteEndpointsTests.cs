@@ -100,6 +100,41 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
         (await Aceitar(cliente, token)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    /// <summary>
+    /// Desligado não volta por convite: voltaria sem as parcelas que o desligamento cancelou — o
+    /// mesmo motivo que tirou o religar (23/09/2026).
+    /// </summary>
+    [Fact]
+    public async Task Desligado_nao_volta_por_convite_pessoal()
+    {
+        var email = $"desligada-{Guid.CreateVersion7():N}@testes.local";
+        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct);
+        var cliente = fabrica.CreateClient();
+        cliente.ComToken((await cliente.RegistrarComEmail(email, Ct)).AccessToken);
+        await fabrica.ConfirmarEmail(email, Ct);
+
+        await using (var contexto = fabrica.ContextoDe(formaturaId))
+        {
+            var usuario = await contexto.Users.SingleAsync(u => u.Email == email, Ct);
+            var vinculo = new VinculoDeFormatura
+            {
+                UsuarioId = usuario.Id,
+                FormaturaId = formaturaId,
+                Papel = PapelNaFormatura.Formando,
+            };
+            vinculo.Desligar(MotivoDeSaida.Trancamento, null, DateTime.UtcNow);
+            contexto.Vinculos.Add(vinculo);
+            await contexto.SaveChangesAsync(Ct);
+        }
+
+        var token = await Semear(formaturaId, c => c.Email = email);
+
+        var resposta = await Aceitar(cliente, token);
+
+        resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await resposta.Codigo(Ct)).ShouldBe("convite.membro_desligado");
+    }
+
     [Fact]
     public async Task Turma_suspensa_nao_cria_convite()
     {

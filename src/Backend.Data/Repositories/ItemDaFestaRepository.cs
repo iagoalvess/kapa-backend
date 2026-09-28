@@ -1,3 +1,4 @@
+using Backend.Business.Cobrancas.Models;
 using Backend.Business.Comunicacao.Models;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
@@ -63,6 +64,12 @@ public sealed class ItemDaFestaRepository(AppDbContext db) : IItemDaFestaReposit
     /// alfabética; sem o <c>OrderBy</c>, mostraria um diferente a cada consulta.
     /// </para>
     /// <para>
+    /// O preço de venda e os pedidos confirmados (Sprint 20, decisão 11) entram como mais duas
+    /// subconsultas no mesmo <c>SELECT</c>, e não como uma segunda consulta: é o que mantém
+    /// <c>GET /festa/itens</c> respondendo em uma ida ao banco, sem N+1 por item. Só o item de
+    /// opcionais <b>não encerrado</b> conta — encerrar a venda devolve o cartão à estimativa.
+    /// </para>
+    /// <para>
     /// O contrato só é projetado quando o documento é <see cref="Visibilidade.Turma"/> (decisão 7): o
     /// service já recusa ligar um documento da comissão, e esta cláusula é a segunda barreira — sem
     /// ela, mudar a visibilidade do documento <b>depois</b> de ligado vazaria o título dele para a
@@ -86,7 +93,7 @@ public sealed class ItemDaFestaRepository(AppDbContext db) : IItemDaFestaReposit
                 from documento in db.Documentos
                 join arquivo in db.Arquivos on documento.ArquivoId equals arquivo.Id
                 where documento.Id == i.DocumentoId && documento.Visibilidade == Visibilidade.Turma
-                select new DocumentoDoItem(documento.Id, documento.Titulo, arquivo.Nome, arquivo.ContentType)
+                select new DocumentoDoAcervo(documento.Id, documento.Titulo, arquivo.Nome, arquivo.ContentType)
             ).FirstOrDefault(),
             i.Rateio,
             i.ValorPrevistoEmCentavos,
@@ -96,6 +103,14 @@ public sealed class ItemDaFestaRepository(AppDbContext db) : IItemDaFestaReposit
             db.Despesas.Count(d => d.ItemDaFestaId == i.Id && d.Status != StatusDaDespesa.Cancelada),
             db.PropostasDoItem.Count(p => p.ItemDaFestaId == i.Id),
             i.CanceladoEm != null,
-            i.Ordem
+            i.Ordem,
+            db.ItensDeCobranca.Where(c => c.ItemDaFestaId == i.Id && c.EncerradoEm == null).Select(c => (long?)c.ValorEmCentavos).FirstOrDefault(),
+            db.Pedidos.Where(p =>
+                    p.Status == StatusDoPedido.Confirmado
+                    && db.ItensDeCobranca.Any(c => c.Id == p.ItemDeCobrancaId && c.ItemDaFestaId == i.Id && c.EncerradoEm == null)
+                )
+                .Sum(p => (int?)p.Quantidade)
+                ?? 0,
+            db.ItensDeCobranca.Where(c => c.ItemDaFestaId == i.Id && c.EncerradoEm == null).Select(c => (Guid?)c.Id).FirstOrDefault()
         ));
 }

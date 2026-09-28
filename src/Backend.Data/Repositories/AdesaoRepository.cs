@@ -1,6 +1,7 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Models;
+using Backend.Business.Formaturas.Models;
 using Backend.Data.Context;
 using Backend.Data.Criptografia;
 using Backend.Data.Mappings;
@@ -38,6 +39,45 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
 
     /// <inheritdoc />
     public async Task AdicionarTermo(TermoDaFormatura termo, CancellationToken ct = default) => await db.TermosDeAdesao.AddAsync(termo, ct);
+
+    /// <inheritdoc />
+    public Task<VersaoDoTermo?> ObterTermo(Guid termoId, CancellationToken ct = default) =>
+        db
+            .TermosDeAdesao.AsNoTracking()
+            .Where(t => t.Id == termoId)
+            .Select(t => new VersaoDoTermo(t.Id, t.Versao, t.Conteudo, t.VigenteDesde))
+            .FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    public Task<string?> ObterResumo(Guid termoId, CancellationToken ct = default) =>
+        db.ResumosDeTermo.AsNoTracking().Where(r => r.TermoId == termoId).Select(r => (string?)r.Texto).FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Os dois <c>IgnoreQueryFilters</c> são o ponto do método: o job ainda não apontou escopo para
+    /// turma nenhuma, e o filtro global não casaria com linha alguma.
+    /// </remarks>
+    public async Task<IReadOnlyList<TermoSemResumo>> ListarTermosSemResumoDeTodasAsFormaturas(
+        DateTime publicadosDesde,
+        int limite,
+        CancellationToken ct = default
+    ) =>
+        await (
+            from termo in db.TermosDeAdesao.AsNoTracking().IgnoreQueryFilters()
+            join formatura in db.Formaturas.AsNoTracking() on termo.FormaturaId equals formatura.Id
+            where
+                formatura.Status == StatusDaFormatura.Ativa
+                && termo.VigenteDesde >= publicadosDesde
+                && !db.ResumosDeTermo.Any(r => r.TermoId == termo.Id)
+                && !db.TermosDeAdesao.IgnoreQueryFilters().Any(outro => outro.FormaturaId == termo.FormaturaId && outro.Versao > termo.Versao)
+            orderby termo.VigenteDesde
+            select new TermoSemResumo(termo.FormaturaId, termo.Id)
+        )
+            .Take(limite)
+            .ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task AdicionarResumo(ResumoDoTermo resumo, CancellationToken ct = default) => await db.ResumosDeTermo.AddAsync(resumo, ct);
 
     /// <inheritdoc />
     public Task<bool> JaAderiu(Guid vinculoId, Guid termoId, CancellationToken ct = default) =>

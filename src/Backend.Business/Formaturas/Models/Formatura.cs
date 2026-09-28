@@ -39,9 +39,6 @@ public class Formatura : Entity
     /// <summary>Semestre de conclusão: 1 ou 2.</summary>
     public int Semestre { get; set; }
 
-    /// <summary>Quantos formandos a comissão espera.</summary>
-    public int QuantidadeEstimadaDeFormandos { get; set; }
-
     /// <summary>Situação no ciclo de vida. Muda só por <see cref="Transicionar"/>.</summary>
     public StatusDaFormatura Status { get; private set; } = StatusDaFormatura.Ativa;
 
@@ -53,6 +50,21 @@ public class Formatura : Entity
 
     /// <summary>Encerramento, em UTC.</summary>
     public DateTime? EncerradaEm { get; private set; }
+
+    /// <summary>Desde quando a turma está no <see cref="Status"/> atual, em UTC.</summary>
+    /// <remarks>
+    /// É o relógio da retenção: suspensa há 12 meses encerra, descartada há 30 dias é eliminada. As
+    /// turmas anteriores à coluna começaram a contar do dia da migration (25/09/2026), a leitura
+    /// que não apaga nada antes do prazo.
+    /// </remarks>
+    public DateTime StatusDesde { get; private set; } = DateTime.UtcNow;
+
+    /// <summary>Quando os dados e os arquivos da turma foram eliminados pela retenção, em UTC.</summary>
+    /// <remarks>
+    /// A linha fica: aceites de termo e de convite e a assinatura com o Kapa apontam para ela e são prova.
+    /// Nome, instituição e curso não identificam ninguém.
+    /// </remarks>
+    public DateTime? EliminadaEm { get; private set; }
 
     /// <summary>Se os dados cadastrais ainda podem ser editados.</summary>
     /// <remarks>Suspensa é leitura, Encerrada é arquivo e Descartada foi abandonada: nenhuma aceita escrita.</remarks>
@@ -106,6 +118,7 @@ public class Formatura : Entity
             return Result.Falha(Erro.Conflito("formatura.transicao_invalida", $"Uma formatura {Status} não pode passar para {destino}."));
 
         Status = destino;
+        StatusDesde = DateTime.UtcNow;
 
         if (destino == StatusDaFormatura.Ativa)
             AtivadaEm ??= DateTime.UtcNow;
@@ -115,4 +128,7 @@ public class Formatura : Entity
 
         return Result.Ok();
     }
+
+    /// <summary>Registra que a retenção apagou os dados e os arquivos da turma.</summary>
+    public void MarcarEliminada() => EliminadaEm ??= DateTime.UtcNow;
 }

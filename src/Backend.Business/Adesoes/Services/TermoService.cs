@@ -40,6 +40,16 @@ public sealed class TermoService(
         Result.Ok(await adesaoRepository.ListarTermos(ct));
 
     /// <inheritdoc />
+    /// <remarks>
+    /// O texto <b>não</b> entra no corpo do evento: ele já é imutável na própria tabela de termos, e
+    /// copiar páginas de contrato para dentro do evento engordaria a maior tabela do banco sem
+    /// responder nada que a versão não responda.
+    /// <para>
+    /// A formatura do evento vem da sessão, e <b>não</b> de <c>termo.FormaturaId</c>: o termo acabou
+    /// de ser criado, e quem preenche essa coluna é o <c>SaveChangesAsync</c>, que ainda não rodou.
+    /// Lê-la aqui grava <c>Guid.Empty</c> no evento — e o evento some da trilha da turma.
+    /// </para>
+    /// </remarks>
     public async Task<Result<VersaoDoTermo>> Publicar(Guid usuarioId, PublicarTermo dados, CancellationToken ct = default)
     {
         var validacao = validator.Validar(dados);
@@ -62,17 +72,11 @@ public sealed class TermoService(
 
         await adesaoRepository.AdicionarTermo(termo, ct);
 
-        // O texto **não** entra no corpo: ele já é imutável na própria tabela de termos, e copiar
-        // páginas de contrato para dentro do evento engordaria a maior tabela do banco sem
-        // responder nada que a versão não responda.
         await eventos.Auditar(
             NomesDeAuditoria.TermoPublicado,
             usuarioId,
             new
             {
-                // Da sessão, e **não** de `termo.FormaturaId`: o termo acabou de ser criado, e quem
-                // preenche essa coluna é o `SaveChangesAsync`, que ainda não rodou. Lê-la aqui
-                // grava `Guid.Empty` no evento — e o evento some da trilha da turma.
                 formaturaId = formaturaAtual.Id,
                 termoId = termo.Id,
                 termo.Versao,
@@ -93,6 +97,10 @@ public sealed class TermoService(
     /// <remarks>
     /// O plano é congelado agora, como seria no aceite: o hash devolvido é o mesmo que a adesão vai
     /// recalcular. Se o termo ou o plano mudar enquanto o formando lê, os dois deixam de bater.
+    /// <para>
+    /// O resumo por IA vem junto e fica <b>fora</b> do hash (Sprint 24, decisão 2): ele chegar depois
+    /// não devolve <c>adesao.termo_desatualizado</c> a quem está com a tela aberta.
+    /// </para>
     /// </remarks>
     public async Task<Result<ConteudoParaAdesao>> ObterParaAdesao(CancellationToken ct = default)
     {
@@ -100,6 +108,8 @@ public sealed class TermoService(
         var plano = await planoRepository.ObterVigente(ct) is { } vigente ? SnapshotDoPlano.De(vigente, DataUtils.Hoje()) : null;
         var hash = termo is null || plano is null ? null : AdesaoDoFormando.CalcularHash(termo.Conteudo, plano.ParaJson());
 
-        return new ConteudoParaAdesao(termo, plano, hash);
+        var resumo = termo is null ? null : await adesaoRepository.ObterResumo(termo.Id, ct);
+
+        return new ConteudoParaAdesao(termo, plano, hash, resumo);
     }
 }

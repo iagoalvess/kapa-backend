@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
 using Backend.Business.Abstractions;
+using Backend.Business.Agenda.Interfaces;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Assinaturas.Models;
+using Backend.Business.Assinaturas.Services;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
 using Backend.Business.Common;
@@ -12,11 +14,14 @@ using Backend.Business.Convites.Services;
 using Backend.Business.Convites.Validators;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
+using Backend.Business.Festa.Interfaces;
+using Backend.Business.Festa.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Legal.Models;
 using Backend.Business.Usuarios.Interfaces;
 using Backend.Business.Usuarios.Models;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -46,7 +51,7 @@ public sealed class ConviteServiceTests
     public ConviteServiceTests()
     {
         _tokens.CalcularHash(Arg.Any<string>()).Returns(chamada => Hash(chamada.Arg<string>()));
-        _formaturas.ObterDetalhe(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Formatura(StatusDaFormatura.Ativa));
+        _formaturas.ObterDetalheDeTodasAsFormaturas(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Formatura(StatusDaFormatura.Ativa));
         _unitOfWork
             .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<ParDeTokens>>>>(), Arg.Any<CancellationToken>())
             .Returns(chamada => chamada.Arg<Func<CancellationToken, Task<Result<ParDeTokens>>>>()(CancellationToken.None));
@@ -62,7 +67,14 @@ public sealed class ConviteServiceTests
             _convites,
             _vinculos,
             _formaturas,
-            _assinaturas,
+            new VagasDoPlano(_assinaturas, _vinculos),
+            new EmissaoDeConvites(
+                Substitute.For<IConviteDoEventoRepository>(),
+                Substitute.For<IEventoDaTurmaRepository>(),
+                _formaturas,
+                Substitute.For<IFormaturaAtual>(),
+                NullLogger<EmissaoDeConvites>.Instance
+            ),
             _usuarios,
             _auth,
             _tokens,
@@ -139,9 +151,9 @@ public sealed class ConviteServiceTests
         await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Validade e limite fixos: 30 dias e o número estimado de formandos da turma.</summary>
+    /// <summary>Validade fixa de 30 dias e entradas ilimitadas — o teto é o limite do plano.</summary>
     [Fact]
-    public async Task Link_da_turma_nao_manda_email_vale_trinta_dias_e_a_estimativa_de_entradas()
+    public async Task Link_da_turma_nao_manda_email_vale_trinta_dias_e_nao_limita_entradas()
     {
         Convite? gravado = null;
         await _convites.Adicionar(Arg.Do<Convite>(c => gravado = c), Arg.Any<CancellationToken>());
@@ -150,7 +162,7 @@ public sealed class ConviteServiceTests
 
         resultado.Sucesso.ShouldBeTrue();
         gravado!.Email.ShouldBeNull();
-        gravado.UsosMaximos.ShouldBe(80);
+        gravado.UsosMaximos.ShouldBeNull();
         gravado.ExpiraEm.ShouldBe(DateTime.UtcNow.AddDays(Convite.DiasDeValidadeDoLink), TimeSpan.FromMinutes(1));
         gravado.Token.ShouldBe(resultado.Valor.Link.Split('/').Last());
         await _emails.DidNotReceiveWithAnyArgs().Enfileirar(default!, Ct);
@@ -205,7 +217,9 @@ public sealed class ConviteServiceTests
                 convite.UsosFeitos = 3;
                 break;
             case "turma suspensa":
-                _formaturas.ObterDetalhe(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Formatura(StatusDaFormatura.Suspensa));
+                _formaturas
+                    .ObterDetalheDeTodasAsFormaturas(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+                    .Returns(Formatura(StatusDaFormatura.Suspensa));
                 break;
         }
 
@@ -365,31 +379,27 @@ public sealed class ConviteServiceTests
     }
 
     /// <summary>
-    /// No gratuito entra a comissão inteira e nenhum formando — o plano tem zero vagas.
+    /// Com a turma lotada, nenhum papel entra — a comissão também ocupa vaga.
     /// </summary>
     /// <remarks>
-    /// É a regra que sustenta o plano gratuito, e ela mora no <b>limite do plano</b>. Até 18/09/2026
-    /// morava no status (<c>Rascunho</c> aceitava só comissão); com a turma nascendo ativa, o status
-    /// não distingue mais nada e quem separa os dois é o <c>LimiteDeFormandos = 0</c>.
+    /// Até 22/09/2026 a comissão entrava sempre, e o gratuito virava o produto inteiro: a turma toda
+    /// entrava como "Comissão", aderia ao termo e pagava as parcelas sem contratar.
     /// </remarks>
     /// <param name="papel">Papel do convite.</param>
-    /// <param name="aceita">Se a entrada passa.</param>
     [Theory]
-    [InlineData(PapelNaFormatura.Tesoureiro, true)]
-    [InlineData(PapelNaFormatura.Comissao, true)]
-    [InlineData(PapelNaFormatura.Formando, false)]
-    public async Task No_gratuito_entra_a_comissao_e_nenhum_formando(string papel, bool aceita)
+    [InlineData(PapelNaFormatura.Tesoureiro)]
+    [InlineData(PapelNaFormatura.Comissao)]
+    [InlineData(PapelNaFormatura.Formando)]
+    public async Task Com_a_turma_lotada_nenhum_papel_entra(string papel)
     {
         var convite = Link();
         convite.Papel = papel;
         Existe(convite);
-        TurmaLotada(limite: 0, ocupadas: 1);
+        TurmaLotada(limite: 5, ocupadas: 5);
 
         var resultado = await Aceitar();
 
-        resultado.Sucesso.ShouldBe(aceita);
-        if (!aceita)
-            resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.limite_do_plano");
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("plano.limite_de_formandos");
     }
 
     [Fact]
@@ -419,7 +429,7 @@ public sealed class ConviteServiceTests
 
         var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", null), Ct);
 
-        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.limite_do_plano");
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("plano.limite_de_formandos");
         await _convites.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
         await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
     }
@@ -436,21 +446,22 @@ public sealed class ConviteServiceTests
     }
 
     /// <summary>
-    /// A comissão entra com a turma lotada, de propósito: é ela quem troca de plano.
+    /// Convite de comissão também é recusado com a turma lotada: todo papel ocupa vaga, sem folga.
     /// </summary>
-    /// <remarks>Barrá-la trancaria a porta pelo lado de dentro — uma turma cheia não substituiria o tesoureiro que saiu.</remarks>
+    /// <remarks>Para trocar o tesoureiro com a turma cheia, a comissão remove alguém antes ou troca de plano.</remarks>
     [Theory]
     [InlineData(PapelNaFormatura.Tesoureiro)]
     [InlineData(PapelNaFormatura.Comissao)]
     [InlineData(PapelNaFormatura.Presidente)]
-    public async Task Convite_de_comissao_passa_mesmo_com_a_turma_lotada(string papel)
+    public async Task Convite_de_comissao_com_a_turma_lotada_devolve_409(string papel)
     {
         AutorCom(PapelNaFormatura.Presidente);
-        TurmaLotada(limite: 60, ocupadas: 80);
+        TurmaLotada(limite: 60, ocupadas: 60);
 
         var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", papel), Ct);
 
-        resultado.Sucesso.ShouldBeTrue();
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("plano.limite_de_formandos");
+        await _convites.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
     }
 
     /// <summary>O link da turma é criado antes de encher; quem barra a entrada é o aceite.</summary>
@@ -462,7 +473,7 @@ public sealed class ConviteServiceTests
 
         var resultado = await Aceitar();
 
-        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.limite_do_plano");
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("plano.limite_de_formandos");
         await _vinculos.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
     }
 
@@ -532,7 +543,7 @@ public sealed class ConviteServiceTests
     /// <param name="status">Status da turma.</param>
     /// <param name="jaContratou">Se a turma já contratou algum plano.</param>
     private static FormaturaDetalhe Formatura(StatusDaFormatura status, bool jaContratou = true) =>
-        new(FormaturaId, "Medicina 2027.1", "UFPR", "Medicina", 2027, 1, null, null, 80, status, DateTime.UtcNow, null, null, jaContratou);
+        new(FormaturaId, "Medicina 2027.1", "UFPR", "Medicina", 2027, 1, null, null, status, DateTime.UtcNow, null, null, jaContratou);
 
     private static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }

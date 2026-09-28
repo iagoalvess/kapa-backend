@@ -316,10 +316,10 @@ public sealed class DespesaServiceTests
         var resumo = (await Servico.Resumir(new FiltroDeDespesas(), Ct)).Valor;
 
         // Assert
-        resumo.Prevista.ShouldBe(new SomaDeDespesas(3, 40_000));
-        resumo.Atrasada.ShouldBe(new SomaDeDespesas(2, 30_000));
-        resumo.Paga.ShouldBe(new SomaDeDespesas(3, 60_000));
-        resumo.Todas.ShouldBe(new SomaDeDespesas(7, 105_000));
+        resumo.Prevista.ShouldBe(new SomaDeLancamentos(3, 40_000));
+        resumo.Atrasada.ShouldBe(new SomaDeLancamentos(2, 30_000));
+        resumo.Paga.ShouldBe(new SomaDeLancamentos(3, 60_000));
+        resumo.Todas.ShouldBe(new SomaDeLancamentos(7, 105_000));
     }
 
     private NovaDespesa Nova(long valorEmCentavos = 100_000, int parcelas = 1, DateOnly? vencimento = null) =>

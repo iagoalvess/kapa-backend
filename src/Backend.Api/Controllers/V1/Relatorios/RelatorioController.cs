@@ -6,7 +6,6 @@ using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Common.Datas;
-using Backend.Business.Common.Planilhas;
 using Backend.Business.Relatorios.Interfaces;
 using Backend.Business.Relatorios.Models;
 using Mapster;
@@ -26,11 +25,16 @@ namespace Backend.Api.Controllers.V1.Relatorios;
 /// A divisão de esforço é a da decisão 2: CSV sai na hora, em streaming; o PDF do balancete vira
 /// solicitação, e quem gera é o worker.
 /// </para>
+/// <para>
+/// Módulo <c>Relatorios</c>, e não <c>Caixa</c> (22/09/2026): o Premium vendia "exportação contábil" e
+/// nada a conferia — o Essencial levava o balancete e as planilhas igual. O caixa e o dashboard na
+/// tela continuam no Essencial.
+/// </para>
 /// </remarks>
 /// <param name="relatorioService">Balancete, exportações e a fila.</param>
 /// <param name="usuarioAtual">Quem chama — vai na capa do balancete e é dono da solicitação.</param>
 [ApiVersion("1.0")]
-[ExigeModulo(Modulo.Caixa)]
+[ExigeModulo(Modulo.Relatorios)]
 [Route("api/v{version:apiVersion}/relatorios")]
 [Authorize(Policy = Politicas.Gestao)]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
@@ -65,17 +69,9 @@ public sealed class RelatorioController(IRelatorioService relatorioService, IUsu
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Exportar(TipoDeRelatorio tipo, [FromQuery] RecorteDoRelatorioDTO recorte, CancellationToken ct)
     {
-        var filtro = Filtro(recorte);
-        var tabela = await relatorioService.Tabela(FormaturaId, tipo, filtro, ct);
+        var resultado = await relatorioService.Planilha(FormaturaId, tipo, Filtro(recorte), ct);
 
-        if (tabela.Falhou)
-            return Responder(tabela.Map(_ => 0));
-
-        return File(
-            PlanilhaExcel.Gerar(tabela.Valor),
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            $"{tipo.ToString().ToLowerInvariant()}-{filtro.Periodo.De:yyyy-MM-dd}-a-{filtro.Periodo.Ate:yyyy-MM-dd}.xlsx"
-        );
+        return Arquivo(resultado);
     }
 
     /// <summary>Agenda o PDF de um relatório. Volta na hora; a tela acompanha a fila.</summary>
@@ -136,10 +132,7 @@ public sealed class RelatorioController(IRelatorioService relatorioService, IUsu
     {
         var resultado = await relatorioService.Baixar(id, usuarioAtual.Id, ct);
 
-        if (resultado.Falhou)
-            return Responder(resultado.Map(_ => 0));
-
-        return File(resultado.Valor.Conteudo, resultado.Valor.ContentType, resultado.Valor.Nome);
+        return Arquivo(resultado);
     }
 
     /// <summary>O período pedido, com as pontas que faltam completadas.</summary>

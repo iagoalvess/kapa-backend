@@ -16,6 +16,7 @@ namespace Backend.Business.Arquivos.Services;
 /// <param name="validator">Validador do pedido de envio.</param>
 /// <param name="options">Limites e cotas configurados.</param>
 /// <param name="urls">Conferência das URLs temporárias do provedor local.</param>
+/// <param name="formaturaAtual">Formatura da sessão ou do processamento, que abre a chave do objeto.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class ArquivoService(
@@ -24,11 +25,16 @@ public sealed class ArquivoService(
     IValidator<NovoArquivo> validator,
     IOptions<ArmazenamentoSettings> options,
     UrlTemporariaLocal urls,
+    IFormaturaAtual formaturaAtual,
     IUnitOfWork unitOfWork,
     ILogger<ArquivoService> logger
 ) : IArquivoService
 {
     private static readonly Erro NaoEncontrado = Erro.NaoEncontrado("arquivo.nao_encontrado", "Arquivo não encontrado.");
+
+    /// <summary>Onde moram, no provedor, todos os arquivos de uma turma.</summary>
+    /// <param name="formaturaId">Turma dona dos arquivos.</param>
+    public static string PrefixoDaFormatura(Guid formaturaId) => $"formaturas/{formaturaId:N}";
 
     /// <summary>
     /// Tipo de conteúdo por extensão, para as extensões que o template já libera.
@@ -201,13 +207,21 @@ public sealed class ArquivoService(
     /// Monta a chave do objeto no provedor.
     /// </summary>
     /// <remarks>
-    /// <c>categoria/ano/mês/identificador.extensão</c>. O identificador vem do domínio e nunca do
-    /// nome enviado: isso elimina de uma vez travessia de diretório, colisão entre arquivos de
-    /// mesmo nome e caractere inválido no provedor. A divisão por ano e mês evita um único
-    /// diretório com centenas de milhares de objetos.
+    /// <c>formaturas/{formatura}/categoria/ano/mês/identificador.extensão</c>. A formatura abre a
+    /// chave para que tudo de uma turma saia de uma vez, apagando um prefixo no provedor; o que nasce
+    /// fora de uma turma (a exportação da LGPD, que é do titular) vai para <c>geral/</c>.
+    /// <para>
+    /// O identificador vem do domínio e nunca do nome enviado: isso elimina de uma vez travessia de
+    /// diretório, colisão entre arquivos de mesmo nome e caractere inválido no provedor. A divisão por
+    /// ano e mês evita um único diretório com centenas de milhares de objetos.
+    /// </para>
     /// </remarks>
-    private static string MontarChave(Arquivo arquivo, string nome) =>
-        $"{arquivo.Categoria}/{arquivo.CriadoEm:yyyy/MM}/{arquivo.Id:N}{Path.GetExtension(nome).ToLowerInvariant()}";
+    private string MontarChave(Arquivo arquivo, string nome)
+    {
+        var raiz = formaturaAtual.Id is { } formaturaId ? PrefixoDaFormatura(formaturaId) : "geral";
+
+        return $"{raiz}/{arquivo.Categoria}/{arquivo.CriadoEm:yyyy/MM}/{arquivo.Id:N}{Path.GetExtension(nome).ToLowerInvariant()}";
+    }
 
     /// <summary>
     /// Recusa o arquivo cujos primeiros bytes não são do tipo que a extensão promete.
@@ -233,7 +247,7 @@ public sealed class ArquivoService(
     }
 
     /// <summary>
-    /// Recusa o envio que estouraria a cota do usuário.
+    /// Recusa o envio que estouraria a cota global ou a do usuário.
     /// </summary>
     /// <remarks>
     /// Roda depois do validador e **antes** de gravar qualquer byte: o ponto da cota é justamente
@@ -251,6 +265,15 @@ public sealed class ArquivoService(
     private async Task<Result> ConferirCota(long tamanho, Guid enviadoPorId, CancellationToken ct)
     {
         var settings = options.Value;
+
+        if (settings.CotaGlobalEmMB > 0 && await arquivoRepository.ObterBytesDeTodosOsArquivos(ct) + tamanho > settings.CotaGlobalEmBytes)
+        {
+            logger.LogWarning("Envio recusado: o armazenamento chegou à cota global de {Cota} MB.", settings.CotaGlobalEmMB);
+
+            return Result.Falha(
+                Erro.Conflito("arquivo.armazenamento_esgotado", "O envio de arquivos está indisponível no momento. Tente novamente mais tarde.")
+            );
+        }
 
         if (settings.MaximoDeArquivosPorUsuario <= 0 && settings.CotaPorUsuarioEmMB <= 0)
             return Result.Ok();

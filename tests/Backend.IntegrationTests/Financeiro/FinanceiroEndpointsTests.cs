@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -72,6 +73,7 @@ public sealed class FinanceiroEndpointsTests(ApiFactory fabrica)
         (await membro.Cliente.GetAsync(Despesas, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await membro.Cliente.GetAsync($"{Despesas}/resumo", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await membro.Cliente.GetAsync(Caixa, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await membro.Cliente.GetAsync($"{Caixa}/arrecadacao", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -350,7 +352,7 @@ public sealed class FinanceiroEndpointsTests(ApiFactory fabrica)
     private static ByteArrayContent Arquivo()
     {
         var arquivo = new ByteArrayContent(Encoding.UTF8.GetBytes("%PDF-1.4 comprovante de teste"));
-        arquivo.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        arquivo.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
 
         return arquivo;
     }

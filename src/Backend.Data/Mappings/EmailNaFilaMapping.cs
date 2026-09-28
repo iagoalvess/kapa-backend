@@ -23,6 +23,10 @@ public sealed class EmailNaFilaMapping : IEntityTypeConfiguration<EmailNaFila>
         builder.Property(e => e.Assunto).IsRequired().HasMaxLength(300);
         builder.Property(e => e.CorpoHtml).IsRequired();
         builder.Property(e => e.UltimoErro).HasMaxLength(1000);
+        builder.Property(e => e.AnexoNome).HasMaxLength(200);
+        builder.Property(e => e.AnexoContentType).HasMaxLength(100);
+
+        builder.Ignore(e => e.Anexo);
 
         builder.Property(e => e.Status).HasConversion<int>();
         builder.Property(e => e.Prioridade).HasConversion<int>();

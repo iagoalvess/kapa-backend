@@ -8,17 +8,9 @@ namespace Backend.Business.Admin.Interfaces;
 public interface IAdminRepository
 {
     /// <summary>Apura os números do painel em uma única ida ao banco.</summary>
-    Task<ResumoAdmin> ObterResumo(CancellationToken ct = default);
-
-    /// <summary>
-    /// Conta os administradores **ativos**.
-    /// </summary>
-    /// <remarks>
-    /// Existe para uma proteção específica: impedir que a última conta de administrador seja
-    /// desativada ou rebaixada. Sem ela, um clique deixa o sistema sem ninguém capaz de
-    /// gerenciar usuários — e a recuperação exige acesso direto ao banco.
-    /// </remarks>
-    Task<int> ContarAdministradoresAtivos(CancellationToken ct = default);
+    /// <param name="agoraUtc">Momento da apuração — o corte das sessões ativas.</param>
+    /// <param name="cadastradosDesde">Início da janela dos cadastros recentes.</param>
+    Task<ResumoAdmin> ObterResumo(DateTime agoraUtc, DateTime cadastradosDesde, CancellationToken ct = default);
 
     /// <summary>
     /// Turmas cujo nome, instituição ou curso batem com o termo.
@@ -31,18 +23,18 @@ public interface IAdminRepository
     /// </remarks>
     /// <param name="termo">Trecho digitado.</param>
     /// <param name="limite">Máximo de linhas.</param>
-    Task<IReadOnlyList<TurmaEncontrada>> BuscarTurmas(string termo, int limite, CancellationToken ct = default);
+    Task<IReadOnlyList<TurmaEncontrada>> BuscarTurmasDeTodasAsFormaturas(string termo, int limite, CancellationToken ct = default);
 
     /// <summary>Contas cujo nome ou e-mail batem com o termo, com em quantas turmas cada uma está.</summary>
     /// <param name="termo">Trecho digitado.</param>
     /// <param name="limite">Máximo de linhas.</param>
-    Task<IReadOnlyList<UsuarioEncontrado>> BuscarUsuarios(string termo, int limite, CancellationToken ct = default);
+    Task<IReadOnlyList<UsuarioEncontrado>> BuscarUsuariosDeTodasAsFormaturas(string termo, int limite, CancellationToken ct = default);
 
     /// <summary>A turma inteira como o suporte a vê, ou nulo se não existir.</summary>
     /// <param name="formaturaId">Formatura.</param>
-    Task<TurmaNoSuporte?> ObterTurma(Guid formaturaId, CancellationToken ct = default);
+    Task<TurmaNoSuporte?> ObterTurmaDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default);
 
     /// <summary>A conta inteira como o suporte a vê, ou nulo se não existir.</summary>
     /// <param name="usuarioId">Conta.</param>
-    Task<UsuarioNoSuporte?> ObterUsuario(Guid usuarioId, CancellationToken ct = default);
+    Task<UsuarioNoSuporte?> ObterUsuarioDeTodasAsFormaturas(Guid usuarioId, CancellationToken ct = default);
 }

@@ -55,46 +55,31 @@ public sealed class ReguaEndpointsTests(ApiFactory fabrica)
 
         var regua = await Ler<ReguaDTO>(await turma.Tesoureiro.Cliente.GetAsync(Regras, Ct));
 
-        regua.Regras.Count.ShouldBe(RegraDeNotificacao.Padrao().Count);
+        regua.Regras.Count.ShouldBe(ReguaDoKapa.Degraus.Count);
         regua.Regras.Select(r => r.DiasDeDeslocamento).ShouldContain(-5);
         regua.Regras.ShouldContain(r => r.Gatilho == GatilhoDaRegua.InformePendente);
-        regua.Variaveis.ShouldContain("vencimento");
+        regua.Regras.ShouldAllBe(r => r.Ativa);
+        regua.Regras.Where(r => r.AvisarTesouraria).Select(r => r.DiasDeDeslocamento).ShouldBe([15, 30], ignoreOrder: true);
     }
 
-    /// <summary>Critério de aceite: template com variável desconhecida é rejeitado na gravação.</summary>
+    /// <summary>O texto é do Kapa: a turma só liga e desliga o degrau.</summary>
     [Fact]
-    public async Task A_gravacao_recusa_variavel_desconhecida_e_aceita_a_corrigida()
+    public async Task A_tesouraria_desliga_e_religa_um_degrau()
     {
         var turma = await TurmaPronta();
         var regua = await Ler<ReguaDTO>(await turma.Tesoureiro.Cliente.GetAsync(Regras, Ct));
+        var degrau = regua.Regras.Single(r => r.Gatilho == GatilhoDaRegua.Vencimento && r.DiasDeDeslocamento == 3);
 
-        var comErro = Reescrever(regua, 3, "Vence em {vencimeto}.");
-        var corrigida = Reescrever(regua, 3, "Vence em {vencimento}.");
+        var desligada = await Ler<ReguaDTO>(
+            await turma.Tesoureiro.Cliente.PutAsJsonAsync($"{Regras}/{degrau.Id}", new RegraRequestDTO(false), Json, Ct)
+        );
+        desligada.Regras.Single(r => r.Id == degrau.Id).Ativa.ShouldBeFalse();
+        desligada.Regras.Count(r => !r.Ativa).ShouldBe(1);
 
-        (await turma.Tesoureiro.Cliente.PutAsJsonAsync(Regras, comErro, Json, Ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-
-        var salva = await Ler<ReguaDTO>(await turma.Tesoureiro.Cliente.PutAsJsonAsync(Regras, corrigida, Json, Ct));
-
-        salva.Regras.Single(r => r.Gatilho == GatilhoDaRegua.Vencimento && r.DiasDeDeslocamento == 3).Template.ShouldBe("Vence em {vencimento}.");
-    }
-
-    /// <summary>Critério de aceite: <c>testar</c> envia só para quem clicou, e não grava no histórico.</summary>
-    [Fact]
-    public async Task Testar_manda_so_para_quem_clicou_e_nao_entra_no_historico()
-    {
-        var turma = await TurmaPronta();
-        await FormandoQueAderiu(turma, "Ana Cobrada");
-
-        var regua = await Ler<ReguaDTO>(await turma.Tesoureiro.Cliente.GetAsync(Regras, Ct));
-        var degrau = regua.Regras.First(r => r.DiasDeDeslocamento == 3);
-
-        (await turma.Tesoureiro.Cliente.PostAsync($"{Regras}/{degrau.Id}/testar", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        var email = await fabrica.UltimoEmailDaFila(Ct);
-        email.ShouldNotBeNull();
-        email.ShouldContain("[Teste]");
-
-        (await Ler<PaginaDTO<NotificacaoDTO>>(await turma.Tesoureiro.Cliente.GetAsync(Historico, Ct))).Total.ShouldBe(0);
+        var religada = await Ler<ReguaDTO>(
+            await turma.Tesoureiro.Cliente.PutAsJsonAsync($"{Regras}/{degrau.Id}", new RegraRequestDTO(true), Json, Ct)
+        );
+        religada.Regras.ShouldAllBe(r => r.Ativa);
     }
 
     /// <summary>
@@ -308,18 +293,6 @@ public sealed class ReguaEndpointsTests(ApiFactory fabrica)
 
         await Should.ThrowAsync<DbUpdateException>(() => contexto.SaveChangesAsync(Ct));
     }
-
-    private static ReguaRequestDTO Reescrever(ReguaDTO regua, int dias, string template) =>
-        new([
-            .. regua.Regras.Select(r => new RegraRequestDTO(
-                r.Gatilho,
-                r.DiasDeDeslocamento,
-                r.Assunto,
-                r.Gatilho == GatilhoDaRegua.Vencimento && r.DiasDeDeslocamento == dias ? template : r.Template,
-                r.Ativa,
-                r.AvisarTesouraria
-            )),
-        ]);
 
     private async Task<ResumoDaRodada> Rodar(Turma turma)
     {

@@ -5,11 +5,11 @@ using Backend.Api.DTOs.Privacidade;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Legal.Interfaces;
-using Backend.Business.Legal.Models;
 using Backend.Business.Privacidade.Interfaces;
 using Backend.Business.Privacidade.Models;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -131,10 +131,7 @@ public sealed class PrivacidadeController(IPrivacidadeService privacidadeService
     {
         var resultado = await privacidadeService.Baixar(id, usuarioAtual.Id, ct);
 
-        if (resultado.Falhou)
-            return Responder(resultado.Map(_ => 0));
-
-        return File(resultado.Valor.Conteudo, resultado.Valor.ContentType, resultado.Valor.Nome);
+        return Arquivo(resultado);
     }
 
     /// <summary>
@@ -152,7 +149,7 @@ public sealed class PrivacidadeController(IPrivacidadeService privacidadeService
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Revogar(Guid id, CancellationToken ct) =>
-        Responder(await legalService.Revogar(usuarioAtual.Id, id, new OrigemDoAceite(usuarioAtual.EnderecoIp, usuarioAtual.UserAgent), ct));
+        Responder(await legalService.Revogar(usuarioAtual.Id, id, usuarioAtual.Origem, ct));
 
     /// <summary>
     /// Com quem a Kapa compartilha dado pessoal, e para quê.
@@ -163,6 +160,7 @@ public sealed class PrivacidadeController(IPrivacidadeService privacidadeService
     /// </remarks>
     [HttpGet("operadores")]
     [AllowAnonymous]
+    [EnableCors(ApiConfig.Vitrine)]
     [ProducesResponseType(typeof(IReadOnlyList<OperadorDTO>), StatusCodes.Status200OK)]
     public IActionResult Operadores() => Ok(OperadoresDaKapa.Todos.Adapt<IReadOnlyList<OperadorDTO>>());
 

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Backend.Business.Auth.Services;
+using Backend.Business.Legal.Models;
 using Backend.Business.Usuarios.Models;
 using Microsoft.IdentityModel.JsonWebTokens;
 
@@ -41,6 +42,9 @@ public interface IUsuarioAtual
 
     /// <summary>Cabeçalho <c>User-Agent</c> da requisição.</summary>
     string? UserAgent { get; }
+
+    /// <summary>IP e navegador juntos, na forma que o aceite de um documento grava.</summary>
+    OrigemDoAceite Origem => new(EnderecoIp, UserAgent);
 }
 
 /// <summary>

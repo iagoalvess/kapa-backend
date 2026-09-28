@@ -61,4 +61,16 @@ public static class RotuloDaCategoria
             CategoriaDeDespesa.Decoracao => "Decoração",
             _ => categoria.ToString(),
         };
+
+    /// <summary>O nome da categoria de receita em português.</summary>
+    /// <param name="categoria">Categoria.</param>
+    public static string De(CategoriaDeOutraReceita categoria) =>
+        categoria switch
+        {
+            CategoriaDeOutraReceita.Patrocinio => "Patrocínio",
+            CategoriaDeOutraReceita.Evento => "Evento de arrecadação",
+            CategoriaDeOutraReceita.Doacao => "Doação",
+            CategoriaDeOutraReceita.VendaDeConvite => "Venda de convite",
+            _ => categoria.ToString(),
+        };
 }

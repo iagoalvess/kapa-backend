@@ -19,22 +19,40 @@ public sealed record PendenciasDoExtratoDTO(int VencidasSemAviso);
 /// <param name="CopiaECola">O BR Code — a tela desenha o QR a partir dele, no navegador.</param>
 /// <param name="Chave">Chave da comissão.</param>
 /// <param name="NomeDoTitular">O nome que o banco vai mostrar.</param>
-public sealed record PixParaPagarDTO(string CopiaECola, string Chave, string NomeDoTitular);
+/// <param name="DocumentoDoTitular">CPF mascarado ou CNPJ, quando é esse o tipo da chave; nulo nos demais.</param>
+/// <param name="ConferidaEm">Quando a comissão conferiu a titularidade no banco, em UTC. Nulo: a conferir.</param>
+public sealed record PixParaPagarDTO(string CopiaECola, string Chave, string NomeDoTitular, string? DocumentoDoTitular, DateTime? ConferidaEm);
 
-/// <summary>Um meio que a turma aceita, com o que a tela precisa mostrar.</summary>
+/// <summary>Um meio que a comissão habilitou, com o que a tela precisa mostrar.</summary>
 /// <remarks>Só o campo do próprio meio vem preenchido; os outros vêm nulos.</remarks>
 /// <param name="Meio"><c>Pix</c>, <c>Transferencia</c> ou <c>Dinheiro</c>.</param>
-/// <param name="Pix">O PIX pronto, só em <c>Pix</c>.</param>
+/// <param name="Pix">O PIX da chave da comissão, só em <c>Pix</c>.</param>
 /// <param name="Transferencia">Os dados bancários, só em <c>Transferencia</c>.</param>
 /// <param name="Instrucao">O que fazer, em <c>Dinheiro</c>.</param>
 public sealed record MeioDaCobrancaDTO(MeioDeRecebimento Meio, PixParaPagarDTO? Pix, DadosBancariosDTO? Transferencia, string? Instrucao);
 
+/// <summary>Um meio do Mercado Pago da turma — baixa sozinho, sem aviso do formando.</summary>
+/// <param name="Meio"><c>Pix</c>, <c>PixAutomatico</c> ou <c>Cartao</c>.</param>
+/// <param name="Pix">O PIX pronto, só em <c>Pix</c>.</param>
+public sealed record PagamentoPeloMercadoPagoDTO(MeioDePagamento Meio, PixDinamicoParaPagarDTO? Pix);
+
+/// <summary>O PIX do Mercado Pago da turma: o copia-e-cola e até quando vale.</summary>
+/// <param name="CopiaECola">O BR Code; o QR é desenhado no navegador.</param>
+/// <param name="ExpiraEm">Até quando aceita pagamento, em UTC.</param>
+public sealed record PixDinamicoParaPagarDTO(string CopiaECola, DateTime ExpiraEm);
+
 /// <summary>A cobrança da parcela, montada na hora: quanto, e por onde a turma aceita receber.</summary>
-/// <remarks>Com um meio só na lista, a tela não desenha seletor — é o caminho de sempre.</remarks>
+/// <remarks>Com um meio só nas duas listas, a tela não desenha seletor — é o caminho de sempre.</remarks>
 /// <param name="ValorEmCentavos">O valor de hoje, somado quando são várias parcelas.</param>
 /// <param name="Identificador">O identificador da parcela no PIX.</param>
-/// <param name="Meios">Os meios habilitados, ao menos um.</param>
-public sealed record CobrancaDaParcelaDTO(long ValorEmCentavos, string Identificador, IReadOnlyList<MeioDaCobrancaDTO> Meios);
+/// <param name="PeloMercadoPago">Os meios do Mercado Pago da turma, primeiro; vazio sem conexão ou se ele falhou.</param>
+/// <param name="Meios">Os meios que a comissão habilitou.</param>
+public sealed record CobrancaDaParcelaDTO(
+    long ValorEmCentavos,
+    string Identificador,
+    IReadOnlyList<PagamentoPeloMercadoPagoDTO> PeloMercadoPago,
+    IReadOnlyList<MeioDaCobrancaDTO> Meios
+);
 
 /// <summary>Um informe na fila da tesouraria.</summary>
 /// <param name="Id">Identificador.</param>

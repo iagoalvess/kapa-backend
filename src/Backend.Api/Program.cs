@@ -16,6 +16,7 @@ builder.Services.AddDocumentacao();
 
 var app = builder.Build();
 
+app.AvisarConfiguracaoDeProducao();
 app.UseApi();
 app.UseDocumentacao();
 

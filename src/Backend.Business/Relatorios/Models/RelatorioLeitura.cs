@@ -60,10 +60,6 @@ public sealed record PeriodoDoRelatorio(DateOnly De, DateOnly Ate)
         return new PeriodoDoRelatorio(fim.AddDays(1 - Dias), fim);
     }
 
-    /// <summary>Se o dia cai dentro do período.</summary>
-    /// <param name="dia">Dia a testar.</param>
-    public bool Contem(DateOnly dia) => dia >= De && dia <= Ate;
-
     private static DateOnly Maior(DateOnly a, DateOnly b) => a > b ? a : b;
 }
 
@@ -229,6 +225,7 @@ public sealed record GastoPorFornecedor(Guid? FornecedorId, string Nome, int Qua
 /// <param name="EmitidoPor">Nome de quem pediu o relatório.</param>
 /// <param name="EmitidoEm">Momento da emissão, em UTC.</param>
 /// <param name="Entradas">Recebimentos do período, por tipo de cobrança.</param>
+/// <param name="OutrasReceitas">Receitas que não vêm de formando recebidas no período, por categoria (Sprint 28).</param>
 /// <param name="SaidasPorCategoria">Despesas pagas no período, por categoria.</param>
 /// <param name="SaidasPorFornecedor">Despesas pagas no período, por fornecedor.</param>
 /// <param name="SaldoAcumuladoEmCentavos">O saldo da turma hoje — arrecadado menos gasto, desde sempre.</param>
@@ -241,6 +238,7 @@ public sealed record Balancete(
     string EmitidoPor,
     DateTime EmitidoEm,
     IReadOnlyList<LinhaDeBalancete> Entradas,
+    IReadOnlyList<LinhaDeBalancete> OutrasReceitas,
     IReadOnlyList<LinhaDeBalancete> SaidasPorCategoria,
     IReadOnlyList<LinhaDeBalancete> SaidasPorFornecedor,
     long SaldoAcumuladoEmCentavos,
@@ -248,8 +246,14 @@ public sealed record Balancete(
     TotaisDoPeriodo Anterior
 )
 {
-    /// <summary>O que entrou no período.</summary>
-    public long EntradasEmCentavos => Entradas.Sum(linha => linha.ValorEmCentavos);
+    /// <summary>O que entrou de parcela no período.</summary>
+    public long ParcelasEmCentavos => Entradas.Sum(linha => linha.ValorEmCentavos);
+
+    /// <summary>O que entrou de receita no período.</summary>
+    public long OutrasReceitasEmCentavos => OutrasReceitas.Sum(linha => linha.ValorEmCentavos);
+
+    /// <summary>O que entrou no período: parcelas e receitas — a soma que fecha com o caixa.</summary>
+    public long EntradasEmCentavos => ParcelasEmCentavos + OutrasReceitasEmCentavos;
 
     /// <summary>O que saiu no período.</summary>
     public long SaidasEmCentavos => SaidasPorCategoria.Sum(linha => linha.ValorEmCentavos);

@@ -36,6 +36,10 @@ public sealed class PlanoDeCobrancaRepository(AppDbContext db) : IPlanoDeCobranc
         db.PlanosDeCobranca.AsNoTracking().Include(p => p.Itens).FirstOrDefaultAsync(p => p.Status == StatusDoPlano.Vigente, ct);
 
     /// <inheritdoc />
+    public Task<PlanoDeCobranca?> ObterVigenteParaEdicao(CancellationToken ct = default) =>
+        db.PlanosDeCobranca.Include(p => p.Itens).FirstOrDefaultAsync(p => p.Status == StatusDoPlano.Vigente, ct);
+
+    /// <inheritdoc />
     public Task<bool> ExisteVigente(CancellationToken ct = default) => db.PlanosDeCobranca.AnyAsync(p => p.Status == StatusDoPlano.Vigente, ct);
 
     /// <inheritdoc />

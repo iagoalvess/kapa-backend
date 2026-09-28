@@ -29,6 +29,10 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
     /// Quatro consultas, e não uma: a conta, os vínculos com cadastro, as parcelas e as preferências.
     /// Um <c>JOIN</c> só multiplicaria a linha do perfil pela quantidade de parcelas, e o titular de
     /// três turmas com quarenta parcelas cada traria o endereço dele cento e vinte vezes.
+    /// <para>
+    /// Nos consentimentos, a ordenação vem <b>antes</b> da projeção: ordenar pelo campo do record já
+    /// construído não traduz para SQL, e o EF Core recusa a consulta inteira em tempo de execução.
+    /// </para>
     /// </remarks>
     public async Task<MeusDados?> ObterMeusDadosDeTodasAsFormaturas(Guid usuarioId, CancellationToken ct = default)
     {
@@ -96,8 +100,6 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
             .Select(a => new { a.VinculoId, Adesao = new MinhaAdesao(a.Versao, a.AceitoEm, a.EnderecoIp) })
             .ToListAsync(ct);
 
-        // A ordenação vem **antes** da projeção: ordenar pelo campo do record já construído não
-        // traduz para SQL, e o EF Core recusa a consulta inteira em tempo de execução.
         var consentimentos = await (
             from consentimento in db.Consentimentos.IgnoreQueryFilters().AsNoTracking()
             join documento in db.DocumentosLegais on consentimento.DocumentoLegalId equals documento.Id
@@ -209,7 +211,10 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
     /// Um presidente por turma em que o titular tem vínculo — e só os ativos: avisar quem saiu da
     /// comissão é vazar um pedido de LGPD para fora dela.
     /// </remarks>
-    public async Task<IReadOnlyList<PresidenteParaAviso>> ListarPresidentesParaAviso(Guid usuarioId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<PresidenteParaAviso>> ListarPresidentesParaAvisoDeTodasAsFormaturas(
+        Guid usuarioId,
+        CancellationToken ct = default
+    )
     {
         var turmas = await db
             .Vinculos.IgnoreQueryFilters()

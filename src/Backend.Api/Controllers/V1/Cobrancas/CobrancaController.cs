@@ -66,7 +66,7 @@ public sealed class CobrancaController(ICobrancaService cobrancaService, IUsuari
     {
         var resultado = await cobrancaService.Criar(requisicao.Adapt<DadosDoPlano>(), ct);
 
-        return Criado(ParaDTO(resultado), RotaDoPlano, new { id = resultado.Sucesso ? resultado.Valor.Id : Guid.Empty });
+        return Criado(ParaDTO(resultado), RotaDoPlano, dto => dto.Id);
     }
 
     /// <summary>Altera nome e regras de atraso. Quem já aderiu fica com as regras que aceitou.</summary>

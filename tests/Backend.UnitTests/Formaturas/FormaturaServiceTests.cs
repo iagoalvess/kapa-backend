@@ -35,14 +35,13 @@ public sealed class FormaturaServiceTests
 
     private FormaturaService Servico => new(_formaturas, _vinculos, _assinaturas, _provedor, _auth, new DadosDaFormaturaValidator(), _unitOfWork);
 
-    private static DadosDaFormatura Dados(int? ano = null) =>
-        new("Medicina 2027.1 — UFPR", "UFPR", "Medicina", ano ?? DateTime.UtcNow.Year + 1, 1, 80);
+    private static DadosDaFormatura Dados(int? ano = null) => new("Medicina 2027.1 — UFPR", "UFPR", "Medicina", ano ?? DateTime.UtcNow.Year + 1, 1);
 
     [Fact]
     public async Task Criar_com_gratuita_pendente_devolve_conflito_sem_gravar()
     {
         // Arrange
-        _formaturas.ExisteGratuitaCriadaPor(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(true);
+        _formaturas.ExisteGratuitaCriadaPorDeTodasAsFormaturas(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(true);
 
         // Act
         var resultado = await Servico.Criar(Guid.CreateVersion7(), Dados(), "refresh", null, Ct);

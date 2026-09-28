@@ -30,6 +30,7 @@
     <!-- Redimensionamento da foto do formando. SkiaSharp (MIT) e não ImageSharp, cuja licença
          passa a ser paga acima de US$ 1 mi de receita. NoDependencies traz o nativo de Linux
          (glibc e musl/Alpine) sem exigir fontconfig na imagem. -->
+    <PackageReference Include="QRCoder" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
   </ItemGroup>

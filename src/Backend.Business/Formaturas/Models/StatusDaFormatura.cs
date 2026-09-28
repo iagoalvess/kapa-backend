@@ -31,7 +31,7 @@ public enum StatusDaFormatura
     /// <remarks>
     /// Não é exclusão: aceites de convite e consentimentos que apontam para a turma são prova e
     /// ficam. E libera o criador para abrir outra, porque o limite é de <b>uma turma não paga por
-    /// conta</b> (<c>ExisteGratuitaCriadaPor</c>).
+    /// conta</b> (<c>ExisteGratuitaCriadaPorDeTodasAsFormaturas</c>).
     /// <para>
     /// Só sai de <see cref="Ativa"/> e só enquanto <b>não houver assinatura</b> — quem já pagou
     /// encerra, não descarta. Quem guarda essa condição é <c>FormaturaService.Descartar</c>.

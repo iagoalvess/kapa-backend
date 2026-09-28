@@ -22,6 +22,9 @@ public enum ETipoErro
 
     /// <summary>Dependência externa indisponível. Vira 503.</summary>
     Indisponivel,
+
+    /// <summary>Fila cheia: tente de novo em instantes. Vira 429 (Sprint 26, a fila da loja).</summary>
+    Excesso,
 }
 
 /// <summary>
@@ -36,6 +39,15 @@ public enum ETipoErro
 /// <param name="Campo">Campo do payload que originou a falha, quando aplicável.</param>
 public sealed record Erro(string Codigo, string Mensagem, ETipoErro Tipo, string? Campo = null)
 {
+    /// <summary>
+    /// O que a tela precisa saber além do código, quando precisa — sai no corpo como <c>dados</c>.
+    /// </summary>
+    /// <remarks>
+    /// Existe para o 409 que é <b>informação</b>, não erro: o "já validado às 22h14 por Ana" da
+    /// portaria (Sprint 21, decisão 6). Nulo em todo o resto, e aí o campo nem aparece.
+    /// </remarks>
+    public object? Dados { get; init; }
+
     /// <summary>Cria uma falha de validação de entrada (400).</summary>
     public static Erro Validacao(string codigo, string mensagem, string? campo = null) => new(codigo, mensagem, ETipoErro.Validacao, campo);
 
@@ -53,4 +65,7 @@ public sealed record Erro(string Codigo, string Mensagem, ETipoErro Tipo, string
 
     /// <summary>Cria uma falha de dependência externa indisponível (503).</summary>
     public static Erro Indisponivel(string codigo, string mensagem) => new(codigo, mensagem, ETipoErro.Indisponivel);
+
+    /// <summary>Cria uma falha de excesso de requisições (429) — quem chama põe o <c>Retry-After</c>.</summary>
+    public static Erro Excesso(string codigo, string mensagem) => new(codigo, mensagem, ETipoErro.Excesso);
 }

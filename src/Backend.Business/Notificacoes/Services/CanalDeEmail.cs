@@ -7,7 +7,7 @@ using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
 using Microsoft.Extensions.Options;
 
-namespace Backend.Business.Canais;
+namespace Backend.Business.Notificacoes.Services;
 
 /// <summary>
 /// O canal desta sprint: põe a mensagem na fila de e-mails que o worker já esvazia.
@@ -28,14 +28,7 @@ public sealed class CanalDeEmail(IEmailService emailService, IOptions<AplicacaoS
     /// <inheritdoc />
     public async Task<Result<EntregaDaMensagem>> Enviar(MensagemDeNotificacao mensagem, CancellationToken ct = default)
     {
-        var corpo = ModeloDeEmail.Montar(
-            _aplicacao.Nome,
-            mensagem.Assunto,
-            mensagem.CorpoHtml,
-            mensagem.TextoDoLink,
-            mensagem.Link,
-            Mascote.Cofrinho
-        );
+        var corpo = ModeloDeEmail.Montar(_aplicacao, mensagem.Assunto, mensagem.CorpoHtml, mensagem.TextoDoLink, mensagem.Link, Mascote.Cofrinho);
 
         var enfileirado = await emailService.Enfileirar(new NovoEmail(mensagem.Para, $"{mensagem.Assunto} — {_aplicacao.Nome}", corpo), ct);
 

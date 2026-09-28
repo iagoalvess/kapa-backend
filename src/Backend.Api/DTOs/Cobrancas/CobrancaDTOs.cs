@@ -93,6 +93,15 @@ public sealed record PlanoDeCobrancaDTO(
 /// <param name="EncerradoEm">Quando deixou de cobrar, se deixou.</param>
 /// <param name="EmUso">Já gerou parcela: não se remove, só se encerra, e só o valor muda.</param>
 /// <param name="OrigemDaDecisao">Onde a turma decidiu, se o item foi um rateio extraordinário; nulo no item comum.</param>
+/// <param name="Opcional">Item opcional: só cobra quem pedir, e o valor é o preço unitário (Sprint 20).</param>
+/// <param name="LimitePorFormando">Cota por pessoa, no item opcional.</param>
+/// <param name="PedidosAteDia">Último dia para pedir, no item opcional.</param>
+/// <param name="Estoque">Unidades existentes; nulo, sem teto.</param>
+/// <param name="Reservados">Unidades já pedidas.</param>
+/// <param name="AberturaDeVendas">A partir de quando se pode pedir.</param>
+/// <param name="ItemDaFestaId">O item da festa que este item vende.</param>
+/// <param name="ModoDeVenda"><c>AoFormando</c> ou <c>Publica</c> (a loja, Sprint 26).</param>
+/// <param name="PrecoPublicoEmCentavos">Preço na loja, se diferente do do formando.</param>
 public sealed record ItemDeCobrancaDTO(
     Guid Id,
     TipoDeCobranca Tipo,
@@ -103,7 +112,16 @@ public sealed record ItemDeCobrancaDTO(
     DateOnly PrimeiroMes,
     DateOnly? EncerradoEm,
     bool EmUso,
-    string? OrigemDaDecisao
+    string? OrigemDaDecisao,
+    bool Opcional,
+    int? LimitePorFormando,
+    DateOnly? PedidosAteDia,
+    int? Estoque,
+    int Reservados,
+    DateTime? AberturaDeVendas,
+    Guid? ItemDaFestaId,
+    ModoDeVenda ModoDeVenda,
+    long? PrecoPublicoEmCentavos
 );
 
 /// <summary>Uma parcela da simulação.</summary>
@@ -126,6 +144,7 @@ public sealed record SimulacaoDoPlanoDTO(IReadOnlyList<ParcelaSimuladaDTO> Parce
 /// <param name="Id">Identificador.</param>
 /// <param name="UsuarioId">Formando que deve.</param>
 /// <param name="Nome">Nome civil do cadastro, ou o da conta.</param>
+/// <param name="ItemDeCobrancaId">Item de origem — é por ele que a tela junta as parcelas de um pedido.</param>
 /// <param name="Tipo">Tipo do item de origem.</param>
 /// <param name="Descricao">Descrição do item de origem, se houver.</param>
 /// <param name="Numero">Posição na grade do item.</param>
@@ -137,10 +156,12 @@ public sealed record SimulacaoDoPlanoDTO(IReadOnlyList<ParcelaSimuladaDTO> Parce
 /// <param name="ValorPagoEmCentavos">O que entrou, se paga.</param>
 /// <param name="PagoEm">Dia em que entrou, se paga.</param>
 /// <param name="ValorDoDia">O valor de hoje, com a conta aberta — só na aberta e na vencida.</param>
+/// <param name="RecebimentoId">A última baixa que vale — o recibo abre em <c>/recebimentos/{id}/recibo</c>. Nula sem baixa.</param>
 public sealed record ParcelaDTO(
     Guid Id,
     Guid UsuarioId,
     string Nome,
+    Guid ItemDeCobrancaId,
     TipoDeCobranca Tipo,
     string? Descricao,
     int Numero,
@@ -151,7 +172,8 @@ public sealed record ParcelaDTO(
     bool EmConferencia,
     long? ValorPagoEmCentavos,
     DateOnly? PagoEm,
-    ValorDoDiaDTO? ValorDoDia
+    ValorDoDiaDTO? ValorDoDia,
+    Guid? RecebimentoId
 );
 
 /// <summary>O valor de uma parcela num dia, com a conta aberta — o que o formando vê ao tocar na parcela vencida.</summary>

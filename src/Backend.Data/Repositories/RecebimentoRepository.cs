@@ -87,5 +87,55 @@ public sealed class RecebimentoRepository(AppDbContext db) : IRecebimentoReposit
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Duas consultas: o recebimento com a turma, o autor e o CPF; e a parcela pela projeção de sempre
+    /// (<see cref="ParcelaRepository.Projetar"/>), que é onde mora a regra do nome de quem paga.
+    /// </remarks>
+    public async Task<DadosDoRecibo?> ObterParaRecibo(Guid recebimentoId, DateOnly hoje, CancellationToken ct = default)
+    {
+        var linha = await (
+            from recebimento in db.Recebimentos.AsNoTracking()
+            join autor in db.Users.AsNoTracking() on recebimento.BaixadoPorUsuarioId equals autor.Id
+            join formatura in db.Formaturas.AsNoTracking() on recebimento.FormaturaId equals formatura.Id
+            join daParcela in db.Parcelas.AsNoTracking() on recebimento.ParcelaId equals daParcela.Id
+            join perfil in db.PerfisDeFormandos.AsNoTracking() on daParcela.VinculoId equals perfil.VinculoId into perfis
+            from perfil in perfis.DefaultIfEmpty()
+            where recebimento.Id == recebimentoId
+            select new
+            {
+                recebimento,
+                formatura.Nome,
+                formatura.Instituicao,
+                BaixadoPor = autor.Nome,
+                Cpf = perfil != null ? perfil.Cpf : null,
+            }
+        ).SingleOrDefaultAsync(ct);
+
+        if (linha is null)
+            return null;
+
+        var parcelaId = linha.recebimento.ParcelaId;
+        var parcela = ParcelaRepository
+            .NoDia(await ParcelaRepository.Projetar(ParcelaRepository.Linhas(db).Where(l => l.Parcela.Id == parcelaId)).ToListAsync(ct), hoje)
+            .Single();
+
+        return new DadosDoRecibo(
+            linha.recebimento.Id,
+            linha.recebimento.FormaturaId,
+            linha.Nome,
+            linha.Instituicao,
+            parcela,
+            linha.Cpf,
+            linha.recebimento.Forma,
+            linha.recebimento.ValorEmCentavos,
+            linha.recebimento.DevidoEmCentavos,
+            linha.recebimento.PagoEm,
+            linha.BaixadoPor,
+            linha.recebimento.BaixadoEm,
+            linha.recebimento.EstornadoEm is not null
+        );
+    }
+
+    /// <inheritdoc />
     public async Task Adicionar(Recebimento recebimento, CancellationToken ct = default) => await db.Recebimentos.AddAsync(recebimento, ct);
 }

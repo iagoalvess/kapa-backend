@@ -4,10 +4,10 @@ Esta Política explica quais dados pessoais a Kapa trata, por que, com quem os c
 
 ## 1. Quem é responsável pelos seus dados
 
-A plataforma Kapa é operada por **[RAZÃO SOCIAL]**, inscrita no CNPJ sob o nº **[CNPJ]**, com sede em **[ENDEREÇO COMPLETO]**.
+A plataforma Kapa é operada por **KAPA FORMATURAS INOVA SIMPLES (I.S.)**, inscrita no CNPJ sob o nº **69.334.998/0001-67**, com sede em **Rua Carlos Alves, 16, apto 102, São José, Belo Horizonte/MG, CEP 31275-120**.
 
-- **Suporte:** [E-MAIL DE SUPORTE]
-- **Encarregado de Dados (DPO):** [E-MAIL DO ENCARREGADO]
+- **Suporte:** suporte@kapaformaturas.com.br
+- **Encarregado de Dados (DPO):** contato@kapaformaturas.com.br
 
 ## 2. Dois papéis: a Kapa e a comissão da sua formatura
 
@@ -64,13 +64,14 @@ A Kapa **não vende** dados pessoais e não os compartilha para publicidade de t
 - **Provedor de pagamentos (PSP):** apenas para cobrar a assinatura da Kapa. Os pagamentos dos formandos à comissão não passam por ele nem pela Kapa.
 - **Provedores de infraestrutura:** hospedagem, banco de dados e armazenamento de arquivos em nuvem.
 - **Provedor de envio de e-mail:** para mensagens de conta, cobranças e avisos.
+- **Provedor de modelos de inteligência artificial (OpenRouter):** para gerar o resumo do termo de adesão exibido antes do aceite. Recebe apenas o texto do termo redigido pela comissão — que pode conter razão social, CNPJ, endereço e nomes dos membros da comissão —, e nenhum dado de formando: nem nome, CPF, e-mail ou identificador. Nos modelos gratuitos, o provedor pode registrar o texto enviado.
 - **Autoridades públicas:** quando exigido por lei ou por ordem judicial.
 
 Esses operadores tratam os dados apenas para prestar o serviço contratado pela Kapa, sob obrigações de confidencialidade e segurança, e a Kapa permanece responsável por eles nos termos do art. 42 da LGPD. A lista atualizada dos operadores pode ser solicitada ao Encarregado.
 
 ## 7. Transferência internacional
 
-Alguns provedores de infraestrutura podem manter servidores fora do Brasil. Essas transferências seguem o art. 33 da LGPD e são amparadas pelas cláusulas-padrão contratuais aprovadas pela ANPD (Resolução CD/ANPD nº 19/2024) ou por outro mecanismo previsto em lei.
+Alguns provedores de infraestrutura, e o provedor de modelos de inteligência artificial, podem manter servidores fora do Brasil. Essas transferências seguem o art. 33 da LGPD e são amparadas pelas cláusulas-padrão contratuais aprovadas pela ANPD (Resolução CD/ANPD nº 19/2024) ou por outro mecanismo previsto em lei.
 
 ## 8. Cookies
 
@@ -105,7 +106,7 @@ Você pode corrigir seus dados de cadastro diretamente na plataforma. Os demais 
 
 ## 11. Decisões automatizadas
 
-Os lembretes de vencimento são automáticos: seguem a situação das parcelas e as regras definidas pela comissão, sem análise de perfil. A confirmação de pagamentos não é automática — é feita pela tesouraria da turma. Se discordar de uma cobrança ou de uma confirmação, fale com a comissão da sua formatura ou com o Encarregado da Kapa.
+Os lembretes de vencimento são automáticos: seguem a situação das parcelas e as regras definidas pela comissão, sem análise de perfil. A confirmação de pagamentos não é automática — é feita pela tesouraria da turma. O resumo do termo de adesão é gerado automaticamente por inteligência artificial, sem revisão humana, e serve só para orientar a leitura: o que vale é o texto completo do termo, e o resumo não faz parte do que você aceita. Se discordar de uma cobrança ou de uma confirmação, fale com a comissão da sua formatura ou com o Encarregado da Kapa.
 
 ## 12. Menores de idade
 

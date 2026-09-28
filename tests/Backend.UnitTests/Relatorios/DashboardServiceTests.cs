@@ -57,7 +57,7 @@ public sealed class DashboardServiceTests
     /// <param name="gasto">O que saiu.</param>
     private void Consolidado(long arrecadado = 0, long gasto = 0)
     {
-        _caixa.Consolidado(Arg.Any<CancellationToken>()).Returns(new CaixaConsolidado(arrecadado, gasto, 0, 0, 0, [], []));
+        _caixa.Consolidado(Arg.Any<CancellationToken>()).Returns(new CaixaConsolidado(arrecadado, gasto, 0, 0, 0, [], [], []));
         _caixa.Projecao(FormaturaId, Arg.Any<CancellationToken>()).Returns(new ProjecaoDoCaixa([], arrecadado - gasto, 0));
         _relatorios.Adimplencia(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns(Adimplencia.Integral);
         _relatorios.PorFornecedor(Arg.Any<PeriodoDoRelatorio?>(), Arg.Any<CancellationToken>()).Returns([]);

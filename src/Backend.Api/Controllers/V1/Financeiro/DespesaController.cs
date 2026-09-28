@@ -5,11 +5,9 @@ using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Financeiro;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
-using Backend.Business.Arquivos.Models;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Models;
-using Backend.Business.Financeiro.Services;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -102,7 +100,7 @@ public sealed class DespesaController(IDespesaService despesaService, IUsuarioAt
             requisicao.PagaEm
         );
 
-        var resultado = await despesaService.Lancar(dados, usuarioAtual.Id, Comprovante(comprovante, conteudo), ct);
+        var resultado = await despesaService.Lancar(dados, usuarioAtual.Id, comprovante.ParaNovoArquivo(conteudo), ct);
 
         return Responder(resultado.Map(despesas => despesas.Adapt<List<DespesaDTO>>()));
     }
@@ -153,7 +151,7 @@ public sealed class DespesaController(IDespesaService despesaService, IUsuarioAt
     {
         await using var conteudo = comprovante?.OpenReadStream() ?? Stream.Null;
 
-        var resultado = await despesaService.Pagar(id, new PagarDespesa(pagoEm), usuarioAtual.Id, Comprovante(comprovante, conteudo), ct);
+        var resultado = await despesaService.Pagar(id, new PagarDespesa(pagoEm), usuarioAtual.Id, comprovante.ParaNovoArquivo(conteudo), ct);
 
         return Responder(resultado.Map(despesa => despesa.Adapt<DespesaDTO>()));
     }
@@ -171,7 +169,7 @@ public sealed class DespesaController(IDespesaService despesaService, IUsuarioAt
         Responder((await despesaService.Cancelar(id, usuarioAtual.Id, ct)).Map(despesa => despesa.Adapt<DespesaDTO>()));
 
     /// <summary>O comprovante de uma despesa.</summary>
-    /// <remarks>Não usa os helpers do <c>MainController</c>: o sucesso é o arquivo, e ele vai <c>inline</c> para abrir numa aba.</remarks>
+    /// <remarks>O comprovante vai <c>inline</c>, para abrir numa aba.</remarks>
     /// <param name="id">Despesa.</param>
     [HttpGet("{id:guid}/comprovante")]
     [Authorize(Policy = Politicas.Tesouraria)]
@@ -182,13 +180,6 @@ public sealed class DespesaController(IDespesaService despesaService, IUsuarioAt
     {
         var resultado = await despesaService.BaixarComprovante(id, ct);
 
-        if (resultado.Falhou)
-            return Responder(resultado.Map(_ => 0));
-
-        return File(resultado.Valor.Conteudo, resultado.Valor.ContentType);
+        return Arquivo(resultado, inline: true);
     }
-
-    /// <summary>O comprovante do multipart como pedido de envio; ausente ou vazio, nenhum.</summary>
-    private static NovoArquivo? Comprovante(IFormFile? arquivo, Stream conteudo) =>
-        arquivo is { Length: > 0 } ? new NovoArquivo(arquivo.FileName, arquivo.Length, conteudo, DespesaService.CategoriaDoComprovante) : null;
 }

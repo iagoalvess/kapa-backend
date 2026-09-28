@@ -8,8 +8,6 @@ using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
 using Backend.Business.Notificacoes.Services;
 using Backend.Business.Notificacoes.Validators;
-using Backend.Business.Usuarios.Interfaces;
-using Backend.Business.Usuarios.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -34,7 +32,6 @@ public sealed class NotificacaoServiceTests
     private readonly IParcelaRepository _parcelas = Substitute.For<IParcelaRepository>();
     private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
     private readonly IFormaturaRepository _formaturas = Substitute.For<IFormaturaRepository>();
-    private readonly IUsuarioRepository _usuarios = Substitute.For<IUsuarioRepository>();
     private readonly ICanalDeNotificacao _canal = Substitute.For<ICanalDeNotificacao>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
@@ -45,35 +42,11 @@ public sealed class NotificacaoServiceTests
             .Returns(Result.Ok(new EntregaDaMensagem(Guid.CreateVersion7())));
 
         _notificacoes.ListarRegras(Arg.Any<CancellationToken>()).Returns([Degrau()]);
-        _notificacoes.ListarRegrasParaEdicao(Arg.Any<CancellationToken>()).Returns([]);
         _notificacoes.ListarPreferenciasParaEdicao(VinculoId, Arg.Any<CancellationToken>()).Returns([]);
-
-        _usuarios
-            .ObterDetalhe(UsuarioId, Arg.Any<CancellationToken>())
-            .Returns(new UsuarioDetalhe(UsuarioId, "Ana Tesoureira", "ana@turma.dev", true, true, [], DateTime.UtcNow, DateTime.UtcNow));
 
         _vinculos.ObterAtivoParaEdicao(UsuarioId, FormaturaId, Arg.Any<CancellationToken>()).Returns(Vinculo());
 
-        _formaturas
-            .ObterDetalhe(FormaturaId, Arg.Any<CancellationToken>())
-            .Returns(
-                new FormaturaDetalhe(
-                    FormaturaId,
-                    "Medicina 2027",
-                    "UFPR",
-                    "Medicina",
-                    2027,
-                    1,
-                    null,
-                    null,
-                    80,
-                    StatusDaFormatura.Ativa,
-                    DateTime.UtcNow,
-                    DateTime.UtcNow,
-                    null,
-                    false
-                )
-            );
+        _formaturas.ObterNome(FormaturaId, Arg.Any<CancellationToken>()).Returns("Medicina 2027");
     }
 
     private NotificacaoService Servico =>
@@ -82,9 +55,7 @@ public sealed class NotificacaoServiceTests
             _parcelas,
             _vinculos,
             _formaturas,
-            _usuarios,
             _canal,
-            new DadosDaReguaValidator(),
             new DadosDasPreferenciasValidator(),
             Options.Create(new AplicacaoSettings { Nome = "Kapa", UrlDoFrontend = "https://kapa.dev" }),
             _unitOfWork,
@@ -105,24 +76,38 @@ public sealed class NotificacaoServiceTests
         return vinculo;
     }
 
-    private static RegraResumo Degrau() =>
-        new(RegraId, GatilhoDaRegua.Vencimento, 3, "Parcela em atraso — {formatura}", "Oi, {nome}. São {valor}.", true, false);
+    private static RegraResumo Degrau() => new(RegraId, GatilhoDaRegua.Vencimento, 3, true);
 
-    /// <summary>Critério de aceite: <c>testar</c> envia só para quem clicou.</summary>
     [Fact]
-    public async Task Testar_manda_so_para_quem_clicou()
+    public async Task Desligar_um_degrau_grava_so_a_situacao()
     {
-        var resultado = await Servico.Testar(FormaturaId, UsuarioId, RegraId, Ct);
+        var gravada = RegraDeNotificacao.Nova(ReguaDoKapa.De(GatilhoDaRegua.Vencimento, 3)!);
+        _notificacoes.ObterRegraParaEdicao(RegraId, Arg.Any<CancellationToken>()).Returns(gravada);
+
+        var resultado = await Servico.DefinirRegra(RegraId, false, Ct);
 
         resultado.Sucesso.ShouldBeTrue();
-        await _canal.Received(1).Enviar(Arg.Is<MensagemDeNotificacao>(m => m.Para == "ana@turma.dev"), Arg.Any<CancellationToken>());
-        await _notificacoes.DidNotReceiveWithAnyArgs().AdicionarEnvios(default!, Ct);
+        gravada.Ativa.ShouldBeFalse();
+        await _unitOfWork.Received().SalvarAsync(Ct);
     }
 
     [Fact]
-    public async Task Testar_um_degrau_que_nao_existe_devolve_404()
+    public async Task Definir_um_degrau_que_nao_existe_devolve_404()
     {
-        var resultado = await Servico.Testar(FormaturaId, UsuarioId, Guid.CreateVersion7(), Ct);
+        var resultado = await Servico.DefinirRegra(Guid.CreateVersion7(), false, Ct);
+
+        resultado.Falhou.ShouldBeTrue();
+        resultado.PrimeiroErro.Tipo.ShouldBe(ETipoErro.NaoEncontrado);
+    }
+
+    /// <summary>O degrau que a turma criou quando o texto era editável não volta a ser ligado.</summary>
+    [Fact]
+    public async Task Definir_um_degrau_que_saiu_da_regua_devolve_404()
+    {
+        var antiga = RegraDeNotificacao.Nova(new DegrauDaRegua(GatilhoDaRegua.Vencimento, 7, new("Antigo", "Texto antigo")));
+        _notificacoes.ObterRegraParaEdicao(RegraId, Arg.Any<CancellationToken>()).Returns(antiga);
+
+        var resultado = await Servico.DefinirRegra(RegraId, true, Ct);
 
         resultado.Falhou.ShouldBeTrue();
         resultado.PrimeiroErro.Tipo.ShouldBe(ETipoErro.NaoEncontrado);
@@ -162,23 +147,6 @@ public sealed class NotificacaoServiceTests
         await _notificacoes
             .Received(1)
             .AdicionarPreferencias(Arg.Is<IReadOnlyList<PreferenciaDeNotificacao>>(p => p.Count == 1 && p[0].Tipo == TipoDeNotificacao.Aviso), Ct);
-    }
-
-    [Fact]
-    public async Task A_gravacao_da_regua_atualiza_o_degrau_que_ja_existe_em_vez_de_duplicar()
-    {
-        var gravada = RegraDeNotificacao.Nova(GatilhoDaRegua.Vencimento, 3, "Antigo", "Texto antigo");
-        _notificacoes.ListarRegrasParaEdicao(Arg.Any<CancellationToken>()).Returns([gravada]);
-
-        var resultado = await Servico.SalvarRegras(
-            new DadosDaRegua([new DadosDaRegra(GatilhoDaRegua.Vencimento, 3, "Novo", "Oi, {nome}.", true, false)]),
-            Ct
-        );
-
-        resultado.Sucesso.ShouldBeTrue();
-        gravada.Assunto.ShouldBe("Novo");
-        gravada.Template.ShouldBe("Oi, {nome}.");
-        await _notificacoes.Received().AdicionarRegras(Arg.Is<IReadOnlyList<RegraDeNotificacao>>(r => r.Count == 0), Ct);
     }
 
     [Fact]

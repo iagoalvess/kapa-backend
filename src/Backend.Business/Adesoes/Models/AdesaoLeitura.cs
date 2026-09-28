@@ -25,7 +25,11 @@ public sealed record PublicarTermo(string Conteudo);
 /// <param name="Termo">Versão vigente, se a comissão já publicou.</param>
 /// <param name="Plano">Plano vigente congelado como seria aceito agora, se a turma já tem.</param>
 /// <param name="HashDoConteudo">Hash que o aceite devolve. Só existe com os dois presentes.</param>
-public sealed record ConteudoParaAdesao(VersaoDoTermo? Termo, SnapshotDoPlano? Plano, string? HashDoConteudo);
+/// <param name="Resumo">
+/// Resumo do termo vigente gerado por IA (Sprint 24), se já existir. Fora do hash: aparecer depois não
+/// invalida o que está na tela.
+/// </param>
+public sealed record ConteudoParaAdesao(VersaoDoTermo? Termo, SnapshotDoPlano? Plano, string? HashDoConteudo, string? Resumo);
 
 /// <summary>Pedido de aceite.</summary>
 /// <param name="HashDoConteudo">O hash do conteúdo que a tela exibiu, como veio de <see cref="ConteudoParaAdesao"/>.</param>
@@ -95,3 +99,8 @@ public sealed record ResumoDeAdesoes(int Membros, int Aderiram, int? VersaoVigen
 /// <param name="Conteudo">Bytes do arquivo.</param>
 /// <param name="NomeDoArquivo">Nome sugerido para o download.</param>
 public sealed record PdfDaAdesao(byte[] Conteudo, string NomeDoArquivo);
+
+/// <summary>Uma versão do termo que o job de resumo ainda precisa processar.</summary>
+/// <param name="FormaturaId">Turma dona — o escopo do worker é apontado para ela antes de gerar.</param>
+/// <param name="TermoId">Versão.</param>
+public sealed record TermoSemResumo(Guid FormaturaId, Guid TermoId);

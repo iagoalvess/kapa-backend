@@ -41,6 +41,10 @@ public sealed class EventoDaTurmaRepository(AppDbContext db) : IEventoDaTurmaRep
     public Task<int> ContarDaqui(DateOnly hoje, CancellationToken ct = default) => DaquiEmDiante(hoje).CountAsync(ct);
 
     /// <inheritdoc />
+    public Task<EventoResumo?> ObterDoTipo(TipoDeEvento tipo, CancellationToken ct = default) =>
+        Projetar(db.EventosDaTurma.AsNoTracking().Where(e => e.Tipo == tipo)).FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
     public Task<EventoDaTurma?> ObterParaEdicao(Guid id, CancellationToken ct = default) =>
         db.EventosDaTurma.FirstOrDefaultAsync(e => e.Id == id, ct);
 

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Backend.Business.Emails.Services;
 
 namespace Backend.Business.Common.Pdf;
 
@@ -58,9 +59,16 @@ public readonly record struct CorDoPdf(float R, float G, float B)
 /// folha de 483pt úteis.
 /// </para>
 /// <para>
+/// <b>A cara é a do e-mail</b> (<c>ModeloDeEmail</c>): o documento que a pessoa recebe — recibo,
+/// convite — abre com o logo, a faixa creme com o mascote e o título no eixo; o documento formal —
+/// termo, balancete, relatório — abre com o logo e o fio da marca, sem mascote, porque é lido em
+/// assembleia e impresso. Os dois fecham com a régua laranja do rodapé.
+/// </para>
+/// <para>
 /// <c>ponytail:</c> o texto vai em WinAnsi (Latin-1 mais aspas e travessões), que cobre o português;
-/// caractere fora dele sai como <c>?</c>. Imagem, fonte embutida e texto em outra escrita pedem uma
-/// biblioteca de verdade — troque esta classe quando o primeiro desses aparecer.
+/// caractere fora dele sai como <c>?</c>. Imagem entra (PNG, por <see cref="ImagemPng"/>); fonte
+/// embutida e texto em outra escrita pedem uma biblioteca de verdade — troque esta classe quando o
+/// primeiro desses aparecer.
 /// </para>
 /// </remarks>
 /// <param name="orientacao">Em pé (o padrão) ou deitada.</param>
@@ -104,6 +112,12 @@ public sealed class DocumentoPdf(OrientacaoDaPagina orientacao = OrientacaoDaPag
 
     /// <summary>Fio de separação (<c>--line</c>).</summary>
     private static readonly CorDoPdf Linha = CorDoPdf.De(0xE8, 0xE7, 0xE3);
+
+    /// <summary>O creme da faixa do mascote — o mesmo do topo do cartão do e-mail.</summary>
+    private static readonly CorDoPdf Creme = CorDoPdf.De(0xFB, 0xF1, 0xE7);
+
+    /// <summary>Altura do logo no alto da primeira página, em pontos.</summary>
+    private const float AlturaDoLogo = 22;
 
     /// <summary>
     /// Larguras da Helvetica, em milésimos do corpo, dos caracteres 32 a 126 — as métricas-padrão da
@@ -225,6 +239,9 @@ public sealed class DocumentoPdf(OrientacaoDaPagina orientacao = OrientacaoDaPag
     };
 
     private readonly List<StringBuilder> _paginas = [];
+
+    /// <summary>As imagens usadas, na ordem do nome que o conteúdo dá a elas (<c>/Im0</c>, <c>/Im1</c>…).</summary>
+    private readonly List<ImagemPng> _imagens = [];
     private readonly float _largura = orientacao == OrientacaoDaPagina.Retrato ? LadoMenor : LadoMaior;
     private readonly float _altura = orientacao == OrientacaoDaPagina.Retrato ? LadoMaior : LadoMenor;
     private float _y;
@@ -249,24 +266,49 @@ public sealed class DocumentoPdf(OrientacaoDaPagina orientacao = OrientacaoDaPag
     /// <param name="titulo">Nome do relatório.</param>
     /// <param name="subtitulo">A linha embaixo dele — turma e período.</param>
     /// <param name="registro">Terceira linha, menor e discreta: emissor, emissão, aviso. Nula, não sai.</param>
-    public DocumentoPdf Capa(string titulo, string subtitulo, string? registro = null)
+    /// <param name="mascote">
+    /// Para o documento que a pessoa recebe: abre como o e-mail, com a faixa creme e o mascote, e a capa
+    /// vai no eixo. Ausente, a abertura formal — logo à esquerda e o fio da marca.
+    /// </param>
+    public DocumentoPdf Capa(string titulo, string subtitulo, string? registro = null, Mascote? mascote = null)
     {
-        Titulo(titulo);
-        Paragrafo(subtitulo, cor: Apoio);
+        var centralizado = mascote is not null;
+        var logo = ImagemPng.DaMarca("logo");
+        var larguraDoLogo = AlturaDoLogo * logo.Largura / logo.Altura;
+
+        Avancar(AlturaDoLogo);
+        Imagem(logo, centralizado ? Margem + ((LarguraUtil - larguraDoLogo) / 2) : Margem, _y, larguraDoLogo, AlturaDoLogo);
+
+        if (mascote is { } comMascote)
+        {
+            const float AlturaDaFaixa = 120;
+            const float LadoDoMascote = 96;
+
+            _y -= AlturaDaFaixa + 14;
+            RetanguloArredondado(Margem, _y, LarguraUtil, AlturaDaFaixa, 14, Creme);
+            Imagem(
+                ImagemPng.DaMarca(ModeloDeEmail.Arquivo(comMascote)),
+                Margem + ((LarguraUtil - LadoDoMascote) / 2),
+                _y + ((AlturaDaFaixa - LadoDoMascote) / 2),
+                LadoDoMascote,
+                LadoDoMascote
+            );
+            _y -= 14;
+        }
+        else
+        {
+            _y -= 8;
+            Fio(_y, Marca, espessura: 1.5f);
+            _y -= 10;
+        }
+
+        Bloco(titulo, 22, negrito: true, antes: 0, depois: 2, cor: Tinta, centralizado: centralizado);
+        Bloco(subtitulo, 10.5f, negrito: false, antes: 0, depois: 2, cor: Apoio, centralizado: centralizado);
 
         if (!string.IsNullOrWhiteSpace(registro))
-            Paragrafo(registro, discreto: true);
+            Bloco(registro, 8, negrito: false, antes: 0, depois: 0, cor: Discreta, centralizado: centralizado);
 
-        return this;
-    }
-
-    /// <summary>Título do documento, grande, no laranja da marca e sobre o fio dela.</summary>
-    /// <param name="texto">Texto do título.</param>
-    public DocumentoPdf Titulo(string texto)
-    {
-        Bloco(texto, 18, negrito: true, antes: 0, depois: 13, cor: MarcaEscrita);
-        Fio(_y + 4, Marca, espessura: 2.5f, ate: Margem + 64);
-        _y -= 10;
+        _y -= 4;
 
         return this;
     }
@@ -280,8 +322,18 @@ public sealed class DocumentoPdf(OrientacaoDaPagina orientacao = OrientacaoDaPag
     /// <param name="negrito">Se o parágrafo inteiro vai em negrito.</param>
     /// <param name="discreto">Menor e em cinza claro — para registro técnico, como o User-Agent.</param>
     /// <param name="cor">Tinta do parágrafo; ausente, a do corpo do texto.</param>
-    public DocumentoPdf Paragrafo(string texto, bool negrito = false, bool discreto = false, CorDoPdf? cor = null) =>
-        Bloco(texto, discreto ? 8 : CorpoDoTexto, negrito, antes: 0, depois: 6, recuo: 0, cor: cor ?? (discreto ? Discreta : Tinta));
+    /// <param name="centralizado">No eixo da folha, como a capa com mascote.</param>
+    public DocumentoPdf Paragrafo(string texto, bool negrito = false, bool discreto = false, CorDoPdf? cor = null, bool centralizado = false) =>
+        Bloco(
+            texto,
+            discreto ? 8 : CorpoDoTexto,
+            negrito,
+            antes: 0,
+            depois: 6,
+            recuo: 0,
+            cor: cor ?? (discreto ? Discreta : Tinta),
+            centralizado: centralizado
+        );
 
     /// <summary>Item de lista, com marcador e recuo.</summary>
     /// <param name="texto">Texto do item.</param>
@@ -371,6 +423,65 @@ public sealed class DocumentoPdf(OrientacaoDaPagina orientacao = OrientacaoDaPag
         return this;
     }
 
+    /// <summary>Uma linha grande e em negrito — o código do convite, que alguém vai ditar na porta.</summary>
+    /// <param name="texto">Texto.</param>
+    /// <param name="corpo">Tamanho da letra.</param>
+    /// <param name="centralizado">No eixo da folha.</param>
+    public DocumentoPdf Destaque(string texto, float corpo = 22, bool centralizado = false) =>
+        Bloco(texto, corpo, negrito: true, antes: 4, depois: 8, centralizado: centralizado);
+
+    /// <summary>
+    /// Uma matriz de módulos pretos — o QR do convite, desenhado como vetor (Sprint 21, decisão 9).
+    /// </summary>
+    /// <remarks>
+    /// Sem imagem embutida: cada trecho contínuo de módulos de uma linha vira um retângulo cheio, nítido
+    /// em qualquer zoom e impressora, e o arquivo continua com poucos KB. Preto puro, independente da
+    /// paleta: leitor de QR erra em contraste baixo. A matriz já traz a margem clara em volta.
+    /// </remarks>
+    /// <param name="modulos">Linhas da matriz; verdadeiro é módulo escuro.</param>
+    /// <param name="lado">Lado do quadrado, em pontos.</param>
+    /// <param name="centralizado">No eixo da folha; ausente, encostado à margem esquerda.</param>
+    public DocumentoPdf MatrizDeModulos(IReadOnlyList<IReadOnlyList<bool>> modulos, float lado, bool centralizado = false)
+    {
+        if (!Cabe(lado))
+            NovaPagina();
+
+        var modulo = lado / modulos.Count;
+        var topo = _y;
+        var esquerda = centralizado ? Margem + ((LarguraUtil - lado) / 2) : Margem;
+        var pagina = _paginas[^1];
+
+        pagina.Append("0 0 0 rg\n");
+
+        for (var linha = 0; linha < modulos.Count; linha++)
+        {
+            var coluna = 0;
+
+            while (coluna < modulos[linha].Count)
+            {
+                if (!modulos[linha][coluna])
+                {
+                    coluna++;
+                    continue;
+                }
+
+                var inicio = coluna;
+                while (coluna < modulos[linha].Count && modulos[linha][coluna])
+                    coluna++;
+
+                pagina.Append(
+                    CultureInfo.InvariantCulture,
+                    $"{Numero(esquerda + (inicio * modulo))} {Numero(topo - ((linha + 1) * modulo))} {Numero((coluna - inicio) * modulo)} {Numero(modulo)} re\n"
+                );
+            }
+        }
+
+        pagina.Append("f\n");
+        _y -= lado + 6;
+
+        return this;
+    }
+
     /// <summary>Espaço vertical em branco.</summary>
     /// <param name="pontos">Altura do espaço.</param>
     public DocumentoPdf Espaco(float pontos = 8)
@@ -392,7 +503,7 @@ public sealed class DocumentoPdf(OrientacaoDaPagina orientacao = OrientacaoDaPag
             var pagina = _paginas[i];
             var numeracao = $"Página {i + 1} de {_paginas.Count}";
 
-            Fio(Margem + 12, Linha, pagina: pagina);
+            Fio(Margem + 12, Marca, espessura: 2, pagina: pagina);
             Escrever(Margem, Margem, rodape, 7.5f, negrito: false, pagina, Discreta);
             Escrever(_largura - Margem - Medir(numeracao, 7.5f, negrito: false), Margem, numeracao, 7.5f, negrito: false, pagina, Discreta);
         }
@@ -469,6 +580,10 @@ public sealed class DocumentoPdf(OrientacaoDaPagina orientacao = OrientacaoDaPag
     }
 
     /// <summary>O cabeçalho da tabela: faixa lavada, texto na cor da marca e o fio embaixo.</summary>
+    /// <remarks>
+    /// O cabeçalho precisa caber com pelo menos uma linha de dados embaixo: cabeçalho sozinho no pé
+    /// da página é o título de uma tabela que começa só na folha seguinte.
+    /// </remarks>
     /// <param name="colunas">Colunas da tabela.</param>
     /// <param name="larguras">Largura já distribuída de cada uma.</param>
     /// <param name="cabecalho">Títulos.</param>
@@ -483,8 +598,6 @@ public sealed class DocumentoPdf(OrientacaoDaPagina orientacao = OrientacaoDaPag
             linhasDaCelula = Math.Max(linhasDaCelula, celulas[i].Count);
         }
 
-        // O cabeçalho precisa caber com pelo menos uma linha de dados embaixo: cabeçalho sozinho no pé
-        // da página é o título de uma tabela que começa só na folha seguinte.
         var altura = (linhasDaCelula * CorpoDoTexto * Entrelinha) + RespiroDaLinha;
 
         if (!Cabe(altura + (CorpoDoTexto * Entrelinha) + RespiroDaLinha))
@@ -531,14 +644,25 @@ public sealed class DocumentoPdf(OrientacaoDaPagina orientacao = OrientacaoDaPag
         Escrever(inicio, y, texto, CorpoDoTexto, negrito, cor: cor ?? Tinta);
     }
 
-    private DocumentoPdf Bloco(string texto, float corpo, bool negrito, float antes, float depois, float recuo = 0, CorDoPdf? cor = null)
+    private DocumentoPdf Bloco(
+        string texto,
+        float corpo,
+        bool negrito,
+        float antes,
+        float depois,
+        float recuo = 0,
+        CorDoPdf? cor = null,
+        bool centralizado = false
+    )
     {
         _y -= antes;
 
         foreach (var linha in Quebrar(texto, corpo, negrito, LarguraUtil - recuo))
         {
+            var sobra = centralizado ? (LarguraUtil - recuo - Medir(linha, corpo, negrito)) / 2 : 0;
+
             Avancar(corpo * Entrelinha);
-            Escrever(Margem + recuo, _y, linha, corpo, negrito, cor: cor ?? Tinta);
+            Escrever(Margem + recuo + sobra, _y, linha, corpo, negrito, cor: cor ?? Tinta);
         }
 
         _y -= depois;
@@ -585,6 +709,61 @@ public sealed class DocumentoPdf(OrientacaoDaPagina orientacao = OrientacaoDaPag
     /// <param name="cor">Preenchimento.</param>
     private void Retangulo(float x, float y, float largura, float altura, CorDoPdf cor) =>
         _paginas[^1].Append(CultureInfo.InvariantCulture, $"{cor.Componentes} rg {Numero(x)} {Numero(y)} {Numero(largura)} {Numero(altura)} re f\n");
+
+    /// <summary>Retângulo cheio de cantos arredondados — a faixa do mascote.</summary>
+    /// <remarks>Cada canto é um quarto de círculo aproximado por Bézier, com a constante de sempre (0,5523).</remarks>
+    /// <param name="x">Canto esquerdo.</param>
+    /// <param name="y">Canto de baixo.</param>
+    /// <param name="largura">Largura.</param>
+    /// <param name="altura">Altura.</param>
+    /// <param name="raio">Raio dos cantos.</param>
+    /// <param name="cor">Preenchimento.</param>
+    private void RetanguloArredondado(float x, float y, float largura, float altura, float raio, CorDoPdf cor)
+    {
+        var c = raio * (1 - 0.5523f);
+        float direita = x + largura,
+            topo = y + altura;
+
+        _paginas[^1]
+            .Append(CultureInfo.InvariantCulture, $"{cor.Componentes} rg {Numero(x + raio)} {Numero(y)} m ")
+            .Append(CultureInfo.InvariantCulture, $"{Numero(direita - raio)} {Numero(y)} l ")
+            .Append(
+                CultureInfo.InvariantCulture,
+                $"{Numero(direita - c)} {Numero(y)} {Numero(direita)} {Numero(y + c)} {Numero(direita)} {Numero(y + raio)} c "
+            )
+            .Append(CultureInfo.InvariantCulture, $"{Numero(direita)} {Numero(topo - raio)} l ")
+            .Append(
+                CultureInfo.InvariantCulture,
+                $"{Numero(direita)} {Numero(topo - c)} {Numero(direita - c)} {Numero(topo)} {Numero(direita - raio)} {Numero(topo)} c "
+            )
+            .Append(CultureInfo.InvariantCulture, $"{Numero(x + raio)} {Numero(topo)} l ")
+            .Append(
+                CultureInfo.InvariantCulture,
+                $"{Numero(x + c)} {Numero(topo)} {Numero(x)} {Numero(topo - c)} {Numero(x)} {Numero(topo - raio)} c "
+            )
+            .Append(CultureInfo.InvariantCulture, $"{Numero(x)} {Numero(y + raio)} l ")
+            .Append(CultureInfo.InvariantCulture, $"{Numero(x)} {Numero(y + c)} {Numero(x + c)} {Numero(y)} {Numero(x + raio)} {Numero(y)} c f\n");
+    }
+
+    /// <summary>Uma imagem na página corrente, esticada no retângulo informado.</summary>
+    /// <remarks>A mesma imagem usada duas vezes é gravada uma só: o nome dela é a posição em <see cref="_imagens"/>.</remarks>
+    /// <param name="imagem">A imagem.</param>
+    /// <param name="x">Canto esquerdo.</param>
+    /// <param name="y">Canto de baixo.</param>
+    /// <param name="largura">Largura na folha.</param>
+    /// <param name="altura">Altura na folha.</param>
+    private void Imagem(ImagemPng imagem, float x, float y, float largura, float altura)
+    {
+        var indice = _imagens.IndexOf(imagem);
+
+        if (indice < 0)
+        {
+            _imagens.Add(imagem);
+            indice = _imagens.Count - 1;
+        }
+
+        _paginas[^1].Append(CultureInfo.InvariantCulture, $"q {Numero(largura)} 0 0 {Numero(altura)} {Numero(x)} {Numero(y)} cm /Im{indice} Do Q\n");
+    }
 
     /// <summary>Fio horizontal na altura informada.</summary>
     /// <param name="y">Altura.</param>
@@ -683,51 +862,96 @@ public sealed class DocumentoPdf(OrientacaoDaPagina orientacao = OrientacaoDaPag
     private static string Numero(float valor) => valor.ToString("0.##", CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// Os objetos do arquivo: catálogo, árvore de páginas, as duas fontes e, por página, a página e o
-    /// conteúdo dela; depois a tabela de posições, que o leitor usa para achar cada objeto.
+    /// Os objetos do arquivo: catálogo, árvore de páginas, as duas fontes, as imagens (cada uma com a
+    /// máscara de transparência antes dela) e, por página, a página e o conteúdo dela; depois a tabela
+    /// de posições, que o leitor usa para achar cada objeto.
     /// </summary>
+    /// <remarks>
+    /// Em bytes, e não em texto: a imagem é binária. O resto do arquivo continua ASCII.
+    /// </remarks>
     private byte[] Montar()
     {
-        var objetos = new List<string>
+        var objetos = new List<byte[]>
         {
-            "<< /Type /Catalog /Pages 2 0 R >>",
-            string.Empty,
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+            Ascii("<< /Type /Catalog /Pages 2 0 R >>"),
+            Array.Empty<byte>(),
+            Ascii("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"),
+            Ascii("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"),
         };
 
+        var nomesDasImagens = new StringBuilder();
+
+        for (var i = 0; i < _imagens.Count; i++)
+        {
+            var imagem = _imagens[i];
+            var medidas = FormattableString.Invariant(
+                $"/Type /XObject /Subtype /Image /Width {imagem.Largura} /Height {imagem.Altura} /BitsPerComponent 8 /Filter /FlateDecode"
+            );
+            var mascara = string.Empty;
+
+            if (imagem.Alfa is { } alfa)
+            {
+                objetos.Add(Fluxo($"{medidas} /ColorSpace /DeviceGray", alfa));
+                mascara = FormattableString.Invariant($" /SMask {objetos.Count} 0 R");
+            }
+
+            objetos.Add(Fluxo($"{medidas} /ColorSpace /DeviceRGB{mascara}", imagem.Cor));
+            nomesDasImagens.Append(CultureInfo.InvariantCulture, $" /Im{i} {objetos.Count} 0 R");
+        }
+
+        var recursos = "/Font << /F1 3 0 R /F2 4 0 R >>" + (_imagens.Count > 0 ? $" /XObject <<{nomesDasImagens} >>" : string.Empty);
         var paginas = new List<int>();
 
         foreach (var conteudo in _paginas.Select(pagina => pagina.ToString()))
         {
             objetos.Add(
-                FormattableString.Invariant(
-                    $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {Numero(_largura)} {Numero(_altura)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {objetos.Count + 2} 0 R >>"
+                Ascii(
+                    FormattableString.Invariant(
+                        $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {Numero(_largura)} {Numero(_altura)}] /Resources << {recursos} >> /Contents {objetos.Count + 2} 0 R >>"
+                    )
                 )
             );
             paginas.Add(objetos.Count);
-            objetos.Add(FormattableString.Invariant($"<< /Length {conteudo.Length} >>\nstream\n{conteudo}endstream"));
+            objetos.Add(Fluxo(string.Empty, Ascii(conteudo)));
         }
 
-        objetos[1] = $"<< /Type /Pages /Kids [{string.Join(' ', paginas.Select(numero => $"{numero} 0 R"))}] /Count {paginas.Count} >>";
+        objetos[1] = Ascii($"<< /Type /Pages /Kids [{string.Join(' ', paginas.Select(numero => $"{numero} 0 R"))}] /Count {paginas.Count} >>");
 
-        var arquivo = new StringBuilder("%PDF-1.4\n");
-        var posicoes = new List<int>();
+        using var arquivo = new MemoryStream();
+        var posicoes = new List<long>();
+
+        arquivo.Write(Ascii("%PDF-1.4\n"));
 
         for (var i = 0; i < objetos.Count; i++)
         {
-            posicoes.Add(arquivo.Length);
-            arquivo.Append(CultureInfo.InvariantCulture, $"{i + 1} 0 obj\n{objetos[i]}\nendobj\n");
+            posicoes.Add(arquivo.Position);
+            arquivo.Write(Ascii(FormattableString.Invariant($"{i + 1} 0 obj\n")));
+            arquivo.Write(objetos[i]);
+            arquivo.Write(Ascii("\nendobj\n"));
         }
 
-        var tabela = arquivo.Length;
-        arquivo.Append(CultureInfo.InvariantCulture, $"xref\n0 {objetos.Count + 1}\n0000000000 65535 f \n");
+        var tabela = arquivo.Position;
+        var fim = new StringBuilder();
+        fim.Append(CultureInfo.InvariantCulture, $"xref\n0 {objetos.Count + 1}\n0000000000 65535 f \n");
 
         foreach (var posicao in posicoes)
-            arquivo.Append(CultureInfo.InvariantCulture, $"{posicao:D10} 00000 n \n");
+            fim.Append(CultureInfo.InvariantCulture, $"{posicao:D10} 00000 n \n");
 
-        arquivo.Append(CultureInfo.InvariantCulture, $"trailer\n<< /Size {objetos.Count + 1} /Root 1 0 R >>\nstartxref\n{tabela}\n%%EOF\n");
+        fim.Append(CultureInfo.InvariantCulture, $"trailer\n<< /Size {objetos.Count + 1} /Root 1 0 R >>\nstartxref\n{tabela}\n%%EOF\n");
+        arquivo.Write(Ascii(fim.ToString()));
 
-        return Encoding.ASCII.GetBytes(arquivo.ToString());
+        return arquivo.ToArray();
     }
+
+    /// <summary>Um objeto de fluxo: o dicionário com o tamanho e os bytes entre <c>stream</c> e <c>endstream</c>.</summary>
+    /// <param name="dicionario">Entradas do dicionário além do <c>/Length</c>.</param>
+    /// <param name="dados">O conteúdo.</param>
+    private static byte[] Fluxo(string dicionario, byte[] dados)
+    {
+        var abertura = Ascii(FormattableString.Invariant($"<< {dicionario} /Length {dados.Length} >>\nstream\n"));
+
+        return [.. abertura, .. dados, .. Ascii("\nendstream")];
+    }
+
+    private static byte[] Ascii(string texto) => Encoding.ASCII.GetBytes(texto);
 }

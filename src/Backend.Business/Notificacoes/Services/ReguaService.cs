@@ -1,4 +1,6 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Interfaces;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common;
@@ -34,6 +36,7 @@ namespace Backend.Business.Notificacoes.Services;
 /// <param name="parcelas">Regras de atraso aceitas na adesão de cada formando.</param>
 /// <param name="vinculos">Quem é a tesouraria da turma.</param>
 /// <param name="canal">Por onde a mensagem sai.</param>
+/// <param name="assinaturas">O plano de cada turma: a régua é do módulo Avisos.</param>
 /// <param name="aplicacao">Identidade da aplicação, para os links das mensagens.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
@@ -42,6 +45,7 @@ public sealed class ReguaService(
     IParcelaRepository parcelas,
     IVinculoRepository vinculos,
     ICanalDeNotificacao canal,
+    IAssinaturaRepository assinaturas,
     IOptions<AplicacaoSettings> aplicacao,
     IUnitOfWork unitOfWork,
     ILogger<ReguaService> logger
@@ -53,15 +57,33 @@ public sealed class ReguaService(
     private readonly AplicacaoSettings _aplicacao = aplicacao.Value;
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<FormaturaParaRegua>> ListarFormaturas(CancellationToken ct = default) =>
-        notificacoes.ListarFormaturasAtivasDeTodasAsFormaturas(ct);
+    /// <remarks>
+    /// Só a turma cujo plano inclui <c>avisos</c>: a régua é diferencial do Premium, e até 22/09/2026
+    /// o gate valia só para as telas — o envio automático saía para toda turma ativa, gratuito incluso.
+    /// <c>ponytail:</c> uma consulta de plano por turma, uma vez por rodada; vira junção no SQL se o
+    /// número de turmas pesar.
+    /// </remarks>
+    public async Task<IReadOnlyList<FormaturaParaRegua>> ListarFormaturas(CancellationToken ct = default)
+    {
+        var comAvisos = new List<FormaturaParaRegua>();
+
+        foreach (var formatura in await notificacoes.ListarFormaturasAtivasDeTodasAsFormaturas(ct))
+        {
+            if (await assinaturas.ObterPlanoVigenteDeTodasAsFormaturas(formatura.Id, ct) is { } plano && plano.Modulos.Contains(Modulo.Avisos))
+                comAvisos.Add(formatura);
+        }
+
+        return comAvisos;
+    }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A conferência de entregas roda fora da janela também: ela não fala com ninguém, só lê o
+    /// desfecho da fila de e-mail. Presa atrás da janela, o histórico ficaria a noite inteira em
+    /// "Na fila" — e é de madrugada que a tesouraria abre a tela para entender o que aconteceu.
+    /// </remarks>
     public async Task<ResumoDaRodada> Executar(FormaturaParaRegua formatura, DateTime agoraUtc, CancellationToken ct = default)
     {
-        // A conferência de entregas roda fora da janela também: ela não fala com ninguém, só lê o
-        // desfecho da fila de e-mail. Presa atrás da janela, o histórico ficaria a noite inteira em
-        // "Na fila" — e é de madrugada que a tesouraria abre a tela para entender o que aconteceu.
         var conferidas = await ConferirEntregas(ct);
 
         if (!JanelaDeEnvio.Aberta(agoraUtc))
@@ -184,7 +206,7 @@ public sealed class ReguaService(
     }
 
     /// <summary>
-    /// Os dois resumos que vão à tesouraria: o do degrau marcado (o D+30) e o do informe parado.
+    /// Os resumos que vão à tesouraria: o dos degraus que a avisam (D+15 e D+30) e o do informe parado.
     /// </summary>
     /// <remarks>
     /// Um resumo, e não uma cópia por parcela: a caixa de entrada de quem confere é a primeira a ser
@@ -199,7 +221,7 @@ public sealed class ReguaService(
     )
     {
         var pendentes = regras.FirstOrDefault(r => r.Ativa && r.Gatilho is GatilhoDaRegua.InformePendente);
-        var marcadas = regras.Where(r => r.Ativa && r.Gatilho is GatilhoDaRegua.Vencimento && r.AvisarTesouraria).ToList();
+        var marcadas = regras.Where(r => r.Ativa && r.Degrau.ResumoDaTesouraria is not null).ToList();
 
         if (pendentes is null && marcadas.Count == 0)
             return [];
@@ -222,6 +244,7 @@ public sealed class ReguaService(
                 envios.AddRange(
                     await Resumir(
                         regra,
+                        regra.Degrau.ResumoDaTesouraria!,
                         formatura,
                         quantidade,
                         MontagemDaMensagem.LinkDoExtrato(_aplicacao),
@@ -242,6 +265,7 @@ public sealed class ReguaService(
                 envios.AddRange(
                     await Resumir(
                         pendentes,
+                        pendentes.Degrau.Texto,
                         formatura,
                         parados,
                         MontagemDaMensagem.LinkDaConferencia(_aplicacao),
@@ -259,6 +283,7 @@ public sealed class ReguaService(
 
     private async Task<IReadOnlyList<NotificacaoEnviada>> Resumir(
         RegraResumo regra,
+        TextoDaMensagem texto,
         FormaturaParaRegua formatura,
         int quantidade,
         string link,
@@ -276,7 +301,7 @@ public sealed class ReguaService(
 
         foreach (var email in destinatarios)
         {
-            var mensagem = MontagemDaMensagem.Resumo(regra, email, formatura.Nome, quantidade, link, textoDoLink);
+            var mensagem = MontagemDaMensagem.Resumo(texto, email, formatura.Nome, quantidade, link, textoDoLink);
             var entrega = await Entregar(mensagem, ct);
 
             if (entrega is not null)

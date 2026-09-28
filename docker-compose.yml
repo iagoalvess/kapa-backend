@@ -58,6 +58,7 @@ services:
       Armazenamento__CaminhoLocal: /app/arquivos
       Aplicacao__Nome: ${APP_NOME:-Backend}
       Aplicacao__UrlDoFrontend: ${APP_URL_FRONTEND:-http://localhost:3000}
+      Aplicacao__UrlDoSite: ${APP_URL_SITE:-http://localhost:5180}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     ports:
       - "${API_PORT:-8080}:8080"
@@ -80,6 +81,7 @@ services:
       Criptografia__ChaveDeDados: ${CRIPTOGRAFIA_CHAVE:?defina CRIPTOGRAFIA_CHAVE no .env}
       Aplicacao__Nome: ${APP_NOME:-Backend}
       Aplicacao__UrlDoFrontend: ${APP_URL_FRONTEND:-http://localhost:3000}
+      Aplicacao__UrlDoSite: ${APP_URL_SITE:-http://localhost:5180}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
       migrations:

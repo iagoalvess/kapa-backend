@@ -38,7 +38,8 @@ public sealed class GlobalExceptionHandler(IHostEnvironment ambiente, ILogger<Gl
 
         var (status, titulo) = ClassificadorDeExcecao.Classificar(exception);
 
-        logger.LogError(
+        logger.Log(
+            status >= StatusCodes.Status500InternalServerError ? LogLevel.Error : LogLevel.Warning,
             exception,
             "Falha não tratada em {Metodo} {Caminho} (status {Status}).",
             httpContext.Request.Method,

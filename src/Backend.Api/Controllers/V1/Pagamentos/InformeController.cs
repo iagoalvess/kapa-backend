@@ -23,13 +23,13 @@ namespace Backend.Api.Controllers.V1.Pagamentos;
 /// Tudo aqui é da Tesouraria: o aviso é do formando, mas conferi-lo é o ato que move dinheiro no
 /// caixa da turma. Escrita exige a turma ativa.
 /// </remarks>
-/// <param name="pagamentoService">Regras do pagamento.</param>
+/// <param name="tesourariaService">Conferência dos avisos de pagamento.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
 [ExigeModulo(Modulo.Pix)]
 [Route("api/v{version:apiVersion}/informes")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class InformeController(IPagamentoService pagamentoService, IUsuarioAtual usuarioAtual) : MainController
+public sealed class InformeController(ITesourariaService tesourariaService, IUsuarioAtual usuarioAtual) : MainController
 {
     /// <summary>A fila da conferência: pendentes do mais antigo ao mais novo, com o devido de cada um.</summary>
     /// <param name="paginacao">Página e tamanho; o teto é aplicado no servidor.</param>
@@ -44,13 +44,13 @@ public sealed class InformeController(IPagamentoService pagamentoService, IUsuar
         CancellationToken ct = default
     )
     {
-        var resultado = await pagamentoService.ListarInformes(paginacao.ParaModelo(), filtro, ct);
+        var resultado = await tesourariaService.ListarInformes(paginacao.ParaModelo(), filtro, ct);
 
         return Responder(resultado.Map(pagina => pagina.ParaDTO(informe => informe.Adapt<InformeDTO>())));
     }
 
     /// <summary>O comprovante de um informe.</summary>
-    /// <remarks>Não usa os helpers do <c>MainController</c>: o sucesso é o arquivo. Vai <c>inline</c>, para abrir numa aba.</remarks>
+    /// <remarks>Vai <c>inline</c>, para abrir numa aba.</remarks>
     /// <param name="id">Informe.</param>
     [HttpGet("{id:guid}/comprovante")]
     [Authorize(Policy = Politicas.Tesouraria)]
@@ -58,12 +58,9 @@ public sealed class InformeController(IPagamentoService pagamentoService, IUsuar
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> BaixarComprovante(Guid id, CancellationToken ct)
     {
-        var resultado = await pagamentoService.BaixarComprovante(id, ct);
+        var resultado = await tesourariaService.BaixarComprovante(id, ct);
 
-        if (resultado.Falhou)
-            return Responder(resultado.Map(_ => 0));
-
-        return File(resultado.Valor.Conteudo, resultado.Valor.ContentType);
+        return Arquivo(resultado, inline: true);
     }
 
     /// <summary>Confirma o lote numa transação: cada informe baixa a parcela com o valor recebido.</summary>
@@ -81,7 +78,7 @@ public sealed class InformeController(IPagamentoService pagamentoService, IUsuar
     {
         var lote = new ConfirmarInformes(requisicao.Itens?.Adapt<List<ConfirmacaoDeInforme>>() ?? []);
 
-        var resultado = await pagamentoService.Confirmar(FormaturaId, usuarioAtual.Id, usuarioAtual.EnderecoIp, lote, ct);
+        var resultado = await tesourariaService.Confirmar(FormaturaId, usuarioAtual.Id, usuarioAtual.EnderecoIp, lote, ct);
 
         return Responder(resultado.Map(conferencia => conferencia.Adapt<ResultadoDaConferenciaDTO>()));
     }
@@ -98,5 +95,5 @@ public sealed class InformeController(IPagamentoService pagamentoService, IUsuar
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Recusar(Guid id, [FromBody] RecusarInformeRequestDTO requisicao, CancellationToken ct) =>
-        Responder(await pagamentoService.Recusar(FormaturaId, usuarioAtual.Id, id, new RecusarInforme(requisicao.Motivo ?? string.Empty), ct));
+        Responder(await tesourariaService.Recusar(FormaturaId, usuarioAtual.Id, id, new RecusarInforme(requisicao.Motivo ?? string.Empty), ct));
 }

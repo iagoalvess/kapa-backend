@@ -1,3 +1,4 @@
+using Backend.Business.Common.Datas;
 using Backend.Business.Common.Texto;
 using Backend.Business.Formandos.Models;
 using FluentValidation;
@@ -108,7 +109,7 @@ public sealed class AtualizarPerfilValidator : AbstractValidator<AtualizarPerfil
 
     private static bool IdadePlausivel(DateOnly nascimento)
     {
-        var hoje = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoje = DataUtils.Hoje();
 
         return nascimento <= hoje.AddYears(-IdadeMinima) && nascimento >= hoje.AddYears(-IdadeMaxima);
     }

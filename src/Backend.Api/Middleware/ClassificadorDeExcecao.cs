@@ -48,6 +48,11 @@ public static class ClassificadorDeExcecao
 
             HttpRequestException => (StatusCodes.Status502BadGateway, "Um serviço externo respondeu de forma inesperada."),
 
+            BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge } => (
+                StatusCodes.Status413PayloadTooLarge,
+                "A requisição é grande demais."
+            ),
+
             BadHttpRequestException => (StatusCodes.Status400BadRequest, "A requisição não pôde ser lida."),
 
             _ => (StatusCodes.Status500InternalServerError, "Ocorreu um erro inesperado."),

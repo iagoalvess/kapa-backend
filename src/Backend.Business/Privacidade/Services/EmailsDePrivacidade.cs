@@ -29,7 +29,7 @@ public sealed class EmailsDePrivacidade(IEmailService emailService, IOptions<Apl
 {
     private readonly AplicacaoSettings _aplicacao = aplicacao.Value;
 
-    private string LinkDoPortal => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/minha-privacidade";
+    private string LinkDoPortal => _aplicacao.Link(RotasDoFront.MinhaPrivacidade);
 
     /// <summary>O pacote da exportação ficou pronto.</summary>
     /// <param name="email">Titular.</param>
@@ -79,7 +79,7 @@ public sealed class EmailsDePrivacidade(IEmailService emailService, IOptions<Apl
             "Pedido de eliminação recebido",
             mensagem,
             "Ver o pedido",
-            Mascote.Alerta,
+            Mascote.Cadeado,
             ct
         );
     }
@@ -148,7 +148,7 @@ public sealed class EmailsDePrivacidade(IEmailService emailService, IOptions<Apl
             new NovoEmail(
                 email,
                 $"{assunto} — {_aplicacao.Nome}",
-                ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagemHtml, botao, botao is null ? null : LinkDoPortal, mascote)
+                ModeloDeEmail.Montar(_aplicacao, titulo, mensagemHtml, botao, botao is null ? null : LinkDoPortal, mascote)
             ),
             ct
         );

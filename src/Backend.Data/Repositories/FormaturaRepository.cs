@@ -1,4 +1,5 @@
 using Backend.Business.Agenda.Models;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Data.Context;
@@ -24,7 +25,7 @@ public sealed class FormaturaRepository(AppDbContext db) : IFormaturaRepository
     /// da outra. O filtro global sozinho não repara nisso, porque quem varia aqui é o parâmetro.
     /// </para>
     /// </remarks>
-    public Task<FormaturaDetalhe?> ObterDetalhe(Guid formaturaId, CancellationToken ct = default) =>
+    public Task<FormaturaDetalhe?> ObterDetalheDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default) =>
         db
             .Formaturas.AsNoTracking()
             .Where(f => f.Id == formaturaId)
@@ -37,14 +38,17 @@ public sealed class FormaturaRepository(AppDbContext db) : IFormaturaRepository
                 f.Semestre,
                 db.EventosDaTurma.Where(e => e.FormaturaId == f.Id && e.Tipo == TipoDeEvento.Colacao).Select(e => (DateOnly?)e.Data).FirstOrDefault(),
                 db.EventosDaTurma.Where(e => e.FormaturaId == f.Id && e.Tipo == TipoDeEvento.Festa).Select(e => (DateOnly?)e.Data).FirstOrDefault(),
-                f.QuantidadeEstimadaDeFormandos,
                 f.Status,
                 f.CriadoEm,
                 f.AtivadaEm,
                 f.EncerradaEm,
-                db.Assinaturas.IgnoreQueryFilters().Any(a => a.FormaturaId == f.Id)
+                db.Assinaturas.IgnoreQueryFilters().Any(a => a.FormaturaId == f.Id && a.Status != StatusDaAssinatura.Pendente)
             ))
             .FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    public Task<string?> ObterNome(Guid formaturaId, CancellationToken ct = default) =>
+        db.Formaturas.AsNoTracking().Where(f => f.Id == formaturaId).Select(f => (string?)f.Nome).FirstOrDefaultAsync(ct);
 
     /// <inheritdoc />
     public Task<StatusDaFormatura?> ObterStatus(Guid formaturaId, CancellationToken ct = default) =>
@@ -55,13 +59,13 @@ public sealed class FormaturaRepository(AppDbContext db) : IFormaturaRepository
         db.Formaturas.FirstOrDefaultAsync(f => f.Id == formaturaId, ct);
 
     /// <inheritdoc />
-    public Task<bool> ExisteGratuitaCriadaPor(Guid usuarioId, CancellationToken ct = default) =>
+    public Task<bool> ExisteGratuitaCriadaPorDeTodasAsFormaturas(Guid usuarioId, CancellationToken ct = default) =>
         db.Formaturas.AnyAsync(
             f =>
                 f.CriadoPorUsuarioId == usuarioId
                 && f.Status != StatusDaFormatura.Descartada
                 && f.Status != StatusDaFormatura.Encerrada
-                && !db.Assinaturas.IgnoreQueryFilters().Any(a => a.FormaturaId == f.Id),
+                && !db.Assinaturas.IgnoreQueryFilters().Any(a => a.FormaturaId == f.Id && a.Status != StatusDaAssinatura.Pendente),
             ct
         );
 

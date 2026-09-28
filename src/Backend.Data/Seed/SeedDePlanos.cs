@@ -59,18 +59,24 @@ public static class SeedDePlanos
     private static readonly string[] ModulosDoEssencial = [Modulo.Membros, Modulo.Termo, Modulo.Cobrancas, Modulo.Pix, Modulo.Despesas, Modulo.Caixa];
 
     /// <summary>O que o Premium acrescenta: os diferenciais, não o necessário.</summary>
-    private static readonly string[] DiferenciaisDoPremium = [Modulo.Mural, Modulo.Avisos, Modulo.Contabil, Modulo.Auditoria];
+    private static readonly string[] DiferenciaisDoPremium = [Modulo.Mural, Modulo.Avisos, Modulo.Relatorios, Modulo.Auditoria];
 
     /// <summary>Código do plano com que toda turma nasce.</summary>
     public const string CodigoGratuito = "gratuito";
+
+    /// <summary>Quantas pessoas a turma gratuita comporta, Presidente incluso.</summary>
+    /// <remarks>Turma que já existe lê a linha do catálogo, que o seed não reescreve: mudar aqui pede migration.</remarks>
+    public const int LimiteDoGratuito = 5;
 
     /// <summary>
     /// O plano com que a turma nasce: a comissão monta tudo e conhece o produto sem pagar.
     /// </summary>
     /// <remarks>
-    /// <c>LimiteDeFormandos = 0</c> é o paywall inteiro: <c>ConviteService.ConferirLimiteDoPlano</c>
-    /// deixa a comissão entrar sempre e só confere o limite para o papel <c>Formando</c>. Zero vaga
-    /// de formando, comissão à vontade — que é exatamente "só a comissão, para verem o sistema".
+    /// <c>LimiteDeFormandos</c> é o paywall: desde 22/09/2026 <c>VagasDoPlano</c> conta <b>todo</b>
+    /// papel, e o grátis comporta <see cref="LimiteDoGratuito"/> pessoas — o Presidente e uma comissão
+    /// pequena, para verem o sistema. Antes era zero vaga de formando e comissão à vontade, e a turma
+    /// inteira entrava como "Comissão" e pagava as parcelas sem contratar. Convite de Formando continua
+    /// exigindo turma contratada (<c>convite.formatura_nao_contratada</c>).
     /// <para>
     /// <c>Ativo = false</c> de propósito: ele não aparece na vitrine e o checkout não o aceita
     /// (<c>ObterPlanoAtivo</c> filtra por <c>Ativo</c>). Plano gratuito é atribuído, nunca escolhido.
@@ -89,7 +95,7 @@ public static class SeedDePlanos
             Descricao = "Para a comissão montar a turma e conhecer o Kapa.",
             PrecoEmCentavos = 0,
             Ciclo = CicloDeCobranca.Mensal,
-            LimiteDeFormandos = 0,
+            LimiteDeFormandos = LimiteDoGratuito,
             Modulos = [.. ModulosDoEssencial],
             Ativo = false,
         };

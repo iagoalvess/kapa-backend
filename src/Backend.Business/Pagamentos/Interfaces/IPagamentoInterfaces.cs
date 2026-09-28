@@ -2,12 +2,13 @@ using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Models;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Pagamentos.Models;
+using Backend.Business.Recebimentos.Models;
 
 namespace Backend.Business.Pagamentos.Interfaces;
 
 /// <summary>
-/// O caminho do dinheiro da turma: o formando vê o extrato, paga pelo PIX e avisa; a tesouraria confere
-/// em lote, recusa ou baixa à mão; o Presidente estorna.
+/// O caminho do dinheiro da turma, do lado do formando: vê o extrato, paga pelo PIX e avisa. A
+/// conferência, a baixa à mão e o estorno ficam em <see cref="ITesourariaService"/>.
 /// </summary>
 /// <remarks>
 /// "Dono da parcela" é regra daqui, não da política: a política garante que é membro da turma, e o
@@ -84,6 +85,29 @@ public interface IPagamentoService
         CancellationToken ct = default
     );
 
+    /// <summary>
+    /// O recibo de um recebimento em PDF, gerado na hora (Sprint 22). O próprio formando, ou a gestão.
+    /// </summary>
+    /// <remarks>
+    /// Recebimento de outro formando responde 404, e não 403; o estornado responde 409
+    /// <c>pagamento.recebimento_estornado</c>. A gestão recebe o CPF mascarado.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Quem pede.</param>
+    /// <param name="recebimentoId">Recebimento.</param>
+    Task<Result<ArquivoParaDownload>> ObterRecibo(Guid formaturaId, Guid usuarioId, Guid recebimentoId, CancellationToken ct = default);
+}
+
+/// <summary>
+/// O lado da tesouraria no caminho do dinheiro: confere os avisos em lote, recusa, baixa à mão, estorna
+/// e acompanha as divergências.
+/// </summary>
+/// <remarks>
+/// Separado de <see cref="IPagamentoService"/>, que é o lado do formando: são telas, políticas e
+/// dependências diferentes — a baixa, a auditoria e os e-mails de recusa e estorno só existem daqui.
+/// </remarks>
+public interface ITesourariaService
+{
     /// <summary>A fila da tesouraria: os pendentes do mais antigo ao mais novo; os conferidos, dos mais recentes.</summary>
     /// <param name="paginacao">Página pedida.</param>
     /// <param name="filtro">Situação, período do pagamento informado e busca.</param>
@@ -165,6 +189,15 @@ public interface IInformeRepository
     /// <param name="informeIds">Informes.</param>
     Task<IReadOnlyList<InformeDePagamento>> ListarParaEdicao(IReadOnlyCollection<Guid> informeIds, CancellationToken ct = default);
 
+    /// <summary>Se alguma das parcelas tem informe esperando conferência.</summary>
+    /// <remarks>Lido sob a trava das parcelas, é o que decide entre o aviso e a baixa que chegam juntos.</remarks>
+    /// <param name="parcelaIds">Parcelas.</param>
+    Task<bool> ExistePendente(IReadOnlyCollection<Guid> parcelaIds, CancellationToken ct = default);
+
+    /// <summary>Os avisos pendentes destas parcelas, rastreados — a baixa automática os confirma junto.</summary>
+    /// <param name="parcelaIds">Parcelas.</param>
+    Task<IReadOnlyList<InformeDePagamento>> ListarPendentesParaEdicao(IReadOnlyCollection<Guid> parcelaIds, CancellationToken ct = default);
+
     /// <summary>Uma página da fila, com a parcela de cada informe, sem o devido.</summary>
     /// <param name="paginacao">Página pedida, já normalizada.</param>
     /// <param name="filtro">Situação, período do pagamento informado e busca.</param>
@@ -206,6 +239,12 @@ public interface IRecebimentoRepository
     /// <param name="hoje">Dia que separa aberta de vencida.</param>
     /// <param name="busca">Trecho do nome do formando.</param>
     Task<PaginaDe<Divergencia>> ListarDivergencias(PaginacaoRequest paginacao, DateOnly hoje, string? busca = null, CancellationToken ct = default);
+
+    /// <summary>O que o recibo do recebimento imprime; nulo se ele não existir nesta turma.</summary>
+    /// <remarks>Traz também o estornado: quem decide o que fazer com ele é o service.</remarks>
+    /// <param name="recebimentoId">Recebimento.</param>
+    /// <param name="hoje">Dia que separa aberta de vencida, na parcela.</param>
+    Task<DadosDoRecibo?> ObterParaRecibo(Guid recebimentoId, DateOnly hoje, CancellationToken ct = default);
 
     /// <summary>Marca um recebimento novo para inclusão.</summary>
     /// <param name="recebimento">Recebimento.</param>

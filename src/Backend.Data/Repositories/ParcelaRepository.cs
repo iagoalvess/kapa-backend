@@ -212,7 +212,7 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
     /// travam na mesma ordem, e um não espera o outro em círculo.
     /// </remarks>
     public async Task<IReadOnlyList<Parcela>> TravarParaBaixa(IReadOnlyCollection<Guid> parcelaIds, CancellationToken ct = default) =>
-        await db.Parcelas.FromSql($"SELECT * FROM parcelas WHERE id = ANY({parcelaIds.ToArray()}) ORDER BY id FOR UPDATE").ToListAsync(ct);
+        await db.Parcelas.FromSql($"SELECT *, xmin FROM parcelas WHERE id = ANY({parcelaIds.ToArray()}) ORDER BY id FOR UPDATE").ToListAsync(ct);
 
     /// <inheritdoc />
     public Task Adicionar(IReadOnlyList<Parcela> parcelas, CancellationToken ct = default) => db.Parcelas.AddRangeAsync(parcelas, ct);
@@ -237,6 +237,12 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
             NomeDaConta = devedor.NomeDaConta,
             Email = devedor.Email,
             EmConferencia = db.Informes.Any(i => i.ParcelaId == devedor.Parcela.Id && i.Status == StatusDoInforme.Pendente),
+            RecebimentoId = db
+                .Recebimentos.Where(r => r.ParcelaId == devedor.Parcela.Id && r.EstornadoEm == null)
+                .OrderByDescending(r => r.BaixadoEm)
+                .ThenByDescending(r => r.Id)
+                .Select(r => (Guid?)r.Id)
+                .FirstOrDefault(),
         };
 
     /// <summary>
@@ -280,16 +286,7 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
     /// <remarks>Procura no nome civil e no da conta, como a lista de parcelas: são as duas grafias que a turma usa.</remarks>
     /// <param name="db">Contexto de dados da requisição.</param>
     /// <param name="busca">O que a pessoa digitou.</param>
-    internal static IQueryable<Guid> ParcelasDe(AppDbContext db, string busca)
-    {
-        var termo = Busca.Padrao(busca);
-
-        return Linhas(db)
-            .Where(linha =>
-                EF.Functions.ILike(EF.Functions.Unaccent(linha.Nome), termo) || EF.Functions.ILike(EF.Functions.Unaccent(linha.NomeDaConta), termo)
-            )
-            .Select(linha => linha.Parcela.Id);
-    }
+    internal static IQueryable<Guid> ParcelasDe(AppDbContext db, string busca) => ComNome(Linhas(db), busca).Select(linha => linha.Parcela.Id);
 
     /// <summary>A linha no modelo de leitura, com o status gravado — <see cref="NoDia"/> separa a vencida.</summary>
     /// <param name="linhas">Linhas já filtradas e ordenadas.</param>
@@ -299,6 +296,7 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
             linha.Parcela.VinculoId,
             linha.UsuarioId,
             linha.Nome,
+            linha.Parcela.ItemDeCobrancaId,
             linha.Item.Tipo,
             linha.Item.Descricao,
             linha.Parcela.Numero,
@@ -309,7 +307,8 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
             linha.EmConferencia,
             linha.Parcela.ValorPagoEmCentavos,
             linha.Parcela.PagoEm,
-            null
+            null,
+            linha.RecebimentoId
         ));
 
     /// <summary>A situação de cada linha no dia, pela mesma regra da entidade.</summary>
@@ -336,12 +335,7 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
             consulta = consulta.Where(linha => linha.Parcela.Vencimento <= ate);
 
         if (!string.IsNullOrWhiteSpace(filtro.Busca))
-        {
-            var termo = Busca.Padrao(filtro.Busca);
-            consulta = consulta.Where(linha =>
-                EF.Functions.ILike(EF.Functions.Unaccent(linha.Nome), termo) || EF.Functions.ILike(EF.Functions.Unaccent(linha.NomeDaConta), termo)
-            );
-        }
+            consulta = ComNome(consulta, filtro.Busca);
 
         return filtro.Status switch
         {
@@ -350,6 +344,18 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
             StatusDaParcela.Vencida => consulta.Where(linha => linha.Parcela.Status == StatusDaParcela.Aberta && linha.Parcela.Vencimento < hoje),
             var status => consulta.Where(linha => linha.Parcela.Status == status),
         };
+    }
+
+    /// <summary>As linhas cujo dono atende à busca, pelo nome civil ou pelo da conta, sem acento.</summary>
+    /// <param name="consulta">Linhas a filtrar.</param>
+    /// <param name="busca">O que a pessoa digitou.</param>
+    private static IQueryable<LinhaDeParcela> ComNome(IQueryable<LinhaDeParcela> consulta, string busca)
+    {
+        var termo = Busca.Padrao(busca);
+
+        return consulta.Where(linha =>
+            EF.Functions.ILike(EF.Functions.Unaccent(linha.Nome), termo) || EF.Functions.ILike(EF.Functions.Unaccent(linha.NomeDaConta), termo)
+        );
     }
 }
 
@@ -377,6 +383,9 @@ internal sealed class LinhaDeParcela
 
     /// <summary>Tem informe pendente.</summary>
     public bool EmConferencia { get; init; }
+
+    /// <summary>A última baixa que vale, se houver — o recibo da linha (Sprint 22).</summary>
+    public Guid? RecebimentoId { get; init; }
 }
 
 /// <summary>A parcela e quem deve por ela — <see cref="LinhaDeParcela"/> sem o item e sem a conferência.</summary>

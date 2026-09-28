@@ -65,6 +65,17 @@ public interface IVinculoRepository
     /// <param name="formaturaId">Formatura consultada.</param>
     Task<IReadOnlyList<ContagemDeMembros>> ContarMembros(Guid formaturaId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Enfileira quem entra na formatura até o fim da transação corrente.
+    /// </summary>
+    /// <remarks>
+    /// Contar as vagas e gravar o vínculo são dois passos: sem a fila, entradas simultâneas por convites
+    /// diferentes contavam a mesma turma e passavam juntas do limite do plano. Fora de transação não
+    /// segura nada — quem chama já está dentro de uma.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura que vai receber gente.</param>
+    Task TravarEntradas(Guid formaturaId, CancellationToken ct = default);
+
     /// <summary>O vínculo ativo do usuário na formatura, rastreado para alteração.</summary>
     /// <param name="usuarioId">Membro.</param>
     /// <param name="formaturaId">Formatura.</param>
@@ -99,6 +110,10 @@ public interface IVinculoRepository
     /// <summary>E-mails dos membros ativos da comissão — Presidente, Tesoureiro e Comissão; formando não.</summary>
     /// <param name="formaturaId">Formatura.</param>
     Task<IReadOnlyList<string>> ListarEmailsDaComissao(Guid formaturaId, CancellationToken ct = default);
+
+    /// <summary>E-mails dos formandos ativos — a turma, sem a comissão, que recebe o aviso dela.</summary>
+    /// <param name="formaturaId">Formatura.</param>
+    Task<IReadOnlyList<string>> ListarEmailsDosFormandos(Guid formaturaId, CancellationToken ct = default);
 
     /// <summary>E-mails de quem responde pelo caixa — Presidente e Tesoureiro; a Comissão não confere pagamento.</summary>
     /// <remarks>É o destinatário dos resumos da régua: informe parado e parcela vencida há trinta dias.</remarks>

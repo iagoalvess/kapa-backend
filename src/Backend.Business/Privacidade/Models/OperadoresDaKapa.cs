@@ -16,8 +16,8 @@ namespace Backend.Business.Privacidade.Models;
 /// </para>
 /// <para>
 /// <c>ponytail:</c> quando o PSP da assinatura for escolhido (P2 da Sprint 16), o nome dele entra
-/// no lugar de "Provedor de pagamento"; e o resumo por IA da Sprint 24 acrescenta a linha do
-/// provedor de modelo, que é o que a decisão 12 de lá exige.
+/// no lugar de "Provedor de pagamento". O provedor de modelos entrou com a Sprint 24 (decisão 12),
+/// junto do trecho dele na Política (seção 6).
 /// </para>
 /// </remarks>
 public static class OperadoresDaKapa
@@ -40,6 +40,16 @@ public static class OperadoresDaKapa
             "Provedor de pagamento",
             "Cobrar a assinatura da plataforma da comissão. O dinheiro dos formandos não passa por ele: ele vai direto para a chave PIX informada pela comissão.",
             "Dados de cobrança de quem contrata a assinatura."
+        ),
+        new(
+            "Mercado Pago da turma",
+            "Emitir o PIX com confirmação automática, quando a comissão conecta a conta Mercado Pago da turma. O dinheiro vai direto para a conta da turma; o Kapa só emite a cobrança e consulta se ela foi paga.",
+            "E-mail do formando que paga e o valor da cobrança."
+        ),
+        new(
+            "Provedor de modelos de inteligência artificial (OpenRouter)",
+            "Gerar o resumo do termo de adesão exibido ao formando antes do aceite.",
+            "O texto do termo redigido pela comissão (razão social, CNPJ, endereço e nomes da comissão). Nenhum dado de formando."
         ),
     ];
 }

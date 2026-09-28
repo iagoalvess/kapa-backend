@@ -20,7 +20,10 @@ namespace Backend.Data.Mappings;
 /// </para>
 /// <para>
 /// Vai só onde há disputa real (Sprint 16, Parte B): <c>Assinatura</c>, <c>Formatura</c>,
-/// <c>PerfilDoFormando</c> e <c>RefreshToken</c>. Tabela append-only não precisa — ela nunca é
+/// <c>PerfilDoFormando</c> e <c>RefreshToken</c> — e, desde a auditoria de 22/09/2026, <c>Parcela</c>
+/// e <c>Despesa</c>: desligar, encerrar item, repactuar e cancelar pedido mexiam na parcela sem a trava
+/// da baixa, e uma baixa no meio terminava com parcela cancelada e recebimento ativo. Consulta crua
+/// sobre elas precisa trazer a coluna (<c>SELECT *, xmin</c>): o <c>*</c> não inclui coluna de sistema. Tabela append-only não precisa — ela nunca é
 /// alterada —, e pôr o token em tudo transformaria toda concorrência benigna em 409 na cara do
 /// usuário.
 /// </para>

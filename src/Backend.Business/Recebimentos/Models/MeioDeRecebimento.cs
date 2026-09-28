@@ -1,7 +1,7 @@
 namespace Backend.Business.Recebimentos.Models;
 
 /// <summary>
-/// Como a turma aceita receber — e, no aviso de pagamento, como o formando diz ter pago.
+/// Como a comissão aceita receber por conta própria — e, no aviso de pagamento, como o formando diz ter pago.
 /// </summary>
 /// <remarks>
 /// É o eixo da cobrança, e não o da baixa: <c>FormaDePagamento</c> conta como o dinheiro entrou,
@@ -11,6 +11,10 @@ namespace Backend.Business.Recebimentos.Models;
 /// A turma habilita os três primeiros, e cada um é um destino conferível — uma chave, uma conta,
 /// uma pessoa. <see cref="Outro" /> só existe do lado do aviso (P7): o formando pagou de um jeito
 /// que ninguém previu, e recusar o aviso não desfaz o pagamento.
+/// </para>
+/// <para>
+/// O que passa pelo Mercado Pago da turma — o PIX avulso, e depois o cartão e o Pix Automático — não está
+/// aqui: é o <c>MeioDePagamento</c> (Sprint 35), que baixa sozinho, sem aviso.
 /// </para>
 /// <para>
 /// "Combinar com a comissão" foi retirado em 21/09/2026, depois de implementado: era o único meio

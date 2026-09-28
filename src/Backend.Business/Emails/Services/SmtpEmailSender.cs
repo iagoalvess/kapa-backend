@@ -35,9 +35,13 @@ public sealed class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<Smtp
     /// puro e sobem com STARTTLS. Combinar a opção errada com a porta não dá erro imediato —
     /// a conexão trava até o timeout, que é bem mais difícil de diagnosticar.
     /// <para>
-    /// O mascote do corpo vai como <c>LinkedResource</c>, e não por URL: cliente de e-mail bloqueia
-    /// imagem remota por padrão, e a mensagem chegaria com um quadrado vazio no topo. Quem sabe
-    /// quais são elas é <see cref="ModeloDeEmail.ImagensDe"/> — aqui só se anexa o que ele listou.
+    /// Com <c>UrlDasImagens</c>, o logo e o mascote saem por URL pública (<see cref="ModeloDeEmail.ComImagensPorUrl"/>);
+    /// sem ela — desenvolvimento, onde só existe <c>localhost</c> —, vão como <c>LinkedResource</c>, e quem
+    /// diz quais são é <see cref="ModeloDeEmail.ImagensDe"/>.
+    /// </para>
+    /// <para>
+    /// O destinatário original vai no assunto do desvio: sem ele, a caixa de quem desenvolve vira uma
+    /// pilha de mensagens idênticas sem dizer de quem era cada uma.
     /// </para>
     /// </remarks>
     public async Task EnviarAsync(MensagemDeEmail mensagem, CancellationToken ct = default)
@@ -45,15 +49,22 @@ public sealed class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<Smtp
         var desviado = !string.IsNullOrWhiteSpace(_settings.RedirecionarPara);
         var destinatario = desviado ? _settings.RedirecionarPara : mensagem.Para;
 
-        var corpo = new BodyBuilder { HtmlBody = mensagem.CorpoHtml };
+        var porUrl = !string.IsNullOrWhiteSpace(_settings.UrlDasImagens);
 
-        foreach (var (cid, conteudo) in ModeloDeEmail.ImagensDe(mensagem.CorpoHtml))
-            corpo.LinkedResources.Add(Inline(cid, conteudo));
+        var corpo = new BodyBuilder
+        {
+            HtmlBody = porUrl ? ModeloDeEmail.ComImagensPorUrl(mensagem.CorpoHtml, _settings.UrlDasImagens) : mensagem.CorpoHtml,
+        };
+
+        if (!porUrl)
+            foreach (var (cid, conteudo) in ModeloDeEmail.ImagensDe(mensagem.CorpoHtml))
+                corpo.LinkedResources.Add(Inline(cid, conteudo));
+
+        if (mensagem.Anexo is { } anexo)
+            corpo.Attachments.Add(anexo.Nome, anexo.Conteudo, ContentType.Parse(anexo.ContentType));
 
         using var mime = new MimeMessage
         {
-            // O destinatário original vai no assunto do desvio: sem ele, a caixa de quem desenvolve
-            // vira uma pilha de mensagens idênticas sem dizer de quem era cada uma.
             Subject = desviado ? $"[para {mensagem.Para}] {mensagem.Assunto}" : mensagem.Assunto,
             Body = corpo.ToMessageBody(),
         };

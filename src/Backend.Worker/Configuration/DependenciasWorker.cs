@@ -30,7 +30,6 @@ public static class DependenciasWorker
 
         builder.Services.AddIdentityCore<Usuario>().AddRoles<Perfil>().AddEntityFrameworkStores<AppDbContext>();
 
-        builder.Services.AddScoped<FormaturaDoProcessamento>();
         builder.Services.Replace(ServiceDescriptor.Scoped<IFormaturaAtual>(sp => sp.GetRequiredService<FormaturaDoProcessamento>()));
 
         return builder.AdicionarJobs();
@@ -40,6 +39,7 @@ public static class DependenciasWorker
     /// <param name="builder">Builder do host.</param>
     private static IHostApplicationBuilder AdicionarJobs(this IHostApplicationBuilder builder)
     {
+        builder.Services.AddSingleton<LiderancaDeJob>();
         builder.Services.AddHostedService<EnvioDeEmailJob>();
         builder.Services.AddHostedService<LimpezaRefreshTokensJob>();
         builder.Services.AddHostedService<RetencaoDeEventosJob>();
@@ -47,6 +47,11 @@ public static class DependenciasWorker
         builder.Services.AddHostedService<GeracaoDeRelatoriosJob>();
         builder.Services.AddHostedService<ReguaDeCobrancaJob>();
         builder.Services.AddHostedService<PrivacidadeJob>();
+        builder.Services.AddHostedService<DescarteDeDocumentosDeConvidadosJob>();
+        builder.Services.AddHostedService<ResumoDoTermoJob>();
+        builder.Services.AddHostedService<CobrancasDoMercadoPagoJob>();
+        builder.Services.AddHostedService<ExpiracaoDeComprasJob>();
+        builder.Services.AddHostedService<RetencaoDeFormaturasJob>();
 
         return builder;
     }

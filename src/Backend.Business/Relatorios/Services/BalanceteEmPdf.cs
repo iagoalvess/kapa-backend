@@ -19,7 +19,7 @@ namespace Backend.Business.Relatorios.Services;
 /// e branco</b>: todo o texto é escuro sobre fundo claro — nenhuma informação está na cor.
 /// </para>
 /// <para>
-/// Ordem do documento: capa, resumo, entradas, saídas por categoria, saídas por fornecedor e o
+/// Ordem do documento: capa, resumo, entradas, receitas, saídas por categoria, saídas por fornecedor e o
 /// fechamento com o saldo. O número vem antes do detalhe, porque a pergunta da assembleia é "quanto
 /// sobrou" — a abertura por categoria é a resposta à pergunta seguinte.
 /// </para>
@@ -51,6 +51,8 @@ public static class BalanceteEmPdf
                 ColunasDoResumo,
                 ["Movimento", "Valor"],
                 [
+                    ["Entradas de parcelas", FormatosBrasileiros.Reais(balancete.ParcelasEmCentavos)],
+                    ["Outras receitas", FormatosBrasileiros.Reais(balancete.OutrasReceitasEmCentavos)],
                     ["Entradas", FormatosBrasileiros.Reais(balancete.EntradasEmCentavos)],
                     ["Saídas", FormatosBrasileiros.Reais(balancete.SaidasEmCentavos)],
                     ["Resultado do período", FormatosBrasileiros.Reais(balancete.SaldoDoPeriodoEmCentavos)],
@@ -62,12 +64,16 @@ public static class BalanceteEmPdf
                     + "acima — ele inclui o que entrou e saiu antes desta data inicial."
             );
 
-        Quadro(pdf, "Entradas por tipo de cobrança", balancete.Entradas, balancete.EntradasEmCentavos);
+        Quadro(pdf, "Entradas por tipo de cobrança", balancete.Entradas, balancete.ParcelasEmCentavos);
+        Quadro(pdf, "Outras receitas por categoria", balancete.OutrasReceitas, balancete.OutrasReceitasEmCentavos);
         Quadro(pdf, "Saídas por categoria", balancete.SaidasPorCategoria, balancete.SaidasEmCentavos);
         Quadro(pdf, "Saídas por fornecedor", balancete.SaidasPorFornecedor, balancete.SaidasEmCentavos);
 
         pdf.Secao("Como ler este documento")
             .Item("Entrada é pagamento de parcela confirmado pela tesouraria, pelo valor que entrou na conta.")
+            .Item(
+                "Outra receita é o dinheiro que entrou sem ser parcela: patrocínio, evento, doação, rendimento. A combinada e ainda não recebida não aparece aqui."
+            )
             .Item("Saída é despesa paga, com comprovante. Despesa prevista e não paga não aparece aqui.")
             .Item("Os dois quadros de saída somam o mesmo total, abertos de formas diferentes.")
             .Item("Valores em reais. Nenhum número deste documento identifica um formando.");

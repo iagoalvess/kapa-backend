@@ -55,6 +55,20 @@ public sealed class ArmazenamentoLocal(IOptions<ArmazenamentoSettings> options, 
     }
 
     /// <inheritdoc />
+    /// <remarks>Prefixo vazio é recusado: resolveria para a raiz, e apagaria os arquivos de todos.</remarks>
+    public Task RemoverPrefixoAsync(string prefixo, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefixo);
+
+        var caminho = ResolverCaminho(prefixo);
+
+        if (caminho != _raiz && Directory.Exists(caminho))
+            Directory.Delete(caminho, recursive: true);
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
     /// <remarks>Relativa à API: o endpoint anônimo de <see cref="UrlTemporariaLocal"/> serve o objeto.</remarks>
     public Task<string> GerarUrlTemporariaAsync(string chave, string nome, string contentType, TimeSpan validade) =>
         Task.FromResult(urls.Gerar(chave, nome, contentType, DateTimeOffset.UtcNow.Add(validade)));

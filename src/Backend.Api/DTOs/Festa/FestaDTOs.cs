@@ -1,3 +1,4 @@
+using Backend.Business.Comunicacao.Models;
 using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Models;
 
@@ -46,13 +47,19 @@ public sealed record ItemDaFestaRequestDTO(
 /// <param name="Estado">A contratar, contratado, pago ou cancelado.</param>
 /// <param name="Cancelado">A turma desistiu: sai do custo, fica na lista.</param>
 /// <param name="Ordem">Posição na tela.</param>
+/// <param name="PrecoDeVendaEmCentavos">
+/// Preço unitário do item opcional ligado a este (Sprint 20, decisão 11). Nulo: a venda não foi
+/// aberta, e o custo continua saindo da estimativa.
+/// </param>
+/// <param name="PedidosConfirmados">Unidades já pedidas pelos formandos — o "37" de "R$ 350,00 × 37 pedidos".</param>
+/// <param name="ItemDeCobrancaId">O item opcional ligado, se houver.</param>
 public sealed record ItemDaFestaDTO(
     Guid Id,
     string Titulo,
     CategoriaDeDespesa Categoria,
     string? OQueInclui,
     string? Fornecedor,
-    DocumentoDoItem? Documento,
+    DocumentoDoAcervo? Documento,
     TipoDeRateio Rateio,
     long ValorPrevistoEmCentavos,
     int QuantidadeEstimada,
@@ -63,7 +70,10 @@ public sealed record ItemDaFestaDTO(
     int QuantidadeDeDespesas,
     EstadoDoItem Estado,
     bool Cancelado,
-    int Ordem
+    int Ordem,
+    long? PrecoDeVendaEmCentavos,
+    int PedidosConfirmados,
+    Guid? ItemDeCobrancaId
 );
 
 /// <summary>A meta da turma: quanto a festa custa, quanto já entrou e quanto dela já foi paga.</summary>

@@ -1,4 +1,5 @@
 using Backend.Business.Arquivos.Models;
+using Backend.Business.Comunicacao.Models;
 using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Models;
 using Backend.Business.Formaturas.Models;
@@ -66,6 +67,8 @@ public sealed class DespesaMapping : IEntityTypeConfiguration<Despesa>
 
         builder.HasKey(d => d.Id);
 
+        builder.ComTokenDeConcorrencia();
+
         builder.Property(d => d.Descricao).IsRequired().HasMaxLength(200);
         builder.Property(d => d.Categoria).HasConversion<string>().HasMaxLength(20);
         builder.Property(d => d.Status).HasConversion<string>().HasMaxLength(20);
@@ -104,5 +107,57 @@ public sealed class DespesaMapping : IEntityTypeConfiguration<Despesa>
         builder.HasOne<ItemDaFesta>().WithMany().HasForeignKey(d => d.ItemDaFestaId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Arquivo>().WithMany().HasForeignKey(d => d.ComprovanteArquivoId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Formatura>().WithMany().HasForeignKey(d => d.FormaturaId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+/// <summary>Mapeamento de <see cref="OutraReceita"/> (Sprint 28) — o espelho da despesa.</summary>
+public sealed class OutraReceitaMapping : IEntityTypeConfiguration<OutraReceita>
+{
+    /// <inheritdoc />
+    /// <remarks>
+    /// O índice único é a segunda barreira contra o clique repetido (a primeira é o
+    /// <c>ExisteIgual</c> do service), com <c>NULLS NOT DISTINCT</c> pela mesma armadilha da despesa:
+    /// sem ele, duas receitas iguais <b>sem origem</b> passariam, porque no Postgres dois nulos são
+    /// diferentes.
+    /// <para>
+    /// O documento é <c>SetNull</c>, como o contrato do item da festa: apagar o arquivo do acervo tira
+    /// o comprovante, não a receita — o dinheiro entrou de qualquer jeito.
+    /// </para>
+    /// </remarks>
+    public void Configure(EntityTypeBuilder<OutraReceita> builder)
+    {
+        builder.ToTable("outras_receitas");
+
+        builder.HasKey(r => r.Id);
+
+        builder.ComTokenDeConcorrencia();
+
+        builder.Property(r => r.Descricao).IsRequired().HasMaxLength(200);
+        builder.Property(r => r.Origem).HasMaxLength(200);
+        builder.Property(r => r.Categoria).HasConversion<string>().HasMaxLength(20);
+        builder.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+
+        builder
+            .HasIndex(r => new
+            {
+                r.FormaturaId,
+                r.Descricao,
+                r.Origem,
+                r.Data,
+            })
+            .IsUnique()
+            .AreNullsDistinct(false)
+            .HasFilter($"status <> '{nameof(StatusDaOutraReceita.Cancelada)}'")
+            .HasDatabaseName("ix_outras_receitas_lancamento_unico");
+
+        builder.HasIndex(r => new
+        {
+            r.FormaturaId,
+            r.Status,
+            r.Data,
+        });
+
+        builder.HasOne<Documento>().WithMany().HasForeignKey(r => r.DocumentoId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<Formatura>().WithMany().HasForeignKey(r => r.FormaturaId).OnDelete(DeleteBehavior.Restrict);
     }
 }

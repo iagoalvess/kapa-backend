@@ -17,6 +17,9 @@ public enum FormaDePagamento
 
     /// <summary>Qualquer outro meio.</summary>
     Outro,
+
+    /// <summary>Cartão de crédito pelo Mercado Pago da turma (Sprint 35) — a baixa automática do cartão chega na Sprint 39.</summary>
+    Cartao,
 }
 
 /// <summary>A ponte entre os dois eixos: o meio que o formando escolheu e a forma que a baixa grava.</summary>
@@ -40,5 +43,22 @@ public static class FormasDePagamento
             MeioDeRecebimento.Dinheiro => FormaDePagamento.Dinheiro,
             MeioDeRecebimento.Outro => FormaDePagamento.Outro,
             _ => FormaDePagamento.Pix,
+        };
+
+    /// <summary>A forma que a baixa automática grava para o que o Mercado Pago cobrou.</summary>
+    /// <remarks>O Pix Automático é PIX no extrato do banco — só a autorização é recorrente.</remarks>
+    /// <param name="meio">Meio da cobrança.</param>
+    public static FormaDePagamento Da(MeioDePagamento meio) => meio == MeioDePagamento.Cartao ? FormaDePagamento.Cartao : FormaDePagamento.Pix;
+
+    /// <summary>A forma como a pessoa a escreve — o que o recibo imprime.</summary>
+    /// <param name="forma">Forma gravada.</param>
+    public static string Rotulo(FormaDePagamento forma) =>
+        forma switch
+        {
+            FormaDePagamento.Pix => "PIX",
+            FormaDePagamento.Dinheiro => "Dinheiro",
+            FormaDePagamento.Transferencia => "Transferência",
+            FormaDePagamento.Cartao => "Cartão de crédito",
+            _ => "Outro",
         };
 }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -111,6 +112,7 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         semVoto.Propostas.Select(p => p.Titulo).ShouldBe(["Banda Y", "Banda X"]);
         semVoto.Propostas.ShouldAllBe(p => !p.MeuVoto);
 
+        await fabrica.ConfirmarEmail(presidente, Ct);
         (await presidente.Cliente.PutAsync($"/api/v1/festa/propostas/{x.Id}/voto", null, Ct)).EnsureSuccessStatusCode();
 
         var votada = await ObterDetalhe(presidente, item.Id, Ct);
@@ -128,6 +130,7 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         var x = await Propor(presidente, item.Id, "Banda X", 8_000_00, Ct);
         var y = await Propor(presidente, item.Id, "Banda Y", 6_500_00, Ct);
 
+        await fabrica.ConfirmarEmail(presidente, Ct);
         (await presidente.Cliente.PutAsync($"/api/v1/festa/propostas/{x.Id}/voto", null, Ct)).EnsureSuccessStatusCode();
         (await presidente.Cliente.PutAsync($"/api/v1/festa/propostas/{y.Id}/voto", null, Ct)).EnsureSuccessStatusCode();
 
@@ -182,6 +185,10 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         );
         tentativa.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
+        var semEmailConfirmado = await formando.Cliente.PutAsync($"/api/v1/festa/propostas/{proposta.Id}/voto", null, Ct);
+        semEmailConfirmado.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        await fabrica.ConfirmarEmail(formando, Ct);
         (await formando.Cliente.PutAsync($"/api/v1/festa/propostas/{proposta.Id}/voto", null, Ct)).EnsureSuccessStatusCode();
 
         // O placar é público; o "meu voto" é de cada um.
@@ -378,7 +385,7 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
     private static async Task<Guid> EnviarDocumento(MembroDeTeste membro, string titulo, Visibilidade visibilidade, CancellationToken ct)
     {
         var arquivo = new ByteArrayContent(Encoding.UTF8.GetBytes("%PDF-1.4 contrato de teste"));
-        arquivo.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        arquivo.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
 
         var corpo = new MultipartFormDataContent
         {
@@ -458,7 +465,7 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
     private static MultipartFormDataContent Pagamento()
     {
         var comprovante = new ByteArrayContent(Encoding.UTF8.GetBytes("%PDF-1.4 comprovante de teste"));
-        comprovante.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        comprovante.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
 
         return new MultipartFormDataContent
         {

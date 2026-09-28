@@ -1,3 +1,4 @@
+using Backend.Business.Common.Validacao;
 using Backend.Business.Usuarios.Models;
 using FluentValidation;
 
@@ -16,10 +17,6 @@ public sealed class AtualizarUsuarioValidator : AbstractValidator<AtualizarUsuar
     /// <summary>Registra as regras de validação.</summary>
     public AtualizarUsuarioValidator()
     {
-        RuleFor(x => x.Nome)
-            .NotEmpty()
-            .WithMessage("O nome é obrigatório.")
-            .MaximumLength(120)
-            .WithMessage("O nome deve ter no máximo 120 caracteres.");
+        RuleFor(x => x.Nome).NomeDaPessoa();
     }
 }

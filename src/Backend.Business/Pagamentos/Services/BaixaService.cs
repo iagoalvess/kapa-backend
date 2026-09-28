@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Services;
@@ -24,7 +25,13 @@ namespace Backend.Business.Pagamentos.Services;
 /// <param name="recebimentoRepository">Entradas no caixa.</param>
 /// <param name="eventos">Auditoria.</param>
 /// <param name="emails">Aviso ao formando.</param>
-public sealed class BaixaService(IRecebimentoRepository recebimentoRepository, IEventoRepository eventos, EmailsDePagamento emails)
+/// <param name="quitacao">O que o pedido faz quando a parcela dele é paga — o convite da festa nasce ali.</param>
+public sealed class BaixaService(
+    IRecebimentoRepository recebimentoRepository,
+    IEventoRepository eventos,
+    EmailsDePagamento emails,
+    IQuitacaoDePedidos quitacao
+)
 {
     /// <summary>Evento da baixa, com autor, IP, valores e origem — lido pela trilha de auditoria (Sprint 14).</summary>
     public const string EventoDeBaixa = "pagamento.baixado";
@@ -68,6 +75,7 @@ public sealed class BaixaService(IRecebimentoRepository recebimentoRepository, I
 
         var recebimento = Recebimento.Novo(parcela.Id, informe?.Id, dados, devido);
         await recebimentoRepository.Adicionar(recebimento, ct);
+        await quitacao.AposBaixa(parcela, ct);
 
         await eventos.Auditar(
             EventoDeBaixa,
@@ -95,6 +103,7 @@ public sealed class BaixaService(IRecebimentoRepository recebimentoRepository, I
                 dados.ValorEmCentavos,
                 dados.PagoEm,
                 pagar.Valor ? 0 : parcela.QuitaCom(devido) - (parcela.ValorPagoEmCentavos ?? 0),
+                recebimento.Id,
                 ct
             );
 

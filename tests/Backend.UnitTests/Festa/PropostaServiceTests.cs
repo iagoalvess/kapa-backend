@@ -7,6 +7,8 @@ using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Models;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formandos.Models;
+using Backend.Business.Usuarios.Interfaces;
+using Backend.Business.Usuarios.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -29,6 +31,7 @@ public sealed class PropostaServiceTests
     private readonly IItemDaFestaRepository _itens = Substitute.For<IItemDaFestaRepository>();
     private readonly IDespesaRepository _despesas = Substitute.For<IDespesaRepository>();
     private readonly IPerfilRepository _perfis = Substitute.For<IPerfilRepository>();
+    private readonly IUsuarioRepository _usuarios = Substitute.For<IUsuarioRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
     private readonly ItemDaFesta _item = ItemDaFesta.Sugerido("Banda", CategoriaDeDespesa.Banda, 1);
@@ -39,12 +42,14 @@ public sealed class PropostaServiceTests
             .ObterTitular(Formatura, Usuario, Arg.Any<CancellationToken>())
             .Returns(new MembroDoPerfil(Vinculo, Usuario, "Ana", "ana@kapa.dev", "Formando"));
 
+        _usuarios.ObterDetalhe(Usuario, Arg.Any<CancellationToken>()).Returns(Conta(emailConfirmado: true));
+
         _itens.ObterParaEdicao(_item.Id, Arg.Any<CancellationToken>()).Returns(_item);
         _despesas.ExisteDoItemDaFesta(_item.Id, Arg.Any<CancellationToken>()).Returns(false);
     }
 
     private PropostaService Servico =>
-        new(_propostas, _itens, _despesas, _perfis, new DadosDaPropostaValidator(), _unitOfWork, NullLogger<PropostaService>.Instance);
+        new(_propostas, _itens, _despesas, _perfis, _usuarios, new DadosDaPropostaValidator(), _unitOfWork, NullLogger<PropostaService>.Instance);
 
     [Fact]
     public async Task Proposta_entra_no_item_a_contratar()
@@ -83,6 +88,22 @@ public sealed class PropostaServiceTests
 
         // Assert
         resultado.Erros[0].Codigo.ShouldBe("festa.disputa_encerrada");
+        await _propostas.DidNotReceive().AdicionarVoto(Arg.Any<VotoNaProposta>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>O link da turma aceita qualquer conta: sem e-mail provado, cada e-mail inventado seria um voto.</summary>
+    [Fact]
+    public async Task Sem_email_confirmado_nao_vota()
+    {
+        // Arrange
+        var proposta = Proposta();
+        _usuarios.ObterDetalhe(Usuario, Arg.Any<CancellationToken>()).Returns(Conta(emailConfirmado: false));
+
+        // Act
+        var resultado = await Servico.Votar(proposta.Id, Formatura, Usuario, Ct);
+
+        // Assert
+        resultado.Erros[0].Codigo.ShouldBe("festa.email_nao_confirmado");
         await _propostas.DidNotReceive().AdicionarVoto(Arg.Any<VotoNaProposta>(), Arg.Any<CancellationToken>());
     }
 
@@ -154,4 +175,7 @@ public sealed class PropostaServiceTests
 
         return proposta;
     }
+
+    private static UsuarioDetalhe Conta(bool emailConfirmado) =>
+        new(Usuario, "Ana", "ana@kapa.dev", emailConfirmado, true, [], DateTime.UtcNow, DateTime.UtcNow);
 }

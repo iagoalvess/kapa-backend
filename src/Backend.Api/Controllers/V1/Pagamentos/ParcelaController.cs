@@ -5,11 +5,9 @@ using Backend.Api.DTOs.Cobrancas;
 using Backend.Api.DTOs.Pagamentos;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
-using Backend.Business.Arquivos.Models;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Pagamentos.Interfaces;
 using Backend.Business.Pagamentos.Models;
-using Backend.Business.Pagamentos.Services;
 using Backend.Business.Recebimentos.Models;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
@@ -28,17 +26,19 @@ namespace Backend.Api.Controllers.V1.Pagamentos;
 /// estornar, só do Presidente. Toda escrita exige a turma ativa.
 /// </remarks>
 /// <param name="pagamentoService">Regras do pagamento.</param>
+/// <param name="tesourariaService">Baixa manual e estorno.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
 [ExigeModulo(Modulo.Cobrancas)]
 [Route("api/v{version:apiVersion}/parcelas")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuarioAtual usuarioAtual) : MainController
+public sealed class ParcelaController(IPagamentoService pagamentoService, ITesourariaService tesourariaService, IUsuarioAtual usuarioAtual)
+    : MainController
 {
     /// <summary>Uma parcela, com o valor de hoje. O dono, ou a gestão; para os demais, 404.</summary>
     /// <param name="id">Parcela.</param>
     [HttpGet("{id:guid}")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [ProducesResponseType(typeof(ParcelaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ObterParcela(Guid id, CancellationToken ct) =>
@@ -55,7 +55,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     /// </remarks>
     /// <param name="id">Parcela.</param>
     [HttpGet("{id:guid}/cobranca")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [ProducesResponseType(typeof(CobrancaDaParcelaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
@@ -73,7 +73,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     /// </remarks>
     /// <param name="parcelaIds">Parcelas que o pagamento vai cobrir.</param>
     [HttpGet("cobranca")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [ProducesResponseType(typeof(CobrancaDaParcelaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -97,7 +97,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     /// <param name="meio">Como pagou: <c>Pix</c>, <c>Transferencia</c>, <c>Dinheiro</c> ou <c>Outro</c>.</param>
     /// <param name="comprovante">PDF ou imagem, opcional em qualquer meio.</param>
     [HttpPost("{id:guid}/informes")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [Authorize(Policy = Politicas.ExigeFormaturaRecebendo)]
     [Consumes("multipart/form-data")]
     [RegistrarEvento("pagamento.informado", CamposDaRota = ["id"])]
@@ -121,7 +121,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
             usuarioAtual.Id,
             [id],
             new NovoInforme(pagoEm, valorEmCentavos, meio),
-            Comprovante(comprovante, conteudo),
+            comprovante.ParaNovoArquivo(conteudo),
             ct
         );
 
@@ -147,7 +147,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     /// <param name="meio">Como pagou: <c>Pix</c>, <c>Transferencia</c>, <c>Dinheiro</c> ou <c>Outro</c>.</param>
     /// <param name="comprovante">PDF ou imagem, opcional em qualquer meio.</param>
     [HttpPost("informes")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [Authorize(Policy = Politicas.ExigeFormaturaRecebendo)]
     [Consumes("multipart/form-data")]
     [RegistrarEvento("pagamento.informado")]
@@ -171,7 +171,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
             usuarioAtual.Id,
             parcelaIds ?? [],
             new NovoInforme(pagoEm, valorEmCentavos, meio),
-            Comprovante(comprovante, conteudo),
+            comprovante.ParaNovoArquivo(conteudo),
             ct
         );
 
@@ -205,13 +205,13 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     {
         await using var conteudo = comprovante?.OpenReadStream() ?? Stream.Null;
 
-        var resultado = await pagamentoService.BaixarManualmente(
+        var resultado = await tesourariaService.BaixarManualmente(
             FormaturaId,
             usuarioAtual.Id,
             usuarioAtual.EnderecoIp,
             id,
             new BaixaManual(forma, pagoEm, valorEmCentavos),
-            Comprovante(comprovante, conteudo),
+            comprovante.ParaNovoArquivo(conteudo),
             ct
         );
 
@@ -232,7 +232,7 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Estornar(Guid id, [FromBody] EstornarBaixaRequestDTO requisicao, CancellationToken ct)
     {
-        var resultado = await pagamentoService.Estornar(
+        var resultado = await tesourariaService.Estornar(
             FormaturaId,
             usuarioAtual.Id,
             usuarioAtual.EnderecoIp,
@@ -243,8 +243,4 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, IUsuar
 
         return Responder(resultado.Map(parcela => parcela.Adapt<ParcelaDTO>()));
     }
-
-    /// <summary>O comprovante do multipart como pedido de envio; ausente ou vazio, nenhum.</summary>
-    private static NovoArquivo? Comprovante(IFormFile? arquivo, Stream conteudo) =>
-        arquivo is { Length: > 0 } ? new NovoArquivo(arquivo.FileName, arquivo.Length, conteudo, PagamentoService.CategoriaDoComprovante) : null;
 }

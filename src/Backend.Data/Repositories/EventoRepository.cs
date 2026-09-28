@@ -20,9 +20,6 @@ public sealed class EventoRepository(AppDbContext db) : IEventoRepository
     /// <summary>As chaves do corpo que guardam uma parcela — que na tela vira o nome do dono dela.</summary>
     private static readonly string[] ChavesDeParcela = ["parcelaId"];
 
-    /// <summary>A janela do "recente" da faixa: um mês é o intervalo entre duas reuniões de comissão.</summary>
-    private const int DiasDoResumo = 30;
-
     /// <inheritdoc />
     /// <remarks>
     /// Diferente do resto do projeto, grava e persiste na mesma chamada. Não há o que compor:
@@ -43,18 +40,25 @@ public sealed class EventoRepository(AppDbContext db) : IEventoRepository
 
     /// <inheritdoc />
     /// <remarks>
-    /// Dois limites numa consulta só, e não duas passadas: os nomes de <see cref="NomesDeAuditoria"/>
-    /// obedecem ao limite longo e o resto ao curto (decisão 3 da Sprint 14). Sem o segundo limite o
-    /// comportamento é o de antes — um prazo para todo mundo.
+    /// Os nomes de <see cref="NomesDeAuditoria"/> obedecem ao limite longo e o resto ao curto (decisão 3
+    /// da Sprint 14). Sem o segundo limite o comportamento é o de antes — um prazo para todo mundo.
+    /// <para>
+    /// Duas passadas, uma por limite: a versão numa consulta só punha um <c>CASE</c> no <c>WHERE</c>, que
+    /// nenhum índice atende, e varria a maior tabela do banco inteira todo dia. Separadas, cada uma
+    /// corre pelo índice de <c>ocorrido_em</c>.
+    /// </para>
     /// </remarks>
-    public Task<int> RemoverAnterioresA(DateTime limiteUtc, DateTime? limiteDaAuditoriaUtc = null, CancellationToken ct = default)
+    public async Task<int> RemoverAnterioresA(DateTime limiteUtc, DateTime? limiteDaAuditoriaUtc = null, CancellationToken ct = default)
     {
         if (limiteDaAuditoriaUtc is not { } auditoria)
-            return db.Eventos.Where(e => e.OcorridoEm < limiteUtc).ExecuteDeleteAsync(ct);
+            return await db.Eventos.Where(e => e.OcorridoEm < limiteUtc).ExecuteDeleteAsync(ct);
 
         var auditaveis = NomesDeAuditoria.Todos;
 
-        return db.Eventos.Where(e => auditaveis.Contains(e.Nome) ? e.OcorridoEm < auditoria : e.OcorridoEm < limiteUtc).ExecuteDeleteAsync(ct);
+        var deUso = await db.Eventos.Where(e => e.OcorridoEm < limiteUtc && !auditaveis.Contains(e.Nome)).ExecuteDeleteAsync(ct);
+        var deAuditoria = await db.Eventos.Where(e => e.OcorridoEm < auditoria && auditaveis.Contains(e.Nome)).ExecuteDeleteAsync(ct);
+
+        return deUso + deAuditoria;
     }
 
     /// <inheritdoc />
@@ -70,7 +74,7 @@ public sealed class EventoRepository(AppDbContext db) : IEventoRepository
         CancellationToken ct = default
     )
     {
-        var consulta = DaFormatura(formaturaId, await FonteDaBusca(filtro.Busca, ct));
+        var consulta = DaFormatura(formaturaId, await FonteDaBusca(formaturaId, filtro.Busca, ct));
 
         if (filtro.De is { } de)
         {
@@ -140,20 +144,26 @@ public sealed class EventoRepository(AppDbContext db) : IEventoRepository
     /// O nome é comparado sem acento (como no resto do produto); o corpo, não — ele é texto de
     /// máquina, e quem procura "João" no título de um aviso digita o acento que está lá.
     /// </para>
+    /// <para>
+    /// As pessoas saem só de quem tem ou teve vínculo com a turma: procurar em toda a plataforma fazia
+    /// "a" trazer dezenas de milhares de ids, cada um virando um padrão do <c>ANY</c> sobre a trilha.
+    /// </para>
     /// </remarks>
+    /// <param name="formaturaId">Turma da trilha.</param>
     /// <param name="busca">O que a pessoa digitou.</param>
-    private async Task<IQueryable<Evento>?> FonteDaBusca(string? busca, CancellationToken ct)
+    private async Task<IQueryable<Evento>?> FonteDaBusca(Guid formaturaId, string? busca, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(busca))
             return null;
 
         var termo = Busca.Padrao(busca);
 
-        var pessoas = await db
-            .Users.AsNoTracking()
-            .Where(u => EF.Functions.ILike(EF.Functions.Unaccent(u.Nome), termo))
-            .Select(u => u.Id)
-            .ToArrayAsync(ct);
+        var pessoas = await (
+            from usuario in db.Users.AsNoTracking()
+            join vinculo in db.Vinculos.AsNoTracking() on usuario.Id equals vinculo.UsuarioId
+            where vinculo.FormaturaId == formaturaId && EF.Functions.ILike(EF.Functions.Unaccent(usuario.Nome), termo)
+            select usuario.Id
+        ).ToArrayAsync(ct);
 
         var parcelas =
             pessoas.Length == 0
@@ -258,12 +268,14 @@ public sealed class EventoRepository(AppDbContext db) : IEventoRepository
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A ordenação vem <b>antes</b> da projeção: ordenar pelo campo do record já construído não
+    /// traduz para SQL, e o EF Core recusa a consulta inteira em tempo de execução.
+    /// </remarks>
     public async Task<OpcoesDeAuditoria> OpcoesDeAuditoria(Guid formaturaId, CancellationToken ct = default)
     {
         var daTurma = DaFormatura(formaturaId);
 
-        // A ordenação vem **antes** da projeção: ordenar pelo campo do record já construído não
-        // traduz para SQL, e o EF Core recusa a consulta inteira em tempo de execução.
         var autores = await (
             from usuario in db.Users.AsNoTracking()
             where daTurma.Any(e => e.UsuarioId == usuario.Id)
@@ -288,7 +300,7 @@ public sealed class EventoRepository(AppDbContext db) : IEventoRepository
     /// aparece pelo marcador, sem a tabela de eventos precisar ser reescrita.
     /// </para>
     /// </remarks>
-    public async Task<ResumoDaAuditoria> ResumirAuditoria(Guid formaturaId, CancellationToken ct = default)
+    public async Task<ResumoDaAuditoria> ResumirAuditoria(Guid formaturaId, DateTime recentesDesde, CancellationToken ct = default)
     {
         var daTurma = DaFormatura(formaturaId);
 
@@ -297,9 +309,7 @@ public sealed class EventoRepository(AppDbContext db) : IEventoRepository
         if (total == 0)
             return new ResumoDaAuditoria(0, 0, null, null, null, null);
 
-        var desde = DateTime.UtcNow.AddDays(-DiasDoResumo);
-
-        var recentes = await daTurma.CountAsync(e => e.OcorridoEm >= desde, ct);
+        var recentes = await daTurma.CountAsync(e => e.OcorridoEm >= recentesDesde, ct);
 
         var ultima = await daTurma
             .OrderByDescending(e => e.OcorridoEm)

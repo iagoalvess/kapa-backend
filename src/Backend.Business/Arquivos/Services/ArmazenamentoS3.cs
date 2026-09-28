@@ -1,3 +1,4 @@
+using System.Net;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Backend.Business.Arquivos.Interfaces;
@@ -23,6 +24,11 @@ public sealed class ArmazenamentoS3(IAmazonS3 cliente, IOptions<ArmazenamentoSet
     private readonly S3Settings _settings = options.Value.S3;
 
     /// <inheritdoc />
+    /// <remarks>
+    /// O corpo vai sem assinatura (<c>UNSIGNED-PAYLOAD</c>), só o cabeçalho é assinado. A assinatura em
+    /// blocos, padrão do SDK, o Cloudflare R2 recusa com "not implemented"; a integridade do corpo fica
+    /// com o TLS, e o S3 da AWS aceita o mesmo pedido.
+    /// </remarks>
     public async Task GravarAsync(string chave, Stream conteudo, string contentType, CancellationToken ct = default)
     {
         var pedido = new PutObjectRequest
@@ -31,6 +37,7 @@ public sealed class ArmazenamentoS3(IAmazonS3 cliente, IOptions<ArmazenamentoSet
             Key = ComPrefixo(chave),
             InputStream = conteudo,
             ContentType = contentType,
+            DisablePayloadSigning = true,
         };
 
         await cliente.PutObjectAsync(pedido, ct);
@@ -49,7 +56,7 @@ public sealed class ArmazenamentoS3(IAmazonS3 cliente, IOptions<ArmazenamentoSet
 
             return resposta.ResponseStream;
         }
-        catch (AmazonS3Exception excecao) when (excecao.StatusCode == System.Net.HttpStatusCode.NotFound)
+        catch (AmazonS3Exception excecao) when (excecao.StatusCode == HttpStatusCode.NotFound)
         {
             throw new FileNotFoundException($"Objeto não encontrado: {chave}", chave, excecao);
         }
@@ -58,6 +65,32 @@ public sealed class ArmazenamentoS3(IAmazonS3 cliente, IOptions<ArmazenamentoSet
     /// <inheritdoc />
     public async Task RemoverAsync(string chave, CancellationToken ct = default) =>
         await cliente.DeleteObjectAsync(_settings.Bucket, ComPrefixo(chave), ct);
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Lista e apaga em lotes de até 1.000, o máximo de um <c>DeleteObjects</c>, até a listagem voltar
+    /// vazia. Prefixo vazio é recusado: com o prefixo do bucket vazio, apagaria o bucket inteiro. A barra
+    /// final impede que <c>formaturas/abc</c> leve junto <c>formaturas/abcd</c>.
+    /// </remarks>
+    public async Task RemoverPrefixoAsync(string prefixo, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefixo);
+
+        var pedido = new ListObjectsV2Request { BucketName = _settings.Bucket, Prefix = ComPrefixo(prefixo.TrimEnd('/')) + "/" };
+
+        while (true)
+        {
+            var pagina = await cliente.ListObjectsV2Async(pedido, ct);
+
+            if (pagina.S3Objects is not { Count: > 0 } objetos)
+                return;
+
+            await cliente.DeleteObjectsAsync(
+                new DeleteObjectsRequest { BucketName = _settings.Bucket, Objects = [.. objetos.Select(o => new KeyVersion { Key = o.Key })] },
+                ct
+            );
+        }
+    }
 
     /// <inheritdoc />
     /// <remarks>

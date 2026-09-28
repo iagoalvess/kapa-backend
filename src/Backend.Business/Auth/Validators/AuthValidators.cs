@@ -1,4 +1,5 @@
 using Backend.Business.Auth.Models;
+using Backend.Business.Common.Validacao;
 using Backend.Business.Legal.Models;
 using Backend.Business.Legal.Validators;
 using FluentValidation;
@@ -13,7 +14,7 @@ public sealed class CredenciaisValidator : AbstractValidator<Credenciais>
     /// <summary>Registra as regras de validação.</summary>
     public CredenciaisValidator()
     {
-        RuleFor(x => x.Email).NotEmpty().WithMessage("O e-mail é obrigatório.").EmailAddress().WithMessage("Informe um e-mail válido.");
+        RuleFor(x => x.Email).EmailObrigatorio();
 
         RuleFor(x => x.Senha).NotEmpty().WithMessage("A senha é obrigatória.");
     }
@@ -32,19 +33,9 @@ public sealed class RegistrarUsuarioValidator : AbstractValidator<RegistrarUsuar
     /// <summary>Registra as regras de validação.</summary>
     public RegistrarUsuarioValidator()
     {
-        RuleFor(x => x.Nome)
-            .NotEmpty()
-            .WithMessage("O nome é obrigatório.")
-            .MaximumLength(120)
-            .WithMessage("O nome deve ter no máximo 120 caracteres.");
+        RuleFor(x => x.Nome).NomeDaPessoa();
 
-        RuleFor(x => x.Email)
-            .NotEmpty()
-            .WithMessage("O e-mail é obrigatório.")
-            .EmailAddress()
-            .WithMessage("Informe um e-mail válido.")
-            .MaximumLength(256)
-            .WithMessage("O e-mail deve ter no máximo 256 caracteres.");
+        RuleFor(x => x.Email).EmailObrigatorio().MaximumLength(256).WithMessage("O e-mail deve ter no máximo 256 caracteres.");
 
         RuleFor(x => x.Senha).NotEmpty().WithMessage("A senha é obrigatória.");
 

@@ -11,7 +11,7 @@ namespace Backend.Data.Mappings;
 /// </summary>
 /// <remarks>
 /// O índice único <c>(formatura_id, gatilho, dias_de_deslocamento)</c> é a identidade do degrau: é
-/// por ele que a gravação da régua sabe o que atualizar, e é ele que impede dois D+3 na mesma turma.
+/// por ele que o degrau acha o texto em <c>ReguaDoKapa</c>, e é ele que impede dois D+3 na mesma turma.
 /// </remarks>
 public sealed class RegraDeNotificacaoMapping : IEntityTypeConfiguration<RegraDeNotificacao>
 {
@@ -24,8 +24,6 @@ public sealed class RegraDeNotificacaoMapping : IEntityTypeConfiguration<RegraDe
 
         builder.Property(r => r.Gatilho).HasConversion<string>().HasMaxLength(20);
         builder.Property(r => r.Canal).HasConversion<string>().HasMaxLength(20);
-        builder.Property(r => r.Assunto).IsRequired().HasMaxLength(150);
-        builder.Property(r => r.Template).IsRequired().HasMaxLength(2_000);
 
         builder
             .HasIndex(r => new

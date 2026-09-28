@@ -29,7 +29,7 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
     private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
 
     private static DadosDaFormaturaRequestDTO Dados(string nome = "Medicina 2027.1 — UFPR") =>
-        new(nome, "UFPR", "Medicina", DateTime.UtcNow.Year + 1, 1, 80);
+        new(nome, "UFPR", "Medicina", DateTime.UtcNow.Year + 1, 1);
 
     [Fact]
     public async Task Criar_grava_rascunho_com_vinculo_de_presidente_e_devolve_tokens_na_formatura()
@@ -99,11 +99,11 @@ public sealed class CriacaoDaFormaturaTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         cliente.ComToken((await cliente.RegistrarUsuarioComum(Ct)).AccessToken);
 
-        var resposta = await cliente.PostAsJsonAsync(Rota, new DadosDaFormaturaRequestDTO("AB", "", "", 1999, 3, 0), Ct);
+        var resposta = await cliente.PostAsJsonAsync(Rota, new DadosDaFormaturaRequestDTO("AB", "", "", 1999, 3), Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var corpo = await resposta.Content.ReadAsStringAsync(Ct);
-        foreach (var campo in new[] { "nome", "instituicao", "curso", "ano", "semestre", "quantidade_estimada_de_formandos" })
+        foreach (var campo in new[] { "nome", "instituicao", "curso", "ano", "semestre" })
             corpo.ShouldContain($"\"{campo}\"");
     }
 

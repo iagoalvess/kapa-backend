@@ -58,7 +58,7 @@ public sealed class EmailsDeConta(IEmailService emailService, IOptions<Aplicacao
                 + "Se não foi você quem pediu, ignore este e-mail — sua senha continua a mesma.",
             "Redefinir senha",
             link,
-            Mascote.Checklist
+            Mascote.Cadeado
         );
 
         await emailService.Enfileirar(new NovoEmail(usuario.Email!, $"Redefinição de senha — {_aplicacao.Nome}", corpo, EEmailPrioridade.Alta), ct);
@@ -73,7 +73,7 @@ public sealed class EmailsDeConta(IEmailService emailService, IOptions<Aplicacao
                 + "<strong>Se não foi você, procure o administrador imediatamente</strong> — alguém pode ter acesso à sua conta.",
             botao: null,
             link: null,
-            Mascote.Alerta
+            Mascote.Cadeado
         );
 
         await emailService.Enfileirar(new NovoEmail(usuario.Email!, $"Sua senha foi alterada — {_aplicacao.Nome}", corpo, EEmailPrioridade.Alta), ct);
@@ -85,5 +85,5 @@ public sealed class EmailsDeConta(IEmailService emailService, IOptions<Aplicacao
     private static string Texto(string? valor) => ModeloDeEmail.Texto(valor);
 
     private string Modelo(string titulo, string mensagem, string? botao, string? link, Mascote mascote) =>
-        ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, botao, link, mascote);
+        ModeloDeEmail.Montar(_aplicacao, titulo, mensagem, botao, link, mascote);
 }

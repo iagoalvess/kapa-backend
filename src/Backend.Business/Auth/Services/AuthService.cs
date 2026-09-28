@@ -39,6 +39,7 @@ public sealed class AuthService(
     IValidator<Credenciais> credenciaisValidator,
     IOptions<ContaSettings> contaOptions,
     IUnitOfWork unitOfWork,
+    TentativasDeSenha tentativas,
     ILogger<AuthService> logger
 ) : IAuthService
 {
@@ -76,6 +77,11 @@ public sealed class AuthService(
     /// Toda falha de login devolve a **mesma** mensagem, com o mesmo código: dizer "usuário não
     /// existe" versus "senha incorreta" transforma o endpoint em um verificador de quais e-mails
     /// têm conta. A distinção real vai só para o log.
+    /// <para>
+    /// Senha errada conta por conta <b>e origem</b> (<see cref="TentativasDeSenha"/>), inclusive para e-mail
+    /// que não existe — senão o bloqueio diria quem tem conta. O lockout do Identity continua respeitado
+    /// para o bloqueio que já estiver gravado, mas ninguém de fora tranca mais a conta de outra pessoa.
+    /// </para>
     /// </remarks>
     public async Task<Result<ParDeTokens>> Autenticar(Credenciais credenciais, string? ipDeOrigem, CancellationToken ct = default)
     {
@@ -84,11 +90,20 @@ public sealed class AuthService(
             return Result.Falha<ParDeTokens>(validacao.Erros);
 
         var emailMascarado = TextoUtils.MascararEmail(credenciais.Email);
+
+        if (tentativas.Bloqueada(credenciais.Email, ipDeOrigem))
+        {
+            QueimarTempoDeHash(credenciais.Senha);
+            logger.LogWarning("Login recusado para {Email}: tentativas demais desta origem.", emailMascarado);
+            return CredenciaisInvalidas;
+        }
+
         var usuario = await userManager.FindByEmailAsync(credenciais.Email.Trim());
 
         if (usuario is null)
         {
             QueimarTempoDeHash(credenciais.Senha);
+            tentativas.RegistrarFalha(credenciais.Email, ipDeOrigem);
             logger.LogInformation("Login recusado para {Email}: conta inexistente.", emailMascarado);
             return CredenciaisInvalidas;
         }
@@ -102,7 +117,7 @@ public sealed class AuthService(
 
         if (!await userManager.CheckPasswordAsync(usuario, credenciais.Senha))
         {
-            await userManager.AccessFailedAsync(usuario);
+            tentativas.RegistrarFalha(credenciais.Email, ipDeOrigem);
             logger.LogInformation("Login recusado para {Email}: senha incorreta.", emailMascarado);
             return CredenciaisInvalidas;
         }
@@ -119,7 +134,7 @@ public sealed class AuthService(
             return Erro.Proibido("auth.email_nao_confirmado", "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.");
         }
 
-        await userManager.ResetAccessFailedCountAsync(usuario);
+        tentativas.Limpar(credenciais.Email, ipDeOrigem);
 
         return await EmitirSessao(usuario, ipDeOrigem, formaturaId: null, papel: null, substituido: null, desligadoEm: null, ct);
     }
@@ -170,6 +185,8 @@ public sealed class AuthService(
     /// <para>
     /// A formatura da sessão sobrevive à rotação, mas é <b>reconferida</b>: perder o vínculo
     /// derruba a claim no token seguinte, em vez de o acesso durar até o refresh token expirar.
+    /// A reconferência é do titular, e não só do ativo: quem foi desligado mantém a claim para chegar
+    /// ao próprio extrato (P5 da Sprint 15). Quem foi removido perde a formatura na renovação seguinte.
     /// </para>
     /// </remarks>
     public async Task<Result<ParDeTokens>> Renovar(string refreshToken, string? ipDeOrigem, CancellationToken ct = default)
@@ -209,8 +226,6 @@ public sealed class AuthService(
             return SessaoInvalida;
         }
 
-        // Do titular, e não só do ativo: quem foi desligado mantém a claim para chegar ao próprio
-        // extrato (P5 da Sprint 15). Quem foi removido perde a formatura na renovação seguinte.
         var vinculo = armazenado.FormaturaId is null ? null : await vinculoRepository.ObterDoTitular(usuario.Id, armazenado.FormaturaId.Value, ct);
 
         var formaturaId = vinculo is null ? null : armazenado.FormaturaId;

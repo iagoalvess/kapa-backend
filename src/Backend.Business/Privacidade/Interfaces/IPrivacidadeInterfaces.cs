@@ -125,7 +125,7 @@ public interface IPrivacidadeRepository
     /// quem vai atrás dela é quem tem a chave PIX.
     /// </remarks>
     /// <param name="usuarioId">Titular.</param>
-    Task<IReadOnlyList<PresidenteParaAviso>> ListarPresidentesParaAviso(Guid usuarioId, CancellationToken ct = default);
+    Task<IReadOnlyList<PresidenteParaAviso>> ListarPresidentesParaAvisoDeTodasAsFormaturas(Guid usuarioId, CancellationToken ct = default);
 }
 
 /// <summary>

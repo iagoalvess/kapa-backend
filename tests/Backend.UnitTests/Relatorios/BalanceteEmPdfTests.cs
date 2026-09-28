@@ -36,6 +36,7 @@ public sealed class BalanceteEmPdfTests
     [InlineData("Medicina 2027")]
     [InlineData("Resumo do per")]
     [InlineData("Entradas por tipo de cobran")]
+    [InlineData("Outras receitas por categoria")]
     [InlineData("das por categoria")]
     [InlineData("das por fornecedor")]
     [InlineData("Como ler este documento")]
@@ -48,8 +49,22 @@ public sealed class BalanceteEmPdfTests
     /// <remarks>Quadro com cabeçalho e nada embaixo, projetado na parede, parece relatório quebrado.</remarks>
     [Fact]
     public void Periodo_sem_lancamento_avisa_em_vez_de_desenhar_tabela_vazia() =>
-        Texto(BalanceteEmPdf.Gerar(Balancete() with { Entradas = [], SaidasPorCategoria = [], SaidasPorFornecedor = [] }))
+        Texto(BalanceteEmPdf.Gerar(Balancete() with { Entradas = [], OutrasReceitas = [], SaidasPorCategoria = [], SaidasPorFornecedor = [] }))
             .ShouldContain("Nenhum lan");
+
+    /// <summary>A receita soma na entrada do período — é o que faz o balancete fechar com o caixa.</summary>
+    [Fact]
+    public void OutraReceita_soma_nas_entradas_do_periodo()
+    {
+        // Act
+        var balancete = Balancete();
+
+        // Assert
+        balancete.ParcelasEmCentavos.ShouldBe(91_000_00L);
+        balancete.OutrasReceitasEmCentavos.ShouldBe(12_000_00L);
+        balancete.EntradasEmCentavos.ShouldBe(103_000_00L);
+        balancete.SaldoDoPeriodoEmCentavos.ShouldBe(103_000_00L - 35_000_00L);
+    }
 
     /// <summary>O mesmo balancete gera os mesmos bytes: o <c>DocumentoPdf</c> não carimba data de criação.</summary>
     [Fact]
@@ -64,6 +79,7 @@ public sealed class BalanceteEmPdfTests
             "Rafael Costa Lima",
             new DateTime(2026, 9, 15, 12, 0, 0, DateTimeKind.Utc),
             [new LinhaDeBalancete("Mensalidade", 42, 84_000_00L), new LinhaDeBalancete("Adesão", 7, 7_000_00L)],
+            [new LinhaDeBalancete("Patrocínio", 2, 12_000_00L)],
             [new LinhaDeBalancete("Buffet", 3, 26_000_00L), new LinhaDeBalancete("Espaço", 1, 9_000_00L)],
             [new LinhaDeBalancete("Buffet Sabor", 3, 26_000_00L), new LinhaDeBalancete("Sem fornecedor", 1, 9_000_00L)],
             56_000_00L,

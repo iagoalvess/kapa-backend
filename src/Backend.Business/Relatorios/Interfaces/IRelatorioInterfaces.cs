@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Arquivos.Models;
 using Backend.Business.Relatorios.Models;
 
 namespace Backend.Business.Relatorios.Interfaces;
@@ -50,6 +51,18 @@ public interface IRelatorioService
     /// <param name="filtro">Recorte pedido, com o período já normalizado. O balancete só aceita o período.</param>
     Task<Result<TabelaDoRelatorio>> Tabela(Guid formaturaId, TipoDeRelatorio tipo, FiltroDoRelatorio filtro, CancellationToken ct = default);
 
+    /// <summary>
+    /// Um relatório em planilha do Excel (.xlsx), pronto para baixar — montado na própria requisição.
+    /// </summary>
+    /// <remarks>
+    /// Síncrono, e o PDF não: montar algumas centenas de linhas num XLSX é instantâneo — o que demora
+    /// é paginar e diagramar, e é por isso que só o PDF tem fila.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura da sessão — o nome dela vai no subtítulo.</param>
+    /// <param name="tipo">Qual relatório.</param>
+    /// <param name="filtro">Recorte pedido, com o período já normalizado. O balancete só aceita o período.</param>
+    Task<Result<ArquivoParaDownload>> Planilha(Guid formaturaId, TipoDeRelatorio tipo, FiltroDoRelatorio filtro, CancellationToken ct = default);
+
     /// <summary>Agenda o PDF de um relatório e devolve na hora.</summary>
     /// <param name="tipo">Qual relatório.</param>
     /// <param name="filtro">Recorte pedido, com o período já normalizado. Vai gravado, para o worker refazê-lo.</param>
@@ -76,7 +89,7 @@ public interface IRelatorioService
     /// </remarks>
     /// <param name="id">Solicitação.</param>
     /// <param name="solicitante">Quem está pedindo.</param>
-    Task<Result<Arquivos.Models.ArquivoParaDownload>> Baixar(Guid id, Guid solicitante, CancellationToken ct = default);
+    Task<Result<ArquivoParaDownload>> Baixar(Guid id, Guid solicitante, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -139,11 +152,15 @@ public interface IRelatorioRepository
     /// <param name="periodo">Intervalo do pagamento.</param>
     Task<IReadOnlyList<LinhaDeBalancete>> EntradasPorTipo(PeriodoDoRelatorio periodo, CancellationToken ct = default);
 
+    /// <summary>As receitas que não vêm de formando (Sprint 28) recebidas no período, por categoria.</summary>
+    /// <param name="periodo">Intervalo do recebimento.</param>
+    Task<IReadOnlyList<LinhaDeBalancete>> OutrasReceitasPorCategoria(PeriodoDoRelatorio periodo, CancellationToken ct = default);
+
     /// <summary>O que saiu no período, por categoria de despesa.</summary>
     /// <param name="periodo">Intervalo do pagamento.</param>
     Task<IReadOnlyList<LinhaDeBalancete>> SaidasPorCategoria(PeriodoDoRelatorio periodo, CancellationToken ct = default);
 
-    /// <summary>Entradas e saídas do período, só os totais.</summary>
+    /// <summary>Entradas (parcelas e receitas) e saídas do período, só os totais.</summary>
     /// <remarks>O balancete já soma os dele pelas linhas; isto é para o período anterior, da comparação.</remarks>
     /// <param name="periodo">Intervalo do pagamento.</param>
     Task<TotaisDoPeriodo> Totais(PeriodoDoRelatorio periodo, CancellationToken ct = default);

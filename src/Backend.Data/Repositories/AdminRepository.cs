@@ -26,36 +26,30 @@ public sealed class AdminRepository(AppDbContext db) : IAdminRepository
     /// administradores vão em mais duas. Três idas ao banco para uma tela chamada algumas vezes
     /// por dia não justifica a view materializada que a alternativa exigiria.
     /// </remarks>
-    public async Task<ResumoAdmin> ObterResumo(CancellationToken ct = default)
+    public async Task<ResumoAdmin> ObterResumo(DateTime agoraUtc, DateTime cadastradosDesde, CancellationToken ct = default)
     {
-        var agora = DateTime.UtcNow;
-        var limiteDeCadastro = agora.AddDays(-30);
-
         var usuarios = await db
             .Users.GroupBy(_ => 1)
             .Select(grupo => new
             {
                 Total = grupo.LongCount(),
                 Ativos = grupo.LongCount(u => u.Ativo),
-                Recentes = grupo.LongCount(u => u.CriadoEm >= limiteDeCadastro),
+                Recentes = grupo.LongCount(u => u.CriadoEm >= cadastradosDesde),
             })
             .SingleOrDefaultAsync(ct);
 
-        var administradores = await ConsultarAdministradoresAtivos().LongCountAsync(ct);
+        var administradores = await UsuarioRepository.AdministradoresAtivos(db).LongCountAsync(ct);
 
-        var sessoesAtivas = await db.RefreshTokens.CountAsync(t => t.RevogadoEm == null && t.ExpiraEm > agora, ct);
+        var sessoesAtivas = await db.RefreshTokens.CountAsync(t => t.RevogadoEm == null && t.ExpiraEm > agoraUtc, ct);
 
         var total = usuarios?.Total ?? 0;
         var ativos = usuarios?.Ativos ?? 0;
 
-        return new ResumoAdmin(total, ativos, total - ativos, administradores, sessoesAtivas, usuarios?.Recentes ?? 0, agora);
+        return new ResumoAdmin(total, ativos, total - ativos, administradores, sessoesAtivas, usuarios?.Recentes ?? 0, agoraUtc);
     }
 
     /// <inheritdoc />
-    public Task<int> ContarAdministradoresAtivos(CancellationToken ct = default) => ConsultarAdministradoresAtivos().CountAsync(ct);
-
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<TurmaEncontrada>> BuscarTurmas(string termo, int limite, CancellationToken ct = default)
+    public async Task<IReadOnlyList<TurmaEncontrada>> BuscarTurmasDeTodasAsFormaturas(string termo, int limite, CancellationToken ct = default)
     {
         var padrao = Busca.Padrao(termo);
 
@@ -84,7 +78,7 @@ public sealed class AdminRepository(AppDbContext db) : IAdminRepository
     /// O e-mail é comparado sem <c>unaccent</c>: endereço não tem acento, e passar a coluna pela
     /// função tiraria dela qualquer chance de índice.
     /// </remarks>
-    public async Task<IReadOnlyList<UsuarioEncontrado>> BuscarUsuarios(string termo, int limite, CancellationToken ct = default)
+    public async Task<IReadOnlyList<UsuarioEncontrado>> BuscarUsuariosDeTodasAsFormaturas(string termo, int limite, CancellationToken ct = default)
     {
         var padrao = Busca.Padrao(termo);
 
@@ -112,7 +106,7 @@ public sealed class AdminRepository(AppDbContext db) : IAdminRepository
     /// materializar e mascarado aqui, na borda de leitura — o painel nunca vê o número inteiro.
     /// </para>
     /// </remarks>
-    public async Task<TurmaNoSuporte?> ObterTurma(Guid formaturaId, CancellationToken ct = default)
+    public async Task<TurmaNoSuporte?> ObterTurmaDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default)
     {
         var turma = await (
             from f in db.Formaturas.AsNoTracking()
@@ -222,7 +216,7 @@ public sealed class AdminRepository(AppDbContext db) : IAdminRepository
     }
 
     /// <inheritdoc />
-    public async Task<UsuarioNoSuporte?> ObterUsuario(Guid usuarioId, CancellationToken ct = default)
+    public async Task<UsuarioNoSuporte?> ObterUsuarioDeTodasAsFormaturas(Guid usuarioId, CancellationToken ct = default)
     {
         var conta = await db
             .Users.AsNoTracking()
@@ -272,11 +266,4 @@ public sealed class AdminRepository(AppDbContext db) : IAdminRepository
             vinculos
         );
     }
-
-    private IQueryable<Usuario> ConsultarAdministradoresAtivos() =>
-        from usuario in db.Users.AsNoTracking()
-        join vinculo in db.UserRoles on usuario.Id equals vinculo.UserId
-        join perfil in db.Roles on vinculo.RoleId equals perfil.Id
-        where perfil.Name == PerfisPadrao.Administrador && usuario.Ativo
-        select usuario;
 }

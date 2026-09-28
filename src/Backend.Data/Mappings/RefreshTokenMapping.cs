@@ -28,6 +28,8 @@ public sealed class RefreshTokenMapping : IEntityTypeConfiguration<RefreshToken>
         builder.HasIndex(t => t.TokenHash).IsUnique();
 
         builder.HasIndex(t => new { t.UsuarioId, t.RevogadoEm });
+        builder.HasIndex(t => t.ExpiraEm);
+        builder.HasIndex(t => t.RevogadoEm);
 
         builder.HasOne<Usuario>().WithMany().HasForeignKey(t => t.UsuarioId).OnDelete(DeleteBehavior.Cascade);
     }

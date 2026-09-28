@@ -1,4 +1,6 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Interfaces;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common;
@@ -40,6 +42,7 @@ public sealed class ReguaServiceTests
     private readonly IParcelaRepository _parcelas = Substitute.For<IParcelaRepository>();
     private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
     private readonly ICanalDeNotificacao _canal = Substitute.For<ICanalDeNotificacao>();
+    private readonly IAssinaturaRepository _assinaturas = Substitute.For<IAssinaturaRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
     public ReguaServiceTests()
@@ -65,21 +68,14 @@ public sealed class ReguaServiceTests
             _parcelas,
             _vinculos,
             _canal,
+            _assinaturas,
             Options.Create(new AplicacaoSettings { Nome = "Kapa", UrlDoFrontend = "https://kapa.dev" }),
             _unitOfWork,
             NullLogger<ReguaService>.Instance
         );
 
-    private static RegraResumo Degrau(int dias, bool ativa = true, bool avisarTesouraria = false) =>
-        new(
-            dias == 3 ? RegraDeTresDias : Guid.CreateVersion7(),
-            GatilhoDaRegua.Vencimento,
-            dias,
-            "Parcela em atraso — {formatura}",
-            "Oi, {nome}. São {valor}, com vencimento em {vencimento}.",
-            ativa,
-            avisarTesouraria
-        );
+    private static RegraResumo Degrau(int dias, bool ativa = true) =>
+        new(dias == 3 ? RegraDeTresDias : Guid.CreateVersion7(), GatilhoDaRegua.Vencimento, dias, ativa);
 
     private static ParcelaParaCobranca Parcela(Guid vinculoId, int diaDoVencimento, string descricao) =>
         new(Guid.CreateVersion7(), vinculoId, "Júlia Prado", "julia@turma.dev", new DateOnly(2026, 9, diaDoVencimento), 35_000, descricao);
@@ -95,6 +91,25 @@ public sealed class ReguaServiceTests
                 .Where(chamada => chamada.GetMethodInfo().Name == nameof(INotificacaoRepository.AdicionarEnvios))
                 .SelectMany(chamada => (IReadOnlyList<NotificacaoEnviada>)chamada.GetArguments()[0]!),
         ];
+
+    /// <summary>A régua é do módulo Avisos: turma sem ele no plano não entra na rodada.</summary>
+    [Fact]
+    public async Task So_a_turma_com_avisos_no_plano_entra_na_regua()
+    {
+        var premium = new FormaturaParaRegua(Guid.CreateVersion7(), "Premium");
+        var essencial = new FormaturaParaRegua(Guid.CreateVersion7(), "Essencial");
+        _notificacoes.ListarFormaturasAtivasDeTodasAsFormaturas(Arg.Any<CancellationToken>()).Returns([premium, essencial]);
+        _assinaturas
+            .ObterPlanoVigenteDeTodasAsFormaturas(premium.Id, Arg.Any<CancellationToken>())
+            .Returns(new Plano { Modulos = [Modulo.Cobrancas, Modulo.Avisos] });
+        _assinaturas
+            .ObterPlanoVigenteDeTodasAsFormaturas(essencial.Id, Arg.Any<CancellationToken>())
+            .Returns(new Plano { Modulos = [Modulo.Cobrancas] });
+
+        var formaturas = await Servico.ListarFormaturas(Ct);
+
+        formaturas.ShouldHaveSingleItem().ShouldBe(premium);
+    }
 
     [Fact]
     public async Task Fora_da_janela_a_rodada_nao_toca_em_nada()
@@ -181,7 +196,7 @@ public sealed class ReguaServiceTests
 
         await _notificacoes
             .Received(1)
-            .AdicionarRegras(Arg.Is<IReadOnlyList<RegraDeNotificacao>>(regras => regras.Count == RegraDeNotificacao.Padrao().Count), Ct);
+            .AdicionarRegras(Arg.Is<IReadOnlyList<RegraDeNotificacao>>(regras => regras.Count == ReguaDoKapa.Degraus.Count), Ct);
     }
 
     [Fact]
@@ -194,13 +209,15 @@ public sealed class ReguaServiceTests
         await _canal.DidNotReceiveWithAnyArgs().Enviar(default!, Ct);
     }
 
-    /// <summary>O degrau marcado manda um resumo — um por membro da tesouraria —, e não uma cópia por parcela.</summary>
+    /// <summary>O D+30 manda um resumo — um por membro da tesouraria —, e não uma cópia por parcela.</summary>
     [Fact]
-    public async Task O_degrau_marcado_avisa_a_tesouraria_com_um_resumo()
+    public async Task O_d30_avisa_a_tesouraria_com_um_resumo()
     {
-        _notificacoes.ListarRegras(Arg.Any<CancellationToken>()).Returns([Degrau(3, avisarTesouraria: true)]);
+        _notificacoes.ListarRegras(Arg.Any<CancellationToken>()).Returns([Degrau(30)]);
         _vinculos.ListarEmailsDaTesouraria(Formatura.Id, Arg.Any<CancellationToken>()).Returns(["tesouraria@turma.dev"]);
-        ComParcelas(Parcela(Guid.CreateVersion7(), 12, "Mensalidade 1"), Parcela(Guid.CreateVersion7(), 12, "Mensalidade 2"));
+        _notificacoes
+            .ListarParaCobranca(new DateOnly(2026, 8, 16), Arg.Any<CancellationToken>())
+            .Returns([Parcela(Guid.CreateVersion7(), 16, "Mensalidade 1"), Parcela(Guid.CreateVersion7(), 16, "Mensalidade 2")]);
 
         await Servico.Executar(Formatura, DentroDaJanela, Ct);
 
@@ -211,7 +228,7 @@ public sealed class ReguaServiceTests
             .Where(m => m.Para == "tesouraria@turma.dev")
             .ToList();
 
-        paraTesouraria.Count.ShouldBe(1);
+        paraTesouraria.ShouldHaveSingleItem().Assunto.ShouldBe("Parcelas com 30 dias de atraso");
         EnviosGravados().Count(e => e.ParcelaId is null).ShouldBe(1);
     }
 

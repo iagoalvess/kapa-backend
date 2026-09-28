@@ -12,6 +12,12 @@ public sealed record PaginacaoRequest
     /// <summary>Teto de itens por página aceito pela API.</summary>
     public const int TamanhoMaximo = 100;
 
+    /// <summary>
+    /// Teto da página: acima dele o deslocamento (<see cref="Pular"/>) estoura o <c>int</c>, vira
+    /// negativo e o banco recusa a consulta — um 503 por um número na query string.
+    /// </summary>
+    public const int PaginaMaxima = int.MaxValue / TamanhoMaximo;
+
     /// <summary>Página desejada, começando em 1.</summary>
     public int Pagina { get; init; } = 1;
 
@@ -32,10 +38,15 @@ public sealed record PaginacaoRequest
     public bool Descendente { get; init; }
 
     /// <summary>Devolve uma cópia com página e tamanho dentro dos limites aceitos.</summary>
-    public PaginacaoRequest Normalizar() => this with { Pagina = Math.Max(1, Pagina), Tamanho = Math.Clamp(Tamanho, 1, TamanhoMaximo) };
+    public PaginacaoRequest Normalizar() =>
+        this with
+        {
+            Pagina = Math.Clamp(Pagina, 1, PaginaMaxima),
+            Tamanho = Math.Clamp(Tamanho, 1, TamanhoMaximo),
+        };
 
     /// <summary>Quantidade de registros a pular. Use sobre uma instância já normalizada.</summary>
-    public int Pular => (Math.Max(1, Pagina) - 1) * Math.Clamp(Tamanho, 1, TamanhoMaximo);
+    public int Pular => (Math.Clamp(Pagina, 1, PaginaMaxima) - 1) * Math.Clamp(Tamanho, 1, TamanhoMaximo);
 }
 
 /// <summary>

@@ -100,6 +100,15 @@ public sealed record PlanoDeCobrancaDetalhe(
 /// <param name="EncerradoEm">Quando deixou de cobrar, se deixou.</param>
 /// <param name="EmUso">Já gerou parcela: não pode ser removido, só encerrado, e só o valor muda.</param>
 /// <param name="OrigemDaDecisao">Onde a turma decidiu, se o item foi um rateio extraordinário.</param>
+/// <param name="Opcional">Item opcional: só cobra quem pedir, e o valor é o preço unitário.</param>
+/// <param name="LimitePorFormando">Cota por pessoa, no item opcional.</param>
+/// <param name="PedidosAteDia">Último dia para pedir, no item opcional.</param>
+/// <param name="Estoque">Unidades existentes; nulo, sem teto.</param>
+/// <param name="Reservados">Unidades já pedidas.</param>
+/// <param name="AberturaDeVendas">A partir de quando se pode pedir.</param>
+/// <param name="ItemDaFestaId">O item da festa que este item vende (decisão 11).</param>
+/// <param name="ModoDeVenda">Vitrine do formando ou loja pública (Sprint 26).</param>
+/// <param name="PrecoPublicoEmCentavos">Preço na loja, se diferente do do formando.</param>
 public sealed record ItemDeCobrancaDetalhe(
     Guid Id,
     TipoDeCobranca Tipo,
@@ -110,8 +119,47 @@ public sealed record ItemDeCobrancaDetalhe(
     DateOnly PrimeiroMes,
     DateOnly? EncerradoEm,
     bool EmUso,
-    string? OrigemDaDecisao
-);
+    string? OrigemDaDecisao,
+    bool Opcional = false,
+    int? LimitePorFormando = null,
+    DateOnly? PedidosAteDia = null,
+    int? Estoque = null,
+    int Reservados = 0,
+    DateTime? AberturaDeVendas = null,
+    Guid? ItemDaFestaId = null,
+    ModoDeVenda ModoDeVenda = ModoDeVenda.AoFormando,
+    long? PrecoPublicoEmCentavos = null
+)
+{
+    /// <summary>
+    /// O item como a tela da tesouraria o lê — um lugar só, para campo novo não sair com o valor padrão em
+    /// quem montava o registro posicionalmente (armadilha da Sprint 20).
+    /// </summary>
+    /// <param name="item">Item.</param>
+    /// <param name="emUso">Já gerou parcela.</param>
+    public static ItemDeCobrancaDetalhe De(ItemDeCobranca item, bool emUso) =>
+        new(
+            item.Id,
+            item.Tipo,
+            item.Descricao,
+            item.ValorEmCentavos,
+            item.NumeroDeParcelas,
+            item.DiaDeVencimento,
+            item.PrimeiroMes,
+            item.EncerradoEm,
+            emUso,
+            item.OrigemDaDecisao,
+            item.Opcional,
+            item.LimitePorFormando,
+            item.PedidosAteDia,
+            item.Estoque,
+            item.Reservados,
+            item.AberturaDeVendas,
+            item.ItemDaFestaId,
+            item.ModoDeVenda,
+            item.PrecoPublicoEmCentavos
+        );
+}
 
 /// <summary>Pedido de simulação.</summary>
 /// <param name="Itens">Itens a simular — os do formulário, ainda não gravados. Ausente, simula os itens gravados.</param>
@@ -152,6 +200,10 @@ public sealed record FiltroDeParcelas(
 /// <param name="VinculoId">Vínculo de quem deve — é o que liga a parcela às regras aceitas na adesão.</param>
 /// <param name="UsuarioId">Formando que deve.</param>
 /// <param name="Nome">Nome civil, se informado no cadastro; senão, o da conta.</param>
+/// <param name="ItemDeCobrancaId">
+/// Item de origem. É o que deixa a tela agrupar as parcelas de um pedido sem adivinhar pelo rótulo
+/// — "Convite (mesa)" e "convite extra" são dois textos e um item só.
+/// </param>
 /// <param name="Tipo">Tipo do item de origem.</param>
 /// <param name="Descricao">Descrição do item de origem, se houver.</param>
 /// <param name="Numero">Posição na grade do item.</param>
@@ -163,11 +215,16 @@ public sealed record FiltroDeParcelas(
 /// <param name="ValorPagoEmCentavos">O que entrou, se paga.</param>
 /// <param name="PagoEm">Dia em que entrou, se paga.</param>
 /// <param name="ValorDoDia">O valor de hoje, com encargos ou desconto — só na aberta e na vencida.</param>
+/// <param name="RecebimentoId">
+/// A última baixa que vale — o recibo que a linha abre (Sprint 22). Nula sem baixa ativa; na parcela
+/// quitada em partes, as anteriores chegam pelo e-mail de confirmação de cada uma.
+/// </param>
 public sealed record ParcelaResumo(
     Guid Id,
     Guid VinculoId,
     Guid UsuarioId,
     string Nome,
+    Guid ItemDeCobrancaId,
     TipoDeCobranca Tipo,
     string? Descricao,
     int Numero,
@@ -178,19 +235,25 @@ public sealed record ParcelaResumo(
     bool EmConferencia = false,
     long? ValorPagoEmCentavos = null,
     DateOnly? PagoEm = null,
-    ValorDoDia? ValorDoDia = null
+    ValorDoDia? ValorDoDia = null,
+    Guid? RecebimentoId = null
 )
 {
     /// <summary>Se ainda se deve: aberta ou vencida.</summary>
     public bool EmAberto => Status is StatusDaParcela.Aberta or StatusDaParcela.Vencida;
 
     /// <summary>A mesma parcela com o valor do dia calculado — nulo se não está em aberto.</summary>
+    /// <remarks>
+    /// Abate o que já entrou em pagamentos parciais, como <c>Parcela.ValorDoDiaEm</c>: sem isso o
+    /// extrato, a "próxima a pagar" e o PIX pediam o valor cheio de quem já tinha pago metade — e o
+    /// formando pagava de novo.
+    /// </remarks>
     /// <param name="dia">Dia de referência.</param>
     /// <param name="regras">Regras aceitas na adesão.</param>
     public ParcelaResumo ComValorDoDia(DateOnly dia, RegrasDeAtraso regras) =>
         this with
         {
-            ValorDoDia = EmAberto ? ValorDoDia.Calcular(ValorOriginalEmCentavos, Vencimento, dia, regras) : null,
+            ValorDoDia = EmAberto ? ValorDoDia.Calcular(ValorOriginalEmCentavos, Vencimento, dia, regras, ValorPagoEmCentavos ?? 0) : null,
         };
 }
 

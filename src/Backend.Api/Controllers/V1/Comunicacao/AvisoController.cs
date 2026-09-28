@@ -100,7 +100,7 @@ public sealed class AvisoController(IAvisoService avisoService, IUsuarioAtual us
     {
         var resultado = await avisoService.Publicar(FormaturaId, usuarioAtual.Id, Dados(requisicao), ct);
 
-        return Criado(resultado.Map(aviso => aviso.Adapt<AvisoDTO>()), RotaDoAviso, new { id = resultado.Sucesso ? resultado.Valor.Id : Guid.Empty });
+        return Criado(resultado.Map(aviso => aviso.Adapt<AvisoDTO>()), RotaDoAviso, dto => dto.Id);
     }
 
     /// <summary>Corrige um aviso. Autor e data de publicação ficam.</summary>

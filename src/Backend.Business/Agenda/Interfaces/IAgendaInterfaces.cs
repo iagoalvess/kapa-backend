@@ -66,6 +66,11 @@ public interface IEventoDaTurmaRepository
     /// <param name="hoje">Dia de hoje no fuso da turma.</param>
     Task<int> ContarDaqui(DateOnly hoje, CancellationToken ct = default);
 
+    /// <summary>O evento único de um tipo — a festa, a colação —; nulo se a turma ainda não o marcou.</summary>
+    /// <remarks>É como o convite da festa acha o que imprimir (Sprint 21, P6).</remarks>
+    /// <param name="tipo">Tipo único.</param>
+    Task<EventoResumo?> ObterDoTipo(TipoDeEvento tipo, CancellationToken ct = default);
+
     /// <summary>O evento rastreado para alteração; nulo se não existir aqui.</summary>
     /// <param name="id">Evento.</param>
     Task<EventoDaTurma?> ObterParaEdicao(Guid id, CancellationToken ct = default);

@@ -40,6 +40,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>Segredo do HMAC do webhook de assinatura nos testes.</summary>
     public const string SegredoDoWebhook = "segredo-do-webhook-de-teste";
 
+    /// <summary>Segredo do HMAC do convite da festa — fixo, como o de produção: o convite sobrevive ao reinício.</summary>
+    public const string SegredoDoConvite = "ZmVzdGEtZGUtdGVzdGUtY29tLTMyLWJ5dGVzLW91LW1haXM=";
+
     /// <summary>Chave AES dos testes, para conferir a cifra decifrando direto da coluna.</summary>
     public const string ChaveDeDados = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
 
@@ -121,7 +124,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     }
 
     /// <inheritdoc />
-    protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.UseEnvironment("Testing");
+    /// <remarks>
+    /// A rajada da entrada vai por <c>UseSetting</c>, e não pelo dicionário de <see cref="CreateHost"/>:
+    /// lá ela ganharia do <c>UseSetting</c> de um host apertado, e o teste do limite não conseguiria
+    /// baixá-la. Aqui, o <c>WithWebHostBuilder</c> do teste roda depois e sobrescreve.
+    /// </remarks>
+    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+        builder.UseEnvironment("Testing").UseSetting("RateLimit:EntradaRajada", "100000").UseSetting("RateLimit:IngressoRajada", "100000");
 
     /// <summary>
     /// Injeta a configuração do teste **antes** de o host da aplicação ser construído.
@@ -147,6 +156,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     ["Jwt:MinutosDeValidadeDoAccessToken"] = "15",
                     ["Jwt:DiasDeValidadeDoRefreshToken"] = "7",
                     ["Criptografia:ChaveDeDados"] = ChaveDeDados,
+                    ["Festa:SegredoDoConvite"] = SegredoDoConvite,
                     ["RateLimit:PadraoPorMinuto"] = "100000",
                     ["RateLimit:AutenticacaoPorMinuto"] = "100000",
                     ["RateLimit:CodigoPorMinuto"] = "100000",
@@ -194,6 +204,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 {
                     ["ConnectionStrings:Postgres"] = _postgres.GetConnectionString(),
                     ["Criptografia:ChaveDeDados"] = ChaveDeDados,
+                    ["Festa:SegredoDoConvite"] = SegredoDoConvite,
                     ["Jwt:ChaveSecreta"] = "chave-de-teste-com-mais-de-32-caracteres-ok",
                     ["Aplicacao:Nome"] = "Kapa",
                     ["Aplicacao:UrlDoFrontend"] = "https://kapa.testes",

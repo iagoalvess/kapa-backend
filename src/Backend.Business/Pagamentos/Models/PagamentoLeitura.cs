@@ -69,10 +69,49 @@ public sealed record ResultadoDaConferencia(int Confirmados, int Ignorados);
 public sealed record ExtratoDoFormando(long EmAbertoEmCentavos, ParcelaResumo? Proxima, IReadOnlyList<ParcelaResumo> Parcelas);
 
 /// <summary>O PIX pronto para pagar, montado na hora e não gravado.</summary>
+/// <remarks>
+/// O titular, o documento e a conferência vão ao lado do QR (Sprint 22, decisão 7): é a última
+/// barreira barata contra a chave trocada. A troca de chave zera <see cref="ConferidaEm"/>, e o aviso
+/// de conta não conferida volta sozinho à tela do formando.
+/// </remarks>
 /// <param name="CopiaECola">O BR Code, que a tela transforma em QR.</param>
 /// <param name="Chave">Chave da comissão.</param>
 /// <param name="NomeDoTitular">O nome que o banco vai mostrar.</param>
-public sealed record PixParaPagar(string CopiaECola, string Chave, string NomeDoTitular);
+/// <param name="DocumentoDoTitular">CPF mascarado ou CNPJ, quando é esse o tipo da chave; nulo nos demais.</param>
+/// <param name="ConferidaEm">Quando o Presidente conferiu a titularidade, em UTC. Nulo: a conferir.</param>
+public sealed record PixParaPagar(string CopiaECola, string Chave, string NomeDoTitular, string? DocumentoDoTitular, DateTime? ConferidaEm);
+
+/// <summary>
+/// Tudo o que o recibo imprime, lido de uma vez: o recebimento, a parcela, quem pagou, quem baixou e a turma.
+/// </summary>
+/// <param name="RecebimentoId">Recebimento — é também o número do recibo.</param>
+/// <param name="FormaturaId">Turma.</param>
+/// <param name="Turma">Nome da turma, que é quem recebeu.</param>
+/// <param name="Instituicao">Instituição da turma.</param>
+/// <param name="Parcela">A parcela baixada, com o nome de quem paga.</param>
+/// <param name="Cpf">CPF de quem paga, do cadastro; nulo se ele não informou.</param>
+/// <param name="Forma">Como o dinheiro chegou.</param>
+/// <param name="ValorEmCentavos">O que entrou.</param>
+/// <param name="DevidoEmCentavos">O valor do dia do pagamento.</param>
+/// <param name="PagoEm">Dia em que o dinheiro entrou.</param>
+/// <param name="BaixadoPor">Nome de quem confirmou.</param>
+/// <param name="BaixadoEm">Quando confirmou, em UTC.</param>
+/// <param name="Estornado">Se a baixa foi desfeita.</param>
+public sealed record DadosDoRecibo(
+    Guid RecebimentoId,
+    Guid FormaturaId,
+    string Turma,
+    string Instituicao,
+    ParcelaResumo Parcela,
+    string? Cpf,
+    FormaDePagamento Forma,
+    long ValorEmCentavos,
+    long DevidoEmCentavos,
+    DateOnly PagoEm,
+    string BaixadoPor,
+    DateTime BaixadoEm,
+    bool Estornado
+);
 
 /// <summary>Um meio que a turma aceita, com o que a tela do formando precisa mostrar.</summary>
 /// <remarks>
@@ -86,6 +125,11 @@ public sealed record PixParaPagar(string CopiaECola, string Chave, string NomeDo
 /// <param name="Instrucao">Com quem falar, em dinheiro.</param>
 public sealed record MeioDaCobranca(MeioDeRecebimento Meio, PixParaPagar? Pix, DadosBancarios? Transferencia, string? Instrucao);
 
+/// <summary>Um meio do Mercado Pago da turma, com o que a tela precisa mostrar — baixa sozinho, sem aviso.</summary>
+/// <param name="Meio">Qual é o meio.</param>
+/// <param name="Pix">O PIX pronto, só em <see cref="MeioDePagamento.Pix"/>.</param>
+public sealed record PagamentoPeloMercadoPago(MeioDePagamento Meio, PixDinamicoParaPagar? Pix);
+
 /// <summary>
 /// A cobrança de uma parcela — ou de várias no mesmo pagamento: quanto, e por onde a turma aceita.
 /// </summary>
@@ -95,8 +139,14 @@ public sealed record MeioDaCobranca(MeioDeRecebimento Meio, PixParaPagar? Pix, D
 /// </remarks>
 /// <param name="ValorEmCentavos">O valor do dia, somado quando são várias parcelas.</param>
 /// <param name="Identificador">O identificador da parcela no PIX.</param>
-/// <param name="Meios">Os meios habilitados, ao menos um.</param>
-public sealed record CobrancaDaParcela(long ValorEmCentavos, string Identificador, IReadOnlyList<MeioDaCobranca> Meios);
+/// <param name="PeloMercadoPago">Os meios do Mercado Pago da turma, de <see cref="MeiosDePagamento.Ligados"/>; vazio sem conexão.</param>
+/// <param name="Meios">Os meios que a comissão habilitou.</param>
+public sealed record CobrancaDaParcela(
+    long ValorEmCentavos,
+    string Identificador,
+    IReadOnlyList<PagamentoPeloMercadoPago> PeloMercadoPago,
+    IReadOnlyList<MeioDaCobranca> Meios
+);
 
 /// <summary>Um informe na fila da tesouraria.</summary>
 /// <param name="Id">Identificador.</param>

@@ -2,7 +2,7 @@ using System.Buffers.Text;
 using System.Globalization;
 using System.Security.Cryptography;
 using Backend.Business.Abstractions;
-using Backend.Business.Assinaturas.Interfaces;
+using Backend.Business.Assinaturas.Services;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
 using Backend.Business.Common;
@@ -13,6 +13,7 @@ using Backend.Business.Convites.Models;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
 using Backend.Business.Emails.Services;
+using Backend.Business.Festa.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Legal.Models;
@@ -28,7 +29,7 @@ namespace Backend.Business.Convites.Services;
 /// <param name="conviteRepository">Convites e aceites.</param>
 /// <param name="vinculoRepository">Vínculos, para o papel do autor, o do convidado e a lotação da turma.</param>
 /// <param name="formaturaRepository">A turma do convite, para o nome e o status.</param>
-/// <param name="assinaturaRepository">O plano contratado, de onde vem o limite de formandos.</param>
+/// <param name="vagas">As vagas do plano, conferidas na criação e no aceite.</param>
 /// <param name="usuarioRepository">E-mail da conta que aceita o convite nominal.</param>
 /// <param name="authService">Emissão da sessão dentro da turma nova.</param>
 /// <param name="tokenService">Hash do token, o mesmo do refresh token.</param>
@@ -40,7 +41,8 @@ public sealed class ConviteService(
     IConviteRepository conviteRepository,
     IVinculoRepository vinculoRepository,
     IFormaturaRepository formaturaRepository,
-    IAssinaturaRepository assinaturaRepository,
+    VagasDoPlano vagas,
+    EmissaoDeConvites convitesDoEvento,
     IUsuarioRepository usuarioRepository,
     IAuthService authService,
     ITokenService tokenService,
@@ -50,9 +52,6 @@ public sealed class ConviteService(
     IUnitOfWork unitOfWork
 ) : IConviteService
 {
-    /// <summary>Caminho da tela de aceite no front-end (<c>ROTAS.convite</c>), com o token no fim.</summary>
-    private const string CaminhoDoConvite = "/convite/";
-
     /// <summary>
     /// Teto da listagem.
     /// </summary>
@@ -76,9 +75,9 @@ public sealed class ConviteService(
     /// Token de 32 bytes de CSPRNG em Base64Url, buscado pelo SHA-256 — o mesmo padrão do refresh
     /// token. Não é JWT: convite precisa ser revogável, e revogar exige o banco de qualquer forma.
     /// <para>
-    /// Validade e limite são fixos: 7 dias e um uso no nominal; no link da turma, 30 dias e o número
-    /// estimado de formandos de agora — o que fecha a porta para o link vazado. Turma que passou da
-    /// estimativa gera um link novo (ou corrige a estimativa antes).
+    /// Validade e limite são fixos: 7 dias e um uso no nominal; no link da turma, 30 dias e usos
+    /// ilimitados. Quem segura a porta do link vazado é o limite do plano, conferido no aceite, junto
+    /// da validade e da revogação — a estimativa de formandos que fazia esse papel saiu em 22/09/2026.
     /// </para>
     /// <para>
     /// Link da turma novo revoga o vigente na mesma transação: um link por turma, e é ele que a
@@ -97,9 +96,9 @@ public sealed class ConviteService(
         if (!await PodeTratarDoPapel(papel, usuarioId, formaturaId, ct))
             return PapelRestrito;
 
-        var formatura = await formaturaRepository.ObterDetalhe(formaturaId, ct);
+        var formatura = await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct);
         if (formatura is null)
-            return Erro.NaoEncontrado("formatura.nao_encontrada", "Formatura não encontrada.");
+            return ErrosDeFormatura.FormaturaNaoEncontrada;
 
         if (papel == PapelNaFormatura.Formando && !formatura.JaContratou)
             return Erro.Proibido(
@@ -107,7 +106,7 @@ public sealed class ConviteService(
                 "Contrate um plano para convidar formandos. Antes disso, dá para convidar a comissão."
             );
 
-        if (await ConferirLimiteDoPlano(formaturaId, papel, ct) is { } lotada)
+        if (await vagas.ConferirEntrada(formaturaId, ct) is { } lotada)
             return lotada;
 
         var agora = DateTime.UtcNow;
@@ -122,7 +121,7 @@ public sealed class ConviteService(
             Email = email,
             Papel = papel,
             ExpiraEm = agora.AddDays(nominal ? Convite.DiasDeValidadeDoNominal : Convite.DiasDeValidadeDoLink),
-            UsosMaximos = nominal ? 1 : formatura.QuantidadeEstimadaDeFormandos,
+            UsosMaximos = nominal ? 1 : null,
             CriadoPorUsuarioId = usuarioId,
         };
 
@@ -205,6 +204,15 @@ public sealed class ConviteService(
     /// Convite pessoal exige o e-mail da conta <b>igual e confirmado</b>. Só bater não prova nada:
     /// quem recebe o link encaminhado cria uma conta com o e-mail convidado e entra no lugar do dono.
     /// </para>
+    /// <para>
+    /// Desligado não volta por convite nenhum (decisão de 23/09/2026, junto com a saída do religar):
+    /// voltar reativava o vínculo sem as parcelas que o desligamento cancelou. Removido — quem saiu
+    /// sem ter aderido — continua voltando pelo convite pessoal.
+    /// </para>
+    /// <para>
+    /// Quem entra depois de a colação abrir a cota recebe os convites dele aqui, na mesma transação
+    /// (Sprint 30, P1). Turma sem cota aberta não emite nada.
+    /// </para>
     /// </remarks>
     public async Task<Result<ParDeTokens>> Aceitar(
         Guid usuarioId,
@@ -235,13 +243,19 @@ public sealed class ConviteService(
                 if (!await conviteRepository.ConsumirUsoDeTodasAsFormaturas(convite.Id, agora, tentativa))
                     return Erro.Conflito("convite.esgotado", "Este convite acabou de atingir o limite de entradas. Peça um novo à comissão.");
 
-                if (await ConferirLimiteDoPlano(convite.FormaturaId, convite.Papel, tentativa) is { } lotada)
+                if (await vagas.ConferirEntrada(convite.FormaturaId, tentativa) is { } lotada)
                     return lotada;
 
                 var vinculo = await vinculoRepository.ObterParaEdicao(usuarioId, convite.FormaturaId, tentativa);
 
                 if (vinculo is { Ativo: true })
                     return JaVinculado;
+
+                if (vinculo is { Desligado: true })
+                    return Erro.Proibido(
+                        "convite.membro_desligado",
+                        "Você foi desligado desta formatura e o desligamento é definitivo. Fale com a comissão."
+                    );
 
                 if (vinculo is { Ativo: false } && convite.Email is null)
                     return Erro.Proibido(
@@ -251,19 +265,17 @@ public sealed class ConviteService(
 
                 if (vinculo is null)
                 {
-                    await vinculoRepository.Adicionar(
-                        new VinculoDeFormatura
-                        {
-                            UsuarioId = usuarioId,
-                            FormaturaId = convite.FormaturaId,
-                            Papel = convite.Papel,
-                        },
-                        tentativa
-                    );
+                    vinculo = new VinculoDeFormatura
+                    {
+                        UsuarioId = usuarioId,
+                        FormaturaId = convite.FormaturaId,
+                        Papel = convite.Papel,
+                    };
+                    await vinculoRepository.Adicionar(vinculo, tentativa);
                 }
                 else
                 {
-                    vinculo.Ativo = true;
+                    vinculo.Religar();
                     vinculo.Papel = convite.Papel;
                 }
 
@@ -278,6 +290,9 @@ public sealed class ConviteService(
                     },
                     tentativa
                 );
+
+                await unitOfWork.SalvarAsync(tentativa);
+                await convitesDoEvento.EmitirDaCota(convite.FormaturaId, vinculo.Id, tentativa);
 
                 return await authService.EmitirSessaoDeFormatura(
                     usuarioId,
@@ -311,7 +326,7 @@ public sealed class ConviteService(
         if (convite is null || convite.StatusEm(agoraUtc) != StatusDoConvite.Pendente)
             return null;
 
-        var formatura = await formaturaRepository.ObterDetalhe(convite.FormaturaId, ct);
+        var formatura = await formaturaRepository.ObterDetalheDeTodasAsFormaturas(convite.FormaturaId, ct);
 
         return formatura is not null && AceitaEntrada(formatura.Status, convite.Papel) ? (convite, formatura) : null;
     }
@@ -321,7 +336,7 @@ public sealed class ConviteService(
     /// Só turma ativa recebe gente, de qualquer papel. Até 18/09/2026 havia uma exceção para a
     /// comissão entrar antes de contratar — ela sumiu junto com <c>Rascunho</c>: a turma já nasce
     /// ativa, e quem separa comissão de formando passou a ser o <c>LimiteDeFormandos</c> do plano,
-    /// em <see cref="ConferirLimiteDoPlano"/>.
+    /// em <see cref="VagasDoPlano"/>.
     /// </remarks>
     /// <param name="status">Status da formatura.</param>
     /// <param name="papel">Papel do convite.</param>
@@ -355,60 +370,6 @@ public sealed class ConviteService(
             );
     }
 
-    /// <summary>
-    /// Recusa a entrada de formando quando a turma já ocupou todas as vagas do plano contratado.
-    /// </summary>
-    /// <remarks>
-    /// P3 da Sprint 16, respondida em 17/09/2026: passar do limite <b>bloqueia</b>. <c>LimiteDeFormandos</c>
-    /// existia no plano e aparecia na vitrine, mas nada o aplicava — uma turma no Essencial (60)
-    /// aceitava o 61º. O que se vende deixa de ser verdade no dia em que ninguém confere.
-    /// <para>
-    /// Vale só para o papel <c>Formando</c>. A comissão continua entrando com a turma lotada, de
-    /// propósito: é ela quem troca o plano, e barrá-la trancaria a porta pelo lado de dentro —
-    /// uma turma cheia não conseguiria nem substituir o tesoureiro que saiu.
-    /// </para>
-    /// <para>
-    /// A conta é de <b>vagas ocupadas</b>, e não de quem tem o papel Formando: o plano é vendido
-    /// por tamanho de turma, e o presidente também se forma e também paga. Quem foi desligado não
-    /// ocupa vaga — ele saiu.
-    /// </para>
-    /// <para>
-    /// <c>ponytail:</c> no aceite roda sob a trava da linha do convite, então a assembleia inteira
-    /// entrando pelo mesmo link passa uma de cada vez. Dois <b>convites diferentes</b> aceitos no
-    /// mesmo instante ainda cabem os dois — é um a mais numa turma de sessenta, e fechar isso
-    /// exigiria travar a formatura a cada aceite.
-    /// </para>
-    /// <para>
-    /// <b>Zero é zero vaga</b>, e não "sem limite" — é o plano gratuito barrando o formando, e foi o
-    /// que essa conta passou a significar em 18/09/2026. Negativo continua sendo plano mal
-    /// cadastrado, e aí não se tranca a turma.
-    /// </para>
-    /// </remarks>
-    /// <param name="formaturaId">Turma que recebe.</param>
-    /// <param name="papel">Papel de quem entra.</param>
-    /// <returns>O erro, ou <c>null</c> se ainda há vaga.</returns>
-    private async Task<Erro?> ConferirLimiteDoPlano(Guid formaturaId, string papel, CancellationToken ct)
-    {
-        if (papel != PapelNaFormatura.Formando)
-            return null;
-
-        if (await assinaturaRepository.ObterPlanoVigenteDeTodasAsFormaturas(formaturaId, ct) is not { } plano || plano.LimiteDeFormandos < 0)
-            return null;
-
-        var limite = plano.LimiteDeFormandos;
-
-        var ocupadas = (await vinculoRepository.ContarMembros(formaturaId, ct))
-            .Where(c => c is { Ativo: true, Desligado: false })
-            .Sum(c => c.Quantidade);
-
-        return ocupadas < limite
-            ? null
-            : Erro.Conflito(
-                "convite.limite_do_plano",
-                $"O plano contratado comporta {limite} formandos e a turma já tem {ocupadas}. " + "Troque de plano para incluir mais gente."
-            );
-    }
-
     /// <summary>Formando qualquer membro da gestão oferece; os demais papéis, só o Presidente.</summary>
     /// <param name="papel">Papel do convite.</param>
     /// <param name="usuarioId">Autor.</param>
@@ -416,7 +377,7 @@ public sealed class ConviteService(
     private async Task<bool> PodeTratarDoPapel(string papel, Guid usuarioId, Guid formaturaId, CancellationToken ct) =>
         papel == PapelNaFormatura.Formando || await vinculoRepository.ObterPapelAtivo(usuarioId, formaturaId, ct) == PapelNaFormatura.Presidente;
 
-    private string MontarLink(string token) => $"{aplicacao.Value.UrlDoFrontend.TrimEnd('/')}{CaminhoDoConvite}{token}";
+    private string MontarLink(string token) => aplicacao.Value.Link(RotasDoFront.Convite + token);
 
     /// <summary>Convite nominal: o link vai por e-mail. Só enfileira — quem salva é <see cref="Criar"/>.</summary>
     private async Task EnfileirarEmail(string email, FormaturaDetalhe formatura, Convite convite, string link, CancellationToken ct)
@@ -426,7 +387,7 @@ public sealed class ConviteService(
         var papel = convite.Papel == PapelNaFormatura.Comissao ? "Comissão" : convite.Papel;
 
         var corpo = ModeloDeEmail.Montar(
-            nome,
+            aplicacao.Value,
             $"Você foi convidado para {formatura.Nome}",
             $"A comissão de <strong>{ModeloDeEmail.Texto(formatura.Nome)}</strong> ({ModeloDeEmail.Texto(formatura.Instituicao)}) "
                 + $"convidou você para entrar na turma como {ModeloDeEmail.Texto(papel)}. O convite é pessoal e vale até {validade}.",

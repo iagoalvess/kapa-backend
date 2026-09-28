@@ -5,7 +5,6 @@ using Backend.Business.Common;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
-using Backend.Business.Usuarios.Interfaces;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -13,15 +12,13 @@ using Microsoft.Extensions.Options;
 namespace Backend.Business.Notificacoes.Services;
 
 /// <summary>
-/// A régua como a comissão a governa: os degraus, o teste, o histórico, as preferências e o disparo avulso.
+/// A régua como a comissão a governa: os degraus, o histórico, as preferências e o disparo avulso.
 /// </summary>
 /// <param name="notificacoes">Régua, histórico e seleção de parcelas.</param>
 /// <param name="parcelas">Regras de atraso aceitas na adesão.</param>
 /// <param name="vinculos">Vínculo de quem chama.</param>
 /// <param name="formaturas">Nome da turma, que vai na variável <c>{formatura}</c>.</param>
-/// <param name="usuarios">E-mail e nome de quem clicou em "testar".</param>
 /// <param name="canal">Por onde a mensagem sai.</param>
-/// <param name="validadorDaRegua">Forma da régua.</param>
 /// <param name="validadorDasPreferencias">Forma das preferências.</param>
 /// <param name="aplicacao">Identidade da aplicação, para os links.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
@@ -31,9 +28,7 @@ public sealed class NotificacaoService(
     IParcelaRepository parcelas,
     IVinculoRepository vinculos,
     IFormaturaRepository formaturas,
-    IUsuarioRepository usuarios,
     ICanalDeNotificacao canal,
-    IValidator<DadosDaRegua> validadorDaRegua,
     IValidator<DadosDasPreferencias> validadorDasPreferencias,
     IOptions<AplicacaoSettings> aplicacao,
     IUnitOfWork unitOfWork,
@@ -59,72 +54,15 @@ public sealed class NotificacaoService(
         Result.Ok(await ReguaDaTurma.Garantir(notificacoes, unitOfWork, ct));
 
     /// <inheritdoc />
-    /// <remarks>
-    /// O par <c>(gatilho, dias)</c> é a identidade do degrau: o que veio no corpo é atualizado, o que
-    /// não existia é criado, e o que sumiu é removido. Uma tela, uma transação.
-    /// </remarks>
-    public async Task<Result<IReadOnlyList<RegraResumo>>> SalvarRegras(DadosDaRegua dados, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<RegraResumo>>> DefinirRegra(Guid regraId, bool ativa, CancellationToken ct = default)
     {
-        var validacao = validadorDaRegua.Validar(dados);
-        if (validacao.Falhou)
-            return Result.Falha<IReadOnlyList<RegraResumo>>(validacao.Erros);
+        if (await notificacoes.ObterRegraParaEdicao(regraId, ct) is not { } regra || ReguaDoKapa.De(regra.Gatilho, regra.DiasDeDeslocamento) is null)
+            return Result.Falha<IReadOnlyList<RegraResumo>>(RegraNaoEncontrada);
 
-        await ReguaDaTurma.Garantir(notificacoes, unitOfWork, ct);
-
-        var gravadas = await notificacoes.ListarRegrasParaEdicao(ct);
-        var porChave = gravadas.ToDictionary(r => (r.Gatilho, r.DiasDeDeslocamento));
-
-        List<RegraDeNotificacao> novas = [];
-
-        foreach (var degrau in dados.Regras)
-        {
-            if (porChave.TryGetValue((degrau.Gatilho, degrau.DiasDeDeslocamento), out var existente))
-                existente.Aplicar(degrau);
-            else
-                novas.Add(
-                    RegraDeNotificacao.Nova(
-                        degrau.Gatilho,
-                        degrau.DiasDeDeslocamento,
-                        degrau.Assunto,
-                        degrau.Template,
-                        degrau.Ativa,
-                        degrau.AvisarTesouraria
-                    )
-                );
-        }
-
-        var chavesEnviadas = dados.Regras.Select(r => (r.Gatilho, r.DiasDeDeslocamento)).ToHashSet();
-
-        await notificacoes.AdicionarRegras(novas, ct);
-        notificacoes.RemoverRegras([.. gravadas.Where(r => !chavesEnviadas.Contains((r.Gatilho, r.DiasDeDeslocamento)))]);
+        regra.Definir(ativa);
         await unitOfWork.SalvarAsync(ct);
 
-        return Result.Ok(await notificacoes.ListarRegras(ct));
-    }
-
-    /// <inheritdoc />
-    public async Task<Result> Testar(Guid formaturaId, Guid usuarioId, Guid regraId, CancellationToken ct = default)
-    {
-        var regras = await ReguaDaTurma.Garantir(notificacoes, unitOfWork, ct);
-
-        if (regras.FirstOrDefault(r => r.Id == regraId) is not { } regra)
-            return Result.Falha(RegraNaoEncontrada);
-
-        if (await usuarios.ObterDetalhe(usuarioId, ct) is not { } quemClicou)
-            return Result.Falha(RegraNaoEncontrada);
-
-        var nome = await NomeDaFormatura(formaturaId, ct);
-        var link = $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/notificacoes/lembretes";
-
-        var enviado = await canal.Enviar(MontagemDaMensagem.Exemplo(regra, quemClicou.Nome, quemClicou.Email, nome, link), ct);
-        if (enviado.Falhou)
-            return Result.Falha(enviado.Erros);
-
-        await unitOfWork.SalvarAsync(ct);
-
-        logger.LogInformation("Degrau {RegraId} testado por {UsuarioId} — a mensagem foi só para ele.", regraId, usuarioId);
-
-        return Result.Ok();
+        return Result.Ok(await ReguaDaTurma.Garantir(notificacoes, unitOfWork, ct));
     }
 
     /// <inheritdoc />
@@ -241,8 +179,8 @@ public sealed class NotificacaoService(
     /// O degrau que o disparo avulso usa: o de atraso mais próximo do atraso real da parcela.
     /// </summary>
     /// <remarks>
-    /// Sem degrau de atraso configurado, cai no de vencimento com o maior deslocamento — o texto mais
-    /// severo que a turma escreveu. Sem nenhum de vencimento ativo, não há o que mandar.
+    /// Sem degrau de atraso ligado, cai no de vencimento com o maior deslocamento — o texto mais
+    /// severo da régua. Sem nenhum de vencimento ativo, não há o que mandar.
     /// </remarks>
     private static RegraResumo? Avulsa(IReadOnlyList<RegraResumo> regras, ParcelaParaCobranca parcela, DateOnly hoje)
     {
@@ -265,5 +203,5 @@ public sealed class NotificacaoService(
         ];
 
     private async Task<string> NomeDaFormatura(Guid formaturaId, CancellationToken ct) =>
-        (await formaturas.ObterDetalhe(formaturaId, ct))?.Nome ?? _aplicacao.Nome;
+        await formaturas.ObterNome(formaturaId, ct) ?? _aplicacao.Nome;
 }

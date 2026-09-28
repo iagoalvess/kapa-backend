@@ -1,3 +1,4 @@
+using Backend.Business.Comunicacao.Models;
 using Backend.Business.Financeiro.Models;
 
 namespace Backend.Business.Festa.Models;
@@ -43,20 +44,6 @@ public sealed record DadosDaProposta(string Titulo, long ValorEmCentavos, string
 public sealed record PropostaResumo(Guid Id, string Titulo, long ValorEmCentavos, string? OQueInclui, int Votos, bool MeuVoto);
 
 /// <summary>
-/// O contrato de um item, como o cartão o abre.
-/// </summary>
-/// <remarks>
-/// O arquivo continua no acervo (Sprint 11) e é baixado pelo endpoint de lá, que confere formatura e
-/// visibilidade de novo. O que vem aqui é só o necessário para desenhar o link e decidir entre abrir
-/// numa aba (PDF, imagem) e baixar com o nome original (Word, planilha).
-/// </remarks>
-/// <param name="Id">Documento no acervo.</param>
-/// <param name="Titulo">Como a turma o chama ("Contrato do buffet").</param>
-/// <param name="NomeDoArquivo">Nome original, para o download.</param>
-/// <param name="ContentType">Tipo do arquivo.</param>
-public sealed record DocumentoDoItem(Guid Id, string Titulo, string NomeDoArquivo, string ContentType);
-
-/// <summary>
 /// Um item da festa como a turma o vê, com o que já foi contratado e pago.
 /// </summary>
 /// <remarks>
@@ -79,13 +66,19 @@ public sealed record DocumentoDoItem(Guid Id, string Titulo, string NomeDoArquiv
 /// <param name="QuantidadeDePropostas">Candidatas levantadas pela comissão; o detalhe traz cada uma.</param>
 /// <param name="Cancelado">A turma desistiu: sai do custo, fica na lista.</param>
 /// <param name="Ordem">Posição na tela.</param>
+/// <param name="PrecoDeVendaEmCentavos">
+/// O preço unitário do item opcional ligado a este (Sprint 20, decisão 11). Nulo: a turma ainda
+/// não abriu venda dele, e o custo continua saindo da estimativa.
+/// </param>
+/// <param name="PedidosConfirmados">Unidades já pedidas pelos formandos, no item opcional ligado.</param>
+/// <param name="ItemDeCobrancaId">O item opcional ligado, se houver — é o que a tela usa para levar ao pedido.</param>
 public sealed record ItemDaFestaResumo(
     Guid Id,
     string Titulo,
     CategoriaDeDespesa Categoria,
     string? OQueInclui,
     string? Fornecedor,
-    DocumentoDoItem? Documento,
+    DocumentoDoAcervo? Documento,
     TipoDeRateio Rateio,
     long ValorPrevistoEmCentavos,
     int QuantidadeEstimada,
@@ -94,19 +87,31 @@ public sealed record ItemDaFestaResumo(
     int QuantidadeDeDespesas,
     int QuantidadeDePropostas,
     bool Cancelado,
-    int Ordem
+    int Ordem,
+    long? PrecoDeVendaEmCentavos = null,
+    int PedidosConfirmados = 0,
+    Guid? ItemDeCobrancaId = null
 )
 {
     /// <summary>O que este item deve custar à turma antes de haver despesa.</summary>
     public long CustoPrevistoEmCentavos => ValorPrevistoEmCentavos * QuantidadeEstimada;
 
+    /// <summary>Se a turma abriu a venda deste item como opcional (Sprint 20, decisão 11).</summary>
+    public bool TemOpcional => PrecoDeVendaEmCentavos is not null;
+
     /// <summary>
-    /// Quanto este item pesa no custo da festa: o contratado, se houver; senão, o previsto.
+    /// Quanto este item pesa no custo da festa: o contratado, o vendido, ou o previsto — nessa ordem.
     /// </summary>
-    /// <remarks>Item cancelado pesa zero — foi o que a decisão 13 combinou com a turma.</remarks>
+    /// <remarks>
+    /// É a decisão 3 da Sprint 17 aplicada mais uma vez — o previsto cede lugar ao real assim que
+    /// existe real —, agora com um degrau a mais no meio (Sprint 20, decisão 11). Com opcionais
+    /// aberto e nada contratado, o custo é <c>preço de venda × pedidos confirmados</c>: a foto que
+    /// 37 pessoas pediram custa 37 fotos, e não as 40 que alguém estimou. Item cancelado pesa zero.
+    /// </remarks>
     public long CustoEmCentavos =>
         Cancelado ? 0
         : QuantidadeDeDespesas > 0 ? ContratadoEmCentavos
+        : PrecoDeVendaEmCentavos is { } preco ? preco * PedidosConfirmados
         : CustoPrevistoEmCentavos;
 
     /// <summary>Em que pé está, lido das despesas (decisão 2).</summary>

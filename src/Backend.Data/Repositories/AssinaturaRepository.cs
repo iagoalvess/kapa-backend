@@ -91,7 +91,7 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
 
     /// <inheritdoc />
     public Task<bool> ExisteAlgumaDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default) =>
-        db.Assinaturas.AsNoTracking().IgnoreQueryFilters().AnyAsync(a => a.FormaturaId == formaturaId, ct);
+        db.Assinaturas.AsNoTracking().IgnoreQueryFilters().AnyAsync(a => a.FormaturaId == formaturaId && a.Status != StatusDaAssinatura.Pendente, ct);
 
     /// <inheritdoc />
     /// <remarks>

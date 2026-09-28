@@ -260,24 +260,19 @@ public sealed class DesligamentoEndpointsTests(ApiFactory fabrica)
     }
 
     /// <summary>
-    /// Critério de aceite: religar restitui o acesso e <b>não</b> ressuscita parcela cancelada.
+    /// Desligar é definitivo (23/09/2026): o religar saiu, e o endpoint não existe mais.
     /// </summary>
     [Fact]
-    public async Task Religar_devolve_o_acesso_e_deixa_as_parcelas_canceladas()
+    public async Task Nao_existe_religar()
     {
         var turma = await TurmaPronta();
-        var ana = await FormandoQueAderiu(turma, "Ana Religada");
+        var ana = await FormandoQueAderiu(turma, "Ana Desligada");
         await Desligar(turma, ana, Pedido());
 
-        (await turma.Presidente.Cliente.PostAsync($"{Membros}/{ana.Membro.UsuarioId}/religar", null, Ct)).EnsureSuccessStatusCode();
+        var resposta = await turma.Presidente.Cliente.PostAsync($"{Membros}/{ana.Membro.UsuarioId}/religar", null, Ct);
 
-        (await ana.Membro.Cliente.GetAsync("/api/v1/comunicacao/avisos", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
-
-        await using var contexto = fabrica.ContextoDe(turma.Id);
-        var canceladas = await contexto
-            .Parcelas.AsNoTracking()
-            .CountAsync(p => p.VinculoId == ana.VinculoId && p.Status == StatusDaParcela.Cancelada, Ct);
-        canceladas.ShouldBe(3);
+        resposta.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await ana.Membro.Cliente.GetAsync("/api/v1/comunicacao/avisos", Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     /// <summary>

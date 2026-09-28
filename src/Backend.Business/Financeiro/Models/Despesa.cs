@@ -138,10 +138,6 @@ public class Despesa : EntidadeDaFormatura
         return Result.Ok();
     }
 
-    /// <summary>Troca o comprovante de uma despesa já paga.</summary>
-    /// <param name="comprovanteArquivoId">Comprovante novo.</param>
-    public void TrocarComprovante(Guid comprovanteArquivoId) => ComprovanteArquivoId = comprovanteArquivoId;
-
     /// <summary>Deixa de ser devida. Só a prevista: a paga se corrige, não se cancela (decisão 5).</summary>
     public Result Cancelar()
     {

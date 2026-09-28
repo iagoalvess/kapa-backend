@@ -58,15 +58,6 @@ public sealed class PeriodoDoRelatorioTests
         periodo.De.ShouldBe(Hoje.AddDays(-PeriodoDoRelatorio.MaximoDeDias));
     }
 
-    [Theory]
-    [InlineData(2026, 3, 1, true)]
-    [InlineData(2026, 6, 15, true)]
-    [InlineData(2026, 9, 1, true)]
-    [InlineData(2026, 2, 28, false)]
-    [InlineData(2026, 9, 2, false)]
-    public void As_duas_pontas_entram_no_intervalo(int ano, int mes, int dia, bool dentro) =>
-        new PeriodoDoRelatorio(new DateOnly(2026, 3, 1), new DateOnly(2026, 9, 1)).Contem(new DateOnly(ano, mes, dia)).ShouldBe(dentro);
-
     /// <summary>O anterior encosta na véspera e tem o mesmo tamanho — é o que faz a variação significar algo.</summary>
     [Fact]
     public void O_periodo_anterior_termina_na_vespera_e_tem_o_mesmo_tamanho()

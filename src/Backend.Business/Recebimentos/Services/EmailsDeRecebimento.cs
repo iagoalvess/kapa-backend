@@ -54,11 +54,82 @@ public sealed class EmailsDeRecebimento(IEmailService emailService, IOptions<Apl
             new NovoEmail(
                 email,
                 $"Conta de recebimento alterada — {formatura} — {_aplicacao.Nome}",
-                ModeloDeEmail.Montar(_aplicacao.Nome, "Conta de recebimento alterada", mensagem, null, null, Mascote.Alerta)
+                ModeloDeEmail.Montar(_aplicacao, "Conta de recebimento alterada", mensagem, null, null, Mascote.Lupa)
             ),
             ct
         );
     }
+
+    /// <summary>
+    /// O Mercado Pago da turma foi conectado, trocado ou desconectado (Sprint 25, P3).
+    /// </summary>
+    /// <remarks>
+    /// Mesmo motivo do aviso de troca de conta: é para onde vai o dinheiro do PIX automático. Conectar a
+    /// conta errada desvia a mensalidade tanto quanto trocar a chave, e a comissão precisa ver a conta
+    /// que entrou.
+    /// </remarks>
+    /// <param name="email">Membro da comissão.</param>
+    /// <param name="formatura">Nome da turma.</param>
+    /// <param name="autor">Nome de quem conectou ou desconectou.</param>
+    /// <param name="conta">A conta do Mercado Pago que entrou; nula quando desconectou.</param>
+    public Task ProvedorAlterado(string email, string formatura, string autor, string? conta, CancellationToken ct = default)
+    {
+        var titulo = conta is null ? "Mercado Pago desconectado" : "Mercado Pago conectado";
+        var mensagem = conta is null
+            ? $"{ModeloDeEmail.Texto(autor)} desconectou o Mercado Pago de <strong>{ModeloDeEmail.Texto(formatura)}</strong>. "
+                + "O PIX com confirmação automática saiu da tela de pagamento; os outros meios continuam valendo."
+            : $"{ModeloDeEmail.Texto(autor)} conectou a conta <strong>{ModeloDeEmail.Texto(conta)}</strong> do Mercado Pago a "
+                + $"<strong>{ModeloDeEmail.Texto(formatura)}</strong>. A partir de agora, o PIX com confirmação automática cai nessa conta.";
+
+        return emailService.Enfileirar(
+            new NovoEmail(
+                email,
+                $"{titulo} — {formatura} — {_aplicacao.Nome}",
+                ModeloDeEmail.Montar(
+                    _aplicacao,
+                    titulo,
+                    $"{mensagem}<br><br>Se você não reconhece esta alteração, fale com a comissão antes que alguém pague.",
+                    null,
+                    null,
+                    conta is null ? Mascote.Lupa : Mascote.Feliz
+                )
+            ),
+            ct
+        );
+    }
+
+    /// <summary>
+    /// O aviso à turma: a conta para onde ela paga mudou, e como conferir (Sprint 22, P1).
+    /// </summary>
+    /// <remarks>
+    /// Revisa a P2 da Sprint 8, que avisava só a comissão para não alarmar 80 pessoas: desviar a
+    /// mensalidade é o pior cenário do produto, e 80 pessoas sabendo é a defesa mais barata contra
+    /// ele. <b>Não</b> traz a chave nem a conta novas — um e-mail com dados de pagamento é exatamente o
+    /// que o golpe forjaria. Diz o que mudou, onde conferir (a tela de pagamento, que mostra o titular
+    /// e a conferência) e com quem falar.
+    /// </remarks>
+    /// <param name="email">Formando.</param>
+    /// <param name="formatura">Nome da turma.</param>
+    /// <param name="autor">Nome de quem trocou.</param>
+    public Task ContaAlteradaParaATurma(string email, string formatura, string autor, CancellationToken ct = default) =>
+        emailService.Enfileirar(
+            new NovoEmail(
+                email,
+                $"A conta de pagamento da turma mudou — {formatura} — {_aplicacao.Nome}",
+                ModeloDeEmail.Montar(
+                    _aplicacao,
+                    "A conta de pagamento da turma mudou",
+                    $"{ModeloDeEmail.Texto(autor)} alterou a conta para onde <strong>{ModeloDeEmail.Texto(formatura)}</strong> paga as parcelas.<br><br>"
+                        + "Antes de pagar a próxima, abra a parcela no app: o nome de quem recebe aparece acima do QR, com a data em que a "
+                        + "comissão conferiu a conta no banco. <strong>Pague só pelo que aparece no app</strong> — nunca por dados recebidos "
+                        + "por mensagem.<br><br>Se você não esperava esta mudança, fale com a comissão antes de pagar.",
+                    "Ver minhas parcelas",
+                    _aplicacao.Link(RotasDoFront.MinhasParcelas),
+                    Mascote.Lupa
+                )
+            ),
+            ct
+        );
 
     /// <summary>
     /// O que deixou de valer: o meio que saiu, e o que continua mas com outro destino.

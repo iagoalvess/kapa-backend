@@ -25,7 +25,9 @@ public interface IBuscaRepository
 public interface IBuscaService
 {
     /// <summary>O que casa com o termo, agrupado e recortado pelo papel.</summary>
-    /// <param name="quem">Turma e papel de quem pergunta.</param>
+    /// <remarks>O papel é lido do vínculo, não da claim: rebaixado, o membro para de ver na hora.</remarks>
+    /// <param name="formaturaId">Turma da sessão.</param>
+    /// <param name="usuarioId">Quem pergunta.</param>
     /// <param name="termo">O que a pessoa digitou.</param>
-    Task<Result<BuscaNaTurma>> Buscar(QuemBusca quem, string? termo, CancellationToken ct = default);
+    Task<Result<BuscaNaTurma>> Buscar(Guid formaturaId, Guid usuarioId, string? termo, CancellationToken ct = default);
 }

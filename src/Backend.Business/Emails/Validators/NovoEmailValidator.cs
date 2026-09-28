@@ -26,5 +26,12 @@ public sealed class NovoEmailValidator : AbstractValidator<NovoEmail>
         RuleFor(x => x.Assunto).NotEmpty().WithMessage("O assunto é obrigatório.").MaximumLength(300);
 
         RuleFor(x => x.CorpoHtml).NotEmpty().WithMessage("O corpo da mensagem é obrigatório.");
+
+        RuleFor(x => x.Anexo!.Nome).NotEmpty().MaximumLength(200).When(x => x.Anexo is not null).WithMessage("O anexo precisa de nome.");
+
+        RuleFor(x => x.Anexo!.Conteudo)
+            .Must(conteudo => conteudo.Length is > 0 and <= AnexoDoEmail.TamanhoMaximo)
+            .When(x => x.Anexo is not null)
+            .WithMessage("O anexo precisa ter até 2 MB.");
     }
 }

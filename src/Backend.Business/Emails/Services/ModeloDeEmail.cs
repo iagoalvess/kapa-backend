@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Backend.Business.Common;
+using Backend.Business.Common.Pdf;
 
 namespace Backend.Business.Emails.Services;
 
@@ -18,8 +20,12 @@ public enum Mascote
     /// <summary>Acenando. Boas-vindas, convite, primeira mensagem.</summary>
     Acenando,
 
-    /// <summary>De alerta. Segurança: senha trocada, conta de recebimento alterada.</summary>
+    /// <summary>De alerta, com a engrenagem quebrada. Algo deu errado e pede ação: estorno, assinatura vencida.</summary>
+    /// <remarks>O desenho lê como falha: aviso de segurança usa <see cref="Cadeado"/>, e troca a conferir, <see cref="Lupa"/>.</remarks>
     Alerta,
+
+    /// <summary>Com o cadeado. Segurança: senha, link de acesso, pedido que só o titular pode fazer.</summary>
+    Cadeado,
 
     /// <summary>De binóculo. Procurando alguém — o lembrete de quem ainda não apareceu.</summary>
     Binoculo,
@@ -76,10 +82,14 @@ public enum Mascote
 /// arredondados ele ignora — o cartão vira quadrado, e só.
 /// </para>
 /// <para>
-/// O logo e o mascote vão <b>anexados</b> (<c>cid:</c>), e não por URL. Duas razões: cliente de
-/// e-mail bloqueia imagem remota até a pessoa clicar em "exibir imagens", e em desenvolvimento a
-/// única URL que existe é <c>localhost</c>, que não chega a caixa nenhuma. Quem anexa é o
-/// <see cref="SmtpEmailSender"/>, por <see cref="ImagensDe"/>.
+/// O corpo cita o logo e o mascote por <c>cid:</c>, e quem decide como eles chegam é o
+/// <see cref="SmtpEmailSender"/>, na hora de entregar. Em produção (<c>Smtp:UrlDasImagens</c>
+/// preenchida) o <c>cid:</c> vira a URL pública da API, pelo <see cref="ComImagensPorUrl"/> — o padrão
+/// de mercado, que deixa a mensagem leve e não faz o Gmail listar as imagens como anexos "noname". Em
+/// desenvolvimento, sem URL que uma caixa de e-mail alcance (<c>localhost</c>), elas vão anexadas, por
+/// <see cref="ImagensDe"/>. A fila guarda o corpo com <c>cid:</c>, então a escolha não depende de onde a
+/// mensagem foi enfileirada. Imagem remota é bloqueada pelo Outlook até a pessoa liberar: nada do
+/// texto depende dela, e o logo tem <c>alt</c>.
 /// </para>
 /// <para>
 /// O logo é <b>PNG</b>, e não o SVG do front: Gmail, Outlook e Yahoo não desenham SVG em e-mail.
@@ -121,8 +131,30 @@ public static partial class ModeloDeEmail
             .Where(imagem => imagem.Conteudo is not null)
             .Select(imagem => (imagem.Item1, imagem.Conteudo!));
 
+    /// <summary>
+    /// Troca cada <c>cid:</c> das nossas imagens pela URL pública, com a versão do conteúdo.
+    /// </summary>
+    /// <remarks>
+    /// <c>{urlBase}/logo.png?v=1a2b3c4d</c>: a versão é o começo do hash do PNG, e a rota responde com cache
+    /// de um ano. Imagem que não existe no assembly fica como estava — o <c>cid:</c> sem anexo vira um
+    /// quadrado vazio, o mesmo que já aconteceria hoje.
+    /// </remarks>
+    /// <param name="corpoHtml">Corpo montado por <see cref="Montar"/>.</param>
+    /// <param name="urlBase">Endereço da rota das imagens, sem a barra final.</param>
+    public static string ComImagensPorUrl(string corpoHtml, string urlBase) =>
+        Referencias()
+            .Replace(
+                corpoHtml,
+                referencia =>
+                {
+                    var nome = referencia.Groups["nome"].Value;
+
+                    return RecursosDaMarca.Versao(nome) is { } versao ? $"{urlBase.TrimEnd('/')}/{nome}.png?v={versao}" : referencia.Value;
+                }
+            );
+
     /// <summary>Monta o corpo do e-mail.</summary>
-    /// <param name="nomeDaAplicacao">Nome exibido no rodapé.</param>
+    /// <param name="aplicacao">Nome exibido no rodapé e o endereço do site, para onde aponta a Política de Privacidade.</param>
     /// <param name="titulo">Título, codificado aqui.</param>
     /// <param name="mensagemHtml">Mensagem já em HTML — quem chama codifica o que veio do usuário.</param>
     /// <param name="botao">Texto do botão, ou nulo para nenhum.</param>
@@ -134,7 +166,7 @@ public static partial class ModeloDeEmail
     /// pedir que a pessoa cole uma URL na barra do navegador.
     /// </remarks>
     public static string Montar(
-        string nomeDaAplicacao,
+        AplicacaoSettings aplicacao,
         string titulo,
         string mensagemHtml,
         string? botao,
@@ -208,8 +240,8 @@ public static partial class ModeloDeEmail
                     </tr>
                     <tr>
                       <td align="center" style="padding:18px 16px 0;font-family:{Fonte};font-size:12px;line-height:19px;color:#9a9a94;text-align:center">{Texto(
-                          nomeDaAplicacao
-                      )} — mensagem automática, não responda.</td>
+                          aplicacao.Nome
+                      )} — mensagem automática, não responda.<br><a href="{aplicacao.LinkDoSite(RotasDoSite.Privacidade)}" style="color:#9a9a94;text-decoration:underline">Política de Privacidade</a></td>
                     </tr>
                   </table>
                 </td>
@@ -221,9 +253,8 @@ public static partial class ModeloDeEmail
     }
 
     /// <summary>O arquivo do mascote, que é o nome dele em minúsculas.</summary>
-    private static string Arquivo(Mascote mascote) => mascote.ToString().ToLowerInvariant();
+    public static string Arquivo(Mascote mascote) => mascote.ToString().ToLowerInvariant();
 
     /// <summary>O PNG embutido no assembly, ou nulo se alguém tiver removido o arquivo.</summary>
-    private static Stream? Recurso(string nome) =>
-        typeof(ModeloDeEmail).Assembly.GetManifestResourceStream($"Backend.Business.Emails.Recursos.{nome}.png");
+    private static Stream? Recurso(string nome) => RecursosDaMarca.Abrir(nome);
 }

@@ -85,9 +85,9 @@ public sealed class AdesaoService(
 
     private static readonly Erro SemTermo = Erro.Conflito("adesao.sem_termo_publicado", "A comissão ainda não publicou o termo de adesão da turma.");
 
-    private static readonly Erro MembroNaoEncontrado = Erro.NaoEncontrado("membro.nao_encontrado", "Membro não encontrado nesta formatura.");
-
     private static readonly Erro AdesaoNaoEncontrada = Erro.NaoEncontrado("adesao.nao_encontrada", "Adesão não encontrada.");
+
+    private static readonly Erro JaAderiu = Erro.Conflito("adesao.ja_aderiu", "Você já aderiu a esta versão do termo.");
 
     private static readonly Erro SemPlano = Erro.Conflito("adesao.sem_plano_vigente", "A turma ainda não tem plano de cobrança em vigor.");
 
@@ -98,6 +98,10 @@ public sealed class AdesaoService(
     /// <para>
     /// O código do e-mail é a <b>última</b> conferência de propósito: ele vale poucos minutos, e
     /// descobrir o cadastro incompleto só depois de pedir o código gastaria a janela inteira.
+    /// </para>
+    /// <para>
+    /// O código chega no e-mail da conta, então acertá-lo prova o e-mail: a conta fica confirmada — é o
+    /// que libera o voto na festa para quem entrou pelo link sem clicar na confirmação.
     /// </para>
     /// </remarks>
     public async Task<Result<AdesaoDetalhe>> Aderir(
@@ -122,10 +126,10 @@ public sealed class AdesaoService(
 
         var membro = await perfilRepository.ObterMembro(formaturaId, usuarioId, ct);
         if (membro is null)
-            return MembroNaoEncontrado;
+            return ErrosDeFormatura.MembroNaoEncontrado;
 
         if (await adesaoRepository.JaAderiu(membro.VinculoId, termo.Id, ct))
-            return Erro.Conflito("adesao.ja_aderiu", "Você já aderiu a esta versão do termo.");
+            return JaAderiu;
 
         var snapshot = SnapshotDoPlano.De(plano, DataUtils.Hoje());
         var planoJson = snapshot.ParaJson();
@@ -144,7 +148,7 @@ public sealed class AdesaoService(
 
         var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
         if (usuario is null)
-            return MembroNaoEncontrado;
+            return ErrosDeFormatura.MembroNaoEncontrado;
 
         if (!await userManager.VerifyUserTokenAsync(usuario, TokenOptions.DefaultEmailProvider, FinalidadeDoCodigo, dados.Codigo))
         {
@@ -155,6 +159,8 @@ public sealed class AdesaoService(
                 "O código não confere ou já expirou. Peça um código novo e use o mais recente que chegou no seu e-mail."
             );
         }
+
+        usuario.EmailConfirmed = true;
 
         var adesao = new AdesaoDoFormando
         {
@@ -177,7 +183,7 @@ public sealed class AdesaoService(
         if (parcelas.Falhou)
             return Result.Falha<AdesaoDetalhe>(parcelas.Erros);
 
-        var formatura = await formaturaRepository.ObterDetalhe(formaturaId, ct);
+        var formatura = await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct);
         await emails.Confirmacao(membro.Email, formatura?.Nome ?? string.Empty, termo.Versao, snapshot, ct);
 
         await unitOfWork.SalvarAsync(ct);
@@ -204,7 +210,7 @@ public sealed class AdesaoService(
     {
         var membro = await perfilRepository.ObterMembro(formaturaId, usuarioId, ct);
         if (membro is null)
-            return MembroNaoEncontrado;
+            return ErrosDeFormatura.MembroNaoEncontrado;
 
         var termo = await adesaoRepository.ObterTermoVigente(ct);
         if (termo is null)
@@ -214,14 +220,14 @@ public sealed class AdesaoService(
             return SemPlano;
 
         if (await adesaoRepository.JaAderiu(membro.VinculoId, termo.Id, ct))
-            return Erro.Conflito("adesao.ja_aderiu", "Você já aderiu a esta versão do termo.");
+            return JaAderiu;
 
         var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
         if (usuario is null)
-            return MembroNaoEncontrado;
+            return ErrosDeFormatura.MembroNaoEncontrado;
 
         var codigo = await userManager.GenerateUserTokenAsync(usuario, TokenOptions.DefaultEmailProvider, FinalidadeDoCodigo);
-        var formatura = await formaturaRepository.ObterDetalhe(formaturaId, ct);
+        var formatura = await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct);
 
         await emails.Codigo(usuario.Email ?? membro.Email, formatura?.Nome ?? string.Empty, codigo, MinutosDeValidadeDoCodigo, ct);
         await unitOfWork.SalvarAsync(ct);
@@ -232,12 +238,12 @@ public sealed class AdesaoService(
     }
 
     /// <inheritdoc />
+    /// <remarks>Do titular: o termo que vigorou continua acessível a quem foi desligado (P5 da Sprint 15).</remarks>
     public async Task<Result<MinhaAdesao>> ObterMinha(Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
     {
-        // Do titular: o termo que vigorou continua acessível a quem foi desligado (P5 da Sprint 15).
         var membro = await perfilRepository.ObterTitular(formaturaId, usuarioId, ct);
         if (membro is null)
-            return MembroNaoEncontrado;
+            return ErrosDeFormatura.MembroNaoEncontrado;
 
         var ultima = await adesaoRepository.ObterUltimaDoVinculo(membro.VinculoId, ct);
         var perfil = await perfilRepository.ObterDoVinculo(membro.VinculoId, ct);
@@ -267,20 +273,29 @@ public sealed class AdesaoService(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// O PDF do próprio termo acompanha o titular, mesmo desligado. O de terceiro exige Gestão com vínculo
+    /// <b>ativo</b> (<see cref="IPerfilRepository.ObterMembro"/>): o desligamento não muda o papel gravado, e
+    /// ler o papel do titular deixava a comissão que saiu baixando o termo dos colegas — nome, CPF
+    /// mascarado e IP do aceite.
+    /// </remarks>
     public async Task<Result<PdfDaAdesao>> ObterPdf(Guid formaturaId, Guid adesaoId, Guid solicitanteId, CancellationToken ct = default)
     {
         var adesao = await adesaoRepository.Obter(adesaoId, ct);
-        // Do titular: o PDF do próprio termo acompanha a adesão. O de terceiro continua exigindo Gestão,
-        // e quem saiu nunca a tem — o papel dele passou a valer só para ler o que é dele.
-        var solicitante = await perfilRepository.ObterTitular(formaturaId, solicitanteId, ct);
+        var titular = await perfilRepository.ObterTitular(formaturaId, solicitanteId, ct);
 
-        if (adesao is null || solicitante is null)
+        if (adesao is null || titular is null)
             return AdesaoNaoEncontrada;
 
-        var propria = adesao.Adesao.VinculoId == solicitante.VinculoId;
+        var propria = adesao.Adesao.VinculoId == titular.VinculoId;
 
-        if (!propria && !PapelNaFormatura.Gestao.Contains(solicitante.Papel))
-            return AdesaoNaoEncontrada;
+        if (!propria)
+        {
+            var membro = await perfilRepository.ObterMembro(formaturaId, solicitanteId, ct);
+
+            if (membro is null || !PapelNaFormatura.Gestao.Contains(membro.Papel))
+                return AdesaoNaoEncontrada;
+        }
 
         return new PdfDaAdesao(TermoEmPdf.Gerar(adesao, mascararCpf: !propria), $"termo-de-adesao-v{adesao.Adesao.Versao}.pdf");
     }
@@ -294,7 +309,7 @@ public sealed class AdesaoService(
     {
         var membro = await perfilRepository.ObterMembro(formaturaId, usuarioId, ct);
         if (membro is null)
-            return Result.Falha(MembroNaoEncontrado);
+            return Result.Falha(ErrosDeFormatura.MembroNaoEncontrado);
 
         var termo = await adesaoRepository.ObterTermoVigente(ct);
         if (termo is null)
@@ -303,7 +318,7 @@ public sealed class AdesaoService(
         if (await adesaoRepository.JaAderiu(membro.VinculoId, termo.Id, ct))
             return Result.Falha(Erro.Conflito("adesao.ja_aderiu", "Este membro já aderiu à versão vigente do termo."));
 
-        var formatura = await formaturaRepository.ObterDetalhe(formaturaId, ct);
+        var formatura = await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct);
         await emails.Lembrete(membro.Email, formatura?.Nome ?? string.Empty, ct);
 
         await unitOfWork.SalvarAsync(ct);

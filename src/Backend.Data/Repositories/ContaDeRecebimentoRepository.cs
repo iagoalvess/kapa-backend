@@ -1,5 +1,6 @@
 using Backend.Business.Recebimentos.Interfaces;
 using Backend.Business.Recebimentos.Models;
+using Backend.Business.Recebimentos.Services;
 using Backend.Data.Context;
 using Microsoft.EntityFrameworkCore;
 
@@ -48,6 +49,28 @@ public sealed class ContaDeRecebimentoRepository(AppDbContext db) : IContaDeRece
                 conferente == null ? null : conferente.Nome
             )
         ).SingleOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A consulta vai pela coluna <c>formatura_id</c> e pelo nome, que têm índice; o <c>jsonb</c> só é
+    /// lido na linha escolhida, em C# — o Npgsql 10 não traduz extração de caminho (Sprint 14).
+    /// </remarks>
+    public async Task<MeiosDaConta?> ObterMeiosVigentesEm(Guid formaturaId, DateTime instanteUtc, CancellationToken ct = default)
+    {
+        var dados = await db
+            .Eventos.AsNoTracking()
+            .Where(evento =>
+                evento.FormaturaId == formaturaId
+                && (evento.Nome == ContaDeRecebimentoService.EventoDeCadastro || evento.Nome == ContaDeRecebimentoService.EventoDeTroca)
+                && evento.OcorridoEm <= instanteUtc
+            )
+            .OrderByDescending(evento => evento.OcorridoEm)
+            .ThenByDescending(evento => evento.Id)
+            .Select(evento => evento.Dados)
+            .FirstOrDefaultAsync(ct);
+
+        return dados is null ? null : ContaDeRecebimentoService.MeiosGravados(dados);
+    }
 
     /// <inheritdoc />
     public Task<ContaDeRecebimento?> ObterParaEdicao(CancellationToken ct = default) => db.ContasDeRecebimento.SingleOrDefaultAsync(ct);

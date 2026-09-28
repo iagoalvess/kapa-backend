@@ -25,7 +25,7 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
 
     private readonly AplicacaoSettings _aplicacao = aplicacao.Value;
 
-    private string LinkDaFormatura => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/formatura";
+    private string LinkDaFormatura => _aplicacao.Link(RotasDoFront.Formatura);
 
     /// <summary>Pagamento confirmado: a turma está ativa.</summary>
     /// <param name="formatura">Formatura ativada.</param>
@@ -119,7 +119,7 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
         CancellationToken ct
     )
     {
-        var corpo = ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, "Ver assinatura", LinkDaFormatura, mascote);
+        var corpo = ModeloDeEmail.Montar(_aplicacao, titulo, mensagem, "Ver assinatura", LinkDaFormatura, mascote);
 
         foreach (var email in presidentes)
             await emailService.Enfileirar(new NovoEmail(email, $"{assunto} — {_aplicacao.Nome}", corpo), ct);

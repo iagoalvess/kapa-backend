@@ -5,6 +5,7 @@ using Backend.Business.Abstractions;
 using Backend.Business.Assinaturas.Interfaces;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -20,6 +21,7 @@ public sealed class PlanoController(IAssinaturaService assinaturaService) : Main
     /// <summary>Planos ativos, com preço e limites. Anônimo: é vitrine.</summary>
     [HttpGet]
     [AllowAnonymous]
+    [EnableCors(ApiConfig.Vitrine)]
     [ProducesResponseType(typeof(IReadOnlyList<PlanoDTO>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Listar(CancellationToken ct)
     {

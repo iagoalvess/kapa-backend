@@ -23,6 +23,7 @@ public sealed class AssinaturaServiceTests
     private readonly IAssinaturaRepository _assinaturas = Substitute.For<IAssinaturaRepository>();
     private readonly IFormaturaRepository _formaturas = Substitute.For<IFormaturaRepository>();
     private readonly IProvedorDeAssinatura _provedor = Substitute.For<IProvedorDeAssinatura>();
+    private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
     private static readonly Plano Premium = new()
@@ -46,6 +47,7 @@ public sealed class AssinaturaServiceTests
             _assinaturas,
             _formaturas,
             _provedor,
+            new VagasDoPlano(_assinaturas, _vinculos),
             new IniciarCheckoutValidator(),
             Options.Create(new AssinaturaSettings()),
             Options.Create(new AplicacaoSettings { UrlDoFrontend = "https://app.kapa" }),
@@ -114,6 +116,32 @@ public sealed class AssinaturaServiceTests
 
         resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("assinatura.ja_ativa");
         await _provedor.DidNotReceiveWithAnyArgs().CriarCheckout(default!, Ct);
+    }
+
+    /// <summary>
+    /// Plano menor que a turma é recusado: sem isso, a turma de 200 no Premium deixava vencer e
+    /// contratava o Essencial com os 200 dentro.
+    /// </summary>
+    /// <param name="ocupadas">Vagas já ocupadas.</param>
+    /// <param name="passa">Se o checkout sai.</param>
+    [Theory]
+    [InlineData(401, false)]
+    [InlineData(400, true)]
+    public async Task Checkout_de_plano_menor_que_a_turma_e_recusado(int ocupadas, bool passa)
+    {
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        _vinculos
+            .ContarMembros(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns([new ContagemDeMembros(PapelNaFormatura.Formando, true, false, false, ocupadas)]);
+
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
+
+        resultado.Sucesso.ShouldBe(passa);
+        if (!passa)
+        {
+            resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("assinatura.plano_menor_que_a_turma");
+            await _provedor.DidNotReceiveWithAnyArgs().CriarCheckout(default!, Ct);
+        }
     }
 
     /// <summary>Provedor fora do ar: 503, nada gravado, e a formatura continua em rascunho.</summary>

@@ -6,14 +6,21 @@ using Backend.Api.DTOs.Adesoes;
 using Backend.Api.DTOs.Cobrancas;
 using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Formandos;
+using Backend.Business.Abstractions;
+using Backend.Business.Adesoes.Interfaces;
+using Backend.Business.Adesoes.Services;
+using Backend.Business.Adesoes.Settings;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.IA.Interfaces;
+using Backend.Business.IA.Models;
 using Backend.IntegrationTests.Infra;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Shouldly;
 using static Backend.IntegrationTests.Infra.AdesaoDeTeste;
@@ -408,6 +415,82 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
 
     private static ItemDeCobrancaRequestDTO Mensalidade(long valor = 240_000) =>
         new(TipoDeCobranca.Mensalidade, null, valor, 12, 10, new DateOnly(DateTime.UtcNow.Year + 1, 3, 1));
+
+    /// <summary>
+    /// Sprint 24: a rodada enxerga termos de todas as turmas, gera cada resumo no escopo da turma dele,
+    /// e a tela lê o resumo sem que o hash do aceite mude.
+    /// </summary>
+    [Fact]
+    public async Task Resumo_do_termo_e_gerado_por_turma_e_chega_a_tela_fora_do_hash()
+    {
+        // Arrange
+        var turma = await TurmaPronta();
+        var outra = await TurmaPronta();
+        var formando = await fabrica.NovoMembro(turma.FormaturaId, PapelNaFormatura.Formando, Ct);
+        var antes = await formando.Cliente.GetFromJsonAsync<ConteudoParaAdesaoDTO>($"{Rota}/termos/vigente", Json, Ct);
+        var agora = DateTime.UtcNow;
+
+        // Act
+        var pendentes = await Resumos(turma.FormaturaId).ListarPendentes(agora, Ct);
+        var daTurma = pendentes.Single(p => p.FormaturaId == turma.FormaturaId);
+        var emEscopoAlheio = await Resumos(outra.FormaturaId).Gerar(daTurma.TermoId, Ct);
+        var gerado = await Resumos(turma.FormaturaId).Gerar(daTurma.TermoId, Ct);
+        var depois = await formando.Cliente.GetFromJsonAsync<ConteudoParaAdesaoDTO>($"{Rota}/termos/vigente", Json, Ct);
+
+        // Assert
+        pendentes.ShouldContain(p => p.FormaturaId == outra.FormaturaId);
+        emEscopoAlheio.PrimeiroErro.Codigo.ShouldBe("adesao.termo_nao_encontrado");
+        gerado.Sucesso.ShouldBeTrue();
+        antes!.Resumo.ShouldBeNull();
+        depois!.Resumo.ShouldBe(ModeloDeTeste.Resposta);
+        depois.HashDoConteudo.ShouldBe(antes.HashDoConteudo);
+        (await Resumos(turma.FormaturaId).ListarPendentes(agora, Ct)).ShouldNotContain(daTurma);
+        (await Resumos(turma.FormaturaId).ListarPendentes(agora.AddDays(8), Ct)).ShouldNotContain(p => p.FormaturaId == outra.FormaturaId);
+    }
+
+    /// <summary>Publicar a v2 põe a v2 na fila e deixa o resumo da v1 onde estava.</summary>
+    [Fact]
+    public async Task Versao_nova_entra_na_fila_e_nao_mexe_no_resumo_da_anterior()
+    {
+        var turma = await TurmaPronta();
+        var v1 = (await Resumos(turma.FormaturaId).ListarPendentes(DateTime.UtcNow, Ct)).Single(p => p.FormaturaId == turma.FormaturaId);
+        (await Resumos(turma.FormaturaId).Gerar(v1.TermoId, Ct)).Sucesso.ShouldBeTrue();
+
+        await Publicar(turma.Presidente.Cliente, TermoV1 + "\n\nMulta de 2% por atraso.");
+
+        var pendente = (await Resumos(turma.FormaturaId).ListarPendentes(DateTime.UtcNow, Ct)).Single(p => p.FormaturaId == turma.FormaturaId);
+        pendente.TermoId.ShouldNotBe(v1.TermoId);
+        await using var contexto = fabrica.ContextoDe(turma.FormaturaId);
+        (await contexto.ResumosDeTermo.CountAsync(r => r.TermoId == v1.TermoId, Ct)).ShouldBe(1);
+    }
+
+    /// <summary>
+    /// O serviço de resumo num escopo do worker, com o provedor trocado por um dublê — a regra e o banco
+    /// são os de verdade, só o HTTP não sai.
+    /// </summary>
+    /// <param name="formaturaId">Turma para a qual o escopo aponta.</param>
+    private ResumoDoTermoService Resumos(Guid formaturaId)
+    {
+        var escopo = fabrica.EscopoDoWorker(formaturaId);
+
+        return new ResumoDoTermoService(
+            escopo.ServiceProvider.GetRequiredService<IAdesaoRepository>(),
+            new ModeloDeTeste(),
+            Options.Create(new ResumoSettings { Modelos = ["modelo/teste"], PorRodada = 50 }),
+            escopo.ServiceProvider.GetRequiredService<IUnitOfWork>()
+        );
+    }
+
+    /// <summary>Provedor que sempre responde a mesma coisa.</summary>
+    private sealed class ModeloDeTeste : IModeloDeLinguagem
+    {
+        public const string Resposta = "Você paga 12 parcelas de R$ 200,00.";
+
+        public bool Ligado => true;
+
+        public Task<Result<RespostaDoModelo>> Completar(PedidoAoModelo pedido, CancellationToken ct = default) =>
+            Task.FromResult<Result<RespostaDoModelo>>(new RespostaDoModelo(Resposta, pedido.Modelos[0]));
+    }
 
     private async Task<Turma> TurmaPronta()
     {

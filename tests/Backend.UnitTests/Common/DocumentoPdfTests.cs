@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Text;
 using Backend.Business.Common.Pdf;
+using Backend.Business.Emails.Services;
 using Shouldly;
 
 namespace Backend.UnitTests.Common;
@@ -90,7 +92,7 @@ public sealed class DocumentoPdfTests
         var texto = Texto(new DocumentoPdf().Tabela(Colunas, Cabecalho, linhas).Gerar("prova"));
 
         // Assert
-        var paginas = int.Parse(texto.Split("/Count ")[1].Split(' ')[0], System.Globalization.CultureInfo.InvariantCulture);
+        var paginas = int.Parse(texto.Split("/Count ")[1].Split(' ')[0], CultureInfo.InvariantCulture);
         paginas.ShouldBeGreaterThan(1);
         Ocorrencias(texto, "Fornecedor").ShouldBe(paginas);
     }
@@ -120,10 +122,52 @@ public sealed class DocumentoPdfTests
             x.ShouldBeLessThanOrEqualTo(MargemDireitaDoRetrato);
     }
 
+    /// <summary>
+    /// A capa formal embute só o logo; a do documento que a pessoa recebe, o logo e o mascote — cada
+    /// imagem com a máscara de transparência dela, e gravada uma vez só.
+    /// </summary>
+    /// <param name="comMascote">Se a capa leva mascote.</param>
+    /// <param name="imagens">Objetos de imagem esperados: cor e máscara de cada uma.</param>
+    [Theory]
+    [InlineData(false, 2)]
+    [InlineData(true, 4)]
+    public void Capa_embute_o_logo_e_o_mascote_so_quando_pedido(bool comMascote, int imagens)
+    {
+        // Act
+        var pdf = new DocumentoPdf().Capa("Recibo", "Turma", mascote: comMascote ? Mascote.Cofrinho : null).Gerar("prova");
+
+        // Assert
+        var texto = Texto(pdf);
+        Ocorrencias(texto, "/Subtype /Image").ShouldBe(imagens);
+        Ocorrencias(texto, " Do Q").ShouldBe(imagens / 2);
+        texto.ShouldEndWith("%%EOF\n");
+    }
+
+    /// <summary>
+    /// A tabela de posições aponta para o começo de cada objeto, contada em bytes — a imagem é binária,
+    /// e contar caracteres em vez de bytes é o que faz o leitor de PDF recusar o arquivo.
+    /// </summary>
+    [Fact]
+    public void A_tabela_de_posicoes_aponta_para_cada_objeto()
+    {
+        // Act
+        var pdf = new DocumentoPdf().Capa("Convite", "Turma", mascote: Mascote.Acenando).Gerar("prova");
+
+        // Assert
+        var texto = Texto(pdf);
+        var tabela = int.Parse(texto.Split("startxref\n")[1].Split('\n')[0], CultureInfo.InvariantCulture);
+        var posicoes = texto[tabela..].Split('\n').Skip(3).TakeWhile(linha => linha.EndsWith(" n ", StringComparison.Ordinal)).ToList();
+
+        posicoes.ShouldNotBeEmpty();
+
+        for (var i = 0; i < posicoes.Count; i++)
+            texto[int.Parse(posicoes[i][..10], CultureInfo.InvariantCulture)..].ShouldStartWith($"{i + 1} 0 obj");
+    }
+
     /// <summary>O X de cada bloco de texto do fluxo, que é o primeiro número da matriz do <c>Tm</c>.</summary>
     /// <param name="texto">Conteúdo do PDF.</param>
     private static IEnumerable<float> PosicoesDeTexto(string texto) =>
-        texto.Split("1 0 0 1 ").Skip(1).Select(trecho => float.Parse(trecho.Split(' ')[0], System.Globalization.CultureInfo.InvariantCulture));
+        texto.Split("1 0 0 1 ").Skip(1).Select(trecho => float.Parse(trecho.Split(' ')[0], CultureInfo.InvariantCulture));
 
     private static int Ocorrencias(string texto, string trecho) => texto.Split(trecho).Length - 1;
 

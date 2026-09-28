@@ -92,11 +92,7 @@ public sealed class FornecedorController(IFornecedorService fornecedorService) :
     {
         var resultado = await fornecedorService.Criar(ParaModelo(requisicao), ct);
 
-        return Criado(
-            resultado.Map(fornecedor => fornecedor.Adapt<FornecedorDTO>()),
-            RotaDoFornecedor,
-            new { id = resultado.Sucesso ? resultado.Valor.Id : Guid.Empty }
-        );
+        return Criado(resultado.Map(fornecedor => fornecedor.Adapt<FornecedorDTO>()), RotaDoFornecedor, dto => dto.Id);
     }
 
     /// <summary>Altera o cadastro — inclusive a ativação.</summary>

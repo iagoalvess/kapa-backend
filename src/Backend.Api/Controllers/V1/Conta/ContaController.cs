@@ -20,7 +20,9 @@ namespace Backend.Api.Controllers.V1.Conta;
 /// <para>
 /// Todos os endpoints anônimos ficam sob o limite estreito de
 /// <see cref="RateLimitConfig.Autenticacao"/>: sem ele, "esqueci minha senha" vira uma forma de
-/// disparar e-mail em massa a partir do seu domínio, queimando a reputação de envio.
+/// disparar e-mail em massa a partir do seu domínio, queimando a reputação de envio. A exceção é
+/// <c>confirmar-email</c>, que não dispara nada e só consome um token: vai para o balde de
+/// <see cref="RateLimitConfig.Entrada"/>, porque a turma recém-cadastrada confirma do mesmo Wi-Fi.
 /// </para>
 /// </remarks>
 /// <param name="contaService">Regras do ciclo de vida da conta.</param>
@@ -60,6 +62,7 @@ public sealed class ContaController(IContaService contaService, IUsuarioAtual us
     [RegistrarEvento("conta.email_confirmado")]
     [AllowAnonymous]
     [HttpPost("confirmar-email")]
+    [EnableRateLimiting(RateLimitConfig.Entrada)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ConfirmarEmail([FromBody] ConfirmarEmailRequestDTO requisicao, CancellationToken ct) =>

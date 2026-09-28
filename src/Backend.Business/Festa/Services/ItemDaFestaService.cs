@@ -159,7 +159,19 @@ public sealed class ItemDaFestaService(
     }
 
     /// <inheritdoc />
-    public Task<Result<ItemDaFestaResumo>> Cancelar(Guid id, CancellationToken ct = default) => Alterar(id, item => item.Cancelar(), ct);
+    /// <remarks>
+    /// Com item opcional ligado e venda aberta, 409 <c>festa.item_com_opcional</c> (Sprint 20,
+    /// decisão 11): a turma desistir da foto zeraria o custo dela enquanto as parcelas já pagas dos
+    /// pedidos continuam no arrecadado — e a meta passaria de 100% por uma coisa que não vai
+    /// acontecer. Encerre a venda primeiro; o que fazer com o dinheiro é decisão da tesouraria.
+    /// </remarks>
+    public async Task<Result<ItemDaFestaResumo>> Cancelar(Guid id, CancellationToken ct = default)
+    {
+        if (await itemRepository.Obter(id, ct) is { TemOpcional: true })
+            return Erro.Conflito("festa.item_com_opcional", "Este item está à venda como opcional. Encerre a venda dele antes de desistir do item.");
+
+        return await Alterar(id, item => item.Cancelar(), ct);
+    }
 
     /// <inheritdoc />
     public Task<Result<ItemDaFestaResumo>> Reativar(Guid id, CancellationToken ct = default) => Alterar(id, item => item.Reativar(), ct);

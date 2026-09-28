@@ -18,9 +18,12 @@ public sealed class RegistroDeMapeamentosFinanceiro : IRegister
     {
         config.NewConfig<FornecedorResumo, FornecedorDTO>();
         config.NewConfig<DespesaResumo, DespesaDTO>();
-        config.NewConfig<SomaDeDespesas, SomaDeDespesasDTO>();
+        config.NewConfig<SomaDeLancamentos, SomaDeLancamentosDTO>();
         config.NewConfig<ResumoDeDespesas, ResumoDeDespesasDTO>();
         config.NewConfig<GastoPorCategoria, GastoPorCategoriaDTO>();
+        config.NewConfig<OutraReceitaPorCategoria, OutraReceitaPorCategoriaDTO>();
+        config.NewConfig<OutraReceitaResumo, OutraReceitaDTO>();
+        config.NewConfig<ResumoDeOutrasReceitas, ResumoDeOutrasReceitasDTO>();
         config.NewConfig<LancamentoDoCaixa, LancamentoDTO>();
         config.NewConfig<CaixaConsolidado, CaixaDTO>();
         config.NewConfig<MesDoCaixa, MesDoCaixaDTO>();

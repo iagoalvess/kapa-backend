@@ -95,11 +95,7 @@ public sealed class ItemDaFestaController(IItemDaFestaService itemService, IUsua
     {
         var resultado = await itemService.Criar(ParaModelo(requisicao), ct);
 
-        return Criado(
-            resultado.Map(item => item.Adapt<ItemDaFestaDTO>()),
-            RotaDoItem,
-            new { id = resultado.Sucesso ? resultado.Valor.Id : Guid.Empty }
-        );
+        return Criado(resultado.Map(item => item.Adapt<ItemDaFestaDTO>()), RotaDoItem, dto => dto.Id);
     }
 
     /// <summary>Corrige um item.</summary>

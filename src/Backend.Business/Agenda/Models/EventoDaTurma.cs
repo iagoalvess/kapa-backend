@@ -39,8 +39,52 @@ public class EventoDaTurma : EntidadeDaFormatura
     /// <summary>O que mais a turma precisa saber. Texto simples, não Markdown.</summary>
     public string? Descricao { get; private set; }
 
+    /// <summary>Quantos convites cada formando ativo recebe (Sprint 30). Nulo: o evento não tem cota.</summary>
+    public int? CotaPorFormando { get; private set; }
+
+    /// <summary>Lugares do auditório — a conta da cota avisa quando passa, mas não bloqueia (decisão 3).</summary>
+    public int? Capacidade { get; private set; }
+
+    /// <summary>
+    /// Quando a comissão abriu a cota pela primeira vez, em UTC. Nulo: nenhum convite de cota saiu.
+    /// </summary>
+    /// <remarks>
+    /// É o que faz o formando que entra depois receber os dele na entrada (P1), e o que impede a cota
+    /// de diminuir: convite já emitido não se desfaz por mudança de número.
+    /// </remarks>
+    public DateTime? CotaAbertaEm { get; private set; }
+
     /// <summary>Se saiu do que vai acontecer — continua na lista, com o selo.</summary>
     public bool Cancelado => Situacao is SituacaoDoEvento.Cancelado;
+
+    /// <summary>
+    /// Grava a cota e a capacidade.
+    /// </summary>
+    /// <remarks>
+    /// Depois de aberta, a cota só sobe: descer deixaria convites emitidos além dela, e revogar convite
+    /// nomeado por mudança de número é o tipo de surpresa que a porta descobre.
+    /// </remarks>
+    /// <param name="cota">Convites por formando; nulo tira a cota de um evento que ainda não a abriu.</param>
+    /// <param name="capacidade">Lugares; nulo é "não sei".</param>
+    public Result DefinirCota(int? cota, int? capacidade)
+    {
+        if (CotaAbertaEm is not null && (cota ?? 0) < CotaPorFormando)
+            return Result.Falha(
+                Erro.Conflito(
+                    "festa.cota_ja_aberta",
+                    $"Os convites já foram emitidos com {CotaPorFormando} por formando. Depois de aberta, a cota só aumenta."
+                )
+            );
+
+        CotaPorFormando = cota;
+        Capacidade = capacidade;
+
+        return Result.Ok();
+    }
+
+    /// <summary>Marca a abertura da cota. Reabrir não muda a data da primeira vez.</summary>
+    /// <param name="agora">Instante, em UTC.</param>
+    public void AbrirCota(DateTime agora) => CotaAbertaEm ??= agora;
 
     /// <summary>Um evento novo.</summary>
     /// <param name="dados">Dados já validados.</param>

@@ -43,12 +43,12 @@ public static class Modulo
     /// <summary>Avisos, notificações e a régua de cobrança.</summary>
     public const string Avisos = "avisos";
 
-    /// <summary>Painel e exportação contábil.</summary>
-    public const string Contabil = "contabil";
+    /// <summary>Relatórios: balancete, planilhas e PDFs da turma.</summary>
+    public const string Relatorios = "relatorios";
 
     /// <summary>Portal LGPD e trilha de auditoria.</summary>
     public const string Auditoria = "auditoria";
 
     /// <summary>Todos os códigos. É sobre esta lista que as políticas são registradas.</summary>
-    public static readonly IReadOnlyList<string> Todos = [Membros, Termo, Cobrancas, Pix, Despesas, Caixa, Mural, Avisos, Contabil, Auditoria];
+    public static readonly IReadOnlyList<string> Todos = [Membros, Termo, Cobrancas, Pix, Despesas, Caixa, Mural, Avisos, Relatorios, Auditoria];
 }

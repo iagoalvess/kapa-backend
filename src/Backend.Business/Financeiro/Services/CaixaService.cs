@@ -10,9 +10,11 @@ namespace Backend.Business.Financeiro.Services;
 /// Quanto a turma tem, quanto ainda entra e quanto ainda sai.
 /// </summary>
 /// <remarks>
-/// Saldo é agregação de lançamento, nunca coluna (decisão 1): arrecadado (recebimentos da Sprint 9)
-/// menos gasto (despesas pagas), calculado a cada consulta. A projeção conta só o que ainda vence
-/// (decisão 6): parcela vencida vai à parte, despesa prevista atrasada cai no mês atual.
+/// Saldo é agregação de lançamento, nunca coluna (decisão 1): arrecadado (recebimentos da Sprint 9 e
+/// receitas recebidas da Sprint 28) menos gasto (despesas pagas), calculado a cada consulta. A projeção conta só o que ainda vence
+/// (decisão 6): parcela vencida vai à parte, despesa prevista atrasada cai no mês atual. Receita
+/// prevista entra só na <see cref="Projecao"/> (P2 da Sprint 28), e a atrasada fica fora, como a
+/// parcela vencida: dinheiro prometido que não veio não é conta com que se possa contar.
 /// </remarks>
 /// <param name="caixaRepository">As agregações do caixa.</param>
 /// <param name="formaturaRepository">Data da colação — o fim do horizonte da projeção.</param>
@@ -30,6 +32,9 @@ public sealed class CaixaService(ICaixaRepository caixaRepository, IFormaturaRep
     /// </remarks>
     public const int MaximoDeMeses = 120;
 
+    /// <summary>Os meses já fechados do gráfico do Início, o atual incluído — o próximo vem à parte.</summary>
+    private const int MesesDaArrecadacao = 5;
+
     /// <inheritdoc />
     public async Task<Result<CaixaConsolidado>> Consolidado(CancellationToken ct = default)
     {
@@ -43,6 +48,7 @@ public sealed class CaixaService(ICaixaRepository caixaRepository, IFormaturaRep
             emAtraso,
             await caixaRepository.DespesasPrevistas(ct),
             await caixaRepository.PorCategoria(ct),
+            await caixaRepository.OutrasReceitasPorCategoria(ct),
             await caixaRepository.UltimosLancamentos(UltimosLancamentos, ct)
         );
     }
@@ -60,10 +66,10 @@ public sealed class CaixaService(ICaixaRepository caixaRepository, IFormaturaRep
 
         var entradas = Indexar(await caixaRepository.EntradasPorMes(ct));
         var saidas = Indexar(await caixaRepository.SaidasPorMes(ct));
-        var entradasPrevistas = Indexar(await caixaRepository.EntradasPrevistasPorMes(hoje, ct));
+        var entradasPrevistas = Indexar(await caixaRepository.EntradasPrevistasPorMes(hoje, comOutrasReceitasPrevistas: true, ct));
         var saidasPrevistas = Indexar(await caixaRepository.SaidasPrevistasPorMes(hoje, ct));
 
-        var colacao = (await formaturaRepository.ObterDetalhe(formaturaId, ct))?.PrevisaoDeColacao;
+        var colacao = (await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct))?.PrevisaoDeColacao;
         var meses = Janela(mesAtual, colacao, [entradas, saidas, entradasPrevistas, saidasPrevistas]);
 
         var acumulado = 0L;
@@ -84,6 +90,29 @@ public sealed class CaixaService(ICaixaRepository caixaRepository, IFormaturaRep
         var (_, emAtraso) = await caixaRepository.ParcelasEmAberto(hoje, ct);
 
         return new ProjecaoDoCaixa(linhas, await caixaRepository.Arrecadado(ct) - await caixaRepository.Gasto(ct), emAtraso);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// O acumulado começa antes da janela: o primeiro mês do gráfico já traz tudo o que veio antes.
+    /// </remarks>
+    public async Task<Result<IReadOnlyList<MesDaArrecadacao>>> Arrecadacao(CancellationToken ct = default)
+    {
+        var hoje = DataUtils.Hoje();
+        var mesAtual = PrimeiroDoMes(hoje);
+        var entradas = Indexar(await caixaRepository.EntradasPorMes(ct));
+        var previstas = Indexar(await caixaRepository.EntradasPrevistasPorMes(hoje, comOutrasReceitasPrevistas: false, ct));
+
+        MesDaArrecadacao Fechamento(DateOnly mes) => new(mes, entradas.Where(entrada => entrada.Key <= mes).Sum(entrada => entrada.Value), false);
+
+        var passados = Enumerable.Range(0, MesesDaArrecadacao).Select(atras => Fechamento(mesAtual.AddMonths(atras - MesesDaArrecadacao + 1)));
+        var proximo = mesAtual.AddMonths(1);
+        var jaJuntado = entradas.Values.Sum();
+
+        return Result.Ok<IReadOnlyList<MesDaArrecadacao>>([
+            .. passados,
+            new MesDaArrecadacao(proximo, jaJuntado + previstas.GetValueOrDefault(proximo), true),
+        ]);
     }
 
     /// <summary>Os meses do gráfico, sem buraco: do primeiro com movimento ao último previsto — ou à colação.</summary>

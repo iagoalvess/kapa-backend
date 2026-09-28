@@ -34,4 +34,14 @@ public interface IUsuarioRepository
     /// </remarks>
     /// <param name="id">Identificador do usuário.</param>
     Task<Usuario?> ObterParaEdicao(Guid id, CancellationToken ct = default);
+
+    /// <summary>
+    /// Conta os administradores **ativos**.
+    /// </summary>
+    /// <remarks>
+    /// Existe para uma proteção específica: impedir que a última conta de administrador seja
+    /// desativada ou rebaixada. Sem ela, um clique deixa o sistema sem ninguém capaz de
+    /// gerenciar usuários — e a recuperação exige acesso direto ao banco.
+    /// </remarks>
+    Task<int> ContarAdministradoresAtivos(CancellationToken ct = default);
 }

@@ -49,4 +49,24 @@ public sealed class EmailFilaRepository(AppDbContext db) : IEmailFilaRepository
 
         return lote;
     }
+
+    /// <inheritdoc />
+    /// <remarks><c>ExecuteDeleteAsync</c>: limpeza em massa do worker, sem nada a compor — a mesma exceção de <c>RefreshTokenRepository</c>.</remarks>
+    public Task<int> RemoverConcluidosAnterioresA(DateTime limiteUtc, CancellationToken ct = default) =>
+        db
+            .EmailsFila.Where(e => (e.Status == EEmailStatus.Enviado || e.Status == EEmailStatus.Falhou) && e.AtualizadoEm < limiteUtc)
+            .ExecuteDeleteAsync(ct);
+
+    /// <inheritdoc />
+    /// <remarks><c>ExecuteUpdateAsync</c>: correção em massa do worker, pelo mesmo motivo da limpeza.</remarks>
+    public Task<int> DesistirDosPresosAnterioresA(DateTime limiteUtc, CancellationToken ct = default) =>
+        db
+            .EmailsFila.Where(e => e.Status == EEmailStatus.Enviando && e.AtualizadoEm < limiteUtc)
+            .ExecuteUpdateAsync(
+                s =>
+                    s.SetProperty(e => e.Status, EEmailStatus.Falhou)
+                        .SetProperty(e => e.UltimoErro, "Envio interrompido: o worker parou no meio.")
+                        .SetProperty(e => e.AtualizadoEm, DateTime.UtcNow),
+                ct
+            );
 }

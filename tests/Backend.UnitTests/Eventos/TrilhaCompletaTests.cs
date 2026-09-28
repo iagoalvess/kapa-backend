@@ -1,4 +1,5 @@
 using System.Reflection;
+using Backend.Api.Controllers;
 using Backend.Business.Eventos.Models;
 using Shouldly;
 
@@ -23,8 +24,7 @@ namespace Backend.UnitTests.Eventos;
 public sealed class TrilhaCompletaTests
 {
     /// <summary>O tipo do atributo, achado pelo nome para não arrastar a referência da API para cá.</summary>
-    private static Type AtributoDeEvento =>
-        typeof(Backend.Api.Controllers.MainController).Assembly.GetType("Backend.Api.Analytics.RegistrarEventoAttribute")!;
+    private static Type AtributoDeEvento => typeof(MainController).Assembly.GetType("Backend.Api.Analytics.RegistrarEventoAttribute")!;
 
     [Fact]
     public void Nenhum_nome_auditavel_e_gravado_pela_fila_de_analytics()
@@ -33,7 +33,7 @@ public sealed class TrilhaCompletaTests
         var auditaveis = NomesDeAuditoria.Todos.ToHashSet(StringComparer.Ordinal);
 
         // Act — todo `[RegistrarEvento("...")]` declarado nos controllers da API.
-        var pelaFila = typeof(Backend.Api.Controllers.MainController)
+        var pelaFila = typeof(MainController)
             .Assembly.GetTypes()
             .SelectMany(tipo => tipo.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
             .SelectMany(metodo => metodo.GetCustomAttributes(AtributoDeEvento, inherit: false))

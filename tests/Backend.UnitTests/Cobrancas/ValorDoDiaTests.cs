@@ -161,4 +161,35 @@ public sealed class ValorDoDiaTests
         // Assert
         valor.TotalEmCentavos.ShouldBe(0);
     }
+
+    /// <summary>
+    /// A leitura do extrato abate o pago em parcial, como a entidade: sem isso, quem pagou metade via
+    /// o valor cheio no extrato e no PIX, e pagava tudo de novo.
+    /// </summary>
+    [Fact]
+    public void Resumo_de_parcela_com_pagamento_parcial_cobra_so_o_que_falta()
+    {
+        // Arrange
+        var parcela = new ParcelaResumo(
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            "Ana",
+            Guid.CreateVersion7(),
+            TipoDeCobranca.Mensalidade,
+            null,
+            1,
+            12,
+            Vencimento,
+            350_000,
+            StatusDaParcela.Aberta,
+            ValorPagoEmCentavos: 200_000
+        );
+
+        // Act
+        var comValor = parcela.ComValorDoDia(Vencimento, Tipicas);
+
+        // Assert
+        comValor.ValorDoDia!.TotalEmCentavos.ShouldBe(150_000);
+    }
 }

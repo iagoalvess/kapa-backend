@@ -44,8 +44,18 @@ public class PlanoDeCobranca : EntidadeDaFormatura
     /// <summary>Itens do plano, inclusive os encerrados.</summary>
     public List<ItemDeCobranca> Itens { get; private set; } = [];
 
-    /// <summary>Itens que ainda cobram.</summary>
-    public IEnumerable<ItemDeCobranca> ItensAtivos => Itens.Where(item => item.EncerradoEm is null);
+    /// <summary>
+    /// Itens que ainda cobram <b>todo mundo</b> — os opcionais ficam de fora.
+    /// </summary>
+    /// <remarks>
+    /// É a propriedade que a adesão lê, e por isso o filtro de <c>Opcional</c> mora aqui (Sprint
+    /// 20, decisão 1): esquecê-lo faria o convite extra entrar na adesão da turma inteira, cobrando
+    /// de todos um item que ninguém pediu. O opcional é alcançado só pelo pedido.
+    /// </remarks>
+    public IEnumerable<ItemDeCobranca> ItensAtivos => Itens.Where(item => item.EncerradoEm is null && !item.Opcional);
+
+    /// <summary>Os itens opcionais que ainda estão à venda — o que o pedido alcança.</summary>
+    public IEnumerable<ItemDeCobranca> ItensOpcionais => Itens.Where(item => item.EncerradoEm is null && item.Opcional);
 
     /// <summary>Os itens que ainda cobram, como dados, na ordem em que foram criados.</summary>
     /// <remarks>Ordem fixa, com desempate pelo id: a grade e o texto aceito na adesão saem sempre iguais.</remarks>

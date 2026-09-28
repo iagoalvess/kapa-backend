@@ -42,6 +42,12 @@ jobs:
       - name: Restaurar pacotes
         run: dotnet restore
 
+      - name: Pacotes vulneráveis
+        # Inclui os transitivos; qualquer vulnerabilidade conhecida quebra o build.
+        run: |
+          dotnet list package --vulnerable --include-transitive | tee vulneraveis.txt
+          ! grep -q "has the following vulnerable packages" vulneraveis.txt
+
       - name: Conferir formatação
         run: dotnet csharpier check .
 
@@ -55,6 +61,19 @@ jobs:
       - name: Testes de integração
         # O runner do GitHub já tem Docker; o Testcontainers sobe o Postgres sozinho.
         run: dotnet test tests/Backend.IntegrationTests --no-build -c Release
+
+  segredos:
+    # Varre o histórico inteiro com as regras padrão do gitleaks. Os segredos de
+    # appsettings.Development.json são de dev, versionados de propósito, e não casam com elas.
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Varrer segredos
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest git /repo --redact
 
   imagens:
     # Só confirma que as imagens constroem. Publicar é outro workflow, com credenciais.

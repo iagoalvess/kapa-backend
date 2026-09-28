@@ -127,7 +127,9 @@ Tudo por variável de ambiente (`Secao__Chave`) ou `appsettings.json`.
 | `CookieDeSessao__SameSite` | não | `Lax`; use `None` só com front e API em sites registráveis diferentes |
 | `Rede__ProxiesConfiaveis__0` | atrás de proxy | vazio = `X-Forwarded-For` ignorado. IP ou CIDR (`10.0.0.0/8`) |
 | `RateLimit__PadraoPorMinuto` | não | `120` |
-| `RateLimit__AutenticacaoPorMinuto` | não | `10` |
+| `RateLimit__AutenticacaoPorMinuto` | não | `10` — esqueci-senha, reenviar confirmação, redefinir e alterar senha |
+| `RateLimit__EntradaRajada` / `RateLimit__EntradaPorMinuto` | não | `100` / `10` — cadastro, login e confirmar e-mail: rajada por IP para a assembleia no mesmo Wi-Fi |
+| `RateLimit__FilaPorTurmaSimultaneas` / `RateLimit__FilaPorTurmaEspera` | não | `4` / `500` — escritas por turma que chegam juntas ao banco nas rotas `[FilaPorTurma]` (pedido, aceite do link); o resto espera em memória, em ordem de chegada |
 | `Documentacao__Habilitada` | não | `false` (sempre ligada em dev) |
 | `Aplicacao__Nome` | não | `Backend` — aparece nos e-mails |
 | `Aplicacao__UrlDoFrontend` | sim, p/ e-mails | `http://localhost:3000` — base dos links de confirmação e redefinição |
@@ -138,6 +140,9 @@ Tudo por variável de ambiente (`Secao__Chave`) ou `appsettings.json`.
 | `Smtp__Usuario` / `Smtp__Senha` | não | vazio = envia sem autenticar |
 | `Smtp__RemetenteEmail` / `Smtp__RemetenteNome` | com SMTP | — |
 | `Eventos__DiasDeRetencao` | não | `180` |
+| `IA__ApiKey` | não (só no worker) | vazio = toda IA desligada, sem chamada e sem erro no log. Chave do OpenRouter |
+| `IA__BaseUrl` | não | `https://openrouter.ai/api/v1/` — qualquer API no formato `chat/completions` da OpenAI |
+| `ResumoDoTermo__Modelos__0` | não | ids em ordem de preferência; o primeiro que responder ganha |
 | `Armazenamento__Provedor` | não | `Local` (dev) — use `S3` em produção |
 | `Armazenamento__CaminhoLocal` | provedor Local | `arquivos` |
 | `Armazenamento__TamanhoMaximoEmMB` | não | `25` — teto de **cada** arquivo |

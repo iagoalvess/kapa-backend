@@ -1,6 +1,7 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Busca.Interfaces;
 using Backend.Business.Busca.Models;
+using Backend.Business.Formaturas.Interfaces;
 
 namespace Backend.Business.Busca.Services;
 
@@ -13,7 +14,8 @@ namespace Backend.Business.Busca.Services;
 /// também casariam com meia turma — a lista não diria nada e a consulta varreria tudo.
 /// </remarks>
 /// <param name="buscaRepository">As consultas.</param>
-public sealed class BuscaService(IBuscaRepository buscaRepository) : IBuscaService
+/// <param name="vinculoRepository">O papel de quem pergunta, lido do vínculo ativo.</param>
+public sealed class BuscaService(IBuscaRepository buscaRepository, IVinculoRepository vinculoRepository) : IBuscaService
 {
     /// <summary>A partir de quantos caracteres a busca vale a ida ao banco.</summary>
     public const int TamanhoMinimo = 3;
@@ -22,13 +24,16 @@ public sealed class BuscaService(IBuscaRepository buscaRepository) : IBuscaServi
     private const int PorGrupo = 5;
 
     /// <inheritdoc />
-    public async Task<Result<BuscaNaTurma>> Buscar(QuemBusca quem, string? termo, CancellationToken ct = default)
+    public async Task<Result<BuscaNaTurma>> Buscar(Guid formaturaId, Guid usuarioId, string? termo, CancellationToken ct = default)
     {
         var limpo = termo?.Trim() ?? string.Empty;
 
         if (limpo.Length < TamanhoMinimo)
             return Result.Ok(BuscaNaTurma.Nada);
 
-        return Result.Ok(await buscaRepository.Buscar(quem, limpo, PorGrupo, ct));
+        if (await vinculoRepository.ObterPapelAtivo(usuarioId, formaturaId, ct) is not { } papel)
+            return Result.Ok(BuscaNaTurma.Nada);
+
+        return Result.Ok(await buscaRepository.Buscar(new QuemBusca(formaturaId, papel), limpo, PorGrupo, ct));
     }
 }

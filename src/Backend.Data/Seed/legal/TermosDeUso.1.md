@@ -1,6 +1,6 @@
 # Termos de Uso da Kapa
 
-Estes Termos de Uso regem o acesso e o uso da plataforma Kapa, operada por **[RAZÃO SOCIAL]**, inscrita no CNPJ sob o nº **[CNPJ]**, com sede em **[ENDEREÇO COMPLETO]** ("Kapa", "nós").
+Estes Termos de Uso regem o acesso e o uso da plataforma Kapa, operada por **KAPA FORMATURAS INOVA SIMPLES (I.S.)**, inscrita no CNPJ sob o nº **69.334.998/0001-67**, com sede em **Rua Carlos Alves, 16, apto 102, São José, Belo Horizonte/MG, CEP 31275-120** ("Kapa", "nós").
 
 Ao criar uma conta, você declara que leu, entendeu e concorda com estes Termos e com a Política de Privacidade, que é parte integrante deles. Se não concordar, não utilize a plataforma.
 
@@ -8,8 +8,8 @@ Estes Termos são um contrato de adesão e se aplicam da mesma forma a todas as 
 
 ## 1. Quem somos e canais oficiais
 
-- **Suporte:** [E-MAIL DE SUPORTE]
-- **Assuntos jurídicos, privacidade e Encarregado de Dados (LGPD):** [E-MAIL DO ENCARREGADO]
+- **Suporte:** suporte@kapaformaturas.com.br
+- **Assuntos jurídicos, privacidade e Encarregado de Dados (LGPD):** contato@kapaformaturas.com.br
 - **Horário de atendimento:** segunda a sexta-feira, das 8h às 18h (horário de Brasília), com resposta em até 5 dias úteis.
 
 A Kapa nunca pede sua senha por e-mail, telefone ou mensagem.

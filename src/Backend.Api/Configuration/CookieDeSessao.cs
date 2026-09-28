@@ -164,12 +164,21 @@ public static class CookieDeSessao
 /// <summary>Registro da configuração do cookie de sessão.</summary>
 public static class CookieDeSessaoConfig
 {
-    /// <summary>Liga a seção de configuração do cookie.</summary>
+    /// <summary>Liga a seção de configuração do cookie e o <see cref="SessaoHttp"/> que a usa.</summary>
+    /// <remarks>
+    /// As origens são lidas na primeira resolução, do <see cref="IConfiguration"/> do contêiner, e
+    /// não da configuração recebida aqui: assim valem as fontes que o host acrescenta depois do
+    /// registro, como as dos testes de integração.
+    /// </remarks>
     /// <param name="services">Coleção de serviços.</param>
     /// <param name="configuration">Configuração da aplicação.</param>
     public static IServiceCollection AddCookieDeSessao(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<CookieDeSessaoSettings>(configuration.GetSection(CookieDeSessaoSettings.Secao));
+        services.AddSingleton(provedor => new OrigensPermitidas(
+            provedor.GetRequiredService<IConfiguration>().GetSection(ApiConfig.SecaoDeOrigens).Get<string[]>() ?? []
+        ));
+        services.AddScoped<SessaoHttp>();
 
         return services;
     }

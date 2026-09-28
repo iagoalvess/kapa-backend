@@ -1,4 +1,5 @@
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Common.Datas;
 using FluentValidation;
 
 namespace Backend.Business.Cobrancas.Validators;
@@ -53,9 +54,12 @@ public sealed class DadosDoItemValidator : AbstractValidator<DadosDoItem>
     public const long ValorMaximo = 100_000_000;
 
     /// <summary>Registra as regras de validação.</summary>
-    public DadosDoItemValidator()
+    /// <param name="tipos">Os tipos aceitos; sem ele, os do plano (<see cref="TiposDeCobranca.DoPlano"/>).</param>
+    public DadosDoItemValidator(IReadOnlySet<TipoDeCobranca>? tipos = null)
     {
-        RuleFor(x => x.Tipo).IsInEnum().WithMessage("Tipo de cobrança inválido.");
+        var aceitos = tipos ?? TiposDeCobranca.DoPlano;
+
+        RuleFor(x => x.Tipo).Must(aceitos.Contains).WithErrorCode("cobranca.tipo_invalido").WithMessage("Este tipo de cobrança não cabe aqui.");
 
         RuleFor(x => x.Descricao).MaximumLength(120).WithMessage("A descrição deve ter no máximo 120 caracteres.");
 
@@ -111,6 +115,87 @@ public sealed class RateioExtraordinarioValidator : AbstractValidator<RateioExtr
             .WithMessage("Informe onde a turma decidiu esta cobrança — a assembleia e a data.")
             .MaximumLength(TamanhoDaOrigem)
             .WithMessage($"A origem deve ter no máximo {TamanhoDaOrigem} caracteres.");
+    }
+}
+
+/// <summary>
+/// Forma de um item opcional: o item de sempre, mais estoque, cota, prazo e abertura.
+/// </summary>
+/// <remarks>
+/// O preço aqui é <b>unitário</b> (decisão 2), então o negativo do <c>Avulsa</c> não faz sentido:
+/// vender uma unidade por menos de nada é o crédito da P5, que a tesouraria lança como parcela
+/// negativa e não como item opcional.
+/// </remarks>
+public sealed class DadosDoOpcionalValidator : AbstractValidator<DadosDoOpcional>
+{
+    /// <summary>Teto de unidades de um item: cabe o salão mais otimista.</summary>
+    public const int EstoqueMaximo = 10_000;
+
+    /// <summary>Registra as regras de validação.</summary>
+    public DadosDoOpcionalValidator()
+    {
+        RuleFor(x => x.Item).SetValidator(new DadosDoItemValidator(TiposDeCobranca.DosOpcionais));
+
+        RuleFor(x => x.Item.ValorEmCentavos)
+            .GreaterThan(0)
+            .OverridePropertyName("valor_em_centavos")
+            .WithErrorCode("cobranca.valor_invalido")
+            .WithMessage("Informe o preço de uma unidade, maior que zero.");
+
+        RuleFor(x => x.LimitePorFormando)
+            .InclusiveBetween(1, EstoqueMaximo)
+            .When(x => x.LimitePorFormando is not null)
+            .OverridePropertyName("limite_por_formando")
+            .WithMessage($"A cota por formando vai de 1 a {EstoqueMaximo}.");
+
+        RuleFor(x => x.Estoque)
+            .InclusiveBetween(0, EstoqueMaximo)
+            .When(x => x.Estoque is not null)
+            .OverridePropertyName("estoque")
+            .WithMessage($"O estoque vai de 0 a {EstoqueMaximo}.");
+
+        RuleFor(x => x.ModoDeVenda)
+            .IsInEnum()
+            .Must((dados, modo) => modo != ModoDeVenda.Publica || dados.Item.Tipo == TipoDeCobranca.ConviteExtra)
+            .OverridePropertyName("modo_de_venda")
+            .WithErrorCode("loja.so_convite")
+            .WithMessage("A loja pública vende só o convite da festa.");
+
+        RuleFor(x => x.PrecoPublicoEmCentavos)
+            .GreaterThan(0)
+            .When(x => x.PrecoPublicoEmCentavos is not null)
+            .OverridePropertyName("preco_publico_em_centavos")
+            .WithErrorCode("cobranca.valor_invalido")
+            .WithMessage("O preço na loja precisa ser maior que zero.");
+
+        RuleFor(x => x.PedidosAteDia)
+            .Must((dados, prazo) => prazo >= DateOnly.FromDateTime(DataUtils.ParaExibicao(dados.AberturaDeVendas!.Value)))
+            .When(x => x.PedidosAteDia is not null && x.AberturaDeVendas is not null)
+            .OverridePropertyName("pedidos_ate_dia")
+            .WithErrorCode("cobranca.prazo_antes_da_abertura")
+            .WithMessage("O prazo para pedir não pode ser anterior à abertura das vendas.");
+    }
+}
+
+/// <summary>Forma de um pedido: um item e uma quantidade absoluta.</summary>
+public sealed class DadosDoPedidoValidator : AbstractValidator<DadosDoPedido>
+{
+    /// <summary>Registra as regras de validação.</summary>
+    /// <remarks>O teto de parcelas é do item, e só o service o conhece: aqui é só a forma.</remarks>
+    public DadosDoPedidoValidator()
+    {
+        RuleFor(x => x.ItemDeCobrancaId).NotEmpty().OverridePropertyName("item_de_cobranca_id").WithMessage("Escolha o item.");
+
+        RuleFor(x => x.Quantidade)
+            .InclusiveBetween(1, DadosDoOpcionalValidator.EstoqueMaximo)
+            .OverridePropertyName("quantidade")
+            .WithMessage("Informe uma quantidade de ao menos 1.");
+
+        RuleFor(x => x.Parcelas)
+            .GreaterThanOrEqualTo(1)
+            .When(x => x.Parcelas is not null)
+            .OverridePropertyName("parcelas")
+            .WithMessage("Escolha ao menos 1 parcela.");
     }
 }
 

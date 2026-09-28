@@ -33,6 +33,30 @@ public sealed class TermoDaFormaturaMapping : IEntityTypeConfiguration<TermoDaFo
 }
 
 /// <summary>
+/// Mapeamento dos resumos do termo (Sprint 24).
+/// </summary>
+/// <remarks>
+/// Chave no <c>termo_id</c>: um resumo por versão, e a segunda gravação é conflito de chave. Sem gatilho
+/// append-only — o imutável é o termo, não o resumo; apagar a linha é o conserto de emergência de um
+/// resumo ruim (decisão 9). Cascata do termo não existe porque o termo nunca é apagado.
+/// </remarks>
+public sealed class ResumoDoTermoMapping : IEntityTypeConfiguration<ResumoDoTermo>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<ResumoDoTermo> builder)
+    {
+        builder.ToTable("resumos_de_termo");
+
+        builder.HasKey(r => r.TermoId);
+
+        builder.Property(r => r.Texto).IsRequired();
+        builder.Property(r => r.Modelo).IsRequired().HasMaxLength(200);
+
+        builder.HasOne<TermoDaFormatura>().WithOne().HasForeignKey<ResumoDoTermo>(r => r.TermoId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+/// <summary>
 /// Mapeamento das adesões.
 /// </summary>
 /// <remarks>

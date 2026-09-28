@@ -28,8 +28,8 @@ namespace Backend.Api.Controllers.V1.Pagamentos;
 public sealed class ExtratoController(IPagamentoService pagamentoService, IUsuarioAtual usuarioAtual) : MainController
 {
     /// <summary>O extrato do próprio formando: em aberto, a próxima a pagar e todas as parcelas.</summary>
+    /// <remarks>Aceita o desligado: o extrato é a prova do que ele pagou, e não some com a saída (P5).</remarks>
     [HttpGet("eu")]
-    // Aceita o desligado: o extrato é a prova do que ele pagou, e não some com a saída (P5).
     [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [ProducesResponseType(typeof(ExtratoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]

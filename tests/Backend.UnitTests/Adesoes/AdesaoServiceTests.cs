@@ -312,11 +312,27 @@ public sealed class AdesaoServiceTests
     public async Task Gestao_baixa_o_pdf_de_qualquer_formando(string papel)
     {
         var adesao = AdesaoGravada(vinculoId: Guid.CreateVersion7());
-        _perfis
-            .ObterTitular(FormaturaId, UsuarioId, Arg.Any<CancellationToken>())
-            .Returns(new MembroDoPerfil(VinculoId, UsuarioId, "Ana", "ana@kapa.dev", papel));
+        var membro = new MembroDoPerfil(VinculoId, UsuarioId, "Ana", "ana@kapa.dev", papel);
+        _perfis.ObterTitular(FormaturaId, UsuarioId, Arg.Any<CancellationToken>()).Returns(membro);
+        _perfis.ObterMembro(FormaturaId, UsuarioId, Arg.Any<CancellationToken>()).Returns(membro);
 
         (await Servico.ObterPdf(FormaturaId, adesao.Adesao.Id, UsuarioId, Ct)).Sucesso.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Desligar não muda o papel gravado: a comissão que saiu continuava baixando o termo dos colegas
+    /// (nome, CPF mascarado, IP). O titular desligado só enxerga o próprio.
+    /// </summary>
+    [Fact]
+    public async Task Gestao_desligada_nao_baixa_o_pdf_de_outro_formando()
+    {
+        var adesao = AdesaoGravada(vinculoId: Guid.CreateVersion7());
+        _perfis
+            .ObterTitular(FormaturaId, UsuarioId, Arg.Any<CancellationToken>())
+            .Returns(new MembroDoPerfil(VinculoId, UsuarioId, "Ana", "ana@kapa.dev", PapelNaFormatura.Comissao));
+        _perfis.ObterMembro(FormaturaId, UsuarioId, Arg.Any<CancellationToken>()).Returns((MembroDoPerfil?)null);
+
+        (await Servico.ObterPdf(FormaturaId, adesao.Adesao.Id, UsuarioId, Ct)).PrimeiroErro.Codigo.ShouldBe("adesao.nao_encontrada");
     }
 
     [Fact]

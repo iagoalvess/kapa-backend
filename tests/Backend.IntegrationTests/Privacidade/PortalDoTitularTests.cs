@@ -45,6 +45,7 @@ public sealed class PortalDoTitularTests(ApiFactory fabrica)
         operadores.ShouldContain(operador => operador.Nome.Contains("e-mail", StringComparison.OrdinalIgnoreCase));
         operadores.ShouldContain(operador => operador.Nome.Contains("armazenamento", StringComparison.OrdinalIgnoreCase));
         operadores.ShouldContain(operador => operador.Nome.Contains("pagamento", StringComparison.OrdinalIgnoreCase));
+        operadores.ShouldContain(operador => operador.Nome.Contains("inteligência artificial", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

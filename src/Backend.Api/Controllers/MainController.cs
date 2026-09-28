@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Backend.Api.Configuration;
 using Backend.Business.Abstractions;
+using Backend.Business.Arquivos.Models;
 using Backend.Business.Auth.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -58,6 +59,39 @@ public abstract class MainController : ControllerBase
     protected IActionResult Criado<T>(Result<T> resultado, string nomeDaRota, object valoresDaRota) =>
         resultado.Sucesso ? CreatedAtRoute(nomeDaRota, valoresDaRota, resultado.Valor) : Problema(resultado);
 
+    /// <summary>
+    /// Responde 201 com o <c>Location</c> da rota que recebe o <c>id</c> do recurso, ou o problema
+    /// correspondente à falha.
+    /// </summary>
+    /// <remarks>
+    /// O id só é lido no sucesso: na falha não há valor, e montar a rota com <see cref="Guid.Empty"/>
+    /// "só para compilar" era a mesma linha repetida em cada controller.
+    /// </remarks>
+    /// <typeparam name="T">Tipo do corpo de resposta.</typeparam>
+    /// <param name="resultado">Resultado devolvido pelo service, já no formato do contrato.</param>
+    /// <param name="nomeDaRota">Nome da rota que localiza o recurso criado.</param>
+    /// <param name="id">Como tirar do corpo o id do recurso.</param>
+    protected IActionResult Criado<T>(Result<T> resultado, string nomeDaRota, Func<T, Guid> id) =>
+        resultado.Sucesso ? CreatedAtRoute(nomeDaRota, new { id = id(resultado.Valor) }, resultado.Valor) : Problema(resultado);
+
+    /// <summary>Responde 200 com o arquivo, ou o problema correspondente à falha.</summary>
+    /// <remarks>
+    /// Por padrão o nome vai no <c>Content-Disposition</c>, e o arquivo chega como download com o
+    /// nome que tem. Com <paramref name="inline"/>, vai sem nome — para exibir ou abrir numa aba. O
+    /// fluxo é entregue ao ASP.NET, que o transmite e o descarta ao final da resposta.
+    /// </remarks>
+    /// <param name="resultado">Resultado devolvido pelo service.</param>
+    /// <param name="inline">Se o arquivo é para exibir, e não para baixar.</param>
+    protected IActionResult Arquivo(Result<ArquivoParaDownload> resultado, bool inline = false)
+    {
+        if (resultado.Falhou)
+            return Problema(resultado);
+
+        var arquivo = resultado.Valor;
+
+        return inline ? File(arquivo.Conteudo, arquivo.ContentType) : File(arquivo.Conteudo, arquivo.ContentType, arquivo.Nome);
+    }
+
     private ObjectResult Problema(Result resultado)
     {
         var erro = resultado.PrimeiroErro;
@@ -77,6 +111,12 @@ public abstract class MainController : ControllerBase
         if (erro.Tipo is not ETipoErro.Validacao)
             problema.Detail = erro.Mensagem;
 
+        if (erro.Dados is not null)
+            problema.Extensions["dados"] = erro.Dados;
+
+        if (erro.Tipo is ETipoErro.Excesso)
+            Response.Headers.RetryAfter = "1";
+
         return StatusCode(status, problema);
     }
 
@@ -94,6 +134,7 @@ public abstract class MainController : ControllerBase
             ETipoErro.NaoEncontrado => StatusCodes.Status404NotFound,
             ETipoErro.Conflito => StatusCodes.Status409Conflict,
             ETipoErro.Indisponivel => StatusCodes.Status503ServiceUnavailable,
+            ETipoErro.Excesso => StatusCodes.Status429TooManyRequests,
             _ => StatusCodes.Status500InternalServerError,
         };
 }

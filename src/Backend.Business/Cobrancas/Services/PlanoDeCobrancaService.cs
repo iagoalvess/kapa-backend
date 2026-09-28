@@ -248,6 +248,10 @@ public sealed class PlanoDeCobrancaService(
         };
 
     /// <inheritdoc />
+    /// <remarks>
+    /// O retrato do evento é tirado <b>antes</b> da remoção: depois dela a linha não existe mais, e o
+    /// evento seria a única memória de um item que ninguém mais consegue consultar.
+    /// </remarks>
     public async Task<Result<PlanoDeCobrancaDetalhe>> RemoverItem(Guid planoId, Guid itemId, Guid autorId, CancellationToken ct = default)
     {
         var plano = await planoRepository.ObterParaEdicao(planoId, ct);
@@ -264,8 +268,6 @@ public sealed class PlanoDeCobrancaService(
                 "Este item já gerou parcelas e não pode ser removido. Encerre-o: ele para de cobrar e o que já foi cobrado fica."
             );
 
-        // O retrato é tirado **antes** da remoção: depois dela a linha não existe mais, e o evento
-        // seria a única memória de um item que ninguém mais consegue consultar.
         await eventos.Auditar(
             NomesDeAuditoria.ItemRemovido,
             autorId,
@@ -351,6 +353,11 @@ public sealed class PlanoDeCobrancaService(
     /// <remarks>
     /// "Só um vigente" é conferido aqui para dar a mensagem certa, e garantido pelo índice único
     /// parcial do banco para os dois cliques simultâneos.
+    /// <para>
+    /// O plano inteiro vai no corpo do evento, e não só o id: é a partir daqui que todo formando passa
+    /// a dever, e a assembleia de dois anos depois pergunta "o que exatamente entrou em vigor naquele
+    /// dia". O plano pode ser editado depois; o evento, não.
+    /// </para>
     /// </remarks>
     public async Task<Result<PlanoDeCobrancaDetalhe>> Vigorar(Guid planoId, Guid autorId, CancellationToken ct = default)
     {
@@ -365,9 +372,6 @@ public sealed class PlanoDeCobrancaService(
         if (vigorar.Falhou)
             return Result.Falha<PlanoDeCobrancaDetalhe>(vigorar.Erros);
 
-        // O plano inteiro vai no corpo, e não só o id: é a partir daqui que todo formando passa a
-        // dever, e a assembleia de dois anos depois pergunta "o que exatamente entrou em vigor
-        // naquele dia". O plano pode ser editado depois; o evento, não.
         var ativos = plano.Itens.Where(item => item.EncerradoEm is null).ToList();
 
         await eventos.Auditar(
@@ -512,6 +516,11 @@ public sealed class PlanoDeCobrancaService(
         logger.LogInformation("Item {ItemId} alterado; {Repactuadas} parcelas futuras com valor novo.", item.Id, repactuadas);
     }
 
+    /// <summary>Monta o detalhe do plano, com os itens em ordem de criação e os que já estão em uso.</summary>
+    /// <remarks>
+    /// Os campos dos opcionais vêm junto: é a mesma tabela, e é por <c>Opcional</c> que o cartão
+    /// Opcionais da tela separa o que a turma inteira deve do que só alguns pedem.
+    /// </remarks>
     private async Task<PlanoDeCobrancaDetalhe> Detalhar(PlanoDeCobranca plano, CancellationToken ct)
     {
         var emUso = await parcelaRepository.ListarItensEmUso(plano.Id, ct);
@@ -530,18 +539,7 @@ public sealed class PlanoDeCobrancaService(
                 .. plano
                     .Itens.OrderBy(item => item.CriadoEm)
                     .ThenBy(item => item.Id)
-                    .Select(item => new ItemDeCobrancaDetalhe(
-                        item.Id,
-                        item.Tipo,
-                        item.Descricao,
-                        item.ValorEmCentavos,
-                        item.NumeroDeParcelas,
-                        item.DiaDeVencimento,
-                        item.PrimeiroMes,
-                        item.EncerradoEm,
-                        emUso.Contains(item.Id),
-                        item.OrigemDaDecisao
-                    )),
+                    .Select(item => ItemDeCobrancaDetalhe.De(item, emUso.Contains(item.Id))),
             ],
             emUso.Count == 0 ? 0 : await parcelaRepository.ContarVinculosComParcela(plano.Id, ct)
         );

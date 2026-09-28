@@ -29,8 +29,6 @@ public sealed class FormaturaService(
     IUnitOfWork unitOfWork
 ) : IFormaturaService
 {
-    private static readonly Erro NaoEncontrada = Erro.NaoEncontrado("formatura.nao_encontrada", "Formatura não encontrada.");
-
     /// <summary>Mesmo código da política <c>ExigeFormaturaAtiva</c>: para o cliente, é o mesmo caso.</summary>
     private static readonly Erro Inativa = Erro.Proibido("formatura.inativa", "Esta formatura está em modo leitura e não aceita alterações.");
 
@@ -43,6 +41,9 @@ public sealed class FormaturaService(
     /// O vínculo é conferido <b>aqui</b>, antes de qualquer token existir. É o que garante que a
     /// API só assine uma formatura que o usuário comprovadamente acessa — e por isso a claim
     /// pode ser confiada dali para a frente.
+    /// <para>
+    /// O vínculo é o do titular: a turma de quem foi desligado continua no seletor dele, em leitura (P5).
+    /// </para>
     /// </remarks>
     public async Task<Result<ParDeTokens>> Selecionar(
         Guid usuarioId,
@@ -52,7 +53,6 @@ public sealed class FormaturaService(
         CancellationToken ct = default
     )
     {
-        // Do titular: a turma de quem foi desligado continua no seletor dele, em leitura (P5).
         var vinculo = await vinculoRepository.ObterDoTitular(usuarioId, formaturaId, ct);
 
         if (vinculo is null)
@@ -92,7 +92,7 @@ public sealed class FormaturaService(
         if (validacao.Falhou)
             return Result.Falha<ParDeTokens>(validacao.Erros);
 
-        if (await formaturaRepository.ExisteGratuitaCriadaPor(usuarioId, ct))
+        if (await formaturaRepository.ExisteGratuitaCriadaPorDeTodasAsFormaturas(usuarioId, ct))
             return Erro.Conflito(
                 "formatura.gratuita_pendente",
                 "Você já tem uma turma no plano gratuito. Contrate ou descarte essa antes de criar outra."
@@ -131,7 +131,7 @@ public sealed class FormaturaService(
 
     /// <inheritdoc />
     public async Task<Result<FormaturaDetalhe>> ObterAtual(Guid formaturaId, CancellationToken ct = default) =>
-        await formaturaRepository.ObterDetalhe(formaturaId, ct) is { } detalhe ? detalhe : NaoEncontrada;
+        await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct) is { } detalhe ? detalhe : ErrosDeFormatura.FormaturaNaoEncontrada;
 
     /// <inheritdoc />
     /// <remarks>Só a turma ativa edita. Suspensa, encerrada e descartada, não.</remarks>
@@ -144,7 +144,7 @@ public sealed class FormaturaService(
         var formatura = await formaturaRepository.ObterParaEdicao(formaturaId, ct);
 
         if (formatura is null)
-            return NaoEncontrada;
+            return ErrosDeFormatura.FormaturaNaoEncontrada;
 
         if (!formatura.AceitaEdicao)
             return Inativa;
@@ -173,7 +173,7 @@ public sealed class FormaturaService(
         var formatura = await formaturaRepository.ObterParaEdicao(formaturaId, ct);
 
         if (formatura is null)
-            return Result.Falha(NaoEncontrada);
+            return Result.Falha(ErrosDeFormatura.FormaturaNaoEncontrada);
 
         if (await assinaturaRepository.ObterDetalheDaMaisRecente(ct) is { Status: StatusDaAssinatura.Ativa })
             return Result.Falha(Erro.Conflito("formatura.assinatura_ativa", "Cancele a renovação da assinatura antes de encerrar a formatura."));
@@ -208,7 +208,7 @@ public sealed class FormaturaService(
         var formatura = await formaturaRepository.ObterParaEdicao(formaturaId, ct);
 
         if (formatura is null)
-            return Result.Falha(NaoEncontrada);
+            return Result.Falha(ErrosDeFormatura.FormaturaNaoEncontrada);
 
         if (await assinaturaRepository.ExisteAlgumaDeTodasAsFormaturas(formaturaId, ct))
             return Result.Falha(Erro.Conflito("formatura.ja_contratada", "Esta turma já contratou um plano. Encerre a turma em vez de descartá-la."));
@@ -242,6 +242,5 @@ public sealed class FormaturaService(
         formatura.Curso = dados.Curso.Trim();
         formatura.Ano = dados.Ano;
         formatura.Semestre = dados.Semestre;
-        formatura.QuantidadeEstimadaDeFormandos = dados.QuantidadeEstimadaDeFormandos;
     }
 }

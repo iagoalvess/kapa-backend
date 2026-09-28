@@ -174,7 +174,7 @@ public sealed class PrivacidadeService(
 
         await emails.ExclusaoSolicitada(titular.Email, prazoEm, ct);
 
-        foreach (var presidente in await privacidadeRepository.ListarPresidentesParaAviso(usuarioId, ct))
+        foreach (var presidente in await privacidadeRepository.ListarPresidentesParaAvisoDeTodasAsFormaturas(usuarioId, ct))
             await emails.ExclusaoParaOPresidente(presidente, titular.Nome, prazoEm, ct);
     }
 

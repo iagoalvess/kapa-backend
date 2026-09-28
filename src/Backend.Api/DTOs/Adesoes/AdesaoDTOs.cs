@@ -74,7 +74,11 @@ public sealed record PlanoAceitoDTO(
 /// <param name="Termo">Versão vigente, se publicada.</param>
 /// <param name="Plano">Plano vigente como seria aceito agora, se houver.</param>
 /// <param name="HashDoConteudo">Devolvido no aceite. Só vem com termo e plano.</param>
-public sealed record ConteudoParaAdesaoDTO(VersaoDoTermoDTO? Termo, PlanoAceitoDTO? Plano, string? HashDoConteudo);
+/// <param name="Resumo">
+/// Um ou dois parágrafos curtos gerados por IA sobre o termo vigente, se já existirem. Não faz parte do que se aceita:
+/// fora do hash, do PDF e do e-mail.
+/// </param>
+public sealed record ConteudoParaAdesaoDTO(VersaoDoTermoDTO? Termo, PlanoAceitoDTO? Plano, string? HashDoConteudo, string? Resumo);
 
 /// <summary>Uma adesão, com o termo e o plano aceitos.</summary>
 /// <param name="Id">Identificador — o do PDF.</param>

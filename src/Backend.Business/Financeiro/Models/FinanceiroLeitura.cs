@@ -1,3 +1,5 @@
+using Backend.Business.Comunicacao.Models;
+
 namespace Backend.Business.Financeiro.Models;
 
 /// <summary>Fornecedor, como a comissão o informa.</summary>
@@ -162,13 +164,13 @@ public sealed record DespesaResumo(
     bool Atrasada = false
 );
 
-/// <summary>Quantas despesas há numa situação e quanto somam.</summary>
-/// <param name="Quantidade">Despesas.</param>
+/// <summary>Quantos lançamentos — despesas ou receitas — há numa situação e quanto somam.</summary>
+/// <param name="Quantidade">Lançamentos.</param>
 /// <param name="ValorEmCentavos">Soma dos valores.</param>
-public sealed record SomaDeDespesas(int Quantidade, long ValorEmCentavos)
+public sealed record SomaDeLancamentos(int Quantidade, long ValorEmCentavos)
 {
-    /// <summary>Nenhuma despesa.</summary>
-    public static readonly SomaDeDespesas Zero = new(0, 0);
+    /// <summary>Nenhum lançamento.</summary>
+    public static readonly SomaDeLancamentos Zero = new(0, 0);
 }
 
 /// <summary>A faixa da tela Despesas: quantas e quanto, por situação, dentro do filtro.</summary>
@@ -178,11 +180,11 @@ public sealed record SomaDeDespesas(int Quantidade, long ValorEmCentavos)
 /// <param name="Paga">Já pagas.</param>
 /// <param name="Cancelada">Canceladas.</param>
 public sealed record ResumoDeDespesas(
-    SomaDeDespesas Todas,
-    SomaDeDespesas Prevista,
-    SomaDeDespesas Atrasada,
-    SomaDeDespesas Paga,
-    SomaDeDespesas Cancelada
+    SomaDeLancamentos Todas,
+    SomaDeLancamentos Prevista,
+    SomaDeLancamentos Atrasada,
+    SomaDeLancamentos Paga,
+    SomaDeLancamentos Cancelada
 );
 
 /// <summary>Uma linha da contagem agrupada de despesas, como sai do banco.</summary>
@@ -196,3 +198,100 @@ public sealed record ContagemDeDespesas(StatusDaDespesa Status, bool Atrasada, i
 /// <param name="ArquivoId">Arquivo.</param>
 /// <param name="EnviadoPorUsuarioId">Quem enviou.</param>
 public sealed record ComprovanteDaDespesa(Guid ArquivoId, Guid EnviadoPorUsuarioId);
+
+/// <summary>Uma receita, como a tesouraria a lança.</summary>
+/// <param name="Descricao">O que é.</param>
+/// <param name="Origem">De quem veio, em texto livre. Ausente: não se aplica.</param>
+/// <param name="Categoria">De onde vem o dinheiro.</param>
+/// <param name="ValorEmCentavos">Valor, em centavos.</param>
+/// <param name="Data">Dia previsto; ou, se <paramref name="Recebida"/>, o dia em que entrou.</param>
+/// <param name="Recebida">O dinheiro já caiu na conta — o caso comum. Falso: combinada, ainda a receber.</param>
+/// <param name="DocumentoId">Comprovante no acervo, visível para a turma.</param>
+public sealed record NovaOutraReceita(
+    string Descricao,
+    string? Origem,
+    CategoriaDeOutraReceita Categoria,
+    long ValorEmCentavos,
+    DateOnly Data,
+    bool Recebida = false,
+    Guid? DocumentoId = null
+);
+
+/// <summary>A correção de uma receita já lançada.</summary>
+/// <param name="Descricao">O que é.</param>
+/// <param name="Origem">De quem veio.</param>
+/// <param name="Categoria">De onde vem o dinheiro.</param>
+/// <param name="ValorEmCentavos">Valor, em centavos.</param>
+/// <param name="Data">Dia previsto, ou dia em que entrou.</param>
+/// <param name="DocumentoId">Comprovante no acervo.</param>
+public sealed record DadosDaOutraReceita(
+    string Descricao,
+    string? Origem,
+    CategoriaDeOutraReceita Categoria,
+    long ValorEmCentavos,
+    DateOnly Data,
+    Guid? DocumentoId = null
+);
+
+/// <summary>A entrada do dinheiro de uma receita prevista.</summary>
+/// <param name="RecebidaEm">Dia em que entrou.</param>
+public sealed record ReceberOutraReceita(DateOnly RecebidaEm);
+
+/// <summary>Filtros da lista de receitas.</summary>
+/// <param name="Categoria">Só as desta categoria.</param>
+/// <param name="Status">Só nesta situação.</param>
+/// <param name="Atrasadas">Só as previstas com data no passado.</param>
+/// <param name="De">Data a partir deste dia, inclusive.</param>
+/// <param name="Ate">Data até este dia, inclusive.</param>
+/// <param name="Busca">Trecho da descrição ou da origem.</param>
+public sealed record FiltroDeOutrasReceitas(
+    CategoriaDeOutraReceita? Categoria = null,
+    StatusDaOutraReceita? Status = null,
+    bool Atrasadas = false,
+    DateOnly? De = null,
+    DateOnly? Ate = null,
+    string? Busca = null
+);
+
+/// <summary>Uma receita, como a lista a mostra.</summary>
+/// <param name="Id">Identificador.</param>
+/// <param name="Descricao">O que é.</param>
+/// <param name="Origem">De quem veio.</param>
+/// <param name="Categoria">De onde vem o dinheiro.</param>
+/// <param name="ValorEmCentavos">Valor.</param>
+/// <param name="Data">Dia previsto, ou dia em que entrou.</param>
+/// <param name="Status">Situação gravada.</param>
+/// <param name="Documento">Comprovante no acervo, quando ligado e visível para a turma.</param>
+/// <param name="Atrasada">Prevista com data no passado. Calculado, nunca gravado.</param>
+public sealed record OutraReceitaResumo(
+    Guid Id,
+    string Descricao,
+    string? Origem,
+    CategoriaDeOutraReceita Categoria,
+    long ValorEmCentavos,
+    DateOnly Data,
+    StatusDaOutraReceita Status,
+    DocumentoDoAcervo? Documento,
+    bool Atrasada = false
+);
+
+/// <summary>A faixa da tela Receitas: quantas e quanto, por situação, dentro do filtro.</summary>
+/// <param name="Todas">Todas as do filtro.</param>
+/// <param name="Prevista">A receber, atrasadas incluídas.</param>
+/// <param name="Atrasada">Previstas com data no passado.</param>
+/// <param name="Recebida">Já recebidas.</param>
+/// <param name="Cancelada">Canceladas.</param>
+public sealed record ResumoDeOutrasReceitas(
+    SomaDeLancamentos Todas,
+    SomaDeLancamentos Prevista,
+    SomaDeLancamentos Atrasada,
+    SomaDeLancamentos Recebida,
+    SomaDeLancamentos Cancelada
+);
+
+/// <summary>Uma linha da contagem agrupada de receitas, como sai do banco.</summary>
+/// <param name="Status">Situação gravada.</param>
+/// <param name="Atrasada">Prevista com data no passado.</param>
+/// <param name="Quantidade">Receitas.</param>
+/// <param name="ValorEmCentavos">Soma dos valores.</param>
+public sealed record ContagemDeOutrasReceitas(StatusDaOutraReceita Status, bool Atrasada, int Quantidade, long ValorEmCentavos);

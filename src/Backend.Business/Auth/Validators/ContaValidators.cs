@@ -11,7 +11,7 @@ public sealed class PedidoPorEmailValidator : AbstractValidator<PedidoPorEmail>
     /// <summary>Registra as regras de validação.</summary>
     public PedidoPorEmailValidator()
     {
-        RuleFor(x => x.Email).NotEmpty().WithMessage("O e-mail é obrigatório.").EmailAddress().WithMessage("Informe um e-mail válido.");
+        RuleFor(x => x.Email).EmailObrigatorio();
     }
 }
 
@@ -27,7 +27,7 @@ public sealed class RedefinirSenhaValidator : AbstractValidator<RedefinirSenha>
     /// <summary>Registra as regras de validação.</summary>
     public RedefinirSenhaValidator()
     {
-        RuleFor(x => x.Email).NotEmpty().WithMessage("O e-mail é obrigatório.").EmailAddress().WithMessage("Informe um e-mail válido.");
+        RuleFor(x => x.Email).EmailObrigatorio();
 
         RuleFor(x => x.Token).NotEmpty().WithMessage("O link de redefinição está incompleto.");
 

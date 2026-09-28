@@ -37,6 +37,18 @@ public sealed class CaixaController(ICaixaService caixaService) : MainController
     public async Task<IActionResult> Consolidado(CancellationToken ct) =>
         Responder((await caixaService.Consolidado(ct)).Map(caixa => caixa.Adapt<CaixaDTO>()));
 
+    /// <summary>Quanto a turma tinha juntado ao fim de cada um dos últimos cinco meses, e o previsto para o próximo.</summary>
+    /// <remarks>
+    /// Todo membro lê — é o gráfico do Início. Só entradas somadas: a projeção, com despesas e
+    /// planejamento, continua da Gestão.
+    /// </remarks>
+    [HttpGet("arrecadacao")]
+    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [ProducesResponseType(typeof(IReadOnlyList<MesDaArrecadacaoDTO>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Arrecadacao(CancellationToken ct) =>
+        Responder((await caixaService.Arrecadacao(ct)).Map(meses => meses.Adapt<IReadOnlyList<MesDaArrecadacaoDTO>>()));
+
     /// <summary>O fluxo mês a mês: realizado até hoje, projetado até a colação.</summary>
     /// <remarks>Parcela vencida não entra em mês nenhum: vai em <c>emAtrasoEmCentavos</c>, à parte (decisão 6).</remarks>
     [HttpGet("projecao")]

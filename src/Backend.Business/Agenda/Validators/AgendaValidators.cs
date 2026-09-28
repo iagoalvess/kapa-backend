@@ -1,5 +1,5 @@
 using Backend.Business.Agenda.Models;
-using Backend.Business.Financeiro.Validators;
+using Backend.Business.Common.Validacao;
 using FluentValidation;
 
 namespace Backend.Business.Agenda.Validators;
@@ -8,7 +8,7 @@ namespace Backend.Business.Agenda.Validators;
 /// Forma de um evento da agenda.
 /// </summary>
 /// <remarks>
-/// A data reusa o <c>DataPlausivel</c> do financeiro, e não uma regra nova: é a mesma pergunta —
+/// A data reusa o <c>DataPlausivel</c> do financeiro (em <c>RegrasComuns</c>), e não uma regra nova: é a mesma pergunta —
 /// "esta data cabe na vida de uma turma?" — e o mesmo estrago quando não cabe (dedo trocado em 2026
 /// → 2062 enche a agenda de meses vazios, como enchia a projeção do caixa).
 /// <para>

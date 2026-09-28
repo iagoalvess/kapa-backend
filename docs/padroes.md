@@ -247,13 +247,15 @@ public sealed class ProdutoController(IProdutoService produtoService) : MainCont
 }
 ```
 
-Os três helpers do `MainController`:
+Os helpers do `MainController`:
 
 | Método | Sucesso |
 |---|---|
 | `Responder(Result)` | 204 sem corpo |
 | `Responder(Result<T>)` | 200 com o corpo |
 | `Criado(Result<T>, rota, valores)` | 201 com `Location` |
+| `Criado(Result<T>, rota, dto => dto.Id)` | 201 com `Location` da rota que recebe o `id` |
+| `Arquivo(Result<ArquivoParaDownload>, inline)` | 200 com o arquivo — download com nome, ou `inline` para exibir |
 
 Falha, em qualquer um deles, vira o `ProblemDetails` correspondente ao tipo do erro.
 
@@ -315,23 +317,24 @@ Entidade imutável e append-only (evento, log de auditoria) **não** herda de `E
 ## Jobs do worker
 
 ```csharp
-public sealed class MeuJob(IServiceScopeFactory scopeFactory, ILogger<MeuJob> logger) : BackgroundService
+public sealed class MeuJob(IServiceScopeFactory scopeFactory, LiderancaDeJob lideranca, ILogger<MeuJob> logger)
+    : JobPeriodico(lideranca, logger)
 {
-    private static readonly TimeSpan Intervalo = TimeSpan.FromHours(6);
+    protected override TimeSpan Intervalo { get; } = TimeSpan.FromHours(6);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override void RegistrarFalha(Exception excecao) =>
+        Logger.LogError(excecao, "Falha no meu job. A próxima execução tentará de novo.");
+
+    protected override async Task ExecutarPassada(int passada, CancellationToken ct)
     {
-        using var relogio = new PeriodicTimer(Intervalo);
-
-        do
-        {
-            await ExecutarUmaVez(stoppingToken);
-        } while (await EsperarProximaExecucao(relogio, stoppingToken));
+        using var escopo = scopeFactory.CreateScope();
+        await escopo.ServiceProvider.GetRequiredService<IMeuService>().Executar(ct);
     }
 }
 ```
 
-Três detalhes que todo job repete:
+Três detalhes que todo job tem — os dois últimos já vêm de `JobPeriodico`, e a regra fica num
+service de `Business`, nunca no job:
 
 1. **Escopo por execução.** Repositórios são `scoped` e o `BackgroundService` é singleton —
    injetar o repositório no construtor prenderia um `DbContext` vivo pelo tempo do processo.
@@ -431,6 +434,30 @@ registradorDeEventos.Registrar(new Evento { Nome = "assinatura.renovada", Usuari
 ```
 
 ---
+
+## Usando IA
+
+Toda chamada a modelo de linguagem passa por `IModeloDeLinguagem` (`Business/IA`). Provedor, chave,
+fallback entre modelos, tempo limite e log moram atrás dela; a feature só diz **o que** pedir:
+
+```csharp
+var resposta = await modelo.Completar(new PedidoAoModelo(Instrucao, texto, config.Modelos), ct);
+if (resposta.Falhou)
+    return Result.Falha(resposta.Erros);   // ia.desligada ou ia.indisponivel — a próxima rodada tenta
+```
+
+Feature nova com IA:
+
+1. Uma instrução fixa (`const` no service), sem dado de ninguém — o que sai da plataforma é ela e o
+   texto que você passar, e mais nada. Dado pessoal no texto é operador novo na Política de Privacidade.
+2. Uma seção própria de configuração com os `Modelos` da feature (e o que mais ela precisar). Provedor
+   e chave são da seção `IA`, uma para a plataforma inteira, e só no `appsettings` do worker.
+3. Quem chama é um **job do worker**, nunca a requisição: modelo leva segundos. O resultado se grava, e
+   a API lê o que foi gravado. Confira `modelo.Ligado` antes de consultar o banco — sem chave, a
+   feature não faz nada, nem log.
+4. No teste unitário, substitua `IModeloDeLinguagem`; o HTTP já é coberto pelos testes do `ClienteDeModelo`.
+
+Exemplo completo: `ResumoDoTermoService` + `ResumoDoTermoJob` (Sprint 24).
 
 ## Injeção de dependência
 

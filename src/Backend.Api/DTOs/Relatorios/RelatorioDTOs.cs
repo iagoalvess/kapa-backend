@@ -46,9 +46,10 @@ public sealed record GastoPorFornecedorDTO(Guid? FornecedorId, string Nome, int 
 /// <param name="EmitidoPor">Quem pediu.</param>
 /// <param name="EmitidoEm">Momento da emissão, em UTC.</param>
 /// <param name="Entradas">Recebimentos do período, por tipo de cobrança.</param>
+/// <param name="OutrasReceitas">Receitas que não vêm de formando recebidas no período, por categoria.</param>
 /// <param name="SaidasPorCategoria">Despesas pagas no período, por categoria.</param>
 /// <param name="SaidasPorFornecedor">Despesas pagas no período, por fornecedor.</param>
-/// <param name="EntradasEmCentavos">O que entrou no período.</param>
+/// <param name="EntradasEmCentavos">O que entrou no período: parcelas e receitas.</param>
 /// <param name="SaidasEmCentavos">O que saiu no período.</param>
 /// <param name="SaldoDoPeriodoEmCentavos">Entradas menos saídas. Pode ser negativo.</param>
 /// <param name="SaldoAcumuladoEmCentavos">O saldo da turma hoje — o mesmo do dashboard.</param>
@@ -60,6 +61,7 @@ public sealed record BalanceteDTO(
     string EmitidoPor,
     DateTime EmitidoEm,
     IReadOnlyList<LinhaDeBalanceteDTO> Entradas,
+    IReadOnlyList<LinhaDeBalanceteDTO> OutrasReceitas,
     IReadOnlyList<LinhaDeBalanceteDTO> SaidasPorCategoria,
     IReadOnlyList<LinhaDeBalanceteDTO> SaidasPorFornecedor,
     long EntradasEmCentavos,

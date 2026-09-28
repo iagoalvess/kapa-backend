@@ -7,6 +7,7 @@ using Backend.Api.Middleware;
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Settings;
 using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Festa.Settings;
 using Mapster;
 using MapsterMapper;
 using Microsoft.AspNetCore.Http.Features;
@@ -22,6 +23,15 @@ public static class ApiConfig
 {
     /// <summary>Nome da seção que lista as origens liberadas no CORS.</summary>
     public const string SecaoDeOrigens = "Cors:Origens";
+
+    /// <summary>Nome da seção que lista as origens do site (<c>kapaformaturas.com.br</c>), que só leem a vitrine.</summary>
+    public const string SecaoDeOrigensDoSite = "Cors:OrigensDoSite";
+
+    /// <summary>
+    /// A política dos poucos <c>GET</c> anônimos que o site lê: planos, documentos legais e operadores.
+    /// </summary>
+    /// <remarks>Vai no endpoint, por <c>[EnableCors(ApiConfig.Vitrine)]</c>, e vale no lugar da padrão.</remarks>
+    public const string Vitrine = "Vitrine";
 
     private const string PoliticaDeCors = "PadraoDaAplicacao";
 
@@ -48,6 +58,12 @@ public static class ApiConfig
     /// esconde a diferença até alguém tropeçar nela em produção. Campo declarado no contrato
     /// aparece sempre; ausente quer dizer removido.
     /// </para>
+    /// <para>
+    /// As opções vão em dois lugares porque o MVC e o <c>WriteAsJsonAsync</c> do <c>HttpResponse</c>
+    /// leem opções diferentes: a primeira serve aos controllers, a segunda ao que escreve na resposta
+    /// por fora deles — o limitador de taxa, o <c>GlobalExceptionHandler</c> e o 401 do JWT. Sem as
+    /// duas, metade da API fala snake_case.
+    /// </para>
     /// </remarks>
     /// <param name="services">Coleção de serviços.</param>
     /// <param name="configuration">Configuração da aplicação.</param>
@@ -66,15 +82,20 @@ public static class ApiConfig
                 opcoes.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
 
-        // O MVC e o `WriteAsJsonAsync` do `HttpResponse` leem opções diferentes: a primeira serve
-        // aos controllers, a segunda ao que escreve na resposta por fora deles — o limitador de
-        // taxa, o GlobalExceptionHandler e o 401 do JWT. Sem as duas, metade da API fala snake_case.
         services.ConfigureHttpJsonOptions(opcoes =>
         {
             opcoes.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
             opcoes.SerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower;
             opcoes.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
+
+        services
+            .AddOptions<ConviteSettings>()
+            .Validate(
+                settings => settings.SegredoValido(),
+                $"'{ConviteSettings.Secao}:SegredoDoConvite' precisa ser uma chave de 32 bytes ou mais em Base64."
+            )
+            .ValidateOnStart();
 
         services.AddProblemDetails();
         services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -111,6 +132,7 @@ public static class ApiConfig
             app.UseHsts();
 
         app.UseHttpsRedirection();
+        app.UseLimiteDeCorpoSemArquivo();
         app.UseCabecalhosDeSeguranca();
         app.UseRouting();
         app.UseCors(PoliticaDeCors);
@@ -121,6 +143,29 @@ public static class ApiConfig
 
         return app;
     }
+
+    /// <summary>Teto do corpo de toda requisição que não traz arquivo.</summary>
+    public const long TamanhoMaximoSemArquivo = 1024 * 1024;
+
+    /// <summary>
+    /// Baixa para <see cref="TamanhoMaximoSemArquivo"/> o teto de corpo de quem não envia formulário.
+    /// </summary>
+    /// <remarks>
+    /// O teto do Kestrel acompanha o maior arquivo aceito (<see cref="AddLimitesDeUpload"/>), e sem este
+    /// passo valia para tudo: um JSON anônimo de 25 MB — no webhook, lido inteiro antes de conferir a
+    /// assinatura — ocupava memória só para ser recusado. Só multipart precisa do teto grande.
+    /// </remarks>
+    /// <param name="app">Aplicação web.</param>
+    private static void UseLimiteDeCorpoSemArquivo(this WebApplication app) =>
+        app.Use(
+            (contexto, proximo) =>
+            {
+                if (!contexto.Request.HasFormContentType && contexto.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } teto)
+                    teto.MaxRequestBodySize = TamanhoMaximoSemArquivo;
+
+                return proximo(contexto);
+            }
+        );
 
     /// <summary>
     /// Cabeçalhos de segurança em toda resposta da API.
@@ -260,12 +305,21 @@ public static class ApiConfig
     /// Fora de desenvolvimento, sem <c>Cors:Origens</c> configurado **nenhuma** origem é
     /// liberada. A alternativa preguiçosa — cair para <c>AllowAnyOrigin</c> — é como uma API
     /// interna vira pública sem ninguém perceber.
+    /// <para>
+    /// O site fica fora da política padrão (Sprint 33): só o app chama a API com sessão. Ele entra
+    /// na <see cref="Vitrine"/>, que além das origens do app libera as de <c>Cors:OrigensDoSite</c> — e só
+    /// para <c>GET</c>, nos endpoints anônimos que a marcam. Com credencial, porque o app lê os mesmos
+    /// endpoints com <c>credentials: include</c>; nenhum deles lê o cookie de sessão.
+    /// </para>
     /// </remarks>
     private static IServiceCollection AddCorsConfigurado(this IServiceCollection services, IConfiguration configuration)
     {
         var origens = configuration.GetSection(SecaoDeOrigens).Get<string[]>() ?? [];
 
+        var daVitrine = origens.Concat(configuration.GetSection(SecaoDeOrigensDoSite).Get<string[]>() ?? []).ToArray();
+
         services.AddCors(opcoes =>
+        {
             opcoes.AddPolicy(
                 PoliticaDeCors,
                 politica =>
@@ -275,8 +329,18 @@ public static class ApiConfig
                     else
                         politica.WithOrigins(origens).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
                 }
-            )
-        );
+            );
+            opcoes.AddPolicy(
+                Vitrine,
+                politica =>
+                {
+                    if (daVitrine.Length == 0)
+                        politica.WithOrigins().AllowAnyHeader().WithMethods("GET");
+                    else
+                        politica.WithOrigins(daVitrine).AllowAnyHeader().WithMethods("GET").AllowCredentials();
+                }
+            );
+        });
 
         return services;
     }

@@ -28,7 +28,10 @@ public sealed class AuditoriaService(IEventoRepository eventoRepository) : IAudi
     public async Task<Result<OpcoesDeAuditoria>> Opcoes(Guid formaturaId, CancellationToken ct = default) =>
         Result.Ok(await eventoRepository.OpcoesDeAuditoria(formaturaId, ct));
 
+    /// <summary>A janela do "recente" da faixa: um mês é o intervalo entre duas reuniões de comissão.</summary>
+    private const int DiasDoResumo = 30;
+
     /// <inheritdoc />
     public async Task<Result<ResumoDaAuditoria>> Resumir(Guid formaturaId, CancellationToken ct = default) =>
-        Result.Ok(await eventoRepository.ResumirAuditoria(formaturaId, ct));
+        Result.Ok(await eventoRepository.ResumirAuditoria(formaturaId, DateTime.UtcNow.AddDays(-DiasDoResumo), ct));
 }

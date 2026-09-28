@@ -88,7 +88,8 @@ public interface IEventoRepository
 
     /// <summary>Os números do topo da tela de Auditoria, da turma inteira e sem filtro.</summary>
     /// <param name="formaturaId">Turma.</param>
-    Task<ResumoDaAuditoria> ResumirAuditoria(Guid formaturaId, CancellationToken ct = default);
+    /// <param name="recentesDesde">Início da janela dos eventos recentes.</param>
+    Task<ResumoDaAuditoria> ResumirAuditoria(Guid formaturaId, DateTime recentesDesde, CancellationToken ct = default);
 }
 
 /// <summary>

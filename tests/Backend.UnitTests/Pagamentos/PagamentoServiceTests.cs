@@ -1,5 +1,7 @@
+using System.Text;
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Interfaces;
+using Backend.Business.Arquivos.Models;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common;
@@ -12,12 +14,16 @@ using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.MercadoPago.Interfaces;
+using Backend.Business.MercadoPago.Models;
+using Backend.Business.MercadoPago.Settings;
 using Backend.Business.Pagamentos.Interfaces;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Pagamentos.Services;
 using Backend.Business.Pagamentos.Validators;
 using Backend.Business.Recebimentos.Interfaces;
 using Backend.Business.Recebimentos.Models;
+using Backend.Business.Recebimentos.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -71,6 +77,8 @@ public sealed class PagamentoServiceTests
     private readonly IEmailService _email = Substitute.For<IEmailService>();
     private readonly IEventoRepository _eventos = Substitute.For<IEventoRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IProvedorDaTurmaRepository _provedor = Substitute.For<IProvedorDaTurmaRepository>();
+    private readonly IMercadoPago _mercadoPago = Substitute.For<IMercadoPago>();
 
     private readonly DateOnly _hoje = DataUtils.Hoje();
 
@@ -91,33 +99,64 @@ public sealed class PagamentoServiceTests
         _unitOfWork
             .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result>>>(), Arg.Any<CancellationToken>())
             .Returns(chamada => chamada.Arg<Func<CancellationToken, Task<Result>>>()(Ct));
+        _unitOfWork
+            .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<IReadOnlyList<ParcelaResumo>>>>>(), Arg.Any<CancellationToken>())
+            .Returns(chamada => chamada.Arg<Func<CancellationToken, Task<Result<IReadOnlyList<ParcelaResumo>>>>>()(Ct));
+        _parcelas
+            .TravarParaBaixa(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(chamada =>
+                (IReadOnlyList<Parcela>)
+                    [
+                        .. chamada
+                            .Arg<IReadOnlyCollection<Guid>>()
+                            .Select(_ => Parcela.Nova(Ana.VinculoId, Guid.CreateVersion7(), new ParcelaPrevista(1, _hoje, 350_000))),
+                    ]
+            );
     }
 
-    private PagamentoService Servico
+    private PagamentoService Servico =>
+        new(
+            _parcelas,
+            _informes,
+            _recebimentos,
+            _contas,
+            _perfis,
+            _arquivos,
+            new EmissaoNoMercadoPago(
+                _provedor,
+                _mercadoPago,
+                Options.Create(new MercadoPagoSettings { ClientId = "app", ClientSecret = "segredo" }),
+                _unitOfWork,
+                NullLogger<EmissaoNoMercadoPago>.Instance
+            ),
+            new NovoInformeValidator(),
+            _unitOfWork,
+            NullLogger<PagamentoService>.Instance
+        );
+
+    private TesourariaService Tesouraria
     {
         get
         {
             var emails = new EmailsDePagamento(_email, Options.Create(new AplicacaoSettings()));
 
-            return new PagamentoService(
+            return new TesourariaService(
                 _parcelas,
                 _informes,
                 _recebimentos,
-                _contas,
-                _perfis,
                 _vinculos,
                 _formaturas,
                 _arquivos,
-                new BaixaService(_recebimentos, _eventos, emails),
+                new BaixaService(_recebimentos, _eventos, emails, Substitute.For<IQuitacaoDePedidos>()),
+                Substitute.For<IQuitacaoDePedidos>(),
                 emails,
                 _eventos,
-                new NovoInformeValidator(),
                 new BaixaManualValidator(),
                 new ConfirmarInformesValidator(),
                 new RecusarInformeValidator(),
                 new EstornarBaixaValidator(),
                 _unitOfWork,
-                NullLogger<PagamentoService>.Instance
+                NullLogger<TesourariaService>.Instance
             );
         }
     }
@@ -130,6 +169,7 @@ public sealed class PagamentoServiceTests
             Ana.VinculoId,
             Ana.UsuarioId,
             Ana.Nome,
+            Guid.CreateVersion7(),
             TipoDeCobranca.Mensalidade,
             null,
             3,
@@ -178,8 +218,8 @@ public sealed class PagamentoServiceTests
                 Arg.Is<InformeDePagamento>(i => i.ParcelaId == parcela.Id && i.Status == StatusDoInforme.Pendente && i.VinculoId == Ana.VinculoId),
                 Ct
             );
-        await _parcelas.DidNotReceiveWithAnyArgs().TravarParaBaixa(default!, Ct);
-        await _unitOfWork.Received(1).SalvarAsync(Ct);
+        await _parcelas.Received(1).TravarParaBaixa(Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Contains(parcela.Id)), Ct);
+        await _unitOfWork.Received(1).EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<IReadOnlyList<ParcelaResumo>>>>>(), Ct);
     }
 
     [Fact]
@@ -282,7 +322,7 @@ public sealed class PagamentoServiceTests
         await _informes.Received(1).Adicionar(Arg.Is<InformeDePagamento>(i => i.ParcelaId == maisAntiga.Id && i.ValorEmCentavos == 361_083), Ct);
         await _informes.Received(1).Adicionar(Arg.Is<InformeDePagamento>(i => i.ParcelaId == doMeio.Id && i.ValorEmCentavos == 357_583), Ct);
         await _informes.Received(1).Adicionar(Arg.Is<InformeDePagamento>(i => i.ParcelaId == maisNova.Id && i.ValorEmCentavos == 81_334), Ct);
-        await _unitOfWork.Received(1).SalvarAsync(Ct);
+        await _unitOfWork.Received(1).EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<IReadOnlyList<ParcelaResumo>>>>>(), Ct);
     }
 
     /// <summary>Uma parcela recusada derruba o aviso inteiro: nada é gravado pela metade.</summary>
@@ -474,7 +514,13 @@ public sealed class PagamentoServiceTests
         Preparar(parcela, informe);
 
         // Act
-        await Servico.Confirmar(FormaturaId, Tesoureira.UsuarioId, null, new ConfirmarInformes([new ConfirmacaoDeInforme(informe.Id, 350_000)]), Ct);
+        await Tesouraria.Confirmar(
+            FormaturaId,
+            Tesoureira.UsuarioId,
+            null,
+            new ConfirmarInformes([new ConfirmacaoDeInforme(informe.Id, 350_000)]),
+            Ct
+        );
 
         // Assert
         await _recebimentos.Received(1).Adicionar(Arg.Is<Recebimento>(r => r.Forma == forma), Arg.Any<CancellationToken>());
@@ -490,7 +536,13 @@ public sealed class PagamentoServiceTests
         Preparar(parcela, informe);
 
         // Act
-        await Servico.Confirmar(FormaturaId, Tesoureira.UsuarioId, null, new ConfirmarInformes([new ConfirmacaoDeInforme(informe.Id, 350_000)]), Ct);
+        await Tesouraria.Confirmar(
+            FormaturaId,
+            Tesoureira.UsuarioId,
+            null,
+            new ConfirmarInformes([new ConfirmacaoDeInforme(informe.Id, 350_000)]),
+            Ct
+        );
 
         // Assert
         await _recebimentos.Received(1).Adicionar(Arg.Is<Recebimento>(r => r.Forma == FormaDePagamento.Pix), Arg.Any<CancellationToken>());
@@ -528,7 +580,7 @@ public sealed class PagamentoServiceTests
     public async Task Recusa_exige_motivo()
     {
         // Act
-        var resultado = await Servico.Recusar(FormaturaId, Tesoureira.UsuarioId, Guid.CreateVersion7(), new RecusarInforme("  "), Ct);
+        var resultado = await Tesouraria.Recusar(FormaturaId, Tesoureira.UsuarioId, Guid.CreateVersion7(), new RecusarInforme("  "), Ct);
 
         // Assert
         resultado.PrimeiroErro.Campo.ShouldBe("motivo");
@@ -541,10 +593,11 @@ public sealed class PagamentoServiceTests
         // Arrange
         var parcela = DaAna(_hoje.AddDays(5));
         var informe = InformeDePagamento.Novo(parcela.Id, Ana.VinculoId, _hoje, 350_000, null, MeioDeRecebimento.Pix);
+        _informes.ListarParcelas(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns([parcela.Id]);
         _informes.ListarParaEdicao(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns([informe]);
 
         // Act
-        var resultado = await Servico.Recusar(
+        var resultado = await Tesouraria.Recusar(
             FormaturaId,
             Tesoureira.UsuarioId,
             informe.Id,
@@ -557,8 +610,52 @@ public sealed class PagamentoServiceTests
         informe.Status.ShouldBe(StatusDoInforme.Recusado);
         informe.ConferidoPorUsuarioId.ShouldBe(Tesoureira.UsuarioId);
         await _email.Received(1).Enfileirar(Arg.Is<NovoEmail>(e => e.Para == Ana.Email && e.CorpoHtml.Contains("extrato de abril")), Ct);
-        await _parcelas.DidNotReceiveWithAnyArgs().TravarParaBaixa(default!, Ct);
-        await _unitOfWork.Received(1).SalvarAsync(Ct);
+        await _parcelas.Received(1).TravarParaBaixa(Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Contains(parcela.Id)), Ct);
+    }
+
+    /// <summary>
+    /// Recusar trava a parcela, como confirmar: o segundo a chegar encontra o informe já conferido, em vez
+    /// de os dois darem certo — dois e-mails contraditórios e, às vezes, recusa sobre parcela paga.
+    /// </summary>
+    [Fact]
+    public async Task Recusa_de_informe_ja_confirmado_e_conflito()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        var informe = InformeDePagamento.Novo(parcela.Id, Ana.VinculoId, _hoje, 350_000, null, MeioDeRecebimento.Pix);
+        informe.Confirmar(Tesoureira.UsuarioId, DateTime.UtcNow);
+        _informes.ListarParcelas(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns([parcela.Id]);
+        _informes.ListarParaEdicao(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns([informe]);
+
+        // Act
+        var resultado = await Tesouraria.Recusar(FormaturaId, Tesoureira.UsuarioId, informe.Id, new RecusarInforme("tarde demais"), Ct);
+
+        // Assert
+        resultado.Falhou.ShouldBeTrue();
+        await _email.DidNotReceiveWithAnyArgs().Enfileirar(default!, Ct);
+    }
+
+    /// <summary>Aviso e baixa manual juntos: sob a trava, a baixa encontra o aviso e para.</summary>
+    [Fact]
+    public async Task Informe_chegando_com_aviso_ja_gravado_sob_a_trava_e_conflito()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        _informes.ExistePendente(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns(true);
+
+        // Act
+        var resultado = await Servico.Informar(
+            FormaturaId,
+            Ana.UsuarioId,
+            [parcela.Id],
+            new NovoInforme(_hoje, 350_000, MeioDeRecebimento.Dinheiro),
+            null,
+            Ct
+        );
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("pagamento.informe_pendente");
+        await _informes.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
     }
 
     /// <summary>A baixa grava tudo no mesmo lote: parcela, recebimento com o devido, informe, e-mail e auditoria.</summary>
@@ -571,7 +668,7 @@ public sealed class PagamentoServiceTests
         Preparar(parcela, informe);
 
         // Act
-        var resultado = await Servico.Confirmar(
+        var resultado = await Tesouraria.Confirmar(
             FormaturaId,
             Tesoureira.UsuarioId,
             "203.0.113.7",
@@ -616,7 +713,7 @@ public sealed class PagamentoServiceTests
         Preparar(parcela, informe);
 
         // Act
-        var resultado = await Servico.Confirmar(
+        var resultado = await Tesouraria.Confirmar(
             FormaturaId,
             Tesoureira.UsuarioId,
             null,
@@ -639,7 +736,7 @@ public sealed class PagamentoServiceTests
         _informes.ListarParaEdicao(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns([]);
 
         // Act
-        var resultado = await Servico.Confirmar(
+        var resultado = await Tesouraria.Confirmar(
             FormaturaId,
             Tesoureira.UsuarioId,
             null,
@@ -670,7 +767,7 @@ public sealed class PagamentoServiceTests
         _parcelas.Obter(parcela.Id, Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns(relida);
 
         // Act
-        var resultado = await Servico.Estornar(FormaturaId, Tesoureira.UsuarioId, null, parcela.Id, new EstornarBaixa("Dinheiro devolvido."), Ct);
+        var resultado = await Tesouraria.Estornar(FormaturaId, Tesoureira.UsuarioId, null, parcela.Id, new EstornarBaixa("Dinheiro devolvido."), Ct);
 
         // Assert
         resultado.Sucesso.ShouldBeTrue();
@@ -684,7 +781,7 @@ public sealed class PagamentoServiceTests
                 ),
                 Arg.Any<CancellationToken>()
             );
-        await _eventos.Received(1).Adicionar(Arg.Is<Evento>(e => e.Nome == PagamentoService.EventoDeEstorno), Arg.Any<CancellationToken>());
+        await _eventos.Received(1).Adicionar(Arg.Is<Evento>(e => e.Nome == TesourariaService.EventoDeEstorno), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -694,7 +791,7 @@ public sealed class PagamentoServiceTests
         var parcela = DaAna(_hoje.AddDays(5), emConferencia: true);
 
         // Act
-        var resultado = await Servico.BaixarManualmente(
+        var resultado = await Tesouraria.BaixarManualmente(
             FormaturaId,
             Tesoureira.UsuarioId,
             null,
@@ -713,5 +810,291 @@ public sealed class PagamentoServiceTests
         _informes.ListarParcelas(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns([parcela.Id]);
         _parcelas.TravarParaBaixa(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns([parcela]);
         _informes.ListarParaEdicao(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns([informe]);
+    }
+
+    /// <summary>Um recebimento da Ana, como a leitura do recibo o devolve.</summary>
+    private DadosDoRecibo ReciboDaAna(long recebido = 350_000, bool estornado = false)
+    {
+        var parcela = DaAna(_hoje.AddDays(-3), StatusDaParcela.Paga);
+        var recibo = new DadosDoRecibo(
+            Guid.CreateVersion7(),
+            FormaturaId,
+            "Medicina 2027",
+            "UFPR",
+            parcela,
+            "52998224725",
+            FormaDePagamento.Pix,
+            recebido,
+            350_000,
+            _hoje.AddDays(-3),
+            "Tesa",
+            new DateTime(2026, 9, 15, 13, 0, 0, DateTimeKind.Utc),
+            estornado
+        );
+        _recebimentos.ObterParaRecibo(recibo.RecebimentoId, Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns(recibo);
+        foreach (var membro in new[] { Ana, Bruno, Tesoureira })
+            _perfis.ObterTitular(FormaturaId, membro.UsuarioId, Arg.Any<CancellationToken>()).Returns(membro);
+
+        return recibo;
+    }
+
+    private static string TextoDoPdf(ArquivoParaDownload arquivo) => Encoding.ASCII.GetString(((MemoryStream)arquivo.Conteudo).ToArray());
+
+    [Fact]
+    public async Task Cobranca_leva_documento_do_titular_e_a_conferencia()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        var conferidaEm = new DateTime(2026, 9, 14, 12, 0, 0, DateTimeKind.Utc);
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(new ContaDeRecebimentoDetalhe(SoPix, DateTime.UtcNow, conferidaEm, "Ana"));
+
+        // Act
+        var cobranca = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+
+        // Assert
+        var pix = cobranca.Valor.Meios.ShouldHaveSingleItem().Pix!;
+        pix.DocumentoDoTitular.ShouldBe("CPF ***.982.247-**");
+        pix.ConferidaEm.ShouldBe(conferidaEm);
+    }
+
+    [Fact]
+    public async Task Recibo_do_proprio_traz_cpf_inteiro_e_o_da_gestao_mascarado()
+    {
+        // Arrange
+        var recibo = ReciboDaAna();
+        _contas.ObterMeiosVigentesEm(FormaturaId, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(SoPix);
+
+        // Act
+        var proprio = await Servico.ObterRecibo(FormaturaId, Ana.UsuarioId, recibo.RecebimentoId, Ct);
+        var daGestao = await Servico.ObterRecibo(FormaturaId, Tesoureira.UsuarioId, recibo.RecebimentoId, Ct);
+
+        // Assert
+        proprio.Valor.ContentType.ShouldBe("application/pdf");
+        TextoDoPdf(proprio.Valor).ShouldContain("529.982.247-25");
+        TextoDoPdf(daGestao.Valor).ShouldContain("***.982.247-**");
+        TextoDoPdf(daGestao.Valor).ShouldNotContain("529.982.247-25");
+    }
+
+    [Fact]
+    public async Task Recibo_de_outro_formando_e_404_e_o_estornado_e_409()
+    {
+        // Arrange
+        var daAna = ReciboDaAna();
+        var estornado = ReciboDaAna(estornado: true);
+
+        // Act
+        var deOutro = await Servico.ObterRecibo(FormaturaId, Bruno.UsuarioId, daAna.RecebimentoId, Ct);
+        var inexistente = await Servico.ObterRecibo(FormaturaId, Ana.UsuarioId, Guid.CreateVersion7(), Ct);
+        var desfeito = await Servico.ObterRecibo(FormaturaId, Ana.UsuarioId, estornado.RecebimentoId, Ct);
+
+        // Assert
+        deOutro.PrimeiroErro.Tipo.ShouldBe(ETipoErro.NaoEncontrado);
+        inexistente.PrimeiroErro.Codigo.ShouldBe(deOutro.PrimeiroErro.Codigo);
+        desfeito.PrimeiroErro.Codigo.ShouldBe("pagamento.recebimento_estornado");
+        desfeito.PrimeiroErro.Tipo.ShouldBe(ETipoErro.Conflito);
+    }
+
+    [Fact]
+    public async Task Recibo_nomeia_o_titular_do_dia_do_pagamento_e_nao_o_de_hoje()
+    {
+        // Arrange
+        var recibo = ReciboDaAna();
+        var chaveNova = new ChavePixDaConta(TipoDeChavePix.Email, "novo@turma.dev", "Fulano Trocado", "Curitiba");
+        _contas.ObterMeiosVigentesEm(FormaturaId, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(SoPix);
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: false, new MeiosDaConta(chaveNova, null, null)));
+
+        // Act
+        var texto = TextoDoPdf((await Servico.ObterRecibo(FormaturaId, Ana.UsuarioId, recibo.RecebimentoId, Ct)).Valor);
+
+        // Assert
+        texto.ShouldContain(@"Comiss\343o Medicina");
+        texto.ShouldNotContain("Fulano Trocado");
+        await _contas.Received(1).ObterMeiosVigentesEm(FormaturaId, recibo.BaixadoEm, Ct);
+    }
+
+    [Fact]
+    public async Task Recibo_sem_trilha_cai_na_conta_atual()
+    {
+        // Arrange
+        var recibo = ReciboDaAna();
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+
+        // Act
+        var texto = TextoDoPdf((await Servico.ObterRecibo(FormaturaId, Ana.UsuarioId, recibo.RecebimentoId, Ct)).Valor);
+
+        // Assert
+        texto.ShouldContain(@"Comiss\343o Medicina");
+    }
+
+    /// <summary>
+    /// Sprint 25: com o Mercado Pago conectado, o dono da parcela vê o PIX dinâmico primeiro, e os meios
+    /// da conta continuam — o estático é a queda (P7). A emissão reserva antes de chamar (decisão 12a).
+    /// </summary>
+    [Fact]
+    public async Task Com_o_mercado_pago_conectado_o_dono_ve_o_pix_dinamico_antes_dos_outros_meios()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+        PrepararMercadoPago();
+        _mercadoPago
+            .Emitir("token", Arg.Any<PedidoDeCobranca>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new DocumentoEmitido("ORD1", "00020126-dinamico")));
+
+        // Act
+        var cobranca = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+
+        // Assert
+        cobranca.Valor.PeloMercadoPago.ShouldHaveSingleItem().Meio.ShouldBe(MeioDePagamento.Pix);
+        cobranca.Valor.PeloMercadoPago[0].Pix!.CopiaECola.ShouldBe("00020126-dinamico");
+        cobranca.Valor.Meios.Select(m => m.Meio).ShouldBe([MeioDeRecebimento.Pix]);
+        _reservada!.Status.ShouldBe(StatusDaCobrancaBancaria.Emitida);
+        _reservada.ParcelaIds.ShouldBe([parcela.Id]);
+        await _mercadoPago
+            .Received(1)
+            .Emitir(
+                "token",
+                Arg.Is<PedidoDeCobranca>(p => p.Referencia == _reservada.Id && p.Meio == MeioDePagamento.Pix && p.Pagador.Email == Ana.Email),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    /// <summary>
+    /// P7 e decisão 12a: sem resposta do Mercado Pago, a tela fica com os outros meios — e a reserva continua
+    /// em <c>Emitindo</c>, porque o pedido pode ter nascido lá e a próxima tentativa tem de usar a mesma chave.
+    /// </summary>
+    [Fact]
+    public async Task Mercado_pago_sem_resposta_deixa_os_outros_meios_e_guarda_a_reserva()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+        PrepararMercadoPago();
+        _mercadoPago
+            .Emitir(Arg.Any<string>(), Arg.Any<PedidoDeCobranca>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Falha<DocumentoEmitido>(Erro.Indisponivel("recebimento.provedor_indisponivel", "fora")));
+
+        // Act
+        var cobranca = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+
+        // Assert
+        cobranca.Valor.PeloMercadoPago.ShouldBeEmpty();
+        cobranca.Valor.Meios.ShouldHaveSingleItem().Meio.ShouldBe(MeioDeRecebimento.Pix);
+        _reservada!.Status.ShouldBe(StatusDaCobrancaBancaria.Emitindo);
+    }
+
+    /// <summary>Decisão 12a: recusa do Mercado Pago (4xx) é definitiva — a reserva é solta.</summary>
+    [Fact]
+    public async Task Mercado_pago_que_recusa_solta_a_reserva()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+        PrepararMercadoPago();
+        _mercadoPago
+            .Emitir(Arg.Any<string>(), Arg.Any<PedidoDeCobranca>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Falha<DocumentoEmitido>(Erro.Conflito("recebimento.provedor_recusou", "não")));
+
+        // Act
+        await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+
+        // Assert
+        _reservada!.Status.ShouldBe(StatusDaCobrancaBancaria.Falhou);
+    }
+
+    /// <summary>
+    /// Decisão 12a: a reserva que ficou sem resposta é retomada com o mesmo id — a mesma chave de
+    /// idempotência —, e não nasce outra cobrança.
+    /// </summary>
+    [Fact]
+    public async Task Reserva_sem_resposta_e_retomada_com_a_mesma_chave()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+        PrepararMercadoPago();
+        var pendente = new CobrancaBancaria(
+            MeioDePagamento.Pix,
+            1,
+            [parcela.Id],
+            350_000,
+            DateTime.UtcNow.AddHours(2),
+            CobrancaBancaria.ChaveDoPix(1, [parcela.Id], 350_000, _hoje)
+        );
+        typeof(Entity).GetProperty(nameof(Entity.CriadoEm))!.SetValue(pendente, DateTime.UtcNow.AddMinutes(-2));
+        _reservada = pendente;
+        _provedor.ObterViva(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(pendente);
+        _mercadoPago
+            .Emitir("token", Arg.Any<PedidoDeCobranca>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new DocumentoEmitido("ORD1", "00020126-retomado")));
+
+        // Act
+        var cobranca = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+
+        // Assert
+        cobranca.Valor.PeloMercadoPago[0].Pix!.CopiaECola.ShouldBe("00020126-retomado");
+        pendente.Status.ShouldBe(StatusDaCobrancaBancaria.Emitida);
+        await _provedor.DidNotReceiveWithAnyArgs().ReservarEmissao(default!, Ct);
+        await _mercadoPago.Received(1).Emitir("token", Arg.Is<PedidoDeCobranca>(p => p.Referencia == pendente.Id), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Decisão 4: a segunda aba do mesmo formando reaproveita o PIX vivo, sem emitir outro.</summary>
+    [Fact]
+    public async Task Pix_dinamico_vivo_e_reaproveitado_sem_nova_emissao()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+        PrepararMercadoPago();
+        var viva = new CobrancaBancaria(
+            MeioDePagamento.Pix,
+            1,
+            [parcela.Id],
+            350_000,
+            DateTime.UtcNow.AddHours(2),
+            CobrancaBancaria.ChaveDoPix(1, [parcela.Id], 350_000, _hoje)
+        );
+        viva.Emitida("ORD1", "00020126-vivo");
+        _provedor.ObterViva(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(viva);
+
+        // Act
+        var cobranca = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+
+        // Assert
+        cobranca.Valor.PeloMercadoPago[0].Pix!.CopiaECola.ShouldBe("00020126-vivo");
+        await _mercadoPago.DidNotReceiveWithAnyArgs().Emitir(default!, default!, Ct);
+        await _provedor.DidNotReceiveWithAnyArgs().ReservarEmissao(default!, Ct);
+    }
+
+    /// <summary>A tesouraria vê a cobrança de qualquer formando, mas não paga: nada é emitido em nome dela.</summary>
+    [Fact]
+    public async Task Tesouraria_vendo_a_parcela_nao_emite_pix_dinamico()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+        PrepararMercadoPago();
+        _perfis.ObterTitular(FormaturaId, Tesoureira.UsuarioId, Arg.Any<CancellationToken>()).Returns(Tesoureira);
+
+        // Act
+        var cobranca = await Servico.GerarCobranca(FormaturaId, Tesoureira.UsuarioId, parcela.Id, Ct);
+
+        // Assert
+        cobranca.Valor.Meios.ShouldHaveSingleItem().Meio.ShouldBe(MeioDeRecebimento.Pix);
+        await _mercadoPago.DidNotReceiveWithAnyArgs().Emitir(default!, default!, Ct);
+    }
+
+    /// <summary>A cobrança que a emissão reservou, capturada para o teste conferir o status.</summary>
+    private CobrancaBancaria? _reservada;
+
+    /// <summary>Turma conectada ao Mercado Pago, com a reserva de emissão aceita e devolvida rastreada.</summary>
+    private void PrepararMercadoPago()
+    {
+        var credencial = new CredencialDeProvedor();
+        credencial.Conectar("token", "renovacao", DateTime.UtcNow.AddDays(100), 1, "turma@mp.dev", Ana.UsuarioId);
+        _provedor.ObterCredencial(Arg.Any<CancellationToken>()).Returns(credencial);
+        _perfis.ObterTitular(FormaturaId, Ana.UsuarioId, Arg.Any<CancellationToken>()).Returns(Ana);
+        _provedor.ReservarEmissao(Arg.Do<CobrancaBancaria>(c => _reservada = c), Arg.Any<CancellationToken>()).Returns(true);
+        _provedor.ObterCobrancaParaEdicao(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(_ => _reservada);
     }
 }

@@ -1,7 +1,10 @@
 using Amazon;
+using Amazon.Runtime;
 using Amazon.S3;
+using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Services;
+using Backend.Business.Adesoes.Settings;
 using Backend.Business.Admin.Interfaces;
 using Backend.Business.Admin.Services;
 using Backend.Business.Agenda.Interfaces;
@@ -17,7 +20,6 @@ using Backend.Business.Auth.Services;
 using Backend.Business.Auth.Settings;
 using Backend.Business.Busca.Interfaces;
 using Backend.Business.Busca.Services;
-using Backend.Business.Canais;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Services;
 using Backend.Business.Common;
@@ -32,14 +34,23 @@ using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Services;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Services;
+using Backend.Business.Festa.Settings;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Services;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formandos.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Services;
+using Backend.Business.IA.Interfaces;
+using Backend.Business.IA.Services;
+using Backend.Business.IA.Settings;
 using Backend.Business.Legal.Interfaces;
 using Backend.Business.Legal.Services;
+using Backend.Business.Loja.Interfaces;
+using Backend.Business.Loja.Services;
+using Backend.Business.MercadoPago.Interfaces;
+using Backend.Business.MercadoPago.Services;
+using Backend.Business.MercadoPago.Settings;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Services;
 using Backend.Business.Pagamentos.Interfaces;
@@ -55,6 +66,9 @@ using Backend.Business.Usuarios.Services;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Backend.Business;
 
@@ -81,6 +95,10 @@ public static class DependenciasBusiness
         services.AddOptions<AplicacaoSettings>().Bind(configuration.GetSection(AplicacaoSettings.Secao));
         services.AddOptions<ArmazenamentoSettings>().Bind(configuration.GetSection(ArmazenamentoSettings.Secao));
         services.AddOptions<AssinaturaSettings>().Bind(configuration.GetSection(AssinaturaSettings.Secao));
+        services.AddOptions<ConviteSettings>().Bind(configuration.GetSection(ConviteSettings.Secao));
+        services.AddOptions<IaSettings>().Bind(configuration.GetSection(IaSettings.Secao));
+        services.AddOptions<ResumoSettings>().Bind(configuration.GetSection(ResumoSettings.Secao));
+        services.AddOptions<MercadoPagoSettings>().Bind(configuration.GetSection(MercadoPagoSettings.Secao));
 
         services.AddValidatorsFromAssembly(typeof(DependenciasBusiness).Assembly, ServiceLifetime.Singleton);
 
@@ -146,6 +164,13 @@ public static class DependenciasBusiness
         return services;
     }
 
+    /// <summary>Cliente do S3 ou, com <c>ServiceUrl</c>, de um serviço compatível.</summary>
+    /// <remarks>
+    /// Em serviço compatível, o checksum só vai quando a operação exige. O SDK passou a mandá-lo em
+    /// todo envio, num corpo com trailer (<c>STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER</c>) que o
+    /// Cloudflare R2 recusa com "not implemented" — conferido contra o bucket de produção em 25/09/2026.
+    /// </remarks>
+    /// <param name="s3">Configuração do provedor.</param>
     private static AmazonS3Client CriarClienteS3(S3Settings s3)
     {
         var configuracao = new AmazonS3Config();
@@ -157,27 +182,74 @@ public static class DependenciasBusiness
         {
             configuracao.ServiceURL = s3.ServiceUrl;
             configuracao.ForcePathStyle = true;
+            configuracao.RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED;
+            configuracao.ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED;
         }
 
         return new AmazonS3Client(configuracao);
     }
 
+    /// <summary>
+    /// O <see cref="HttpClient"/> do <see cref="ClienteDeModelo"/>: um só, com conexões recicladas.
+    /// </summary>
+    /// <remarks>
+    /// Instância única com <c>PooledConnectionLifetime</c> é a alternativa da própria Microsoft ao
+    /// <c>IHttpClientFactory</c> — reaproveita conexões e ainda enxerga a troca de DNS, sem trazer
+    /// <c>Microsoft.Extensions.Http</c> para o worker. Sem <c>Timeout</c> aqui: o tempo limite é por
+    /// chamada, em <c>IA:SegundosDeEspera</c>.
+    /// </remarks>
+    private static readonly HttpClient ClienteHttpDaIa = new(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) })
+    {
+        Timeout = Timeout.InfiniteTimeSpan,
+    };
+
+    /// <summary>O <see cref="HttpClient"/> do <see cref="ClienteDoMercadoPago"/>, pelo mesmo motivo do da IA.</summary>
+    /// <remarks>Sem <c>Timeout</c> aqui: o tempo limite é por chamada, em <c>MercadoPago:SegundosDeEspera</c>.</remarks>
+    private static readonly HttpClient ClienteHttpDoMercadoPago = new(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) })
+    {
+        Timeout = Timeout.InfiniteTimeSpan,
+    };
+
     private static IServiceCollection AdicionarServices(this IServiceCollection services)
     {
         services.AddSingleton<ITokenService, TokenService>();
+        services.AddSingleton<TentativasDeSenha>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IContaService, ContaService>();
         services.AddScoped<IEmailsDeConta, EmailsDeConta>();
         services.AddScoped<IFormaturaService, FormaturaService>();
+        services.AddScoped<IRetencaoDeFormaturasService, RetencaoDeFormaturasService>();
         services.AddScoped<IMembroService, MembroService>();
         services.AddScoped<EmailsDeDesligamento>();
         services.AddScoped<IConviteService, ConviteService>();
         services.AddScoped<IPerfilService, PerfilService>();
         services.AddScoped<ICobrancaService, PlanoDeCobrancaService>();
         services.AddScoped<IGeracaoDeParcelasService, GeracaoDeParcelasService>();
+        services.AddScoped<IOpcionaisService, OpcionaisService>();
+        services.AddScoped<PedidoService>();
+        services.AddScoped<IPedidoService>(sp => sp.GetRequiredService<PedidoService>());
+        services.AddScoped<IQuitacaoDePedidos>(sp => sp.GetRequiredService<PedidoService>());
+        services.AddScoped<EmissaoDeConvites>();
+        services.AddScoped<EmailsDoConvite>();
+        services.AddScoped<IConviteDoEventoService, ConviteDoEventoService>();
+        services.AddScoped<IPortariaService, Portaria>();
+        services.AddScoped<ICotaDoEventoService, CotaDoEventoService>();
+        services.AddScoped<IMesaService, MesaService>();
+        services.AddScoped<DonosDeMesa>();
+        services.AddSingleton<CodigoDoConvite>();
+        services.AddScoped<ILojaService, LojaService>();
+        services.AddScoped<PagamentoDaCompra>();
+        services.AddScoped<EmailsDaLoja>();
+        services.AddSingleton<LinkDaCompra>();
         services.AddScoped<ITermoService, TermoService>();
         services.AddScoped<IAdesaoService, AdesaoService>();
         services.AddScoped<EmailsDeAdesao>();
+        services.AddScoped<IResumoDoTermoService, ResumoDoTermoService>();
+        services.AddSingleton<IModeloDeLinguagem>(sp => new ClienteDeModelo(
+            ClienteHttpDaIa,
+            sp.GetRequiredService<IOptions<IaSettings>>(),
+            sp.GetRequiredService<ILogger<ClienteDeModelo>>()
+        ));
         services.AddScoped<IContaDeRecebimentoService, ContaDeRecebimentoService>();
         services.AddScoped<EmailsDeRecebimento>();
         services.AddScoped<IItemDaFestaService, ItemDaFestaService>();
@@ -185,6 +257,7 @@ public static class DependenciasBusiness
         services.AddScoped<IPropostaService, PropostaService>();
         services.AddScoped<IFornecedorService, FornecedorService>();
         services.AddScoped<IDespesaService, DespesaService>();
+        services.AddScoped<IOutraReceitaService, OutraReceitaService>();
         services.AddScoped<ICaixaService, CaixaService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IRelatorioService, RelatorioService>();
@@ -192,10 +265,23 @@ public static class DependenciasBusiness
         services.AddScoped<IAvisoService, AvisoService>();
         services.AddScoped<IDocumentoService, DocumentoService>();
         services.AddScoped<IPagamentoService, PagamentoService>();
+        services.AddScoped<ITesourariaService, TesourariaService>();
         services.AddScoped<INotificacaoService, NotificacaoService>();
         services.AddScoped<IReguaService, ReguaService>();
         services.AddScoped<ICanalDeNotificacao, CanalDeEmail>();
         services.AddScoped<BaixaService>();
+        services.AddScoped<BaixaAutomatica>();
+        services.AddScoped<AvisoDoMercadoPago>();
+        services.AddScoped<IAvisosDaContaDoKapa, AvisosDaContaDoKapaSemProvedor>();
+        services.AddScoped<IProvedorDaTurmaService, ProvedorDaTurmaService>();
+        services.AddScoped<EmissaoNoMercadoPago>();
+        services.TryAddScoped<FormaturaDoProcessamento>();
+        services.TryAddSingleton<IFilaDaTurma, SemFila>();
+        services.AddSingleton<IMercadoPago>(sp => new ClienteDoMercadoPago(
+            ClienteHttpDoMercadoPago,
+            sp.GetRequiredService<IOptions<MercadoPagoSettings>>(),
+            sp.GetRequiredService<ILogger<ClienteDoMercadoPago>>()
+        ));
         services.AddScoped<EmailsDePagamento>();
         services.AddScoped<ILegalService, LegalService>();
         services.AddScoped<IAuditoriaService, AuditoriaService>();
@@ -207,8 +293,10 @@ public static class DependenciasBusiness
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IAdminService, AdminService>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IProcessamentoDaFilaDeEmail, ProcessamentoDaFilaDeEmail>();
         services.AddScoped<IArquivoService, ArquivoService>();
         services.AddScoped<IAssinaturaService, AssinaturaService>();
+        services.AddScoped<VagasDoPlano>();
         services.AddScoped<IWebhookService, WebhookService>();
         services.AddScoped<EmailsDeAssinatura>();
 

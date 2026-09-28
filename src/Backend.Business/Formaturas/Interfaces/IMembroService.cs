@@ -60,16 +60,4 @@ public interface IMembroService
     /// <param name="dados">Motivo e o que fazer com o atraso.</param>
     /// <param name="autorId">Quem desligou — vai para a auditoria.</param>
     Task<Result> Desligar(Guid formaturaId, Guid usuarioId, DesligarFormando dados, Guid autorId, CancellationToken ct = default);
-
-    /// <summary>
-    /// Desfaz o desligamento: o acesso volta.
-    /// </summary>
-    /// <remarks>
-    /// <b>Não</b> ressuscita parcela cancelada — a cobrança volta por lançamento novo, não por
-    /// desfazer (decisão da Sprint 15). É o desfazer do clique errado, não uma renegociação.
-    /// </remarks>
-    /// <param name="formaturaId">Formatura da sessão.</param>
-    /// <param name="usuarioId">Membro a religar.</param>
-    /// <param name="autorId">Quem religou — vai para a auditoria.</param>
-    Task<Result> Religar(Guid formaturaId, Guid usuarioId, Guid autorId, CancellationToken ct = default);
 }

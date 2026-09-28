@@ -64,8 +64,13 @@ public static class Politicas
     /// <para>
     /// A lista é curta de propósito e não cresce sem uma decisão: <c>GET /formaturas/atual</c> (a
     /// moldura de toda tela), <c>GET /extrato/eu</c>, <c>GET /adesoes/eu</c> e o PDF do termo. Mural,
-    /// acervo, dashboard da turma e <b>toda</b> escrita continuam em <see cref="MembroDaFormatura"/>,
+    /// acervo, dashboard da turma e toda outra escrita continuam em <see cref="MembroDaFormatura"/>,
     /// que exige vínculo ativo.
+    /// </para>
+    /// <para>
+    /// Desde 23/09/2026 também a parcela, o PIX e o aviso de pagamento — só das <b>próprias</b>
+    /// parcelas (<c>PagamentoService.ParcelaVisivel</c>): quando a comissão desliga mantendo o atraso, a
+    /// dívida continua, e sem isso a pessoa não tinha por onde quitá-la.
     /// </para>
     /// </remarks>
     public const string TitularDoProprioHistorico = nameof(TitularDoProprioHistorico);

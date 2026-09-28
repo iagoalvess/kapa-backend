@@ -145,3 +145,18 @@ public sealed record NovidadesDoMural(int Quantidade, IReadOnlyList<NovidadeDoMu
     /// <summary>Nada novo — e nada a mostrar.</summary>
     public static NovidadesDoMural Nenhuma => new(0, []);
 }
+
+/// <summary>
+/// Um documento do acervo, como outra tela o abre — o contrato de um item da festa, o comprovante de
+/// uma receita.
+/// </summary>
+/// <remarks>
+/// O arquivo continua no acervo (Sprint 11) e é baixado pelo endpoint de lá, que confere formatura e
+/// visibilidade de novo. O que vem aqui é só o necessário para desenhar o link e decidir entre abrir
+/// numa aba (PDF, imagem) e baixar com o nome original (Word, planilha).
+/// </remarks>
+/// <param name="Id">Documento no acervo.</param>
+/// <param name="Titulo">Como a turma o chama ("Contrato do buffet").</param>
+/// <param name="NomeDoArquivo">Nome original, para o download.</param>
+/// <param name="ContentType">Tipo do arquivo.</param>
+public sealed record DocumentoDoAcervo(Guid Id, string Titulo, string NomeDoArquivo, string ContentType);

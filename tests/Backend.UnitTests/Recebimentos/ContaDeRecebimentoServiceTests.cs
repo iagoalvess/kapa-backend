@@ -36,6 +36,7 @@ public sealed class ContaDeRecebimentoServiceTests
 
     private static readonly MeiosDaConta SoPix = new(ChaveCpf, null, null);
 
+    private readonly IProvedorDaTurmaRepository _provedor = Substitute.For<IProvedorDaTurmaRepository>();
     private readonly IContaDeRecebimentoRepository _contas = Substitute.For<IContaDeRecebimentoRepository>();
     private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
     private readonly IPerfilRepository _perfis = Substitute.For<IPerfilRepository>();
@@ -53,6 +54,7 @@ public sealed class ContaDeRecebimentoServiceTests
 
     private ContaDeRecebimentoService Servico =>
         new(
+            _provedor,
             _contas,
             _vinculos,
             _perfis,
@@ -300,5 +302,64 @@ public sealed class ContaDeRecebimentoServiceTests
         _contas.ObterParaEdicao(Arg.Any<CancellationToken>()).Returns(conta);
 
         return conta;
+    }
+
+    [Fact]
+    public async Task Trocar_o_pix_avisa_a_turma_sem_mostrar_a_chave_nova_e_a_trilha_devolve_os_meios()
+    {
+        // Arrange
+        ContaConferida();
+        Evento? auditado = null;
+        await _eventos.Adicionar(Arg.Do<Evento>(e => auditado = e), Arg.Any<CancellationToken>());
+        _vinculos.ListarEmailsDosFormandos(FormaturaId, Arg.Any<CancellationToken>()).Returns(["ana@turma.com"]);
+
+        // Act
+        var gravada = (await Servico.Gravar(FormaturaId, PresidenteId, SoPix with { Pix = ChaveCelular }, Ct)).Valor;
+
+        // Assert
+        await _email
+            .Received(1)
+            .Enfileirar(
+                Arg.Is<NovoEmail>(e =>
+                    e.Para == "ana@turma.com"
+                    && e.Assunto.Contains("A conta de pagamento da turma mudou")
+                    && !e.CorpoHtml.Contains("+5541998765432")
+                    && !e.CorpoHtml.Contains("Bruno Lima")
+                ),
+                Ct
+            );
+        ContaDeRecebimentoService.MeiosGravados(auditado!.Dados!).ShouldBe(gravada.Meios);
+    }
+
+    [Fact]
+    public async Task Mudar_so_o_dinheiro_avisa_a_comissao_mas_nao_a_turma()
+    {
+        // Arrange
+        ContaConferida();
+        _vinculos.ListarEmailsDosFormandos(FormaturaId, Arg.Any<CancellationToken>()).Returns(["ana@turma.com"]);
+
+        // Act
+        await Servico.Gravar(FormaturaId, PresidenteId, SoPix with { Dinheiro = new DinheiroComAlguem("Lucas", "bloco A") }, Ct);
+
+        // Assert
+        await _email.ReceivedWithAnyArgs(3).Enfileirar(default!, Ct);
+        await _email.DidNotReceive().Enfileirar(Arg.Is<NovoEmail>(e => e.Para == "ana@turma.com"), Ct);
+    }
+
+    /// <summary>Antes da Sprint 18 o evento gravava só a chave; o recibo de um pagamento daquela época ainda nomeia o titular.</summary>
+    [Fact]
+    public void Evento_anterior_aos_meios_devolve_a_chave_como_pix()
+    {
+        // Arrange
+        const string antigo =
+            """{"depois": {"chave": "turma@ufpr.dev", "cidade": "CURITIBA", "tipoDeChave": "Email", "nomeDoTitular": "Comissao Odonto"}}""";
+        const string vazio = """{"depois": null}""";
+
+        // Act
+        var meios = ContaDeRecebimentoService.MeiosGravados(antigo);
+
+        // Assert
+        meios.ShouldBe(new MeiosDaConta(new ChavePixDaConta(TipoDeChavePix.Email, "turma@ufpr.dev", "Comissao Odonto", "CURITIBA"), null, null));
+        ContaDeRecebimentoService.MeiosGravados(vazio).ShouldBeNull();
     }
 }

@@ -23,7 +23,7 @@ public sealed class EmailsDePagamento(IEmailService emailService, IOptions<Aplic
     private readonly AplicacaoSettings _aplicacao = aplicacao.Value;
 
     /// <summary>O extrato no front — o mesmo caminho de <c>ROTAS.extrato</c>.</summary>
-    private string LinkDoExtrato => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/minhas-parcelas";
+    private string LinkDoExtrato => _aplicacao.Link(RotasDoFront.MinhasParcelas);
 
     /// <summary>
     /// A tesouraria achou o dinheiro e registrou o pagamento.
@@ -32,6 +32,10 @@ public sealed class EmailsDePagamento(IEmailService emailService, IOptions<Aplic
     /// Com saldo, a parcela continua em aberto e o e-mail diz quanto falta: é a diferença entre "está
     /// tudo certo" e "a tesouraria achou o seu PIX, mas você ainda deve" — e a pessoa precisa saber
     /// qual das duas antes do próximo vencimento.
+    /// <para>
+    /// O botão leva ao recibo desta baixa (Sprint 22), e não ao extrato: é o e-mail que a pessoa guarda,
+    /// e o recibo é a prova. O PDF não vai anexado — 80 anexos por mês que ninguém pediu; o link basta.
+    /// </para>
     /// </remarks>
     /// <param name="email">Formando.</param>
     /// <param name="formatura">Nome da turma.</param>
@@ -39,13 +43,15 @@ public sealed class EmailsDePagamento(IEmailService emailService, IOptions<Aplic
     /// <param name="valorEmCentavos">O que entrou.</param>
     /// <param name="pagoEm">Dia em que entrou.</param>
     /// <param name="saldoEmCentavos">O que ainda falta na parcela; zero se ela ficou quitada.</param>
+    /// <param name="recebimentoId">A baixa, cujo recibo o botão abre.</param>
     public Task Confirmado(
         string email,
         string formatura,
         DateOnly vencimento,
         long valorEmCentavos,
         DateOnly pagoEm,
-        long saldoEmCentavos = 0,
+        long saldoEmCentavos,
+        Guid recebimentoId,
         CancellationToken ct = default
     ) =>
         Enfileirar(
@@ -60,6 +66,7 @@ public sealed class EmailsDePagamento(IEmailService emailService, IOptions<Aplic
                         : string.Empty
                 ),
             Mascote.Cofrinho,
+            ("Ver o recibo", _aplicacao.Link($"{RotasDoFront.Recibo}{recebimentoId}")),
             ct
         );
 
@@ -78,6 +85,7 @@ public sealed class EmailsDePagamento(IEmailService emailService, IOptions<Aplic
                 + $"{FormatosBrasileiros.Reais(valorEmCentavos)} que você informou para a parcela com vencimento em {Dia(vencimento)}. "
                 + $"Motivo: <em>{ModeloDeEmail.Texto(motivo)}</em>. A parcela continua em aberto — se você pagou, fale com a tesouraria.",
             Mascote.Erro,
+            null,
             ct
         );
 
@@ -108,17 +116,27 @@ public sealed class EmailsDePagamento(IEmailService emailService, IOptions<Aplic
                 + $"Motivo: <em>{ModeloDeEmail.Texto(justificativa)}</em>. A parcela voltou a ficar em aberto — "
                 + "se você não reconhece este estorno, fale com a comissão.",
             Mascote.Alerta,
+            null,
             ct
         );
 
     private static string Dia(DateOnly dia) => dia.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
 
-    private async Task Enfileirar(string email, string assunto, string titulo, string mensagem, Mascote mascote, CancellationToken ct) =>
+    /// <summary>Enfileira o aviso no modelo da casa; sem botão próprio, o botão leva ao extrato.</summary>
+    private async Task Enfileirar(
+        string email,
+        string assunto,
+        string titulo,
+        string mensagem,
+        Mascote mascote,
+        (string Texto, string Link)? botao,
+        CancellationToken ct
+    ) =>
         await emailService.Enfileirar(
             new NovoEmail(
                 email,
                 $"{assunto} — {_aplicacao.Nome}",
-                ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, "Ver meu extrato", LinkDoExtrato, mascote)
+                ModeloDeEmail.Montar(_aplicacao, titulo, mensagem, botao?.Texto ?? "Ver meu extrato", botao?.Link ?? LinkDoExtrato, mascote)
             ),
             ct
         );

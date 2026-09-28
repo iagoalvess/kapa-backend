@@ -25,6 +25,16 @@ public sealed class InformeRepository(AppDbContext db) : IInformeRepository
         await db.Informes.Where(i => informeIds.Contains(i.Id)).ToListAsync(ct);
 
     /// <inheritdoc />
+    public Task<bool> ExistePendente(IReadOnlyCollection<Guid> parcelaIds, CancellationToken ct = default) =>
+        db.Informes.AnyAsync(i => parcelaIds.Contains(i.ParcelaId) && i.Status == StatusDoInforme.Pendente, ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<InformeDePagamento>> ListarPendentesParaEdicao(
+        IReadOnlyCollection<Guid> parcelaIds,
+        CancellationToken ct = default
+    ) => await db.Informes.Where(i => parcelaIds.Contains(i.ParcelaId) && i.Status == StatusDoInforme.Pendente).ToListAsync(ct);
+
+    /// <inheritdoc />
     /// <remarks>
     /// Pendentes do mais antigo para o mais novo — a fila é a do tempo, e o aviso que espera há mais
     /// tempo é o primeiro a olhar (decisão 4). Os já conferidos, dos mais recentes: é o histórico.

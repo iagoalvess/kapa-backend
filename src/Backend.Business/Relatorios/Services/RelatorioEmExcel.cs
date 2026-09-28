@@ -1,7 +1,7 @@
 using Backend.Business.Relatorios.Models;
 using ClosedXML.Excel;
 
-namespace Backend.Business.Common.Planilhas;
+namespace Backend.Business.Relatorios.Services;
 
 /// <summary>
 /// Uma <see cref="TabelaDoRelatorio"/> escrita como planilha do Excel (.xlsx).
@@ -20,7 +20,7 @@ namespace Backend.Business.Common.Planilhas;
 /// projeto.
 /// </para>
 /// </remarks>
-public static class PlanilhaExcel
+public static class RelatorioEmExcel
 {
     /// <summary>Linha em que o cabeçalho da tabela fica — acima dele, título e subtítulo.</summary>
     private const int LinhaDoCabecalho = 4;
@@ -41,6 +41,10 @@ public static class PlanilhaExcel
     private static readonly XLColor Apoio = XLColor.FromArgb(0x6B, 0x6B, 0x66);
 
     /// <summary>Monta o arquivo.</summary>
+    /// <remarks>
+    /// O cabeçalho fica preso no topo e vira filtro: quem abre uma planilha de parcelas vai filtrar
+    /// por situação antes de olhar qualquer número.
+    /// </remarks>
     /// <param name="tabela">O relatório já reduzido a colunas e linhas.</param>
     public static byte[] Gerar(TabelaDoRelatorio tabela)
     {
@@ -69,8 +73,6 @@ public static class PlanilhaExcel
         for (var coluna = 0; coluna < tabela.Colunas.Count; coluna++)
             Escrever(planilha.Cell(LinhaDoCabecalho + 1 + linha, coluna + 1), tabela.Linhas[linha][coluna]);
 
-        // O cabeçalho fica preso no topo e vira filtro: quem abre uma planilha de parcelas vai
-        // filtrar por situação antes de olhar qualquer número.
         planilha.SheetView.FreezeRows(LinhaDoCabecalho);
         if (tabela.Linhas.Count > 0)
             planilha.Range(LinhaDoCabecalho, 1, LinhaDoCabecalho + tabela.Linhas.Count, tabela.Colunas.Count).SetAutoFilter();

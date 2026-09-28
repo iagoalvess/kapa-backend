@@ -5,14 +5,12 @@ using Backend.Api.DTOs.Auth;
 using Backend.Api.DTOs.Formaturas;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
-using Backend.Business.Auth.Settings;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.Options;
 
 namespace Backend.Api.Controllers.V1.Formaturas;
 
@@ -29,22 +27,12 @@ namespace Backend.Api.Controllers.V1.Formaturas;
 /// </remarks>
 /// <param name="formaturaService">Criação, seleção e ciclo de vida da formatura.</param>
 /// <param name="usuarioAtual">Quem está fazendo a requisição.</param>
-/// <param name="cookieOptions">Configuração do cookie de sessão.</param>
-/// <param name="jwtOptions">Configuração de JWT, que define a validade do cookie.</param>
-/// <param name="configuration">Configuração da aplicação, de onde saem as origens permitidas.</param>
+/// <param name="sessao">De onde vem o refresh token e como o par volta ao cliente.</param>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/formaturas")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class FormaturaController(
-    IFormaturaService formaturaService,
-    IUsuarioAtual usuarioAtual,
-    IOptions<CookieDeSessaoSettings> cookieOptions,
-    IOptions<JwtSettings> jwtOptions,
-    IConfiguration configuration
-) : MainController
+public sealed class FormaturaController(IFormaturaService formaturaService, IUsuarioAtual usuarioAtual, SessaoHttp sessao) : MainController
 {
-    private string? IpDeOrigem => HttpContext.Connection.RemoteIpAddress?.ToString();
-
     /// <summary>
     /// Cria a formatura em rascunho, com quem criou como Presidente.
     /// </summary>
@@ -61,15 +49,21 @@ public sealed class FormaturaController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Criar([FromBody] DadosDaFormaturaRequestDTO requisicao, CancellationToken ct)
     {
-        var refreshAtual = Request.RefreshTokenRecebido(cookieOptions.Value, OrigensPermitidas, requisicao.RefreshToken);
-        var resultado = await formaturaService.Criar(usuarioAtual.Id, requisicao.Adapt<DadosDaFormatura>(), refreshAtual, IpDeOrigem, ct);
+        var refreshAtual = sessao.RefreshTokenRecebido(requisicao.RefreshToken);
+        var resultado = await formaturaService.Criar(
+            usuarioAtual.Id,
+            requisicao.Adapt<DadosDaFormatura>(),
+            refreshAtual,
+            usuarioAtual.EnderecoIp,
+            ct
+        );
 
-        return Responder(RespostaDeSessao.Preparar(resultado, Response, cookieOptions.Value, jwtOptions.Value));
+        return Responder(sessao.Preparar(resultado));
     }
 
     /// <summary>Detalhe da formatura selecionada, com o status. Leitura: vale em qualquer status.</summary>
+    /// <remarks>Aceita o desligado: é a moldura de toda tela, e sem ela o extrato dele não abre (P5).</remarks>
     [HttpGet("atual")]
-    // Aceita o desligado: é a moldura de toda tela, e sem ela o extrato dele não abre (P5).
     [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [ProducesResponseType(typeof(FormaturaDetalheDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -126,8 +120,6 @@ public sealed class FormaturaController(
         return Responder(resultado);
     }
 
-    private string[] OrigensPermitidas => configuration.GetSection(ApiConfig.SecaoDeOrigens).Get<string[]>() ?? [];
-
     /// <summary>Lista as formaturas em que o usuário tem vínculo ativo.</summary>
     [HttpGet("minhas")]
     [Authorize(Policy = Politicas.Autenticado)]
@@ -156,9 +148,9 @@ public sealed class FormaturaController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Selecionar(Guid id, [FromBody] RefreshRequestDTO? requisicao, CancellationToken ct)
     {
-        var refreshAtual = Request.RefreshTokenRecebido(cookieOptions.Value, OrigensPermitidas, requisicao?.RefreshToken);
-        var resultado = await formaturaService.Selecionar(usuarioAtual.Id, id, refreshAtual, IpDeOrigem, ct);
+        var refreshAtual = sessao.RefreshTokenRecebido(requisicao?.RefreshToken);
+        var resultado = await formaturaService.Selecionar(usuarioAtual.Id, id, refreshAtual, usuarioAtual.EnderecoIp, ct);
 
-        return Responder(RespostaDeSessao.Preparar(resultado, Response, cookieOptions.Value, jwtOptions.Value));
+        return Responder(sessao.Preparar(resultado));
     }
 }

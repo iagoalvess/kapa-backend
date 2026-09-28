@@ -5,11 +5,9 @@ using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Comunicacao;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
-using Backend.Business.Arquivos.Models;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Comunicacao.Interfaces;
 using Backend.Business.Comunicacao.Models;
-using Backend.Business.Comunicacao.Services;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -76,7 +74,7 @@ public sealed class DocumentoController(IDocumentoService documentoService, IUsu
     {
         await using var conteudo = arquivo?.OpenReadStream() ?? Stream.Null;
 
-        var resultado = await documentoService.Enviar(FormaturaId, usuarioAtual.Id, Dados(requisicao), Arquivo(arquivo, conteudo), ct);
+        var resultado = await documentoService.Enviar(FormaturaId, usuarioAtual.Id, Dados(requisicao), arquivo.ParaNovoArquivo(conteudo), ct);
 
         return Responder(resultado.Map(documento => documento.Adapt<DocumentoDTO>()));
     }
@@ -99,7 +97,7 @@ public sealed class DocumentoController(IDocumentoService documentoService, IUsu
     {
         await using var conteudo = arquivo?.OpenReadStream() ?? Stream.Null;
 
-        var resultado = await documentoService.Atualizar(FormaturaId, usuarioAtual.Id, id, Dados(requisicao), Arquivo(arquivo, conteudo), ct);
+        var resultado = await documentoService.Atualizar(FormaturaId, usuarioAtual.Id, id, Dados(requisicao), arquivo.ParaNovoArquivo(conteudo), ct);
 
         return Responder(resultado.Map(documento => documento.Adapt<DocumentoDTO>()));
     }
@@ -138,8 +136,4 @@ public sealed class DocumentoController(IDocumentoService documentoService, IUsu
 
     private static DadosDoDocumento Dados(DocumentoRequestDTO requisicao) =>
         new(requisicao.Titulo ?? string.Empty, requisicao.Categoria, requisicao.Visibilidade);
-
-    /// <summary>O arquivo do multipart como pedido de envio; ausente ou vazio, nenhum.</summary>
-    private static NovoArquivo? Arquivo(IFormFile? arquivo, Stream conteudo) =>
-        arquivo is { Length: > 0 } ? new NovoArquivo(arquivo.FileName, arquivo.Length, conteudo, DocumentoService.CategoriaDoArquivo) : null;
 }

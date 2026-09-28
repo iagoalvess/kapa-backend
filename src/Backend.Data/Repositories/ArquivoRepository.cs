@@ -38,4 +38,8 @@ public sealed class ArquivoRepository(AppDbContext db) : IArquivoRepository
 
         return uso is null ? new UsoDeArmazenamento(0, 0) : new UsoDeArmazenamento(uso.Quantidade, uso.Bytes ?? 0);
     }
+
+    /// <inheritdoc />
+    /// <remarks>Um <c>SUM</c> sobre a tabela inteira: conta por envio, e a tabela é de metadados, pequena.</remarks>
+    public async Task<long> ObterBytesDeTodosOsArquivos(CancellationToken ct = default) => await db.Arquivos.SumAsync(a => (long?)a.Tamanho, ct) ?? 0;
 }

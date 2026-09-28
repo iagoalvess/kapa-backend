@@ -40,8 +40,7 @@ public sealed record FormaturaDoUsuario(
 /// <param name="Curso">Curso.</param>
 /// <param name="Ano">Ano de conclusão.</param>
 /// <param name="Semestre">Semestre de conclusão: 1 ou 2.</param>
-/// <param name="QuantidadeEstimadaDeFormandos">Quantos formandos a comissão espera.</param>
-public sealed record DadosDaFormatura(string Nome, string Instituicao, string Curso, int Ano, int Semestre, int QuantidadeEstimadaDeFormandos);
+public sealed record DadosDaFormatura(string Nome, string Instituicao, string Curso, int Ano, int Semestre);
 
 /// <summary>
 /// A formatura selecionada, como a tela de configurações e a faixa de status a enxergam.
@@ -60,7 +59,6 @@ public sealed record DadosDaFormatura(string Nome, string Instituicao, string Cu
 /// <param name="Semestre">Semestre de conclusão.</param>
 /// <param name="PrevisaoDeColacao">Data prevista da colação.</param>
 /// <param name="PrevisaoDaFesta">Data prevista da festa.</param>
-/// <param name="QuantidadeEstimadaDeFormandos">Quantos formandos a comissão espera.</param>
 /// <param name="Status">Situação no ciclo de vida.</param>
 /// <param name="CriadoEm">Criação, em UTC.</param>
 /// <param name="AtivadaEm">Primeira ativação, em UTC.</param>
@@ -75,7 +73,6 @@ public sealed record FormaturaDetalhe(
     int Semestre,
     DateOnly? PrevisaoDeColacao,
     DateOnly? PrevisaoDaFesta,
-    int QuantidadeEstimadaDeFormandos,
     StatusDaFormatura Status,
     DateTime CriadoEm,
     DateTime? AtivadaEm,

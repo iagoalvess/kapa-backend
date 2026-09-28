@@ -51,6 +51,19 @@ public class EmailNaFila : Entity
     /// <summary>Corpo em HTML.</summary>
     public string CorpoHtml { get; set; } = string.Empty;
 
+    /// <summary>Nome do arquivo anexado; nulo quando o e-mail não tem anexo.</summary>
+    public string? AnexoNome { get; set; }
+
+    /// <summary>Tipo do anexo (<c>application/pdf</c>).</summary>
+    public string? AnexoContentType { get; set; }
+
+    /// <summary>Bytes do anexo — ver <see cref="AnexoDoEmail"/> sobre por que moram aqui.</summary>
+    public byte[]? AnexoConteudo { get; set; }
+
+    /// <summary>O anexo como o remetente o entrega; nulo sem anexo.</summary>
+    public AnexoDoEmail? Anexo =>
+        AnexoNome is { } nome && AnexoContentType is { } tipo && AnexoConteudo is { } conteudo ? new AnexoDoEmail(nome, tipo, conteudo) : null;
+
     /// <summary>Situação atual.</summary>
     public EEmailStatus Status { get; set; } = EEmailStatus.Pendente;
 

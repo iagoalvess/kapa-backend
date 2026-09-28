@@ -1,11 +1,13 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
+using Backend.Business.Assinaturas.Services;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
 using Backend.Business.Eventos.Services;
+using Backend.Business.Festa.Services;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
@@ -34,21 +36,18 @@ public sealed class MembroService(
     IFormaturaRepository formaturaRepository,
     IEventoRepository eventos,
     EmailsDeDesligamento emails,
+    EmissaoDeConvites convites,
     IValidator<AlterarPapel> papelValidator,
     IValidator<DesligarFormando> desligamentoValidator,
     IUnitOfWork unitOfWork
 ) : IMembroService
 {
-    private static readonly Erro MembroNaoEncontrado = Erro.NaoEncontrado("membro.nao_encontrado", "Membro não encontrado nesta formatura.");
-
     private static readonly Erro SemAdesao = Erro.Conflito(
         "formatura.membro_sem_adesao",
         "Esta pessoa ainda não aderiu ao termo e não deve nada à turma. Use Remover."
     );
 
     private static readonly Erro JaDesligado = Erro.Conflito("formatura.membro_ja_desligado", "Esta pessoa já foi desligada da turma.");
-
-    private static readonly Erro NaoDesligado = Erro.Conflito("formatura.membro_nao_desligado", "Esta pessoa não está desligada da turma.");
 
     private static readonly Erro UltimoPresidente = Erro.Conflito(
         "formatura.ultimo_presidente",
@@ -81,7 +80,7 @@ public sealed class MembroService(
                 var vinculo = await vinculoRepository.ObterAtivoParaEdicao(usuarioId, formaturaId, token);
 
                 if (vinculo is null)
-                    return Result.Falha(MembroNaoEncontrado);
+                    return Result.Falha(ErrosDeFormatura.MembroNaoEncontrado);
 
                 if (vinculo.Papel == dados.Papel)
                     return Result.Ok();
@@ -114,7 +113,8 @@ public sealed class MembroService(
     /// <inheritdoc />
     /// <remarks>
     /// Desativar, nunca apagar: parcelas, pagamentos e adesão continuam apontando para o vínculo.
-    /// Prestação de contas de formatura é consultada meses depois da festa.
+    /// Prestação de contas de formatura é consultada meses depois da festa. Os convites da cota da
+    /// colação caem junto: quem saiu da turma não leva ninguém (Sprint 30, decisão 5).
     /// </remarks>
     public Task<Result> Remover(Guid formaturaId, Guid usuarioId, Guid autorId, CancellationToken ct = default) =>
         unitOfWork.EmTransacaoAsync(
@@ -124,12 +124,13 @@ public sealed class MembroService(
                 var vinculo = await vinculoRepository.ObterAtivoParaEdicao(usuarioId, formaturaId, token);
 
                 if (vinculo is null)
-                    return Result.Falha(MembroNaoEncontrado);
+                    return Result.Falha(ErrosDeFormatura.MembroNaoEncontrado);
 
                 if (DeixariaSemPresidente(vinculo, presidentes))
                     return Result.Falha(UltimoPresidente);
 
                 vinculo.Ativo = false;
+                var convitesRevogados = await convites.RevogarDaCota(vinculo.Id, token);
 
                 await eventos.Auditar(
                     NomesDeAuditoria.MembroRemovido,
@@ -140,6 +141,7 @@ public sealed class MembroService(
                         membroUsuarioId = usuarioId,
                         vinculoId = vinculo.Id,
                         vinculo.Papel,
+                        convitesRevogados,
                     },
                     token
                 );
@@ -154,7 +156,7 @@ public sealed class MembroService(
     {
         var membro = await perfilRepository.ObterMembro(formaturaId, usuarioId, ct);
         if (membro is null)
-            return Result.Falha<ResumoDaSaida>(MembroNaoEncontrado);
+            return Result.Falha<ResumoDaSaida>(ErrosDeFormatura.MembroNaoEncontrado);
 
         var hoje = DataUtils.Hoje();
         var parcelas = await parcelaRepository.ListarDoVinculo(membro.VinculoId, hoje, ct);
@@ -178,6 +180,14 @@ public sealed class MembroService(
     /// nenhum. O e-mail não sai da requisição — ele é enfileirado e vai junto no <c>SalvarAsync</c>
     /// da transação, o que também é o que faz "desligar duas vezes não manda o segundo e-mail"
     /// depender só da guarda de idempotência, e não de sorte.
+    /// <para>
+    /// O valor já pago é lido antes de cancelar: quanto entrou é fato do passado, e o cancelamento
+    /// não o move (decisão 5) — mas lê-lo depois faria a soma depender da ordem das operações.
+    /// </para>
+    /// <para>
+    /// Os convites da cota da colação são revogados com motivo (Sprint 30, decisão 5); os comprados
+    /// seguem o pedido, que o desligamento não toca.
+    /// </para>
     /// </remarks>
     public async Task<Result> Desligar(Guid formaturaId, Guid usuarioId, DesligarFormando dados, Guid autorId, CancellationToken ct = default)
     {
@@ -186,7 +196,7 @@ public sealed class MembroService(
             return validacao;
 
         var hoje = DataUtils.Hoje();
-        var nomeDaTurma = (await formaturaRepository.ObterDetalhe(formaturaId, ct))?.Nome ?? string.Empty;
+        var nomeDaTurma = await formaturaRepository.ObterNome(formaturaId, ct) ?? string.Empty;
         var destinatarios = await vinculoRepository.ListarEmailsDaComissao(formaturaId, ct);
 
         return await unitOfWork.EmTransacaoAsync(
@@ -196,7 +206,7 @@ public sealed class MembroService(
                 var vinculo = await vinculoRepository.ObterParaEdicao(usuarioId, formaturaId, token);
 
                 if (vinculo is null || (!vinculo.Ativo && !vinculo.Desligado))
-                    return Result.Falha(MembroNaoEncontrado);
+                    return Result.Falha(ErrosDeFormatura.MembroNaoEncontrado);
 
                 if (vinculo.Desligado)
                     return Result.Falha(JaDesligado);
@@ -207,8 +217,6 @@ public sealed class MembroService(
                 if (DeixariaSemPresidente(vinculo, presidentes))
                     return Result.Falha(UltimoPresidente);
 
-                // Antes de cancelar: quanto entrou é fato do passado, e o cancelamento não o move
-                // (decisão 5) — mas lê-lo depois faria a soma depender da ordem das linhas acima.
                 var membro = await perfilRepository.ObterMembro(formaturaId, usuarioId, token);
                 var jaPago = (await parcelaRepository.ListarDoVinculo(vinculo.Id, hoje, token)).Sum(p => p.ValorPagoEmCentavos ?? 0);
 
@@ -217,6 +225,7 @@ public sealed class MembroService(
                 var cancelado = new CancelamentoDaSaida(canceladas.Count, canceladas.Sum(parcela => parcela.ValorOriginalEmCentavos));
 
                 vinculo.Desligar(dados.Motivo, dados.Detalhe, DateTime.UtcNow);
+                var convitesRevogados = await convites.RevogarDaCota(vinculo.Id, token);
 
                 await eventos.Auditar(
                     NomesDeAuditoria.FormandoDesligado,
@@ -233,6 +242,7 @@ public sealed class MembroService(
                         parcelasCanceladas = cancelado.Parcelas,
                         canceladoEmCentavos = cancelado.ValorEmCentavos,
                         jaPagoEmCentavos = jaPago,
+                        convitesRevogados,
                     },
                     token
                 );
@@ -247,43 +257,6 @@ public sealed class MembroService(
             ct
         );
     }
-
-    /// <inheritdoc />
-    public Task<Result> Religar(Guid formaturaId, Guid usuarioId, Guid autorId, CancellationToken ct = default) =>
-        unitOfWork.EmTransacaoAsync(
-            async token =>
-            {
-                var vinculo = await vinculoRepository.ObterParaEdicao(usuarioId, formaturaId, token);
-
-                if (vinculo is null)
-                    return Result.Falha(MembroNaoEncontrado);
-
-                if (!vinculo.Desligado)
-                    return Result.Falha(NaoDesligado);
-
-                var motivo = vinculo.MotivoDoDesligamento;
-                var desligadoEm = vinculo.DesligadoEm;
-
-                vinculo.Religar();
-
-                await eventos.Auditar(
-                    NomesDeAuditoria.FormandoReligado,
-                    autorId,
-                    new
-                    {
-                        formaturaId,
-                        usuarioId,
-                        vinculoId = vinculo.Id,
-                        desligadoEm,
-                        motivo,
-                    },
-                    token
-                );
-
-                return Result.Ok();
-            },
-            ct
-        );
 
     /// <summary>
     /// Diz se tirar este vínculo da presidência deixaria a turma sem presidente ativo.

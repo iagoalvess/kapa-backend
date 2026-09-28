@@ -9,7 +9,6 @@ using Backend.Business.Assinaturas.Models;
 using Backend.Business.Auth.Services;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
-using Backend.Business.Notificacoes.Services;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,16 +17,12 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Backend.Api.Controllers.V1.Notificacoes;
 
 /// <summary>
-/// A régua de cobrança: a tesouraria configura e testa, a gestão audita e o membro escolhe o que recebe.
+/// A régua de cobrança: a tesouraria liga e desliga os degraus, a gestão audita e o membro escolhe o que recebe.
 /// </summary>
 /// <remarks>
 /// Cada rota tem o recorte que a sprint pede: configurar e disparar são da Tesouraria, o histórico é
 /// da Gestão — é o que ela mostra quando alguém diz "nunca fui avisado" — e a preferência é do
 /// próprio titular, lida e gravada pelo vínculo dele.
-/// <para>
-/// <c>testar</c> manda para quem clicou, nunca para a turma: o destinatário sai da conta autenticada
-/// e não existe campo de e-mail no corpo.
-/// </para>
 /// </remarks>
 /// <param name="notificacaoService">Regras da régua.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
@@ -37,37 +32,25 @@ namespace Backend.Api.Controllers.V1.Notificacoes;
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class NotificacaoController(INotificacaoService notificacaoService, IUsuarioAtual usuarioAtual) : MainController
 {
-    /// <summary>A régua da turma. Quem nunca configurou recebe a padrão, já gravada.</summary>
+    /// <summary>A régua da turma: os degraus do Kapa, cada um ligado ou não.</summary>
     [HttpGet("regras")]
     [Authorize(Policy = Politicas.Tesouraria)]
     [ProducesResponseType(typeof(ReguaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ObterRegras(CancellationToken ct) => Responder((await notificacaoService.ListarRegras(ct)).Map(Regua));
 
-    /// <summary>Grava a régua inteira. Variável desconhecida é recusada aqui, com 400.</summary>
-    /// <param name="requisicao">Os degraus.</param>
-    [HttpPut("regras")]
+    /// <summary>Liga ou desliga um degrau.</summary>
+    /// <param name="id">Degrau.</param>
+    /// <param name="requisicao">Se dispara.</param>
+    [HttpPut("regras/{id:guid}")]
     [Authorize(Policy = Politicas.Tesouraria)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [RegistrarEvento("notificacao.regua_alterada")]
+    [RegistrarEvento("notificacao.regua_alterada", CamposDaRota = ["id"])]
     [ProducesResponseType(typeof(ReguaDTO), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> SalvarRegras([FromBody] ReguaRequestDTO requisicao, CancellationToken ct) =>
-        Responder((await notificacaoService.SalvarRegras(Dados(requisicao), ct)).Map(Regua));
-
-    /// <summary>Manda o degrau com dados de exemplo para o e-mail de quem clicou. A turma não recebe nada.</summary>
-    /// <param name="id">Degrau a testar.</param>
-    [HttpPost("regras/{id:guid}/testar")]
-    [Authorize(Policy = Politicas.Tesouraria)]
-    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [RegistrarEvento("notificacao.regra_testada", CamposDaRota = ["id"])]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Testar(Guid id, CancellationToken ct) =>
-        Responder(await notificacaoService.Testar(FormaturaId, usuarioAtual.Id, id, ct));
+    public async Task<IActionResult> DefinirRegra(Guid id, [FromBody] RegraRequestDTO requisicao, CancellationToken ct) =>
+        Responder((await notificacaoService.DefinirRegra(id, requisicao.Ativa, ct)).Map(Regua));
 
     /// <summary>Quem recebeu o quê, quando e com qual resultado.</summary>
     /// <param name="paginacao">Página e ordenação.</param>
@@ -123,26 +106,8 @@ public sealed class NotificacaoController(INotificacaoService notificacaoService
     public async Task<IActionResult> Cobrar(Guid parcelaId, CancellationToken ct) =>
         Responder(await notificacaoService.Cobrar(FormaturaId, parcelaId, ct));
 
-    private static ReguaDTO Regua(IReadOnlyList<RegraResumo> regras) =>
-        new(
-            [.. regras.Select(regra => regra.Adapt<RegraDTO>())],
-            TemplateDeNotificacao.Variaveis,
-            TemplateDeNotificacao.TamanhoMaximo,
-            TemplateDeNotificacao.TamanhoMaximoDoAssunto
-        );
+    private static ReguaDTO Regua(IReadOnlyList<RegraResumo> regras) => new([.. regras.Select(regra => regra.Adapt<RegraDTO>())]);
 
     private static IReadOnlyList<PreferenciaDTO> Preferencias(IReadOnlyList<PreferenciaResumo> preferencias) =>
         [.. preferencias.Select(preferencia => preferencia.Adapt<PreferenciaDTO>())];
-
-    private static DadosDaRegua Dados(ReguaRequestDTO requisicao) =>
-        new([
-            .. (requisicao.Regras ?? []).Select(regra => new DadosDaRegra(
-                regra.Gatilho,
-                regra.DiasDeDeslocamento,
-                regra.Assunto ?? string.Empty,
-                regra.Template ?? string.Empty,
-                regra.Ativa,
-                regra.AvisarTesouraria
-            )),
-        ]);
 }

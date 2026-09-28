@@ -28,6 +28,7 @@ public sealed class ArquivoServiceTests
     private readonly IArquivoRepository _repositorio = Substitute.For<IArquivoRepository>();
     private readonly IArmazenamentoDeArquivos _armazenamento = Substitute.For<IArmazenamentoDeArquivos>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IFormaturaAtual _formatura = Substitute.For<IFormaturaAtual>();
 
     private ArquivoService Criar() =>
         new(
@@ -36,6 +37,7 @@ public sealed class ArquivoServiceTests
             new NovoArquivoValidator(Options.Create(Settings)),
             Options.Create(Settings),
             new UrlTemporariaLocal(),
+            _formatura,
             _unitOfWork,
             NullLogger<ArquivoService>.Instance
         );
@@ -172,9 +174,27 @@ public sealed class ArquivoServiceTests
 
         registrado.ShouldNotBeNull();
         registrado.Chave.ShouldNotContain("..");
-        registrado.Chave.ShouldStartWith("anexos/");
+        registrado.Chave.ShouldStartWith("geral/anexos/");
         registrado.Chave.ShouldEndWith(".pdf");
         registrado.Nome.ShouldBe("senha.pdf");
+    }
+
+    /// <summary>
+    /// Tudo o que uma turma enviou mora sob o prefixo dela: apagar a turma no provedor é apagar um
+    /// prefixo, sem consultar o banco.
+    /// </summary>
+    [Fact]
+    public async Task A_chave_comeca_pela_formatura_da_sessao()
+    {
+        var formaturaId = Guid.CreateVersion7();
+        _formatura.Id.Returns(formaturaId);
+        Arquivo? registrado = null;
+        await _repositorio.Adicionar(Arg.Do<Arquivo>(a => registrado = a), Arg.Any<CancellationToken>());
+
+        await Criar().Enviar(Novo(), Guid.CreateVersion7(), Ct);
+
+        registrado.ShouldNotBeNull();
+        registrado.Chave.ShouldStartWith($"formaturas/{formaturaId:N}/anexos/");
     }
 
     /// <summary>

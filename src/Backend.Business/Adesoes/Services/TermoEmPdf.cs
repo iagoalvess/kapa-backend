@@ -44,9 +44,10 @@ public static partial class TermoEmPdf
         var plano = registro.LerPlano();
         var aceitoEm = DataUtils.ParaExibicao(registro.AceitoEm);
 
-        var pdf = new DocumentoPdf()
-            .Titulo("Termo de adesão")
-            .Paragrafo($"Versão {registro.Versao} do termo da turma, aceita por {registro.NomeCompleto} em {Data(aceitoEm)} às {Hora(aceitoEm)}.");
+        var pdf = new DocumentoPdf().Capa(
+            "Termo de adesão",
+            $"Versão {registro.Versao} do termo da turma, aceita por {registro.NomeCompleto} em {Data(aceitoEm)} às {Hora(aceitoEm)}."
+        );
 
         ResumoFinanceiro(pdf, plano);
         Markdown(pdf.Secao("Termo"), adesao.ConteudoDoTermo);

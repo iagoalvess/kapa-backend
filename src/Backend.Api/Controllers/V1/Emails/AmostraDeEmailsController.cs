@@ -7,6 +7,7 @@ using Backend.Business.Assinaturas.Services;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common;
+using Backend.Business.Common.Datas;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
 using Backend.Business.Emails.Services;
@@ -58,7 +59,6 @@ namespace Backend.Api.Controllers.V1.Emails;
 /// <param name="unitOfWork">Quem salva a fila — os <c>EmailsDe*</c> só enfileiram.</param>
 /// <param name="aplicacao">Identidade da aplicação.</param>
 /// <param name="ambiente">Ambiente de execução.</param>
-[ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/amostra-de-emails")]
 [AllowAnonymous]
@@ -77,7 +77,7 @@ public sealed class AmostraDeEmailsController(
     IUnitOfWork unitOfWork,
     IOptions<AplicacaoSettings> aplicacao,
     IHostEnvironment ambiente
-) : ControllerBase
+) : MainController
 {
     private const string Turma = "Odontologia 2027";
 
@@ -91,7 +91,7 @@ public sealed class AmostraDeEmailsController(
             return NotFound();
 
         if (string.IsNullOrWhiteSpace(para))
-            return BadRequest(new { erro = "Informe ?para=endereco@exemplo.com." });
+            return Responder(Result.Falha(Erro.Validacao("validacao.invalido", "Informe ?para=endereco@exemplo.com.", "para")));
 
         var antes = DateTime.UtcNow;
 
@@ -141,10 +141,10 @@ public sealed class AmostraDeEmailsController(
 
     private async Task DoPagamento(string para, CancellationToken ct)
     {
-        var vencimento = DateOnly.FromDateTime(DateTime.UtcNow);
+        var vencimento = DataUtils.Hoje();
 
-        await pagamento.Confirmado(para, Turma, vencimento, 35_000, vencimento, 0, ct);
-        await pagamento.Confirmado(para, Turma, vencimento, 20_000, vencimento, 15_000, ct);
+        await pagamento.Confirmado(para, Turma, vencimento, 35_000, vencimento, 0, Guid.CreateVersion7(), ct);
+        await pagamento.Confirmado(para, Turma, vencimento, 20_000, vencimento, 15_000, Guid.CreateVersion7(), ct);
         await pagamento.Recusado(para, Turma, vencimento, 35_000, "Não encontramos este PIX no extrato da turma.", ct);
         await pagamento.Estornado(para, Turma, vencimento, 35_000, "Baixa lançada na parcela errada.", ct);
     }
@@ -170,8 +170,11 @@ public sealed class AmostraDeEmailsController(
     /// <summary>
     /// A amostra mostra o pior caso: a chave PIX da comissão saiu e sobrou o dinheiro em mãos.
     /// </summary>
-    /// <remarks>É o desenho da fraude que este e-mail existe para flagrar, e o que ele precisa gritar.</remarks>
-    private Task DoRecebimento(string para, CancellationToken ct)
+    /// <remarks>
+    /// É o desenho da fraude que este e-mail existe para flagrar, e o que ele precisa gritar. Vai junto o
+    /// aviso que a turma recebe na mesma troca (Sprint 22, P1).
+    /// </remarks>
+    private async Task DoRecebimento(string para, CancellationToken ct)
     {
         var antes = new MeiosDaConta(
             new ChavePixDaConta(TipoDeChavePix.Email, "tesouraria@odonto.kapa.dev", "Comissão de Formatura Odontologia", "Curitiba"),
@@ -181,7 +184,8 @@ public sealed class AmostraDeEmailsController(
 
         var depois = new MeiosDaConta(null, antes.Transferencia, new DinheiroComAlguem("Lucas", "no bloco A"));
 
-        return recebimento.ContaAlterada(para, Turma, "Ana Beatriz", antes, depois, ct);
+        await recebimento.ContaAlterada(para, Turma, "Ana Beatriz", antes, depois, ct);
+        await recebimento.ContaAlteradaParaATurma(para, Turma, "Ana Beatriz", ct);
     }
 
     private async Task DaRegua(string para, CancellationToken ct) =>
@@ -191,7 +195,7 @@ public sealed class AmostraDeEmailsController(
                 $"Sua parcela vence em 3 dias — {Turma}",
                 "Olá, Ana Beatriz. A sua parcela de <strong>R$ 350,00</strong> vence em <strong>20/09/2026</strong>. "
                     + "Depois do vencimento entram multa de 2% e juros de 1% ao mês.",
-                $"{aplicacao.Value.UrlDoFrontend.TrimEnd('/')}/minhas-parcelas",
+                aplicacao.Value.Link(RotasDoFront.MinhasParcelas),
                 "Ver meu extrato"
             ),
             ct
@@ -208,12 +212,12 @@ public sealed class AmostraDeEmailsController(
         var nome = aplicacao.Value.Nome;
 
         var convite = ModeloDeEmail.Montar(
-            nome,
+            aplicacao.Value,
             $"Você foi convidado para {Turma}",
             $"A comissão de <strong>{Turma}</strong> (UFPR) convidou você para entrar na turma como Formando. "
                 + "O convite é pessoal e vale até 30/09/2026.",
             "Aceitar convite",
-            $"{aplicacao.Value.UrlDoFrontend.TrimEnd('/')}/convite/amostra",
+            aplicacao.Value.Link(RotasDoFront.Convite + "amostra"),
             Mascote.Acenando
         );
 
@@ -223,7 +227,7 @@ public sealed class AmostraDeEmailsController(
     /// <summary>Um plano de exemplo: uma entrada e três mensalidades.</summary>
     private static SnapshotDoPlano Plano()
     {
-        var primeiro = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1);
+        var primeiro = DataUtils.Hoje().AddMonths(1);
 
         var parcelas = Enumerable
             .Range(0, 4)

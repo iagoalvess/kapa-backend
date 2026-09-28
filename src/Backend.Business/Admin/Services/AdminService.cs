@@ -88,8 +88,16 @@ public sealed class AdminService(
 
     private static readonly Erro ContaNaoEncontrada = Erro.NaoEncontrado("suporte.conta_nao_encontrada", "Conta não encontrada.");
 
+    /// <summary>A janela de "cadastros recentes" do painel.</summary>
+    private const int DiasDeCadastroRecente = 30;
+
     /// <inheritdoc />
-    public async Task<Result<ResumoAdmin>> ObterResumo(CancellationToken ct = default) => Result.Ok(await adminRepository.ObterResumo(ct));
+    public async Task<Result<ResumoAdmin>> ObterResumo(CancellationToken ct = default)
+    {
+        var agora = DateTime.UtcNow;
+
+        return Result.Ok(await adminRepository.ObterResumo(agora, agora.AddDays(-DiasDeCadastroRecente), ct));
+    }
 
     /// <inheritdoc />
     public async Task<Result<ResultadoDaBusca>> Buscar(string? termo, CancellationToken ct = default)
@@ -101,19 +109,19 @@ public sealed class AdminService(
 
         return Result.Ok(
             new ResultadoDaBusca(
-                await adminRepository.BuscarTurmas(limpo, LimiteDaBusca, ct),
-                await adminRepository.BuscarUsuarios(limpo, LimiteDaBusca, ct)
+                await adminRepository.BuscarTurmasDeTodasAsFormaturas(limpo, LimiteDaBusca, ct),
+                await adminRepository.BuscarUsuariosDeTodasAsFormaturas(limpo, LimiteDaBusca, ct)
             )
         );
     }
 
     /// <inheritdoc />
     public async Task<Result<TurmaNoSuporte>> ObterTurma(Guid formaturaId, CancellationToken ct = default) =>
-        await adminRepository.ObterTurma(formaturaId, ct) is { } turma ? Result.Ok(turma) : TurmaNaoEncontrada;
+        await adminRepository.ObterTurmaDeTodasAsFormaturas(formaturaId, ct) is { } turma ? Result.Ok(turma) : TurmaNaoEncontrada;
 
     /// <inheritdoc />
     public async Task<Result<UsuarioNoSuporte>> ObterUsuario(Guid usuarioId, CancellationToken ct = default) =>
-        await adminRepository.ObterUsuario(usuarioId, ct) is { } conta ? Result.Ok(conta) : ContaNaoEncontrada;
+        await adminRepository.ObterUsuarioDeTodasAsFormaturas(usuarioId, ct) is { } conta ? Result.Ok(conta) : ContaNaoEncontrada;
 
     /// <inheritdoc />
     /// <remarks>
@@ -182,7 +190,7 @@ public sealed class AdminService(
 
                 await unitOfWork.SalvarAsync(token);
 
-                return await adminRepository.ObterTurma(formaturaId, token) is { } turma ? Result.Ok(turma) : TurmaNaoEncontrada;
+                return await adminRepository.ObterTurmaDeTodasAsFormaturas(formaturaId, token) is { } turma ? Result.Ok(turma) : TurmaNaoEncontrada;
             },
             ct
         );

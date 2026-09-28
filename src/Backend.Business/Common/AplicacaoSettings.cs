@@ -16,8 +16,17 @@ public sealed class AplicacaoSettings
     /// <summary>Nome exibido nos e-mails.</summary>
     public string Nome { get; init; } = "Aplicação";
 
-    /// <summary>Endereço base do front-end, sem barra no final.</summary>
+    /// <summary>Endereço base do app (<c>app.kapaformaturas.com.br</c>), sem barra no final.</summary>
+    /// <remarks>É de onde saem todos os links de tela dos e-mails: confirmar e-mail, convite, recibo, compra.</remarks>
     public string UrlDoFrontend { get; init; } = "http://localhost:3000";
+
+    /// <summary>Endereço base do site (<c>kapaformaturas.com.br</c>), sem barra no final.</summary>
+    /// <remarks>
+    /// O site é a página institucional e os documentos legais, separado do app na Sprint 33 (P3). O
+    /// que aponta para ele — a Política de Privacidade no rodapé do e-mail — monta a URL com
+    /// <see cref="LinkDoSite"/>.
+    /// </remarks>
+    public string UrlDoSite { get; init; } = "http://localhost:5180";
 
     /// <summary>
     /// Onde a documentação dos erros está publicada, sem barra no final.
@@ -34,6 +43,14 @@ public sealed class AplicacaoSettings
     /// </remarks>
     public string UrlDaDocDeErros { get; init; } = "https://github.com/kapa/backend/blob/main/docs/erros.md";
 
+    /// <summary>Monta a URL de uma tela do front-end.</summary>
+    /// <param name="caminho">Caminho da rota no front, começando com barra — de preferência um de <see cref="RotasDoFront"/>.</param>
+    public string Link(string caminho) => $"{UrlDoFrontend.TrimEnd('/')}{caminho}";
+
+    /// <summary>Monta a URL de uma página do site.</summary>
+    /// <param name="caminho">Caminho da página, começando com barra — um de <see cref="RotasDoSite"/>.</param>
+    public string LinkDoSite(string caminho) => $"{UrlDoSite.TrimEnd('/')}{caminho}";
+
     /// <summary>Monta uma URL do front-end a partir de um caminho e de parâmetros de consulta.</summary>
     /// <param name="caminho">Caminho da rota no front, começando com barra.</param>
     /// <param name="parametros">Pares de chave e valor para a query string.</param>
@@ -41,6 +58,6 @@ public sealed class AplicacaoSettings
     {
         var consulta = string.Join('&', parametros.Select(p => $"{Uri.EscapeDataString(p.Key)}={Uri.EscapeDataString(p.Value)}"));
 
-        return $"{UrlDoFrontend.TrimEnd('/')}{caminho}?{consulta}";
+        return $"{Link(caminho)}?{consulta}";
     }
 }

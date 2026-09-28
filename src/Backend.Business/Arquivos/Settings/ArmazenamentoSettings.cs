@@ -63,6 +63,17 @@ public sealed class ArmazenamentoSettings
     /// </remarks>
     public int MaximoDeArquivosPorUsuario { get; init; } = 200;
 
+    /// <summary>
+    /// Espaço máximo somando todos os arquivos do sistema. <c>0</c> desliga o limite.
+    /// </summary>
+    /// <remarks>
+    /// Existe por causa da fatura, não do abuso: o Cloudflare R2 não tem teto de gasto e cobra o que
+    /// passar dos 10 GB grátis. O padrão de 9 GB fica abaixo disso; chegando lá, todo envio é recusado
+    /// até alguém decidir pagar e subir o número (decisão de 25/09/2026, sem aviso por e-mail — o uso
+    /// se acompanha no painel da Cloudflare).
+    /// </remarks>
+    public int CotaGlobalEmMB { get; init; } = 9 * 1024;
+
     /// <summary>Configuração do provedor S3.</summary>
     public S3Settings S3 { get; init; } = new();
 
@@ -71,6 +82,9 @@ public sealed class ArmazenamentoSettings
 
     /// <summary>Cota por usuário em bytes.</summary>
     public long CotaPorUsuarioEmBytes => CotaPorUsuarioEmMB * 1024L * 1024L;
+
+    /// <summary>Cota global em bytes.</summary>
+    public long CotaGlobalEmBytes => CotaGlobalEmMB * 1024L * 1024L;
 }
 
 /// <summary>

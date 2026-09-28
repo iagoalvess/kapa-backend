@@ -1,6 +1,7 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
+using Backend.Worker.Configuration;
 
 namespace Backend.Worker.Jobs;
 
@@ -26,39 +27,25 @@ namespace Backend.Worker.Jobs;
 /// </para>
 /// </remarks>
 /// <param name="scopeFactory">Fábrica de escopos de injeção de dependência.</param>
+/// <param name="lideranca">Trava que deixa só uma réplica rodar este job por vez.</param>
 /// <param name="logger">Log estruturado.</param>
-public sealed class ReguaDeCobrancaJob(IServiceScopeFactory scopeFactory, ILogger<ReguaDeCobrancaJob> logger) : BackgroundService
+public sealed class ReguaDeCobrancaJob(IServiceScopeFactory scopeFactory, LiderancaDeJob lideranca, ILogger<ReguaDeCobrancaJob> logger)
+    : JobPeriodico(lideranca, logger)
 {
-    private static readonly TimeSpan Intervalo = TimeSpan.FromHours(1);
+    /// <inheritdoc />
+    protected override TimeSpan Intervalo { get; } = TimeSpan.FromHours(1);
 
     /// <inheritdoc />
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override void RegistrarFalha(Exception excecao) =>
+        Logger.LogError(excecao, "Falha na régua de cobrança. A próxima execução tentará de novo.");
+
+    /// <inheritdoc />
+    protected override async Task ExecutarPassada(int passada, CancellationToken ct)
     {
-        using var relogio = new PeriodicTimer(Intervalo);
+        var agora = DateTime.UtcNow;
 
-        do
-        {
-            await ExecutarUmaVez(stoppingToken);
-        } while (await EsperarProximaExecucao(relogio, stoppingToken));
-    }
-
-    private async Task ExecutarUmaVez(CancellationToken ct)
-    {
-        try
-        {
-            var agora = DateTime.UtcNow;
-
-            foreach (var formatura in await ListarFormaturas(ct))
-                await Rodar(formatura, agora, ct);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception excecao)
-        {
-            logger.LogError(excecao, "Falha na régua de cobrança. A próxima execução tentará de novo.");
-        }
+        foreach (var formatura in await ListarFormaturas(ct))
+            await Rodar(formatura, agora, ct);
     }
 
     private async Task<IReadOnlyList<FormaturaParaRegua>> ListarFormaturas(CancellationToken ct)
@@ -82,7 +69,7 @@ public sealed class ReguaDeCobrancaJob(IServiceScopeFactory scopeFactory, ILogge
             var resumo = await escopo.ServiceProvider.GetRequiredService<IReguaService>().Executar(formatura, agoraUtc, ct);
 
             if (!resumo.Vazia)
-                logger.LogInformation(
+                Logger.LogInformation(
                     "Régua da formatura {FormaturaId}: {Mensagens} mensagens, {Parcelas} parcelas, {Conferidas} entregas conferidas.",
                     formatura.Id,
                     resumo.Mensagens,
@@ -96,19 +83,7 @@ public sealed class ReguaDeCobrancaJob(IServiceScopeFactory scopeFactory, ILogge
         }
         catch (Exception excecao)
         {
-            logger.LogError(excecao, "Falha na régua da formatura {FormaturaId}. As demais turmas seguem.", formatura.Id);
-        }
-    }
-
-    private static async Task<bool> EsperarProximaExecucao(PeriodicTimer relogio, CancellationToken ct)
-    {
-        try
-        {
-            return await relogio.WaitForNextTickAsync(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
+            Logger.LogError(excecao, "Falha na régua da formatura {FormaturaId}. As demais turmas seguem.", formatura.Id);
         }
     }
 }

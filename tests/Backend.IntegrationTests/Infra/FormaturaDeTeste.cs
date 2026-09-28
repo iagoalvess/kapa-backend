@@ -45,7 +45,6 @@ public static class FormaturaDeTeste
             Curso = "Curso de Teste",
             Ano = DateTime.UtcNow.Year + 1,
             Semestre = 1,
-            QuantidadeEstimadaDeFormandos = 50,
             CriadoPorUsuarioId = Guid.CreateVersion7(),
         };
 
@@ -158,6 +157,16 @@ public static class FormaturaDeTeste
         await using var contexto = fabrica.ContextoDe(null);
 
         await contexto.Users.Where(u => u.Email == email).ExecuteUpdateAsync(s => s.SetProperty(u => u.EmailConfirmed, true), ct);
+    }
+
+    /// <summary>Marca o e-mail do membro como confirmado — o que o voto na festa exige.</summary>
+    /// <param name="fabrica">API de teste.</param>
+    /// <param name="membro">Membro criado pela fábrica.</param>
+    public static async Task ConfirmarEmail(this ApiFactory fabrica, MembroDeTeste membro, CancellationToken ct)
+    {
+        await using var contexto = fabrica.ContextoDe(null);
+
+        await contexto.Users.Where(u => u.Id == membro.UsuarioId).ExecuteUpdateAsync(s => s.SetProperty(u => u.EmailConfirmed, true), ct);
     }
 
     /// <summary>Lê o id do usuário do access token.</summary>

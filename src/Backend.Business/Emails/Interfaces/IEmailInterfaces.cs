@@ -7,8 +7,8 @@ namespace Backend.Business.Emails.Interfaces;
 /// Entrega uma mensagem ao servidor de e-mail.
 /// </summary>
 /// <remarks>
-/// É o único ponto que conhece o provedor. Lança em caso de falha — quem trata é o job de
-/// envio, que sabe reagendar.
+/// É o único ponto que conhece o provedor. Lança em caso de falha — quem trata é o processamento da fila
+/// (<c>ProcessamentoDaFilaDeEmail</c>), que sabe reagendar.
 /// </remarks>
 public interface IEmailSender
 {
@@ -54,4 +54,46 @@ public interface IEmailFilaRepository
     /// <param name="tamanho">Quantidade máxima de e-mails.</param>
     /// <param name="agoraUtc">Momento da reserva.</param>
     Task<IReadOnlyList<EmailNaFila>> ReservarLote(int tamanho, DateTime agoraUtc, CancellationToken ct = default);
+
+    /// <summary>Apaga os já enviados ou desistidos que não mudam desde <paramref name="limiteUtc"/>.</summary>
+    /// <remarks>
+    /// O corpo guarda nome, valores e links de redefinição de senha: mantê-lo para sempre era guardar
+    /// dado pessoal sem finalidade, e um vazamento do banco entregava links de acesso ainda válidos.
+    /// </remarks>
+    /// <param name="limiteUtc">Tudo o que foi concluído antes disto sai.</param>
+    /// <returns>Quantos foram apagados.</returns>
+    Task<int> RemoverConcluidosAnterioresA(DateTime limiteUtc, CancellationToken ct = default);
+
+    /// <summary>Dá por falho o e-mail preso em envio desde antes de <paramref name="limiteUtc"/>.</summary>
+    /// <remarks>
+    /// O worker que o reservou morreu no meio. Volta como falho, e não pendente: o SMTP pode ter aceito
+    /// antes da queda, e mandar de novo seria o e-mail em dobro — a tesouraria vê a falha e reenvia.
+    /// </remarks>
+    /// <param name="limiteUtc">Reservado antes disto é dado por perdido.</param>
+    /// <returns>Quantos foram marcados.</returns>
+    Task<int> DesistirDosPresosAnterioresA(DateTime limiteUtc, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Esvazia a fila: reserva, envia e registra o resultado. Chamado pelo worker, nunca por uma requisição.
+/// </summary>
+/// <remarks>
+/// Fica no <c>Business</c>, e não dentro do job, pelo mesmo motivo de <c>IGeracaoDeRelatoriosService</c>:
+/// o job abre o escopo, respeita o intervalo e registra o log; a regra de envio mora aqui, e é
+/// testável sem host.
+/// </remarks>
+public interface IProcessamentoDaFilaDeEmail
+{
+    /// <summary>Reserva um lote, envia fora de transação e registra enviado ou reagendado.</summary>
+    /// <returns>Se o lote veio cheio — há mais esperando, e vale rodar outro já.</returns>
+    Task<bool> ProcessarLote(CancellationToken ct = default);
+
+    /// <summary>Apaga os concluídos antigos e desiste dos presos em envio.</summary>
+    /// <returns>Quantos presos foram dados por falhos e quantos antigos foram apagados.</returns>
+    Task<LimpezaDaFilaDeEmail> Limpar(CancellationToken ct = default);
+}
+
+/// <summary>O que a faxina da fila fez.</summary>
+/// <param name="Presos">Presos em envio dados por falhos.</param>
+/// <param name="Removidos">Concluídos antigos apagados.</param>
+public readonly record struct LimpezaDaFilaDeEmail(int Presos, int Removidos);

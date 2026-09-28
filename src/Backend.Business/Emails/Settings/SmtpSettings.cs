@@ -56,6 +56,16 @@ public sealed class SmtpSettings
     /// </remarks>
     public string RedirecionarPara { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Endereço público da rota das imagens da marca, sem a barra final. Vazio, as imagens vão anexadas.
+    /// </summary>
+    /// <remarks>
+    /// Em produção, <c>https://&lt;domínio da API&gt;/api/v1/marca</c>: o e-mail aponta para lá em vez de
+    /// carregar o PNG. Tem de ser um endereço que o Gmail alcance da internet — por isso fica vazio em
+    /// desenvolvimento, onde a API é <c>localhost</c>.
+    /// </remarks>
+    public string UrlDasImagens { get; init; } = string.Empty;
+
     /// <summary>Quantos e-mails o worker reserva por rodada.</summary>
     public int TamanhoDoLote { get; init; } = 20;
 

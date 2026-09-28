@@ -29,8 +29,7 @@ public class Convite : EntidadeDaFormatura
     public const int DiasDeValidadeDoNominal = 7;
 
     /// <summary>
-    /// Validade do link da turma. Fixa, como o limite de entradas — o número estimado de formandos
-    /// no momento em que o link é gerado.
+    /// Validade do link da turma. Fixa; entradas, ilimitadas — o teto é o limite do plano.
     /// </summary>
     public const int DiasDeValidadeDoLink = 30;
 

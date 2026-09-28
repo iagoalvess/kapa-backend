@@ -31,7 +31,14 @@ public sealed class EventoDaTurmaMapping : IEntityTypeConfiguration<EventoDaTurm
     /// <inheritdoc />
     public void Configure(EntityTypeBuilder<EventoDaTurma> builder)
     {
-        builder.ToTable("eventos_da_turma");
+        builder.ToTable(
+            "eventos_da_turma",
+            tabela =>
+            {
+                tabela.HasCheckConstraint("ck_eventos_da_turma_cota", "cota_por_formando IS NULL OR cota_por_formando > 0");
+                tabela.HasCheckConstraint("ck_eventos_da_turma_capacidade", "capacidade IS NULL OR capacidade > 0");
+            }
+        );
 
         builder.HasKey(e => e.Id);
 

@@ -28,9 +28,16 @@ public sealed class ContaService(
     IValidator<AlterarSenha> alterarValidator,
     IValidator<PedidoPorEmail> pedidoValidator,
     IUnitOfWork unitOfWork,
+    TentativasDeSenha tentativas,
     ILogger<ContaService> logger
 ) : IContaService
 {
+    /// <summary>
+    /// Recorte das senhas erradas na troca: separado do login, para que um token roubado chutando a senha
+    /// atual não tranque a entrada do dono.
+    /// </summary>
+    private const string OrigemDaTroca = "alterar-senha";
+
     private static readonly Erro LinkInvalido = Erro.Validacao("conta.link_invalido", "Este link é inválido ou expirou. Solicite um novo.", "token");
 
     /// <inheritdoc />
@@ -139,8 +146,9 @@ public sealed class ContaService(
     /// Exige a senha atual mesmo com o usuário autenticado: um access token esquecido numa máquina
     /// aberta não deve bastar para trocar a senha e tomar a conta.
     /// <para>
-    /// Errar a senha atual conta para o bloqueio por tentativas, como no login — senão este
-    /// endpoint seria o caminho sem lockout para adivinhar a senha de quem deixou a sessão aberta.
+    /// Errar a senha atual conta para o bloqueio por tentativas (<see cref="TentativasDeSenha"/>) — senão
+    /// este endpoint seria o caminho sem teto para adivinhar a senha de quem deixou a sessão aberta. A
+    /// contagem é separada da do login, para o palpite com a sessão alheia não trancar a entrada do dono.
     /// Só a senha errada conta: senha nova fraca é erro do próprio dono e não pode bloqueá-lo.
     /// </para>
     /// <para>
@@ -158,9 +166,9 @@ public sealed class ContaService(
 
         var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
         if (usuario is null)
-            return Result.Falha(Erro.NaoEncontrado("usuario.nao_encontrado", "Usuário não encontrado."));
+            return Result.Falha(ErrosDeUsuario.UsuarioNaoEncontrado);
 
-        if (await userManager.IsLockedOutAsync(usuario))
+        if (tentativas.Bloqueada(usuarioId.ToString(), OrigemDaTroca))
             return Result.Falha(
                 Erro.Proibido("auth.conta_bloqueada", "Conta temporariamente bloqueada por excesso de tentativas. Tente mais tarde.")
             );
@@ -170,7 +178,7 @@ public sealed class ContaService(
         if (!troca.Succeeded)
         {
             if (troca.Errors.Any(e => e.Code == nameof(IdentityErrorDescriber.PasswordMismatch)))
-                await userManager.AccessFailedAsync(usuario);
+                tentativas.RegistrarFalha(usuarioId.ToString(), OrigemDaTroca);
 
             logger.LogInformation("Troca de senha recusada para o usuário {UsuarioId}.", usuarioId);
 

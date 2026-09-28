@@ -2,50 +2,22 @@ using Backend.Business.Notificacoes.Models;
 
 namespace Backend.Api.DTOs.Notificacoes;
 
-/// <summary>Um degrau da régua, no corpo da gravação.</summary>
-/// <param name="Gatilho">O que dispara. Com <paramref name="DiasDeDeslocamento"/>, é a identidade do degrau.</param>
-/// <param name="DiasDeDeslocamento">Dias de distância do gatilho; negativo é antes do vencimento.</param>
-/// <param name="Assunto">Assunto, com as variáveis disponíveis.</param>
-/// <param name="Template">Corpo, com as mesmas variáveis.</param>
+/// <summary>Liga ou desliga um degrau.</summary>
 /// <param name="Ativa">Se dispara.</param>
-/// <param name="AvisarTesouraria">Se a tesouraria recebe um resumo no mesmo dia.</param>
-public sealed record RegraRequestDTO(
-    GatilhoDaRegua Gatilho,
-    int DiasDeDeslocamento,
-    string? Assunto,
-    string? Template,
-    bool Ativa,
-    bool AvisarTesouraria
-);
+public sealed record RegraRequestDTO(bool Ativa);
 
-/// <summary>A régua inteira, gravada de uma vez.</summary>
-/// <param name="Regras">Degraus. Degrau que sumir do corpo é removido da régua.</param>
-public sealed record ReguaRequestDTO(IReadOnlyList<RegraRequestDTO>? Regras);
-
-/// <summary>Um degrau da régua.</summary>
+/// <summary>Um degrau da régua. O texto é do Kapa e igual para toda turma.</summary>
 /// <param name="Id">Identificador.</param>
 /// <param name="Gatilho">O que dispara.</param>
 /// <param name="DiasDeDeslocamento">Dias de distância do gatilho.</param>
-/// <param name="Assunto">Assunto.</param>
-/// <param name="Template">Corpo.</param>
+/// <param name="Assunto">Assunto do e-mail.</param>
 /// <param name="Ativa">Se dispara.</param>
 /// <param name="AvisarTesouraria">Se a tesouraria recebe um resumo.</param>
-public sealed record RegraDTO(
-    Guid Id,
-    GatilhoDaRegua Gatilho,
-    int DiasDeDeslocamento,
-    string Assunto,
-    string Template,
-    bool Ativa,
-    bool AvisarTesouraria
-);
+public sealed record RegraDTO(Guid Id, GatilhoDaRegua Gatilho, int DiasDeDeslocamento, string Assunto, bool Ativa, bool AvisarTesouraria);
 
-/// <summary>A régua da turma e o que o editor precisa saber para não deixar passar erro.</summary>
-/// <param name="Regras">Degraus, do mais cedo ao mais tarde.</param>
-/// <param name="Variaveis">As variáveis que um template aceita, sem as chaves.</param>
-/// <param name="TamanhoMaximo">Teto de caracteres do corpo.</param>
-/// <param name="TamanhoMaximoDoAssunto">Teto de caracteres do assunto.</param>
-public sealed record ReguaDTO(IReadOnlyList<RegraDTO> Regras, IReadOnlyList<string> Variaveis, int TamanhoMaximo, int TamanhoMaximoDoAssunto);
+/// <summary>A régua da turma.</summary>
+/// <param name="Regras">Degraus.</param>
+public sealed record ReguaDTO(IReadOnlyList<RegraDTO> Regras);
 
 /// <summary>Uma linha do histórico de envios.</summary>
 /// <param name="Id">Identificador.</param>

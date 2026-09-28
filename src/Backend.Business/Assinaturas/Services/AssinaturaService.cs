@@ -16,6 +16,7 @@ namespace Backend.Business.Assinaturas.Services;
 /// <param name="assinaturaRepository">Planos e assinaturas.</param>
 /// <param name="formaturaRepository">A formatura, que muda de status no checkout.</param>
 /// <param name="provedor">PSP que cobra a licença.</param>
+/// <param name="vagas">Vagas ocupadas, para não vender plano menor que a turma.</param>
 /// <param name="checkoutValidator">Forma do pedido de checkout.</param>
 /// <param name="settings">Configuração da assinatura.</param>
 /// <param name="aplicacao">Endereço do front, para a URL de retorno.</param>
@@ -24,6 +25,7 @@ public sealed class AssinaturaService(
     IAssinaturaRepository assinaturaRepository,
     IFormaturaRepository formaturaRepository,
     IProvedorDeAssinatura provedor,
+    VagasDoPlano vagas,
     IValidator<IniciarCheckout> checkoutValidator,
     IOptions<AssinaturaSettings> settings,
     IOptions<AplicacaoSettings> aplicacao,
@@ -32,7 +34,7 @@ public sealed class AssinaturaService(
 {
     private static readonly Erro NaoEncontrada = Erro.NaoEncontrado("assinatura.nao_encontrada", "Esta formatura ainda não contratou um plano.");
 
-    private string UrlDeRetorno => $"{aplicacao.Value.UrlDoFrontend.TrimEnd('/')}{settings.Value.CaminhoDeRetorno}";
+    private string UrlDeRetorno => aplicacao.Value.Link(settings.Value.CaminhoDeRetorno);
 
     /// <inheritdoc />
     public async Task<Result<IReadOnlyList<PlanoResumo>>> ListarPlanos(CancellationToken ct = default) =>
@@ -68,6 +70,11 @@ public sealed class AssinaturaService(
     /// turma é ativa — o mesmo teste recusaria todo checkout e trancaria o upgrade, que é justamente
     /// o que o gratuito existe para provocar.
     /// </para>
+    /// <para>
+    /// <b>Plano menor que a turma é recusado</b> (22/09/2026): sem isso, a turma de 200 no Premium
+    /// deixava vencer e contratava o Essencial (50) com os 200 dentro. Igual ao limite passa — a
+    /// turma não cresce, mas também não precisa encolher.
+    /// </para>
     /// </remarks>
     public async Task<Result<SessaoDeCheckout>> IniciarCheckout(Guid formaturaId, IniciarCheckout dados, CancellationToken ct = default)
     {
@@ -78,7 +85,7 @@ public sealed class AssinaturaService(
         var formatura = await formaturaRepository.ObterParaEdicao(formaturaId, ct);
 
         if (formatura is null)
-            return Erro.NaoEncontrado("formatura.nao_encontrada", "Formatura não encontrada.");
+            return ErrosDeFormatura.FormaturaNaoEncontrada;
 
         if (formatura.Status is StatusDaFormatura.Encerrada or StatusDaFormatura.Descartada)
             return Erro.Conflito("formatura.encerrada", "Esta turma não contrata assinatura.");
@@ -92,6 +99,14 @@ public sealed class AssinaturaService(
 
         if (plano is null)
             return Erro.Validacao("assinatura.plano_invalido", "Plano não encontrado.", campo: "plano_codigo");
+
+        var ocupadas = await vagas.Ocupadas(formaturaId, ct);
+
+        if (plano.LimiteDeFormandos >= 0 && ocupadas > plano.LimiteDeFormandos)
+            return Erro.Conflito(
+                "assinatura.plano_menor_que_a_turma",
+                $"A turma já tem {ocupadas} pessoas e o plano {plano.Nome} comporta {plano.LimiteDeFormandos}. Escolha um plano maior."
+            );
 
         var pendente = maisRecente is { Status: StatusDaAssinatura.Pendente } atual ? atual : null;
 

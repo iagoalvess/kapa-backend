@@ -23,6 +23,36 @@ public interface IAdesaoRepository
     /// <param name="termo">Versão.</param>
     Task AdicionarTermo(TermoDaFormatura termo, CancellationToken ct = default);
 
+    /// <summary>Uma versão do termo da turma, com o texto; nula se não existir aqui.</summary>
+    /// <param name="termoId">Versão.</param>
+    Task<VersaoDoTermo?> ObterTermo(Guid termoId, CancellationToken ct = default);
+
+    /// <summary>O resumo gerado por IA de uma versão (Sprint 24); nulo enquanto não houver.</summary>
+    /// <param name="termoId">Versão — já lida pelo filtro da turma.</param>
+    Task<string?> ObterResumo(Guid termoId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Versões vigentes, publicadas a partir de <paramref name="publicadosDesde"/>, sem resumo — de
+    /// todas as turmas ativas, as mais antigas primeiro.
+    /// </summary>
+    /// <remarks>
+    /// Atravessa formaturas porque quem pergunta é o job, antes de apontar escopo para qualquer uma.
+    /// Devolve só ids: a geração acontece depois, num escopo apontado para a turma do termo. Só a
+    /// versão mais recente de cada turma entra — resumir a v1 já substituída pela v2 gastaria cota
+    /// num texto que ninguém mais vai ler.
+    /// </remarks>
+    /// <param name="publicadosDesde">Janela: o que ficou de fora dela o job não tenta mais (decisão 5).</param>
+    /// <param name="limite">Teto de termos devolvidos.</param>
+    Task<IReadOnlyList<TermoSemResumo>> ListarTermosSemResumoDeTodasAsFormaturas(
+        DateTime publicadosDesde,
+        int limite,
+        CancellationToken ct = default
+    );
+
+    /// <summary>Marca um resumo para inclusão.</summary>
+    /// <param name="resumo">Resumo de uma versão.</param>
+    Task AdicionarResumo(ResumoDoTermo resumo, CancellationToken ct = default);
+
     /// <summary>Se o vínculo já aceitou esta versão.</summary>
     /// <param name="vinculoId">Vínculo.</param>
     /// <param name="termoId">Versão do termo.</param>

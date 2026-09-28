@@ -1,16 +1,15 @@
-using Backend.Business.Abstractions;
 using Backend.Business.Notificacoes.Models;
 using Backend.Business.Notificacoes.Services;
-using Backend.Business.Notificacoes.Validators;
 using Shouldly;
 
 namespace Backend.UnitTests.Notificacoes;
 
 /// <summary>
-/// As variáveis do template: a troca, a proteção do HTML e a recusa na gravação.
+/// Os textos da régua do Kapa e a troca das variáveis.
 /// </summary>
 /// <remarks>
-/// Critério de aceite: template com variável desconhecida é rejeitado na gravação, não no envio.
+/// O texto é do Kapa desde 24/09/2026: variável digitada errada não tem mais editor que a recuse, e
+/// é este teste que a pega antes de ela sair para a turma inteira.
 /// </remarks>
 public sealed class TemplateDeNotificacaoTests
 {
@@ -19,19 +18,18 @@ public sealed class TemplateDeNotificacaoTests
         ["nome"] = "Júlia",
         ["valor"] = "R$ 350,00",
         ["vencimento"] = "10/09/2026",
-        ["link"] = "https://kapa.dev/extrato",
         ["formatura"] = "Medicina 2027",
         ["quantidade"] = "3",
     };
 
-    private static DadosDaRegra Regra(string assunto = "Oi, {nome}", string template = "Sua parcela de {valor} vence em {vencimento}.") =>
-        new(GatilhoDaRegua.Vencimento, 3, assunto, template, true, false);
+    private static IEnumerable<TextoDaMensagem> Textos() =>
+        ReguaDoKapa.Degraus.SelectMany(d => d.ResumoDaTesouraria is { } resumo ? [d.Texto, resumo] : new[] { d.Texto });
 
     [Fact]
     public void Troca_as_variaveis_conhecidas() =>
         TemplateDeNotificacao
             .Renderizar("Oi, {nome}! São {valor} até {vencimento}.", Valores)
-            .ShouldBe("Oi, J&#250;lia! São R$ 350,00 até 10/09/2026.");
+            .ShouldBe("Oi, J&#250;lia! S&#227;o R$ 350,00 at&#233; 10/09/2026.");
 
     /// <summary>Nome de pessoa é texto de terceiro, e o corpo do e-mail é HTML.</summary>
     [Fact]
@@ -48,34 +46,14 @@ public sealed class TemplateDeNotificacaoTests
     public void Aponta_a_variavel_que_nao_existe() => TemplateDeNotificacao.Desconhecidas("Vence em {vencimeto}").ShouldBe(["vencimeto"]);
 
     [Fact]
-    public void Template_correto_nao_tem_desconhecidas() => TemplateDeNotificacao.Desconhecidas("{nome} {valor} {link}").ShouldBeEmpty();
+    public void O_corpo_de_todo_degrau_so_usa_variavel_que_existe() =>
+        Textos().SelectMany(t => TemplateDeNotificacao.Desconhecidas(t.Corpo)).ShouldBeEmpty();
+
+    /// <summary>O assunto não passa pela troca: variável nele sairia com as chaves.</summary>
+    [Fact]
+    public void O_assunto_de_todo_degrau_nao_tem_variavel() => Textos().ShouldAllBe(t => !t.Assunto.Contains('{'));
 
     [Fact]
-    public void A_gravacao_recusa_variavel_desconhecida()
-    {
-        var resultado = new DadosDaReguaValidator().Validar(new DadosDaRegua([Regra(template: "Vence em {vencimeto}.")]));
-
-        resultado.Falhou.ShouldBeTrue();
-        resultado.Erros.ShouldContain(erro => erro.Mensagem.Contains("{vencimeto}", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void A_gravacao_aceita_a_regua_padrao() =>
-        new DadosDaReguaValidator()
-            .Validar(
-                new DadosDaRegua([
-                    .. RegraDeNotificacao
-                        .Padrao()
-                        .Select(r => new DadosDaRegra(r.Gatilho, r.DiasDeDeslocamento, r.Assunto, r.Template, r.Ativa, false)),
-                ])
-            )
-            .Sucesso.ShouldBeTrue();
-
-    [Fact]
-    public void A_gravacao_recusa_dois_degraus_com_o_mesmo_gatilho_e_deslocamento()
-    {
-        var resultado = new DadosDaReguaValidator().Validar(new DadosDaRegua([Regra(), Regra(assunto: "Outro")]));
-
-        resultado.Falhou.ShouldBeTrue();
-    }
+    public void Cada_degrau_aparece_uma_vez() =>
+        ReguaDoKapa.Degraus.Select(d => (d.Gatilho, d.DiasDeDeslocamento)).Distinct().Count().ShouldBe(ReguaDoKapa.Degraus.Count);
 }

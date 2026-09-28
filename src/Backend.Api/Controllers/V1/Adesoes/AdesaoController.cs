@@ -7,8 +7,8 @@ using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Models;
+using Backend.Business.Arquivos.Models;
 using Backend.Business.Assinaturas.Models;
-using Backend.Business.Legal.Models;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -117,7 +117,7 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
             FormaturaId,
             usuarioAtual.Id,
             new AderirAoTermo(requisicao.HashDoConteudo ?? string.Empty, requisicao.Codigo ?? string.Empty),
-            new OrigemDoAceite(usuarioAtual.EnderecoIp, usuarioAtual.UserAgent),
+            usuarioAtual.Origem,
             ct
         );
 
@@ -125,8 +125,10 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
     }
 
     /// <summary>A própria adesão mais recente e o que falta no cadastro para aderir.</summary>
+    /// <remarks>
+    /// Aceita o desligado: o termo aceito vigorou, e foi sob ele que ele pagou o que pagou (P5).
+    /// </remarks>
     [HttpGet("eu", Name = RotaDaMinhaAdesao)]
-    // Aceita o desligado: o termo aceito vigorou, e foi sob ele que ele pagou o que pagou (P5).
     [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [ProducesResponseType(typeof(MinhaAdesaoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -163,12 +165,13 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
 
     /// <summary>O termo assinado em PDF. O próprio formando e a gestão; para os demais, 404.</summary>
     /// <remarks>
-    /// Não usa os helpers do <c>MainController</c> porque o sucesso é o arquivo, não JSON. Remontado a
-    /// cada pedido, e igual para a mesma adesão hoje e daqui a um ano.
+    /// Remontado a cada pedido, e igual para a mesma adesão hoje e daqui a um ano.
+    /// <para>
+    /// Aceita o desligado: o PDF do próprio termo acompanha a adesão. O de terceiro o service recusa.
+    /// </para>
     /// </remarks>
     /// <param name="id">Adesão.</param>
     [HttpGet("{id:guid}/pdf")]
-    // Aceita o desligado: o PDF do próprio termo acompanha a adesão. O de terceiro o service recusa.
     [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
     [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -177,10 +180,7 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
     {
         var resultado = await adesaoService.ObterPdf(FormaturaId, id, usuarioAtual.Id, ct);
 
-        if (resultado.Falhou)
-            return Responder(resultado.Map(_ => 0));
-
-        return File(resultado.Valor.Conteudo, "application/pdf", resultado.Valor.NomeDoArquivo);
+        return Arquivo(resultado.Map(pdf => new ArquivoParaDownload(new MemoryStream(pdf.Conteudo), pdf.NomeDoArquivo, "application/pdf")));
     }
 
     /// <summary>Lembra por e-mail um membro que ainda não aderiu à versão vigente.</summary>

@@ -24,7 +24,7 @@ public sealed class EmailsDeAdesao(IEmailService emailService, IOptions<Aplicaca
     private readonly AplicacaoSettings _aplicacao = aplicacao.Value;
 
     /// <summary>A tela do termo no front — o mesmo caminho de <c>ROTAS.adesao</c>.</summary>
-    private string LinkDoTermo => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/meu-termo";
+    private string LinkDoTermo => _aplicacao.Link(RotasDoFront.MeuTermo);
 
     /// <summary>Adesão registrada: o que a pessoa aceitou pagar, com a primeira parcela e as regras de atraso.</summary>
     /// <param name="email">Quem aderiu.</param>
@@ -97,11 +97,7 @@ public sealed class EmailsDeAdesao(IEmailService emailService, IOptions<Aplicaca
         CancellationToken ct
     ) =>
         await emailService.Enfileirar(
-            new NovoEmail(
-                email,
-                $"{assunto} — {_aplicacao.Nome}",
-                ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, botao, LinkDoTermo, mascote)
-            ),
+            new NovoEmail(email, $"{assunto} — {_aplicacao.Nome}", ModeloDeEmail.Montar(_aplicacao, titulo, mensagem, botao, LinkDoTermo, mascote)),
             ct
         );
 }

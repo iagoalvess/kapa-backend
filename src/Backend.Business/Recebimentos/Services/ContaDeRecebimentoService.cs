@@ -15,8 +15,9 @@ namespace Backend.Business.Recebimentos.Services;
 /// </summary>
 /// <remarks>
 /// Trocar para onde vai o dinheiro é o ponto de fraude — quem troca desvia a mensalidade da turma
-/// inteira. Por isso qualquer mudança avisa a comissão por e-mail na mesma transação (decisão de
-/// 14/09/2026: só a comissão) e deixa na auditoria o antes e o depois — o evento também na mesma
+/// inteira. Por isso qualquer mudança avisa a comissão por e-mail na mesma transação, a troca do PIX
+/// ou da conta de transferência avisa também a turma inteira (Sprint 22, P1, que revisou a decisão de
+/// 14/09/2026 de avisar só a comissão), e tudo deixa na auditoria o antes e o depois — o evento também na mesma
 /// transação, e não pela fila de analytics, que descarta quando enche. Mexer no PIX desfaz a
 /// conferência; mexer nos outros meios, não, porque não é deles que o PIX de teste fala.
 /// <para>
@@ -25,6 +26,7 @@ namespace Backend.Business.Recebimentos.Services;
 /// </para>
 /// </remarks>
 /// <param name="contaRepository">A conta da turma.</param>
+/// <param name="provedor">Se o Mercado Pago está conectado — com ele, a chave PIX não sai (Sprint 25, P7).</param>
 /// <param name="vinculoRepository">E-mails da comissão.</param>
 /// <param name="perfilRepository">Nome de quem troca.</param>
 /// <param name="formaturaRepository">Nome da turma, para o e-mail.</param>
@@ -34,6 +36,7 @@ namespace Backend.Business.Recebimentos.Services;
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class ContaDeRecebimentoService(
+    IProvedorDaTurmaRepository provedor,
     IContaDeRecebimentoRepository contaRepository,
     IVinculoRepository vinculoRepository,
     IPerfilRepository perfilRepository,
@@ -51,11 +54,39 @@ public sealed class ContaDeRecebimentoService(
     /// <summary>Evento da troca, com o antes e o depois — lido pela trilha de auditoria (Sprint 14).</summary>
     public const string EventoDeTroca = "recebimento.conta_alterada";
 
+    /// <summary>
+    /// Os meios que um evento de cadastro ou de troca deixou gravados no <c>depois</c>.
+    /// </summary>
+    /// <remarks>
+    /// Dois formatos convivem na trilha: até a Sprint 18 (21/09/2026) a conta era só a chave PIX, e o
+    /// <c>depois</c> é a chave solta; dali em diante é o envelope com os três meios. Registro passado
+    /// não se reescreve, então quem lê entende os dois — sem isso, o recibo de um pagamento anterior à
+    /// Sprint 18 não nomearia quem recebeu.
+    /// </remarks>
+    /// <param name="dados">Corpo do evento, como está na coluna.</param>
+    /// <returns>Os meios, ou nulo se o corpo não tiver nenhum.</returns>
+    public static MeiosDaConta? MeiosGravados(string dados)
+    {
+        if (Auditoria.Ler<MeiosDaConta>(dados, "depois") is { Habilitados.Count: > 0 } meios)
+            return meios;
+
+        return Auditoria.Ler<ChavePixDaConta>(dados, "depois") is { Chave: not null } chave ? new MeiosDaConta(chave, null, null) : null;
+    }
+
     /// <summary>R$ 1,00: o bastante para o banco mostrar o titular, pouco o bastante para ninguém hesitar.</summary>
     public const long ValorDoTeste = 100;
 
     /// <summary>O identificador do PIX de teste no extrato da comissão.</summary>
     public const string IdentificadorDoTeste = "KAPATESTE";
+
+    /// <summary>
+    /// Com o Mercado Pago conectado, a chave PIX é o chão (Sprint 25, P7): é por ela que o formando paga quando
+    /// o provedor não responde, e a conferência da Sprint 9 continua recebendo o que chega por fora.
+    /// </summary>
+    public static readonly Erro ChavePixComProvedor = Erro.Conflito(
+        "recebimento.chave_pix_obrigatoria",
+        "Com o Mercado Pago conectado, a chave PIX continua na conta: é por ela que o formando paga quando o Mercado Pago não responde."
+    );
 
     private static readonly Erro SemConta = Erro.NaoEncontrado("recebimento.sem_conta", "A turma ainda não cadastrou a conta de recebimento.");
 
@@ -73,6 +104,9 @@ public sealed class ContaDeRecebimentoService(
         var validacao = validator.Validar(meios);
         if (validacao.Falhou)
             return Result.Falha<ContaDeRecebimentoDetalhe>(validacao.Erros);
+
+        if (meios.Pix is null && await provedor.ObterCredencial(ct) is not null)
+            return ChavePixComProvedor;
 
         var conta = await contaRepository.ObterParaEdicao(ct);
 
@@ -99,7 +133,7 @@ public sealed class ContaDeRecebimentoService(
         if (!conta.Aplicar(meios))
             return Erro.Conflito("recebimento.conta_sem_mudanca", "Estes dados são os mesmos da conta atual.");
 
-        await AvisarComissao(formaturaId, usuarioId, antes, conta.ParaMeios(), ct);
+        await Avisar(formaturaId, usuarioId, antes, conta.ParaMeios(), ct);
         await eventos.Auditar(
             EventoDeTroca,
             usuarioId,
@@ -154,20 +188,35 @@ public sealed class ContaDeRecebimentoService(
         return (await contaRepository.ObterDetalhe(ct))!;
     }
 
-    /// <summary>Enfileira o aviso para cada membro ativo da comissão — quem trocou inclusive.</summary>
-    /// <remarks>Leva o antes e o depois: é a remoção de um meio que denuncia a troca indevida.</remarks>
+    /// <summary>
+    /// Enfileira o aviso para cada membro ativo da comissão — quem trocou inclusive — e, se mudou para
+    /// onde o dinheiro vai, para cada formando ativo.
+    /// </summary>
+    /// <remarks>
+    /// A comissão recebe o antes e o depois: é a remoção de um meio que denuncia a troca indevida. A turma
+    /// recebe só o aviso, sem dado de pagamento (Sprint 22, P1), e só quando o PIX ou a conta de
+    /// transferência mudam — trocar onde encontrar quem recebe em dinheiro não desvia nada, e 80 e-mails
+    /// por isso seriam o alarme que a Sprint 8 quis evitar.
+    /// </remarks>
     /// <param name="formaturaId">Turma, para achar a comissão.</param>
     /// <param name="usuarioId">Quem trocou.</param>
     /// <param name="antes">Os meios como estavam.</param>
     /// <param name="depois">Os meios novos, já gravados.</param>
     /// <param name="ct">Token de cancelamento.</param>
-    private async Task AvisarComissao(Guid formaturaId, Guid usuarioId, MeiosDaConta antes, MeiosDaConta depois, CancellationToken ct)
+    private async Task Avisar(Guid formaturaId, Guid usuarioId, MeiosDaConta antes, MeiosDaConta depois, CancellationToken ct)
     {
-        var formatura = await formaturaRepository.ObterDetalhe(formaturaId, ct);
-        var autor = await perfilRepository.ObterMembro(formaturaId, usuarioId, ct);
+        var formatura = await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct);
+        var nome = formatura?.Nome ?? string.Empty;
+        var autor = (await perfilRepository.ObterMembro(formaturaId, usuarioId, ct))?.Nome ?? "O Presidente";
 
         foreach (var email in await vinculoRepository.ListarEmailsDaComissao(formaturaId, ct))
-            await emails.ContaAlterada(email, formatura?.Nome ?? string.Empty, autor?.Nome ?? "O Presidente", antes, depois, ct);
+            await emails.ContaAlterada(email, nome, autor, antes, depois, ct);
+
+        if (antes.Pix == depois.Pix && antes.Transferencia == depois.Transferencia)
+            return;
+
+        foreach (var email in await vinculoRepository.ListarEmailsDosFormandos(formaturaId, ct))
+            await emails.ContaAlteradaParaATurma(email, nome, autor, ct);
     }
 
     /// <summary>Conta recém-gravada. Sem o nome de quem conferiu: quem o traz é a consulta com o join.</summary>

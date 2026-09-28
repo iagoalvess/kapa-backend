@@ -1,5 +1,6 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Relatorios.Interfaces;
+using Backend.Worker.Configuration;
 
 namespace Backend.Worker.Jobs;
 
@@ -17,8 +18,10 @@ namespace Backend.Worker.Jobs;
 /// </para>
 /// </remarks>
 /// <param name="scopeFactory">Fábrica de escopos de injeção de dependência.</param>
+/// <param name="lideranca">Trava que deixa só uma réplica rodar este job por vez.</param>
 /// <param name="logger">Log estruturado.</param>
-public sealed class GeracaoDeRelatoriosJob(IServiceScopeFactory scopeFactory, ILogger<GeracaoDeRelatoriosJob> logger) : BackgroundService
+public sealed class GeracaoDeRelatoriosJob(IServiceScopeFactory scopeFactory, LiderancaDeJob lideranca, ILogger<GeracaoDeRelatoriosJob> logger)
+    : JobPeriodico(lideranca, logger)
 {
     /// <summary>
     /// De quantos em quantos segundos a fila é olhada.
@@ -29,50 +32,32 @@ public sealed class GeracaoDeRelatoriosJob(IServiceScopeFactory scopeFactory, IL
     /// reclamação de que "o toast só fica gerando". Uma passada vazia é uma consulta a um índice
     /// parcial de cinco linhas, não um trabalho.
     /// </remarks>
-    private static readonly TimeSpan Intervalo = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan IntervaloDaFila = TimeSpan.FromSeconds(5);
 
     /// <summary>Solicitações por passada. Cada uma abre o próprio escopo.</summary>
     private const int TamanhoDoLote = 5;
 
     /// <summary>De quantas em quantas passadas a limpeza dos vencidos roda.</summary>
     /// <remarks>Uma vez por hora: expiração é de dias, e varrer o índice junto com a fila não adianta nada.</remarks>
-    private static readonly int PassadasEntreLimpezas = (int)(TimeSpan.FromHours(1) / Intervalo);
+    private static readonly int PassadasEntreLimpezas = (int)(TimeSpan.FromHours(1) / IntervaloDaFila);
 
     /// <inheritdoc />
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override TimeSpan Intervalo => IntervaloDaFila;
+
+    /// <inheritdoc />
+    protected override void RegistrarFalha(Exception excecao) =>
+        Logger.LogError(excecao, "Falha na geração de relatórios. A próxima execução tentará de novo.");
+
+    /// <inheritdoc />
+    protected override async Task ExecutarPassada(int passada, CancellationToken ct)
     {
-        using var relogio = new PeriodicTimer(Intervalo);
+        var pendentes = await ListarPendentes(ct);
 
-        var passada = 0;
+        foreach (var pendente in pendentes)
+            await Gerar(pendente, ct);
 
-        do
-        {
-            await ExecutarUmaVez(passada % PassadasEntreLimpezas == 0, stoppingToken);
-
-            passada++;
-        } while (await EsperarProximaExecucao(relogio, stoppingToken));
-    }
-
-    private async Task ExecutarUmaVez(bool limpar, CancellationToken ct)
-    {
-        try
-        {
-            var pendentes = await ListarPendentes(ct);
-
-            foreach (var pendente in pendentes)
-                await Gerar(pendente, ct);
-
-            if (limpar)
-                await Limpar(ct);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception excecao)
-        {
-            logger.LogError(excecao, "Falha na geração de relatórios. A próxima execução tentará de novo.");
-        }
+        if (passada % PassadasEntreLimpezas == 0)
+            await Limpar(ct);
     }
 
     private async Task<IReadOnlyList<RelatorioPendente>> ListarPendentes(CancellationToken ct)
@@ -92,7 +77,7 @@ public sealed class GeracaoDeRelatoriosJob(IServiceScopeFactory scopeFactory, IL
 
         var gerado = await escopo.ServiceProvider.GetRequiredService<IGeracaoDeRelatoriosService>().Gerar(pendente.SolicitacaoId, ct);
 
-        logger.LogInformation(
+        Logger.LogInformation(
             "Relatório {SolicitacaoId} da formatura {FormaturaId}: {Resultado}.",
             pendente.SolicitacaoId,
             pendente.FormaturaId,
@@ -107,18 +92,6 @@ public sealed class GeracaoDeRelatoriosJob(IServiceScopeFactory scopeFactory, IL
         var expirados = await escopo.ServiceProvider.GetRequiredService<IGeracaoDeRelatoriosService>().ExpirarVencidas(ct);
 
         if (expirados > 0)
-            logger.LogInformation("Limpeza de relatórios removeu {Expirados} arquivos vencidos.", expirados);
-    }
-
-    private static async Task<bool> EsperarProximaExecucao(PeriodicTimer relogio, CancellationToken ct)
-    {
-        try
-        {
-            return await relogio.WaitForNextTickAsync(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
-        }
+            Logger.LogInformation("Limpeza de relatórios removeu {Expirados} arquivos vencidos.", expirados);
     }
 }

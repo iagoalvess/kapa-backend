@@ -50,3 +50,17 @@ public sealed record ContaDeRecebimentoDaTurmaDTO(ContaDeRecebimentoDTO? Conta);
 /// <param name="CopiaECola">O BR Code — a tela desenha o QR a partir dele, no navegador.</param>
 /// <param name="ValorEmCentavos">Valor do teste.</param>
 public sealed record PixDeTesteDTO(string CopiaECola, long ValorEmCentavos);
+
+/// <summary>A conta do Mercado Pago conectada à turma. Nunca traz o token.</summary>
+/// <param name="ContaNoProvedor">E-mail ou apelido da conta que autorizou.</param>
+/// <param name="ConectadoEm">Quando a autorização atual foi dada, em UTC.</param>
+/// <param name="ConectadoPor">Nome de quem autorizou.</param>
+public sealed record ProvedorConectadoDTO(string ContaNoProvedor, DateTime ConectadoEm, string? ConectadoPor);
+
+/// <summary>O Mercado Pago da turma. <c>provedor</c> nulo: ainda não conectou.</summary>
+/// <param name="Provedor">A conexão, ou nula.</param>
+public sealed record ProvedorDaTurmaDTO(ProvedorConectadoDTO? Provedor);
+
+/// <summary>Para onde mandar o navegador do presidente autorizar o Kapa.</summary>
+/// <param name="Url">A página de autorização do Mercado Pago.</param>
+public sealed record AutorizacaoDoProvedorDTO(string Url);

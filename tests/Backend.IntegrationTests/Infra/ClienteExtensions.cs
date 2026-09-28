@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.Json;
 using Backend.Api.DTOs.Auth;
 using Backend.Api.DTOs.Legal;
+using Backend.Api.DTOs.Recebimentos;
+using Backend.Business.Recebimentos.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Backend.IntegrationTests.Infra;
@@ -204,6 +206,18 @@ public static class ClienteExtensions
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
     public static Task<HttpResponseMessage> SairComCorpoVazio(this HttpClient cliente, CancellationToken ct) =>
         cliente.PostAsync("/api/v1/auth/logout", new StringContent("{}", Encoding.UTF8, "application/json"), ct);
+
+    /// <summary>Cadastra a chave PIX da turma, que conectar o Mercado Pago exige.</summary>
+    /// <param name="presidente">Cliente autenticado como presidente da turma.</param>
+    public static async Task CadastrarChavePix(this HttpClient presidente, CancellationToken ct) =>
+        (
+            await presidente.PutAsJsonAsync(
+                "/api/v1/recebimentos/conta",
+                new MeiosDaContaDTO(new ChavePixDTO(TipoDeChavePix.Cpf, "529.982.247-25", "Comissão da Turma", "Curitiba"), null, null),
+                Json,
+                ct
+            )
+        ).EnsureSuccessStatusCode();
 
     /// <summary>Nome do cookie, espelhando o padrão de <c>CookieDeSessao:Nome</c>.</summary>
     public const string NomeDoCookie = "refresh_token";

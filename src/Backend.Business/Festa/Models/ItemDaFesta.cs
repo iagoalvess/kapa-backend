@@ -115,10 +115,6 @@ public class ItemDaFesta : EntidadeDaFormatura
         return Result.Ok();
     }
 
-    /// <summary>Muda a posição na tela.</summary>
-    /// <param name="ordem">Posição nova.</param>
-    public void Reordenar(int ordem) => Ordem = ordem;
-
     /// <summary>
     /// A turma desistiu: sai do custo da festa e da barra, continua na lista com o selo.
     /// </summary>

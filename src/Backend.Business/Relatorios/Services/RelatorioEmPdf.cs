@@ -25,6 +25,10 @@ public static class RelatorioEmPdf
     private const int ColunasQuePedemPaisagem = 6;
 
     /// <summary>Monta o arquivo.</summary>
+    /// <remarks>
+    /// Período sem lançamento ganha uma frase, e não um cabeçalho com nada embaixo: tabela vazia
+    /// parece relatório quebrado, e quem recebeu vai perguntar.
+    /// </remarks>
     /// <param name="tabela">O relatório já reduzido a colunas e linhas.</param>
     public static byte[] Gerar(TabelaDoRelatorio tabela)
     {
@@ -34,8 +38,6 @@ public static class RelatorioEmPdf
             Contagem(tabela.Linhas.Count)
         );
 
-        // Período sem lançamento ganha uma frase, e não um cabeçalho com nada embaixo: tabela vazia
-        // parece relatório quebrado, e quem recebeu vai perguntar.
         if (tabela.Linhas.Count == 0)
             pdf.Paragrafo("Nenhum lançamento no período.");
         else

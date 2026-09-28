@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Backend.Api.DTOs.Auditoria;
@@ -10,6 +11,7 @@ using Backend.Api.DTOs.Pagamentos;
 using Backend.Api.DTOs.Recebimentos;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
+using Backend.Business.Common.Texto;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Recebimentos.Models;
@@ -438,6 +440,116 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
     }
 
     /// <summary>A API com o IP remoto fixo — o TestServer não preenche, e IP é parte da trilha da baixa.</summary>
+    /// <summary>
+    /// Sprint 22: o recibo sai para o próprio formando (CPF inteiro) e para a gestão (mascarado), é 404
+    /// para outro formando, dá os mesmos bytes duas vezes, é linkado no e-mail e vira 409 depois do estorno.
+    /// </summary>
+    [Fact]
+    public async Task Recibo_e_do_dono_e_da_gestao_e_some_com_o_estorno()
+    {
+        var turma = await TurmaPronta();
+        var ana = await FormandoQueAderiu(turma, "Ana Recibo");
+        var bruno = await FormandoQueAderiu(turma, "Bruno Curioso");
+        var parcela = ana.Parcelas[0];
+
+        var baixa = await Ler<ParcelaDTO>(await turma.Tesoureiro.Cliente.PostAsync($"/api/v1/parcelas/{parcela}/baixa-manual", BaixaManual(), Ct));
+        var recebimentoId = baixa.RecebimentoId.ShouldNotBeNull();
+        var rota = $"/api/v1/recebimentos/{recebimentoId}/recibo";
+
+        var doDono = await ana.Membro.Cliente.GetAsync(rota, Ct);
+        var deNovo = await ana.Membro.Cliente.GetByteArrayAsync(rota, Ct);
+        var daGestao = await turma.Tesoureiro.Cliente.GetAsync(rota, Ct);
+        var deOutro = await bruno.Membro.Cliente.GetAsync(rota, Ct);
+
+        doDono.StatusCode.ShouldBe(HttpStatusCode.OK);
+        doDono.Content.Headers.ContentType!.MediaType.ShouldBe("application/pdf");
+        var bytes = await doDono.Content.ReadAsByteArrayAsync(Ct);
+        deNovo.ShouldBe(bytes);
+        var cpf = await CpfDe(turma, ana);
+        TextoDoPdf(bytes).ShouldContain(FormatosBrasileiros.FormatarCpf(cpf));
+        var daGestaoTexto = TextoDoPdf(await daGestao.Content.ReadAsByteArrayAsync(Ct));
+        daGestaoTexto.ShouldContain(FormatosBrasileiros.MascararCpf(cpf)!);
+        daGestaoTexto.ShouldNotContain(FormatosBrasileiros.FormatarCpf(cpf));
+        deOutro.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await EmailsCom(ana.Membro, $"/recibos/{recebimentoId}")).ShouldBe(1);
+
+        (await Estornar(turma.Presidente, parcela, "Baixa na parcela errada.")).EnsureSuccessStatusCode();
+        var estornado = await ana.Membro.Cliente.GetAsync(rota, Ct);
+        var extrato = await Ler<ExtratoDTO>(await ana.Membro.Cliente.GetAsync("/api/v1/extrato/eu", Ct));
+
+        estornado.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await estornado.Content.ReadAsStringAsync(Ct)).ShouldContain("pagamento.recebimento_estornado");
+        extrato.Parcelas.Single(p => p.Id == parcela).RecebimentoId.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Sprint 22: trocar a chave muda a tela de pagamento (titular novo, a conferir) e avisa a turma, mas
+    /// o recibo de antes continua nomeando quem recebeu naquele dia.
+    /// </summary>
+    [Fact]
+    public async Task Troca_de_chave_avisa_a_turma_e_nao_reescreve_o_recibo_antigo()
+    {
+        var turma = await TurmaPronta();
+        var ana = await FormandoQueAderiu(turma, "Ana Titular");
+        (await turma.Presidente.Cliente.PostAsync("/api/v1/recebimentos/conta/conferir", null, Ct)).EnsureSuccessStatusCode();
+        var baixa = await Ler<ParcelaDTO>(
+            await turma.Tesoureiro.Cliente.PostAsync($"/api/v1/parcelas/{ana.Parcelas[0]}/baixa-manual", BaixaPor(FormaDePagamento.Pix), Ct)
+        );
+
+        var antes = await Ler<CobrancaDaParcelaDTO>(await ana.Membro.Cliente.GetAsync($"/api/v1/parcelas/{ana.Parcelas[1]}/cobranca", Ct));
+        (
+            await turma.Presidente.Cliente.PutAsJsonAsync(
+                "/api/v1/recebimentos/conta",
+                new MeiosDaContaDTO(new ChavePixDTO(TipoDeChavePix.Email, "outra@turma.dev", "Fulano Trocado", "Curitiba"), null, null),
+                Json,
+                Ct
+            )
+        ).EnsureSuccessStatusCode();
+        var depois = await Ler<CobrancaDaParcelaDTO>(await ana.Membro.Cliente.GetAsync($"/api/v1/parcelas/{ana.Parcelas[1]}/cobranca", Ct));
+        var recibo = TextoDoPdf(await ana.Membro.Cliente.GetByteArrayAsync($"/api/v1/recebimentos/{baixa.RecebimentoId}/recibo", Ct));
+
+        var pixAntes = antes.Meios.ShouldHaveSingleItem().Pix!;
+        pixAntes.DocumentoDoTitular.ShouldBe("CPF ***.982.247-**");
+        pixAntes.ConferidaEm.ShouldNotBeNull();
+        var pixDepois = depois.Meios.ShouldHaveSingleItem().Pix!;
+        pixDepois.NomeDoTitular.ShouldBe("Fulano Trocado");
+        pixDepois.DocumentoDoTitular.ShouldBeNull();
+        pixDepois.ConferidaEm.ShouldBeNull();
+        recibo.ShouldContain(@"Comiss\343o Medicina \267 CPF ***.982.247-**");
+        recibo.ShouldNotContain("Fulano Trocado");
+        (await EmailsPara(ana.Membro, "A conta de pagamento da turma mudou")).ShouldBe(1);
+        (await EmailsCom(ana.Membro, "outra@turma.dev")).ShouldBe(0);
+    }
+
+    private static string TextoDoPdf(byte[] pdf) => Encoding.ASCII.GetString(pdf);
+
+    private static MultipartFormDataContent BaixaPor(FormaDePagamento forma)
+    {
+        var formulario = Informe(Hoje, Mensalidade);
+        formulario.Add(new StringContent(forma.ToString()), "forma");
+
+        return formulario;
+    }
+
+    /// <summary>O CPF do cadastro do formando, decifrado pelo mapeamento.</summary>
+    private async Task<string> CpfDe(Turma turma, Formando formando)
+    {
+        await using var contexto = fabrica.ContextoDe(turma.FormaturaId);
+        var vinculoId = await contexto.Vinculos.Where(v => v.UsuarioId == formando.Membro.UsuarioId).Select(v => v.Id).SingleAsync(Ct);
+
+        return (await contexto.PerfisDeFormandos.Where(p => p.VinculoId == vinculoId).Select(p => p.Cpf).SingleAsync(Ct))!;
+    }
+
+    /// <summary>Quantos e-mails do membro trazem o trecho no corpo.</summary>
+    private async Task<int> EmailsCom(MembroDeTeste membro, string trecho)
+    {
+        await using var contexto = fabrica.ContextoDe(null);
+        var email = await contexto.Users.Where(u => u.Id == membro.UsuarioId).Select(u => u.Email!).SingleAsync(Ct);
+        var corpos = await contexto.EmailsFila.Where(e => e.Para == email).Select(e => e.CorpoHtml).ToListAsync(Ct);
+
+        return corpos.Count(corpo => corpo.Contains(trecho, StringComparison.Ordinal));
+    }
+
     private WebApplicationFactory<Program> ComIp() =>
         fabrica.WithWebHostBuilder(host => host.ConfigureTestServices(servicos => servicos.AddSingleton<IStartupFilter>(new IpFixo(Ip))));
 

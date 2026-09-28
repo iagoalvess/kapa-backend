@@ -1,5 +1,4 @@
 using Backend.Business.Abstractions;
-using Backend.Business.Admin.Interfaces;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Usuarios.Interfaces;
 using Backend.Business.Usuarios.Models;
@@ -17,9 +16,8 @@ namespace Backend.Business.Usuarios.Services;
 /// pelo validator, persistência decidida pelo <see cref="IUnitOfWork"/> e todo retorno em
 /// <see cref="Result"/>. Copie a forma dele ao criar uma feature nova.
 /// </remarks>
-/// <param name="usuarioRepository">Acesso a dados de usuário.</param>
+/// <param name="usuarioRepository">Acesso a dados de usuário, inclusive a contagem de administradores das travas de segurança.</param>
 /// <param name="refreshTokenRepository">Sessões abertas, derrubadas ao desativar a conta.</param>
-/// <param name="adminRepository">Contagem de administradores, usada nas travas de segurança.</param>
 /// <param name="userManager">API do Identity para vínculo de perfis.</param>
 /// <param name="atualizarValidator">Validador dos dados de alteração.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
@@ -27,7 +25,6 @@ namespace Backend.Business.Usuarios.Services;
 public sealed class UsuarioService(
     IUsuarioRepository usuarioRepository,
     IRefreshTokenRepository refreshTokenRepository,
-    IAdminRepository adminRepository,
     UserManager<Usuario> userManager,
     IValidator<AtualizarUsuario> atualizarValidator,
     IUnitOfWork unitOfWork,
@@ -52,7 +49,7 @@ public sealed class UsuarioService(
     {
         var usuario = await usuarioRepository.ObterDetalhe(id, ct);
 
-        return usuario is null ? Erro.NaoEncontrado("usuario.nao_encontrado", "Usuário não encontrado.") : Result.Ok(usuario);
+        return usuario is null ? ErrosDeUsuario.UsuarioNaoEncontrado : Result.Ok(usuario);
     }
 
     /// <inheritdoc />
@@ -64,7 +61,7 @@ public sealed class UsuarioService(
 
         var usuario = await usuarioRepository.ObterParaEdicao(id, ct);
         if (usuario is null)
-            return Erro.NaoEncontrado("usuario.nao_encontrado", "Usuário não encontrado.");
+            return ErrosDeUsuario.UsuarioNaoEncontrado;
 
         usuario.Nome = dados.Nome.Trim();
         await unitOfWork.SalvarAsync(ct);
@@ -73,7 +70,7 @@ public sealed class UsuarioService(
 
         var detalhe = await usuarioRepository.ObterDetalhe(id, ct);
 
-        return detalhe is null ? Erro.NaoEncontrado("usuario.nao_encontrado", "Usuário não encontrado.") : Result.Ok(detalhe);
+        return detalhe is null ? ErrosDeUsuario.UsuarioNaoEncontrado : Result.Ok(detalhe);
     }
 
     /// <inheritdoc />
@@ -92,7 +89,7 @@ public sealed class UsuarioService(
 
         var usuario = await usuarioRepository.ObterParaEdicao(id, ct);
         if (usuario is null)
-            return Result.Falha(Erro.NaoEncontrado("usuario.nao_encontrado", "Usuário não encontrado."));
+            return Result.Falha(ErrosDeUsuario.UsuarioNaoEncontrado);
 
         if (usuario.Ativo == ativo)
             return Result.Ok();
@@ -142,7 +139,7 @@ public sealed class UsuarioService(
 
         var usuario = await usuarioRepository.ObterParaEdicao(id, ct);
         if (usuario is null)
-            return Erro.NaoEncontrado("usuario.nao_encontrado", "Usuário não encontrado.");
+            return ErrosDeUsuario.UsuarioNaoEncontrado;
 
         var atuais = await userManager.GetRolesAsync(usuario);
         var eraAdministrador = atuais.Contains(PerfisPadrao.Administrador, StringComparer.OrdinalIgnoreCase);
@@ -184,6 +181,6 @@ public sealed class UsuarioService(
         if (!usuario.Ativo || !await userManager.IsInRoleAsync(usuario, PerfisPadrao.Administrador))
             return false;
 
-        return await adminRepository.ContarAdministradoresAtivos(ct) <= 1;
+        return await usuarioRepository.ContarAdministradoresAtivos(ct) <= 1;
     }
 }

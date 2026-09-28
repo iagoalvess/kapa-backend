@@ -51,11 +51,22 @@ Repositório monta consulta e marca mudança.
 Exceções, todas justificadas no `<remarks>` do próprio método — não abra outra sem escrever o
 porquê lá:
 
-- `RefreshTokenRepository.RemoverInativosAnterioresA` e `EventoRepository.RemoverAnterioresA` —
-  `ExecuteDeleteAsync`, limpeza em massa do worker, sem nada a compor.
+- `RefreshTokenRepository.RemoverInativosAnterioresA`, `EventoRepository.RemoverAnterioresA` e
+  `EmailFilaRepository.RemoverConcluidosAnterioresA`/`DesistirDosPresosAnterioresA` —
+  `ExecuteDeleteAsync`/`ExecuteUpdateAsync`, limpeza em massa do worker, sem nada a compor.
 - `ConviteRepository.ConsumirUsoDeTodasAsFormaturas` — `ExecuteUpdateAsync` condicional, porque a
   checagem precisa acontecer sob a trava da linha.
 - `EventoRepository.GravarLote` — quem chama é a descarga da fila, fora de qualquer requisição.
+- `ConviteDoEventoRepository.EmitirDoPedido` e `RegistrarEntrada` — uma instrução com
+  `ON CONFLICT` cada, na transação de quem chama: a garantia contra convite e entrada em dobro é o
+  índice único, e ler antes de gravar abriria a janela que ele fecha (Sprint 21, decisões 12 e 15).
+- `ConviteDoEventoRepository.DescartarDocumentosDeTodasAsFormaturas` — limpeza do worker.
+- `ConviteDoEventoRepository.EmitirDaCompra` e `CompraDeConviteRepository.ReservarNoItem`/`Expirar`/`TravarChave`
+  — instruções condicionais na transação de quem chama: a garantia contra vender além do estoque e devolver
+  em dobro mora no `WHERE` (Sprint 26, decisões 7 e 8). `DescartarDadosDeTodasAsFormaturas` — limpeza do worker.
+- `RetencaoDeFormaturasRepository.ApagarDados` — `ExecuteDeleteAsync` tabela a tabela, na transação
+  de quem chama, com o escopo apontado para a turma: eliminar uma turma vencida sem carregá-la inteira.
+  Entidade nova da formatura entra em `Apagadas` ou `Mantidas`, e um teste quebra até isso acontecer.
 - As APIs do `UserManager`, que persistem por conta própria.
 
 ### Sem repositório genérico
@@ -91,6 +102,13 @@ de um método.
 arquivo de terceiro respondem a mesma coisa para "não existe" e "não é seu". Distinguir os casos
 transforma endpoint público em verificador. A distinção real vai só para o log.
 
+Exceção consciente: `/auth/registrar` responde 409 `usuario.email_em_uso` (decisão de 22/09/2026). O
+cadastro devolve a sessão na hora, e um "confira seu e-mail" neutro mudaria o fluxo do front; o
+limite por IP de `/auth/*` segura a varredura.
+
+Senha errada conta por **conta + origem** (`TentativasDeSenha`), não pelo lockout do Identity: o
+lockout por conta deixava qualquer um trancar o presidente com cinco tentativas.
+
 Troca de senha (redefinição ou alteração) **sempre** derruba todas as sessões e dispara o aviso
 por e-mail.
 
@@ -104,13 +122,15 @@ O campo `refresh_token` existe no corpo e vem `null` no modo cookie — desde qu
 escrito, campo ausente quer dizer "removido do contrato". Nulo ali é a resposta correta: neste modo
 não há token no corpo. O que não pode é vir preenchido.
 
-Endpoint novo que emita sessão usa `RespostaDeSessao.Preparar` (`Api/Configuration/`). Não monte
+Endpoint novo que leia ou emita sessão injeta `SessaoHttp` (`Api/Configuration/`) e usa
+`RefreshTokenRecebido`/`Preparar` — por baixo é `RespostaDeSessao.Preparar`. Não monte
 `TokenResponseDTO` com refresh token na mão.
 
 ### E-mail nunca sai na requisição
 
 Service chama `IEmailService.Enfileirar(...)` e **não** chama `SalvarAsync` — o e-mail entra na
-mesma transação de quem o originou. Quem envia é o `EnvioDeEmailJob` no worker. Nenhum service de
+mesma transação de quem o originou. Quem envia é o `EnvioDeEmailJob` no worker, pelo
+`ProcessamentoDaFilaDeEmail` — o único service que conhece `IEmailSender`. Nenhum service de
 domínio usa `IEmailSender` diretamente.
 
 ### Arquivo: metadados no banco, bytes no provedor

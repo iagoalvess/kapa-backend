@@ -81,11 +81,7 @@ public sealed class AgendaController(IAgendaService agenda) : MainController
     {
         var resultado = await agenda.Criar(ParaModelo(requisicao), ct);
 
-        return Criado(
-            resultado.Map(evento => evento.Adapt<EventoDTO>()),
-            RotaDoEvento,
-            new { id = resultado.Sucesso ? resultado.Valor.Id : Guid.Empty }
-        );
+        return Criado(resultado.Map(evento => evento.Adapt<EventoDTO>()), RotaDoEvento, dto => dto.Id);
     }
 
     /// <summary>Corrige uma data.</summary>

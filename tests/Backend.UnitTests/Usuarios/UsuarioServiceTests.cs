@@ -1,5 +1,4 @@
 using Backend.Business.Abstractions;
-using Backend.Business.Admin.Interfaces;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Usuarios.Interfaces;
 using Backend.Business.Usuarios.Models;
@@ -20,7 +19,6 @@ public sealed class UsuarioServiceTests
 {
     private readonly IUsuarioRepository _usuarioRepository = Substitute.For<IUsuarioRepository>();
     private readonly IRefreshTokenRepository _refreshTokenRepository = Substitute.For<IRefreshTokenRepository>();
-    private readonly IAdminRepository _adminRepository = Substitute.For<IAdminRepository>();
     private readonly UserManager<Usuario> _userManager = CriarUserManager();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
@@ -30,7 +28,6 @@ public sealed class UsuarioServiceTests
         new(
             _usuarioRepository,
             _refreshTokenRepository,
-            _adminRepository,
             _userManager,
             new AtualizarUsuarioValidator(),
             _unitOfWork,
@@ -54,7 +51,7 @@ public sealed class UsuarioServiceTests
         var admin = new Usuario { Nome = "Admin", Ativo = true };
         _usuarioRepository.ObterParaEdicao(admin.Id, Arg.Any<CancellationToken>()).Returns(admin);
         _userManager.IsInRoleAsync(admin, PerfisPadrao.Administrador).Returns(true);
-        _adminRepository.ContarAdministradoresAtivos(Arg.Any<CancellationToken>()).Returns(1);
+        _usuarioRepository.ContarAdministradoresAtivos(Arg.Any<CancellationToken>()).Returns(1);
 
         var resultado = await Criar().AlterarAtivacao(admin.Id, ativo: false, idDoSolicitante: Guid.CreateVersion7(), ct: Ct);
 
@@ -69,7 +66,7 @@ public sealed class UsuarioServiceTests
         var admin = new Usuario { Nome = "Admin", Ativo = true };
         _usuarioRepository.ObterParaEdicao(admin.Id, Arg.Any<CancellationToken>()).Returns(admin);
         _userManager.IsInRoleAsync(admin, PerfisPadrao.Administrador).Returns(true);
-        _adminRepository.ContarAdministradoresAtivos(Arg.Any<CancellationToken>()).Returns(2);
+        _usuarioRepository.ContarAdministradoresAtivos(Arg.Any<CancellationToken>()).Returns(2);
 
         var resultado = await Criar().AlterarAtivacao(admin.Id, ativo: false, idDoSolicitante: Guid.CreateVersion7(), ct: Ct);
 
@@ -120,7 +117,7 @@ public sealed class UsuarioServiceTests
         _usuarioRepository.ObterParaEdicao(admin.Id, Arg.Any<CancellationToken>()).Returns(admin);
         _userManager.GetRolesAsync(admin).Returns([PerfisPadrao.Administrador]);
         _userManager.IsInRoleAsync(admin, PerfisPadrao.Administrador).Returns(true);
-        _adminRepository.ContarAdministradoresAtivos(Arg.Any<CancellationToken>()).Returns(1);
+        _usuarioRepository.ContarAdministradoresAtivos(Arg.Any<CancellationToken>()).Returns(1);
 
         var resultado = await Criar().AlterarPerfis(admin.Id, new AlterarPerfis([PerfisPadrao.Usuario]), Guid.CreateVersion7(), Ct);
 

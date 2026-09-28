@@ -156,26 +156,4 @@ public sealed class MembroController(IMembroService membroService, IUsuarioAtual
 
         return Responder(resultado);
     }
-
-    /// <summary>
-    /// Desfaz o desligamento de um membro: o acesso volta.
-    /// </summary>
-    /// <remarks>
-    /// <b>Não</b> ressuscita parcela cancelada — a cobrança volta por lançamento novo. É o desfazer
-    /// do clique errado, não uma renegociação.
-    /// </remarks>
-    /// <param name="usuarioId">Membro a religar.</param>
-    [HttpPost("{usuarioId:guid}/religar")]
-    [Authorize(Policy = Politicas.SomentePresidente)]
-    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Religar(Guid usuarioId, CancellationToken ct)
-    {
-        var resultado = await membroService.Religar(FormaturaId, usuarioId, usuarioAtual.Id, ct);
-
-        return Responder(resultado);
-    }
 }

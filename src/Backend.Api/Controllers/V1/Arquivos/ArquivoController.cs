@@ -51,10 +51,6 @@ public sealed class ArquivoController(IArquivoService arquivoService, IUsuarioAt
     }
 
     /// <summary>Baixa o conteúdo de um arquivo.</summary>
-    /// <remarks>
-    /// Não usa os helpers do <c>MainController</c> porque a resposta de sucesso não é JSON. O
-    /// fluxo é entregue ao ASP.NET, que o transmite e o descarta ao final da resposta.
-    /// </remarks>
     /// <param name="id">Identificador do arquivo.</param>
     [HttpGet("{id:guid}/conteudo")]
     [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
@@ -63,12 +59,7 @@ public sealed class ArquivoController(IArquivoService arquivoService, IUsuarioAt
     {
         var resultado = await arquivoService.Baixar(id, Solicitante, ct);
 
-        if (resultado.Falhou)
-            return Responder(resultado.Map(_ => 0));
-
-        var arquivo = resultado.Valor;
-
-        return File(arquivo.Conteudo, arquivo.ContentType, arquivo.Nome);
+        return Arquivo(resultado);
     }
 
     /// <summary>
@@ -88,11 +79,6 @@ public sealed class ArquivoController(IArquivoService arquivoService, IUsuarioAt
     {
         var resultado = await arquivoService.AbrirPorUrlTemporaria(objeto, ct);
 
-        if (resultado.Falhou)
-            return Responder(resultado.Map(_ => 0));
-
-        var arquivo = resultado.Valor;
-
-        return File(arquivo.Conteudo, arquivo.ContentType, arquivo.Nome);
+        return Arquivo(resultado);
     }
 }

@@ -22,4 +22,8 @@ internal static class Busca
     /// <summary>O padrão do <c>ILIKE</c>: o termo sem acento, entre curingas.</summary>
     /// <param name="termo">O que a pessoa digitou.</param>
     public static string Padrao(string termo) => $"%{TextoUtils.SemAcento(termo)}%";
+
+    /// <summary>O texto para comparar <b>literalmente</b> por <c>ILIKE</c>: os curingas escapados, sem acento nenhum removido.</summary>
+    /// <param name="texto">Texto vindo de quem digita.</param>
+    public static string Literal(string texto) => texto.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 }

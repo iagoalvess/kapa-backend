@@ -15,6 +15,7 @@ using Backend.Business.Financeiro.Models;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Legal.Models;
+using Backend.Business.Loja.Models;
 using Backend.Business.Notificacoes.Models;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Privacidade.Models;
@@ -22,6 +23,7 @@ using Backend.Business.Recebimentos.Models;
 using Backend.Business.Relatorios.Models;
 using Backend.Business.Usuarios.Models;
 using Backend.Data.Criptografia;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -49,8 +51,12 @@ namespace Backend.Data.Context;
 /// <param name="formaturaAtual">Formatura da requisição em curso.</param>
 /// <param name="cifra">Cifra das colunas sensíveis, entregue ao mapeamento que a usa.</param>
 public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtual formaturaAtual, CifraDeCampo cifra)
-    : IdentityDbContext<Usuario, Perfil, Guid>(options)
+    : IdentityDbContext<Usuario, Perfil, Guid>(options),
+        IDataProtectionKeyContext
 {
+    /// <summary>Chaves do DataProtection, compartilhadas entre réplicas e deploys.</summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+
     /// <summary>Refresh tokens emitidos.</summary>
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
@@ -108,14 +114,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Parcelas devidas pelos formandos, uma por vencimento.</summary>
     public DbSet<Parcela> Parcelas => Set<Parcela>();
 
+    /// <summary>Pedidos dos opcionais: o que cada formando pediu só para ele.</summary>
+    public DbSet<Pedido> Pedidos => Set<Pedido>();
+
     /// <summary>Versões do termo de adesão de cada formatura.</summary>
     public DbSet<TermoDaFormatura> TermosDeAdesao => Set<TermoDaFormatura>();
 
     /// <summary>Aceites do termo de adesão, com o plano congelado.</summary>
     public DbSet<AdesaoDoFormando> Adesoes => Set<AdesaoDoFormando>();
 
+    /// <summary>Resumo gerado por IA de cada versão do termo (Sprint 24). Fora do que foi aceito.</summary>
+    public DbSet<ResumoDoTermo> ResumosDeTermo => Set<ResumoDoTermo>();
+
     /// <summary>A chave PIX de cada formatura, uma por turma.</summary>
     public DbSet<ContaDeRecebimento> ContasDeRecebimento => Set<ContaDeRecebimento>();
+
+    /// <summary>A autorização do Mercado Pago de cada turma, com os tokens cifrados (Sprint 25).</summary>
+    public DbSet<CredencialDeProvedor> CredenciaisDeProvedor => Set<CredencialDeProvedor>();
+
+    /// <summary>Os PIX dinâmicos emitidos pelo Mercado Pago das turmas (Sprint 25).</summary>
+    public DbSet<CobrancaBancaria> CobrancasBancarias => Set<CobrancaBancaria>();
 
     /// <summary>Avisos de pagamento dos formandos, esperando a tesouraria.</summary>
     public DbSet<InformeDePagamento> Informes => Set<InformeDePagamento>();
@@ -144,8 +162,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// </remarks>
     public DbSet<EventoDaTurma> EventosDaTurma => Set<EventoDaTurma>();
 
+    /// <summary>Convites dos eventos da turma: um por pessoa, com código e QR próprios (Sprint 21).</summary>
+    public DbSet<ConviteDoEvento> ConvitesDoEvento => Set<ConviteDoEvento>();
+
+    /// <summary>Entradas validadas na portaria — uma linha por validação, desfeita ou não.</summary>
+    public DbSet<CheckIn> CheckIns => Set<CheckIn>();
+
+    /// <summary>Mesas do jantar: nome, lugares e o dono da mesa vendida (Sprint 27).</summary>
+    public DbSet<Mesa> Mesas => Set<Mesa>();
+
     /// <summary>Saídas do caixa: o que a turma deve e o que já pagou, uma linha por vencimento.</summary>
     public DbSet<Despesa> Despesas => Set<Despesa>();
+
+    /// <summary>Receitas da turma que não vêm de formando (Sprint 28).</summary>
+    public DbSet<OutraReceita> OutrasReceitas => Set<OutraReceita>();
+
+    /// <summary>Compras da loja pública (Sprint 26).</summary>
+    public DbSet<CompraDeConvite> ComprasDeConvite => Set<CompraDeConvite>();
 
     /// <summary>Acervo de cada formatura: atas, contratos, orçamentos, regulamentos.</summary>
     public DbSet<Documento> Documentos => Set<Documento>();
@@ -187,7 +220,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// A extensão <c>unaccent</c> é declarada aqui porque é do banco, não de uma entidade: é ela que faz
     /// a busca por nome achar "Júlia" quem digitou "julia" (ver <c>Repositories/Busca</c>).
     /// <para>
-    /// A cifra do CPF (do perfil e da adesão) é a única configuração que mora aqui: ela precisa da chave, e os mappings
+    /// A cifra do CPF (do perfil e da adesão) e do documento e e-mail do convidado da festa é a única configuração que mora aqui: ela precisa da chave, e os mappings
     /// são instanciados pela varredura sem parâmetro. O modelo é montado uma vez por processo,
     /// então o conversor guarda a cifra da primeira instância — a chave é a mesma para o processo
     /// inteiro, e é isso que se quer.
@@ -202,6 +235,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         builder.Entity<PerfilDoFormando>().Property(p => p.Cpf).HasConversion(cifra.Conversor());
         builder.Entity<AdesaoDoFormando>().Property(a => a.Cpf).HasConversion((ValueConverter)cifra.Conversor());
+        builder.Entity<ConviteDoEvento>().Property(c => c.NumeroDoDocumento).HasConversion(cifra.Conversor());
+        builder.Entity<ConviteDoEvento>().Property(c => c.EmailDoConvidado).HasConversion(cifra.Conversor());
+        builder.Entity<CompraDeConvite>().Property(c => c.Cpf).HasConversion(cifra.Conversor());
+        builder.Entity<CompraDeConvite>().Property(c => c.CpfDoPagador).HasConversion(cifra.Conversor());
+        builder.Entity<CredencialDeProvedor>().Property(c => c.AccessToken).HasConversion((ValueConverter)cifra.Conversor());
+        builder.Entity<CredencialDeProvedor>().Property(c => c.RefreshToken).HasConversion((ValueConverter)cifra.Conversor());
 
         AplicarIsolamentoPorFormatura(builder);
     }
@@ -211,13 +250,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <c>AtualizadoEm</c> e <c>FormaturaId</c> são carimbados aqui, e não pelos services:
     /// auditoria e isolamento que dependem de alguém lembrar de escrever a linha são auditoria
     /// desatualizada e dado gravado na turma errada.
+    /// <para>
+    /// Na sobrecarga com <paramref name="acceptAllChangesOnSuccess"/>, e não na só com o token: a outra
+    /// termina nesta, e o <c>UnitOfWork</c> chama esta direto — carimbar só na outra deixava a gravação
+    /// da transação sem <c>FormaturaId</c>.
+    /// </para>
     /// </remarks>
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         CarimbarAtualizacoes();
         CarimbarFormatura();
 
-        return base.SaveChangesAsync(cancellationToken);
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
     /// <summary>

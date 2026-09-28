@@ -3,6 +3,8 @@ using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Formandos.Interfaces;
+using Backend.Business.Formaturas.Models;
+using Backend.Business.Usuarios.Interfaces;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
@@ -29,6 +31,7 @@ namespace Backend.Business.Festa.Services;
 /// <param name="itemRepository">Itens, para achar o dono da proposta.</param>
 /// <param name="despesaRepository">Despesas, para saber se a disputa ainda está aberta.</param>
 /// <param name="perfilRepository">Vínculo de quem vota.</param>
+/// <param name="usuarioRepository">Se quem vota confirmou o e-mail.</param>
 /// <param name="validator">Forma da proposta.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
@@ -37,6 +40,7 @@ public sealed class PropostaService(
     IItemDaFestaRepository itemRepository,
     IDespesaRepository despesaRepository,
     IPerfilRepository perfilRepository,
+    IUsuarioRepository usuarioRepository,
     IValidator<DadosDaProposta> validator,
     IUnitOfWork unitOfWork,
     ILogger<PropostaService> logger
@@ -121,6 +125,10 @@ public sealed class PropostaService(
     /// Votar de novo na mesma proposta é o mesmo estado, e não um erro: a tela pode repetir o clique,
     /// e devolver 409 para "você já votou nesta" faria a interface ter de tratar um caso que não
     /// significa nada.
+    /// <para>
+    /// Só vota quem confirmou o e-mail — pelo link de confirmação ou pelo código da adesão. O link da
+    /// turma aceita qualquer conta nova, e sem essa prova cada e-mail inventado era mais um voto.
+    /// </para>
     /// </remarks>
     public async Task<Result> Votar(Guid propostaId, Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
     {
@@ -135,6 +143,14 @@ public sealed class PropostaService(
         var vinculo = await VinculoDe(formaturaId, usuarioId, ct);
         if (vinculo.Falhou)
             return vinculo;
+
+        if (await usuarioRepository.ObterDetalhe(usuarioId, ct) is not { EmailConfirmado: true })
+            return Result.Falha(
+                Erro.Proibido(
+                    "festa.email_nao_confirmado",
+                    "Confirme seu e-mail para votar. Use o link que enviamos quando você criou a conta, ou peça outro em Minha conta."
+                )
+            );
 
         if (await propostaRepository.ObterVoto(vinculo.Valor, proposta.ItemDaFestaId, ct) is { } voto)
         {
@@ -197,9 +213,7 @@ public sealed class PropostaService(
     /// <param name="formaturaId">Turma da sessão.</param>
     /// <param name="usuarioId">Quem vota.</param>
     private async Task<Result<Guid>> VinculoDe(Guid formaturaId, Guid usuarioId, CancellationToken ct) =>
-        await perfilRepository.ObterTitular(formaturaId, usuarioId, ct) is { } membro
-            ? membro.VinculoId
-            : Erro.NaoEncontrado("membro.nao_encontrado", "Membro não encontrado nesta formatura.");
+        await perfilRepository.ObterTitular(formaturaId, usuarioId, ct) is { } membro ? membro.VinculoId : ErrosDeFormatura.MembroNaoEncontrado;
 
     /// <summary>A proposta como a tela a mostra, depois da gravação.</summary>
     /// <param name="id">Proposta.</param>

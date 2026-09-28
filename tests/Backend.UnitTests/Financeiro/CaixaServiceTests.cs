@@ -51,6 +51,49 @@ public sealed class CaixaServiceTests
     }
 
     [Fact]
+    public async Task Arrecadacao_acumula_desde_antes_da_janela_e_projeta_o_proximo_mes()
+    {
+        // Arrange — uma entrada antiga, fora dos cinco meses, tem de estar no primeiro deles.
+        _caixa
+            .EntradasPorMes(Arg.Any<CancellationToken>())
+            .Returns([
+                new SomaDoMes(MesAtual.AddMonths(-8), 1_000_00L),
+                new SomaDoMes(MesAtual.AddMonths(-2), 2_000_00L),
+                new SomaDoMes(MesAtual, 500_00L),
+            ]);
+        _caixa
+            .EntradasPrevistasPorMes(Arg.Any<DateOnly>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns([new SomaDoMes(MesAtual.AddMonths(1), 300_00L)]);
+
+        // Act
+        var meses = (await Servico.Arrecadacao(Ct)).Valor;
+
+        // Assert
+        meses.Select(mes => mes.ArrecadadoEmCentavos).ShouldBe([1_000_00L, 1_000_00L, 3_000_00L, 3_000_00L, 3_500_00L, 3_800_00L]);
+        meses[^1].Mes.ShouldBe(MesAtual.AddMonths(1));
+        meses.Select(mes => mes.Projetado).ShouldBe([false, false, false, false, false, true]);
+    }
+
+    /// <summary>
+    /// Receita prevista entra só na projeção do caixa, nunca no gráfico do Início (P2 da Sprint 28):
+    /// patrocínio prometido não pode aparecer na tela que a turma inteira lê.
+    /// </summary>
+    [Fact]
+    public async Task OutraReceita_prevista_entra_na_projecao_e_nao_no_grafico_do_inicio()
+    {
+        // Arrange
+        _formaturas.ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(null));
+
+        // Act
+        await Servico.Projecao(FormaturaId, Ct);
+        await Servico.Arrecadacao(Ct);
+
+        // Assert
+        await _caixa.Received(1).EntradasPrevistasPorMes(Arg.Any<DateOnly>(), true, Arg.Any<CancellationToken>());
+        await _caixa.Received(1).EntradasPrevistasPorMes(Arg.Any<DateOnly>(), false, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Projecao_acumula_mes_a_mes_e_bate_com_a_soma_manual()
     {
         // Arrange
@@ -62,9 +105,11 @@ public sealed class CaixaServiceTests
         _caixa.ParcelasEmAberto(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns((7_000_00L, 1_500_00L));
         _caixa.EntradasPorMes(Arg.Any<CancellationToken>()).Returns([new SomaDoMes(mesPassado, 6_000_00L), new SomaDoMes(MesAtual, 4_000_00L)]);
         _caixa.SaidasPorMes(Arg.Any<CancellationToken>()).Returns([new SomaDoMes(mesPassado, 4_000_00L)]);
-        _caixa.EntradasPrevistasPorMes(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns([new SomaDoMes(proximo, 7_000_00L)]);
+        _caixa
+            .EntradasPrevistasPorMes(Arg.Any<DateOnly>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns([new SomaDoMes(proximo, 7_000_00L)]);
         _caixa.SaidasPrevistasPorMes(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns([new SomaDoMes(proximo, 3_000_00L)]);
-        _formaturas.ObterDetalhe(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(proximo));
+        _formaturas.ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(proximo));
 
         // Act
         var projecao = (await Servico.Projecao(FormaturaId, Ct)).Valor;
@@ -84,8 +129,10 @@ public sealed class CaixaServiceTests
         // Arrange
         var proximo = MesAtual.AddMonths(1);
         _caixa.EntradasPorMes(Arg.Any<CancellationToken>()).Returns([new SomaDoMes(MesAtual, 1_000_00L)]);
-        _caixa.EntradasPrevistasPorMes(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns([new SomaDoMes(proximo, 2_000_00L)]);
-        _formaturas.ObterDetalhe(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(proximo));
+        _caixa
+            .EntradasPrevistasPorMes(Arg.Any<DateOnly>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns([new SomaDoMes(proximo, 2_000_00L)]);
+        _formaturas.ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(proximo));
 
         // Act
         var projecao = (await Servico.Projecao(FormaturaId, Ct)).Valor;
@@ -99,7 +146,7 @@ public sealed class CaixaServiceTests
     public async Task Turma_sem_movimento_devolve_so_o_mes_atual()
     {
         // Arrange
-        _formaturas.ObterDetalhe(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(null));
+        _formaturas.ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(null));
 
         // Act
         var projecao = (await Servico.Projecao(FormaturaId, Ct)).Valor;
@@ -113,7 +160,7 @@ public sealed class CaixaServiceTests
     {
         // Arrange
         var colacao = MesAtual.AddMonths(5).AddDays(9);
-        _formaturas.ObterDetalhe(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(colacao));
+        _formaturas.ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(colacao));
 
         // Act
         var projecao = (await Servico.Projecao(FormaturaId, Ct)).Valor;
@@ -133,7 +180,6 @@ public sealed class CaixaServiceTests
             1,
             colacao,
             null,
-            80,
             StatusDaFormatura.Ativa,
             DateTime.UtcNow,
             DateTime.UtcNow,

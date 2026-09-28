@@ -1,35 +1,21 @@
 namespace Backend.Business.Notificacoes.Models;
 
-/// <summary>Um degrau da régua, como a tesouraria o edita.</summary>
-/// <param name="Gatilho">O que dispara. Com <paramref name="DiasDeDeslocamento"/>, é a identidade do degrau.</param>
-/// <param name="DiasDeDeslocamento">Dias de distância do gatilho; negativo é antes do vencimento.</param>
-/// <param name="Assunto">Assunto, com as variáveis de <c>TemplateDeNotificacao</c>.</param>
-/// <param name="Template">Corpo, com as mesmas variáveis.</param>
-/// <param name="Ativa">Se dispara.</param>
-/// <param name="AvisarTesouraria">Se a tesouraria recebe cópia.</param>
-public sealed record DadosDaRegra(GatilhoDaRegua Gatilho, int DiasDeDeslocamento, string Assunto, string Template, bool Ativa, bool AvisarTesouraria);
-
-/// <summary>A régua inteira, como a tela a grava: os degraus de uma vez.</summary>
-/// <param name="Regras">Degraus. Cada par <c>(gatilho, dias)</c> aparece uma vez.</param>
-public sealed record DadosDaRegua(IReadOnlyList<DadosDaRegra> Regras);
-
-/// <summary>Um degrau da régua, como a linha do tempo o desenha.</summary>
+/// <summary>Um degrau da régua da turma, com o texto do catálogo.</summary>
 /// <param name="Id">Identificador.</param>
 /// <param name="Gatilho">O que dispara.</param>
 /// <param name="DiasDeDeslocamento">Dias de distância do gatilho.</param>
-/// <param name="Assunto">Assunto.</param>
-/// <param name="Template">Corpo.</param>
 /// <param name="Ativa">Se dispara.</param>
-/// <param name="AvisarTesouraria">Se a tesouraria recebe cópia.</param>
-public sealed record RegraResumo(
-    Guid Id,
-    GatilhoDaRegua Gatilho,
-    int DiasDeDeslocamento,
-    string Assunto,
-    string Template,
-    bool Ativa,
-    bool AvisarTesouraria
-);
+public sealed record RegraResumo(Guid Id, GatilhoDaRegua Gatilho, int DiasDeDeslocamento, bool Ativa)
+{
+    /// <summary>O degrau no catálogo. Só chega aqui degrau que existe nele — <c>ReguaDaTurma</c> filtra os antigos.</summary>
+    public DegrauDaRegua Degrau => ReguaDoKapa.De(Gatilho, DiasDeDeslocamento)!;
+
+    /// <summary>Assunto da mensagem.</summary>
+    public string Assunto => Degrau.Texto.Assunto;
+
+    /// <summary>Se a tesouraria recebe um resumo no mesmo dia.</summary>
+    public bool AvisarTesouraria => Degrau.AvisaTesouraria;
+}
 
 /// <summary>Filtros do histórico de envios.</summary>
 /// <param name="Status">Só nesta situação.</param>
@@ -117,8 +103,3 @@ public sealed record ResumoDaRodada(int Mensagens, int Parcelas, int Conferidas)
 /// <param name="Id">Formatura.</param>
 /// <param name="Nome">Nome da turma, que entra na variável <c>{formatura}</c>.</param>
 public sealed record FormaturaParaRegua(Guid Id, string Nome);
-
-/// <summary>O e-mail de uma notificação, para conferir a entrega depois.</summary>
-/// <param name="NotificacaoId">Notificação.</param>
-/// <param name="EmailNaFilaId">E-mail correspondente na fila.</param>
-public sealed record EntregaPendente(Guid NotificacaoId, Guid EmailNaFilaId);

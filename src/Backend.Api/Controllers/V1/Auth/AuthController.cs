@@ -5,12 +5,10 @@ using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
-using Backend.Business.Auth.Settings;
 using Backend.Business.Legal.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.Options;
 
 namespace Backend.Api.Controllers.V1.Auth;
 
@@ -18,9 +16,10 @@ namespace Backend.Api.Controllers.V1.Auth;
 /// Registro, login, renovação e encerramento de sessão.
 /// </summary>
 /// <remarks>
-/// Todos os endpoints são anônimos e ficam sob o limite estreito de
-/// <see cref="RateLimitConfig.Autenticacao"/> — endpoint de login sem limite é um oráculo de
-/// força bruta contra as senhas dos usuários.
+/// Todos os endpoints são anônimos e limitados por IP — endpoint de login sem limite é um oráculo de
+/// força bruta contra as senhas dos usuários. Cadastro e login usam o balde de
+/// <see cref="RateLimitConfig.Entrada"/>, que aceita a assembleia inteira no mesmo Wi-Fi; renovação e
+/// saída, o de <see cref="RateLimitConfig.Sessao"/>.
 /// <para>
 /// <b>O refresh token trafega em cookie <c>HttpOnly</c> por padrão</b> e, nesse modo, não aparece
 /// no corpo de nenhuma resposta. Ver <c>docs/decisoes.md</c>, item 17.
@@ -28,26 +27,14 @@ namespace Backend.Api.Controllers.V1.Auth;
 /// </remarks>
 /// <param name="authService">Regras de autenticação.</param>
 /// <param name="usuarioAtual">IP e navegador da requisição, gravados no consentimento do cadastro.</param>
-/// <param name="cookieOptions">Configuração do cookie de sessão.</param>
-/// <param name="jwtOptions">Configuração de JWT, que define a validade do cookie.</param>
-/// <param name="configuration">Configuração da aplicação, de onde saem as origens permitidas.</param>
+/// <param name="sessao">De onde vem o refresh token e como o par volta ao cliente.</param>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/auth")]
 [AllowAnonymous]
 [EnableRateLimiting(RateLimitConfig.Autenticacao)]
-public sealed class AuthController(
-    IAuthService authService,
-    IUsuarioAtual usuarioAtual,
-    IOptions<CookieDeSessaoSettings> cookieOptions,
-    IOptions<JwtSettings> jwtOptions,
-    IConfiguration configuration
-) : MainController
+public sealed class AuthController(IAuthService authService, IUsuarioAtual usuarioAtual, SessaoHttp sessao) : MainController
 {
     private string? IpDeOrigem => usuarioAtual.EnderecoIp;
-
-    private CookieDeSessaoSettings Cookie => cookieOptions.Value;
-
-    private string[] OrigensPermitidas => configuration.GetSection(ApiConfig.SecaoDeOrigens).Get<string[]>() ?? [];
 
     /// <summary>Cria uma conta, registra o aceite dos documentos legais e já devolve a sessão.</summary>
     /// <remarks>
@@ -57,6 +44,7 @@ public sealed class AuthController(
     /// </remarks>
     /// <param name="requisicao">Nome, e-mail, senha e as versões aceitas.</param>
     [HttpPost("registrar")]
+    [EnableRateLimiting(RateLimitConfig.Entrada)]
     [ProducesResponseType(typeof(TokenResponseDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
@@ -69,7 +57,7 @@ public sealed class AuthController(
             [.. (requisicao.Aceites ?? []).OfType<AceiteDeDocumentoDTO>().Select(aceite => new AceiteDeDocumento(aceite.Tipo, aceite.Versao))]
         );
 
-        var resultado = await authService.Registrar(dados, new OrigemDoAceite(usuarioAtual.EnderecoIp, usuarioAtual.UserAgent), ct);
+        var resultado = await authService.Registrar(dados, usuarioAtual.Origem, ct);
 
         return ResponderComSessao(resultado);
     }
@@ -77,6 +65,7 @@ public sealed class AuthController(
     /// <summary>Autentica por e-mail e senha.</summary>
     /// <param name="requisicao">Credenciais.</param>
     [HttpPost("login")]
+    [EnableRateLimiting(RateLimitConfig.Entrada)]
     [ProducesResponseType(typeof(TokenResponseDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -98,14 +87,15 @@ public sealed class AuthController(
     /// </remarks>
     /// <param name="requisicao">Refresh token, quando o modo cookie está desligado.</param>
     [HttpPost("refresh")]
+    [EnableRateLimiting(RateLimitConfig.Sessao)]
     [ProducesResponseType(typeof(TokenResponseDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Renovar([FromBody] RefreshRequestDTO? requisicao, CancellationToken ct)
     {
         var resultado = await authService.Renovar(TokenRecebido(requisicao), IpDeOrigem, ct);
 
-        if (resultado.Falhou && Cookie.Habilitado)
-            Response.Apagar(Cookie);
+        if (resultado.Falhou)
+            sessao.ApagarCookie();
 
         return ResponderComSessao(resultado);
     }
@@ -113,23 +103,22 @@ public sealed class AuthController(
     /// <summary>Encerra a sessão associada ao refresh token informado.</summary>
     /// <param name="requisicao">Refresh token, quando o modo cookie está desligado.</param>
     [HttpPost("logout")]
+    [EnableRateLimiting(RateLimitConfig.Sessao)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Logout([FromBody] RefreshRequestDTO? requisicao, CancellationToken ct)
     {
         var resultado = await authService.Revogar(TokenRecebido(requisicao), ct);
 
-        if (Cookie.Habilitado)
-            Response.Apagar(Cookie);
+        sessao.ApagarCookie();
 
         return Responder(resultado);
     }
 
-    private string TokenRecebido(RefreshRequestDTO? requisicao) => Request.RefreshTokenRecebido(Cookie, OrigensPermitidas, requisicao?.RefreshToken);
+    private string TokenRecebido(RefreshRequestDTO? requisicao) => sessao.RefreshTokenRecebido(requisicao?.RefreshToken);
 
     /// <summary>
     /// Devolve o par de tokens, mandando o refresh pelo cookie quando o modo está ligado.
     /// </summary>
     /// <param name="resultado">Resultado devolvido pelo service.</param>
-    private IActionResult ResponderComSessao(Result<ParDeTokens> resultado) =>
-        Responder(RespostaDeSessao.Preparar(resultado, Response, Cookie, jwtOptions.Value));
+    private IActionResult ResponderComSessao(Result<ParDeTokens> resultado) => Responder(sessao.Preparar(resultado));
 }

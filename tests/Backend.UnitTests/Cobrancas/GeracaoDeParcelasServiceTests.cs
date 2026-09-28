@@ -147,6 +147,35 @@ public sealed class GeracaoDeParcelasServiceTests
         await _parcelas.DidNotReceiveWithAnyArgs().ListarNumerosGerados(default, default, Ct);
     }
 
+    /// <summary>
+    /// O ponto crítico da Sprint 20: o item opcional não entra na adesão de ninguém.
+    /// </summary>
+    /// <remarks>
+    /// Esquecer o filtro de <c>Opcional</c> em <c>ItensAtivos</c> faria a turma inteira passar a
+    /// dever um convite extra que ninguém pediu — e ela só descobriria no extrato.
+    /// </remarks>
+    [Fact]
+    public async Task Item_opcional_nao_entra_na_geracao_da_adesao()
+    {
+        // Arrange — um plano com os dois tipos de item.
+        var plano = Plano(true, Mensalidade);
+        plano.Itens.Add(
+            ItemDeCobranca.NovoOpcional(
+                plano.Id,
+                new DadosDoOpcional(new DadosDoItem(TipoDeCobranca.ConviteExtra, "Convite extra", 18_000, 2, 10, DataUtils.Hoje().AddMonths(1)))
+            )
+        );
+        _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([]);
+
+        // Act
+        var resultado = await Servico.Gerar(VinculoId, plano, Ct);
+
+        // Assert — só as 24 da mensalidade.
+        resultado.Valor.ShouldBe(24);
+        var opcional = plano.Itens.Single(item => item.Opcional).Id;
+        await _parcelas.Received(1).Adicionar(Arg.Is<IReadOnlyList<Parcela>>(parcelas => parcelas.All(p => p.ItemDeCobrancaId != opcional)), Ct);
+    }
+
     [Fact]
     public async Task Plano_em_montagem_nao_gera_parcela()
     {

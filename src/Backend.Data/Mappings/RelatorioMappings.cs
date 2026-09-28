@@ -27,6 +27,11 @@ namespace Backend.Data.Mappings;
 public sealed class SolicitacaoDeRelatorioMapping : IEntityTypeConfiguration<SolicitacaoDeRelatorio>
 {
     /// <inheritdoc />
+    /// <remarks>
+    /// Sem chave estrangeira nos ids do recorte, e de propósito: eles são um pedaço do <b>pedido</b>,
+    /// não um vínculo. Apagar um fornecedor não pode derrubar o registro de que alguém pediu o
+    /// relatório dele; o que acontece é o subtítulo ficar sem o nome, que <c>NomesDoFiltro</c> já trata.
+    /// </remarks>
     public void Configure(EntityTypeBuilder<SolicitacaoDeRelatorio> builder)
     {
         builder.ToTable("solicitacoes_de_relatorio");
@@ -50,9 +55,6 @@ public sealed class SolicitacaoDeRelatorioMapping : IEntityTypeConfiguration<Sol
         builder.HasOne<Arquivo>().WithMany().HasForeignKey(s => s.ArquivoId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne<Formatura>().WithMany().HasForeignKey(s => s.FormaturaId).OnDelete(DeleteBehavior.Restrict);
 
-        // Sem chave estrangeira nos ids do recorte, e de propósito: eles são um pedaço do **pedido**,
-        // não um vínculo. Apagar um fornecedor não pode derrubar o registro de que alguém pediu o
-        // relatório dele; o que acontece é o subtítulo ficar sem o nome, que `NomesDoFiltro` já trata.
         builder.HasIndex(s => new
         {
             s.Tipo,

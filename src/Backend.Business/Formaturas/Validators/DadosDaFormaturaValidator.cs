@@ -1,3 +1,4 @@
+using Backend.Business.Common.Datas;
 using Backend.Business.Formaturas.Models;
 using FluentValidation;
 
@@ -30,9 +31,7 @@ public sealed class DadosDaFormaturaValidator : AbstractValidator<DadosDaFormatu
         RuleFor(x => x.Semestre).InclusiveBetween(1, 2).WithMessage("O semestre deve ser 1 ou 2.");
 
         RuleFor(x => x.Ano)
-            .Must(ano => ano >= DateTime.UtcNow.Year && ano <= DateTime.UtcNow.Year + AnosAFrente)
+            .Must(ano => ano >= DataUtils.Hoje().Year && ano <= DataUtils.Hoje().Year + AnosAFrente)
             .WithMessage($"O ano deve estar entre o ano corrente e os próximos {AnosAFrente} anos.");
-
-        RuleFor(x => x.QuantidadeEstimadaDeFormandos).InclusiveBetween(1, 2000).WithMessage("Informe o número de formandos.");
     }
 }

@@ -9,6 +9,7 @@ using Backend.Business.Legal.Interfaces;
 using Backend.Business.Legal.Models;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -32,6 +33,7 @@ public sealed class LegalController(ILegalService legalService, IUsuarioAtual us
     /// <summary>A versão vigente de cada documento, com o texto em markdown.</summary>
     [HttpGet("vigentes")]
     [AllowAnonymous]
+    [EnableCors(ApiConfig.Vitrine)]
     [ProducesResponseType(typeof(IReadOnlyList<DocumentoLegalDTO>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListarVigentes(CancellationToken ct)
     {
@@ -45,6 +47,7 @@ public sealed class LegalController(ILegalService legalService, IUsuarioAtual us
     /// <param name="versao">Rótulo da versão.</param>
     [HttpGet("{tipo}/{versao}")]
     [AllowAnonymous]
+    [EnableCors(ApiConfig.Vitrine)]
     [ProducesResponseType(typeof(DocumentoLegalDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ObterVersao(string tipo, string versao, CancellationToken ct)
@@ -68,7 +71,7 @@ public sealed class LegalController(ILegalService legalService, IUsuarioAtual us
         var resultado = await legalService.RegistrarAceites(
             usuarioAtual.Id,
             [.. (requisicao.Aceites ?? []).OfType<AceiteDeDocumentoDTO>().Select(aceite => new AceiteDeDocumento(aceite.Tipo, aceite.Versao))],
-            new OrigemDoAceite(usuarioAtual.EnderecoIp, usuarioAtual.UserAgent),
+            usuarioAtual.Origem,
             ct
         );
 

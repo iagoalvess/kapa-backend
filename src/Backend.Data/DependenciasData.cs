@@ -16,6 +16,7 @@ using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Legal.Interfaces;
+using Backend.Business.Loja.Interfaces;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Pagamentos.Interfaces;
 using Backend.Business.Privacidade.Interfaces;
@@ -26,6 +27,7 @@ using Backend.Data.Context;
 using Backend.Data.Criptografia;
 using Backend.Data.Provedores;
 using Backend.Data.Repositories;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,6 +43,16 @@ public static class DependenciasData
 {
     /// <summary>Nome da string de conexão esperada na configuração.</summary>
     public const string NomeDaConexao = "Postgres";
+
+    /// <summary>
+    /// Nome que amarra as chaves do DataProtection a esta aplicação, igual na API e no Worker.
+    /// </summary>
+    /// <remarks>
+    /// As chaves vão para o banco (<see cref="AppDbContext.DataProtectionKeys"/>): no disco do contêiner,
+    /// cada deploy e cada réplica tinham as suas, e o link de redefinir senha ou confirmar e-mail
+    /// enviado por uma parava de valer na outra — ou no deploy seguinte.
+    /// </remarks>
+    public const string NomeDaAplicacaoNaProtecao = "kapa";
 
     /// <summary>Registra o acesso a dados.</summary>
     /// <param name="services">Coleção de serviços.</param>
@@ -65,6 +77,8 @@ public static class DependenciasData
 
         services.AddFormaturaAtualPadrao();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        services.AddDataProtection().SetApplicationName(NomeDaAplicacaoNaProtecao).PersistKeysToDbContext<AppDbContext>();
 
         return services.AdicionarRepositorios().AdicionarProvedorDeAssinatura();
     }
@@ -119,20 +133,27 @@ public static class DependenciasData
         services.AddScoped<IVinculoRepository, VinculoRepository>();
         services.AddScoped<IConviteRepository, ConviteRepository>();
         services.AddScoped<IFormaturaRepository, FormaturaRepository>();
+        services.AddScoped<IRetencaoDeFormaturasRepository, RetencaoDeFormaturasRepository>();
         services.AddScoped<ILegalRepository, LegalRepository>();
         services.AddScoped<IAssinaturaRepository, AssinaturaRepository>();
         services.AddScoped<IPerfilRepository, PerfilRepository>();
         services.AddScoped<IPlanoDeCobrancaRepository, PlanoDeCobrancaRepository>();
         services.AddScoped<IParcelaRepository, ParcelaRepository>();
+        services.AddScoped<IPedidoRepository, PedidoRepository>();
+        services.AddScoped<IConviteDoEventoRepository, ConviteDoEventoRepository>();
+        services.AddScoped<ICompraDeConviteRepository, CompraDeConviteRepository>();
+        services.AddScoped<IMesaRepository, MesaRepository>();
         services.AddScoped<IAdesaoRepository, AdesaoRepository>();
         services.AddScoped<IContaDeRecebimentoRepository, ContaDeRecebimentoRepository>();
         services.AddScoped<IInformeRepository, InformeRepository>();
+        services.AddScoped<IProvedorDaTurmaRepository, ProvedorDaTurmaRepository>();
         services.AddScoped<IRecebimentoRepository, RecebimentoRepository>();
         services.AddScoped<IItemDaFestaRepository, ItemDaFestaRepository>();
         services.AddScoped<IEventoDaTurmaRepository, EventoDaTurmaRepository>();
         services.AddScoped<IPropostaRepository, PropostaRepository>();
         services.AddScoped<IFornecedorRepository, FornecedorRepository>();
         services.AddScoped<IDespesaRepository, DespesaRepository>();
+        services.AddScoped<IOutraReceitaRepository, OutraReceitaRepository>();
         services.AddScoped<ICaixaRepository, CaixaRepository>();
         services.AddScoped<IRelatorioRepository, RelatorioRepository>();
         services.AddScoped<ISolicitacaoDeRelatorioRepository, SolicitacaoDeRelatorioRepository>();

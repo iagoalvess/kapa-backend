@@ -13,7 +13,15 @@ public interface IFormaturaRepository
 {
     /// <summary>Detalhe da formatura, sem rastreamento.</summary>
     /// <param name="formaturaId">Formatura consultada.</param>
-    Task<FormaturaDetalhe?> ObterDetalhe(Guid formaturaId, CancellationToken ct = default);
+    Task<FormaturaDetalhe?> ObterDetalheDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default);
+
+    /// <summary>Só o nome da formatura, ou nulo se ela não existir.</summary>
+    /// <remarks>
+    /// Para o assunto e o corpo de e-mail, que só precisam do nome: o detalhe traz as datas da agenda
+    /// e a contratação por subconsulta, três idas a mais por mensagem.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura consultada.</param>
+    Task<string?> ObterNome(Guid formaturaId, CancellationToken ct = default);
 
     /// <summary>Status atual, ou nulo se a formatura não existir. É a consulta da política de escrita.</summary>
     /// <param name="formaturaId">Formatura consultada.</param>
@@ -38,7 +46,7 @@ public interface IFormaturaRepository
     /// </para>
     /// </remarks>
     /// <param name="usuarioId">Criador.</param>
-    Task<bool> ExisteGratuitaCriadaPor(Guid usuarioId, CancellationToken ct = default);
+    Task<bool> ExisteGratuitaCriadaPorDeTodasAsFormaturas(Guid usuarioId, CancellationToken ct = default);
 
     /// <summary>Registra uma formatura nova.</summary>
     /// <param name="formatura">Formatura a persistir.</param>

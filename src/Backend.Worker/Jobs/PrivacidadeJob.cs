@@ -1,5 +1,6 @@
 using Backend.Business.Privacidade.Interfaces;
 using Backend.Business.Privacidade.Models;
+using Backend.Worker.Configuration;
 
 namespace Backend.Worker.Jobs;
 
@@ -23,8 +24,10 @@ namespace Backend.Worker.Jobs;
 /// </para>
 /// </remarks>
 /// <param name="scopeFactory">Fábrica de escopos de injeção de dependência.</param>
+/// <param name="lideranca">Trava que deixa só uma réplica rodar este job por vez.</param>
 /// <param name="logger">Log estruturado.</param>
-public sealed class PrivacidadeJob(IServiceScopeFactory scopeFactory, ILogger<PrivacidadeJob> logger) : BackgroundService
+public sealed class PrivacidadeJob(IServiceScopeFactory scopeFactory, LiderancaDeJob lideranca, ILogger<PrivacidadeJob> logger)
+    : JobPeriodico(lideranca, logger)
 {
     /// <summary>
     /// De quanto em quanto tempo a fila é olhada.
@@ -35,48 +38,30 @@ public sealed class PrivacidadeJob(IServiceScopeFactory scopeFactory, ILogger<Pr
     /// passada vazia é uma consulta a um índice parcial que, na esmagadora maioria dos dias, tem
     /// zero linhas.
     /// </remarks>
-    private static readonly TimeSpan Intervalo = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan IntervaloDaFila = TimeSpan.FromSeconds(30);
 
     /// <summary>Solicitações por passada. Cada uma abre o próprio escopo.</summary>
     private const int TamanhoDoLote = 5;
 
     /// <summary>De quantas em quantas passadas a limpeza dos pacotes vencidos roda.</summary>
     /// <remarks>Uma vez por hora: a validade é de dias, e varrer o índice junto com a fila não adianta nada.</remarks>
-    private static readonly int PassadasEntreLimpezas = (int)(TimeSpan.FromHours(1) / Intervalo);
+    private static readonly int PassadasEntreLimpezas = (int)(TimeSpan.FromHours(1) / IntervaloDaFila);
 
     /// <inheritdoc />
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override TimeSpan Intervalo => IntervaloDaFila;
+
+    /// <inheritdoc />
+    protected override void RegistrarFalha(Exception excecao) =>
+        Logger.LogError(excecao, "Falha no processamento de privacidade. A próxima execução tentará de novo.");
+
+    /// <inheritdoc />
+    protected override async Task ExecutarPassada(int passada, CancellationToken ct)
     {
-        using var relogio = new PeriodicTimer(Intervalo);
+        foreach (var pendente in await ListarPendentes(ct))
+            await Processar(pendente, ct);
 
-        var passada = 0;
-
-        do
-        {
-            await ExecutarUmaVez(passada % PassadasEntreLimpezas == 0, stoppingToken);
-
-            passada++;
-        } while (await EsperarProximaExecucao(relogio, stoppingToken));
-    }
-
-    private async Task ExecutarUmaVez(bool limpar, CancellationToken ct)
-    {
-        try
-        {
-            foreach (var pendente in await ListarPendentes(ct))
-                await Processar(pendente, ct);
-
-            if (limpar)
-                await Limpar(ct);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception excecao)
-        {
-            logger.LogError(excecao, "Falha no processamento de privacidade. A próxima execução tentará de novo.");
-        }
+        if (passada % PassadasEntreLimpezas == 0)
+            await Limpar(ct);
     }
 
     private async Task<IReadOnlyList<PrivacidadePendente>> ListarPendentes(CancellationToken ct)
@@ -92,7 +77,7 @@ public sealed class PrivacidadeJob(IServiceScopeFactory scopeFactory, ILogger<Pr
 
         var atendida = await escopo.ServiceProvider.GetRequiredService<IProcessamentoDePrivacidadeService>().Processar(pendente.SolicitacaoId, ct);
 
-        logger.LogInformation(
+        Logger.LogInformation(
             "Solicitação de privacidade {SolicitacaoId} ({Tipo}): {Resultado}.",
             pendente.SolicitacaoId,
             pendente.Tipo,
@@ -107,18 +92,6 @@ public sealed class PrivacidadeJob(IServiceScopeFactory scopeFactory, ILogger<Pr
         var expirados = await escopo.ServiceProvider.GetRequiredService<IProcessamentoDePrivacidadeService>().ExpirarVencidas(ct);
 
         if (expirados > 0)
-            logger.LogInformation("Limpeza de privacidade removeu {Expirados} pacotes vencidos.", expirados);
-    }
-
-    private static async Task<bool> EsperarProximaExecucao(PeriodicTimer relogio, CancellationToken ct)
-    {
-        try
-        {
-            return await relogio.WaitForNextTickAsync(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
-        }
+            Logger.LogInformation("Limpeza de privacidade removeu {Expirados} pacotes vencidos.", expirados);
     }
 }

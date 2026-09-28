@@ -1,3 +1,4 @@
+using Backend.Business.Comunicacao.Models;
 using Backend.Business.Financeiro.Models;
 
 namespace Backend.Api.DTOs.Financeiro;
@@ -127,10 +128,10 @@ public sealed record DespesaDTO(
     bool Atrasada
 );
 
-/// <summary>Quantas despesas e quanto somam.</summary>
-/// <param name="Quantidade">Despesas.</param>
+/// <summary>Quantos lançamentos — despesas ou receitas — e quanto somam.</summary>
+/// <param name="Quantidade">Lançamentos.</param>
 /// <param name="ValorEmCentavos">Soma dos valores.</param>
-public sealed record SomaDeDespesasDTO(int Quantidade, long ValorEmCentavos);
+public sealed record SomaDeLancamentosDTO(int Quantidade, long ValorEmCentavos);
 
 /// <summary>A faixa da tela Despesas, dentro do mesmo filtro da lista.</summary>
 /// <param name="Todas">Todas as do filtro.</param>
@@ -139,11 +140,11 @@ public sealed record SomaDeDespesasDTO(int Quantidade, long ValorEmCentavos);
 /// <param name="Paga">Já pagas.</param>
 /// <param name="Cancelada">Canceladas.</param>
 public sealed record ResumoDeDespesasDTO(
-    SomaDeDespesasDTO Todas,
-    SomaDeDespesasDTO Prevista,
-    SomaDeDespesasDTO Atrasada,
-    SomaDeDespesasDTO Paga,
-    SomaDeDespesasDTO Cancelada
+    SomaDeLancamentosDTO Todas,
+    SomaDeLancamentosDTO Prevista,
+    SomaDeLancamentosDTO Atrasada,
+    SomaDeLancamentosDTO Paga,
+    SomaDeLancamentosDTO Cancelada
 );
 
 /// <summary>O caixa da turma, hoje.</summary>
@@ -154,6 +155,7 @@ public sealed record ResumoDeDespesasDTO(
 /// <param name="EmAtrasoEmCentavos">Parcelas vencidas e não pagas.</param>
 /// <param name="SaldoProjetadoEmCentavos">O que sobra se todos pagarem e todas as contas forem pagas.</param>
 /// <param name="PorCategoria">O quadro por categoria, do maior gasto para o menor.</param>
+/// <param name="OutrasReceitasPorCategoria">O quadro das receitas que não vêm de formando, da maior para a menor.</param>
 /// <param name="Ultimos">Os últimos lançamentos, do mais recente.</param>
 /// <remarks>
 /// As despesas previstas entram no <see cref="SaldoProjetadoEmCentavos"/> e não saem em campo
@@ -168,6 +170,7 @@ public sealed record CaixaDTO(
     long EmAtrasoEmCentavos,
     long SaldoProjetadoEmCentavos,
     IReadOnlyList<GastoPorCategoriaDTO> PorCategoria,
+    IReadOnlyList<OutraReceitaPorCategoriaDTO> OutrasReceitasPorCategoria,
     IReadOnlyList<LancamentoDTO> Ultimos
 );
 
@@ -178,9 +181,16 @@ public sealed record CaixaDTO(
 /// <param name="PrevistoEmCentavos">O que ainda vai sair.</param>
 public sealed record GastoPorCategoriaDTO(CategoriaDeDespesa Categoria, int Quantidade, long PagoEmCentavos, long PrevistoEmCentavos);
 
+/// <summary>Quanto entrou — ou ainda vai entrar — numa categoria de receita.</summary>
+/// <param name="Categoria">Categoria.</param>
+/// <param name="Quantidade">Receitas lançadas, canceladas de fora.</param>
+/// <param name="RecebidoEmCentavos">O que já entrou — é o que soma no arrecadado.</param>
+/// <param name="PrevistoEmCentavos">O que ainda vai entrar; nunca soma no arrecadado.</param>
+public sealed record OutraReceitaPorCategoriaDTO(CategoriaDeOutraReceita Categoria, int Quantidade, long RecebidoEmCentavos, long PrevistoEmCentavos);
+
 /// <summary>Uma linha do extrato do caixa.</summary>
 /// <param name="Data">Dia em que o dinheiro se moveu.</param>
-/// <param name="Descricao">O nome do formando, ou a descrição da despesa.</param>
+/// <param name="Descricao">"Pagamento de parcela", ou a descrição da despesa ou da receita.</param>
 /// <param name="ValorEmCentavos">Valor, sempre positivo.</param>
 /// <param name="Entrada">Entrada de dinheiro; falso, saída.</param>
 public sealed record LancamentoDTO(DateOnly Data, string Descricao, long ValorEmCentavos, bool Entrada);
@@ -194,6 +204,12 @@ public sealed record LancamentoDTO(DateOnly Data, string Descricao, long ValorEm
 /// <param name="SaldoEmCentavos">O saldo de hoje.</param>
 /// <param name="EmAtrasoEmCentavos">O que está vencido e não entrou em mês nenhum.</param>
 public sealed record ProjecaoDTO(IReadOnlyList<MesDoCaixaDTO> Meses, long SaldoEmCentavos, long EmAtrasoEmCentavos);
+
+/// <summary>O total juntado pela turma ao fim de um mês — o gráfico do Início.</summary>
+/// <param name="Mes">Primeiro dia do mês.</param>
+/// <param name="ArrecadadoEmCentavos">Tudo o que entrou até o fim do mês, acumulado.</param>
+/// <param name="Projetado">Mês no futuro: o que já entrou mais o que vence nele.</param>
+public sealed record MesDaArrecadacaoDTO(DateOnly Mes, long ArrecadadoEmCentavos, bool Projetado);
 
 /// <summary>Um mês do fluxo de caixa.</summary>
 /// <param name="Mes">Primeiro dia do mês.</param>
@@ -211,4 +227,78 @@ public sealed record MesDoCaixaDTO(
     long SaidasPrevistasEmCentavos,
     long SaldoAcumuladoEmCentavos,
     bool Projetado
+);
+
+/// <summary>Corpo do lançamento de uma receita.</summary>
+/// <param name="Descricao">O que é.</param>
+/// <param name="Origem">De quem veio, em texto livre ("Clínica Sorriso").</param>
+/// <param name="Categoria"><c>Patrocinio</c>, <c>Evento</c>, <c>Doacao</c>, <c>Rendimento</c>, <c>VendaDeConvite</c> ou <c>Outros</c>.</param>
+/// <param name="ValorEmCentavos">Valor, em centavos.</param>
+/// <param name="Data">Dia previsto, <c>aaaa-mm-dd</c>; ou, se <paramref name="Recebida"/>, o dia em que entrou.</param>
+/// <param name="Recebida">O dinheiro já caiu na conta. Ausente ou falso: prevista.</param>
+/// <param name="DocumentoId">Comprovante no acervo, visível para a turma.</param>
+public sealed record NovaOutraReceitaRequestDTO(
+    string? Descricao,
+    string? Origem,
+    CategoriaDeOutraReceita Categoria,
+    long ValorEmCentavos,
+    DateOnly Data,
+    bool Recebida,
+    Guid? DocumentoId
+);
+
+/// <summary>Corpo da correção de uma receita.</summary>
+/// <param name="Descricao">O que é.</param>
+/// <param name="Origem">De quem veio.</param>
+/// <param name="Categoria">De onde vem o dinheiro.</param>
+/// <param name="ValorEmCentavos">Valor, em centavos.</param>
+/// <param name="Data">Dia previsto, ou dia em que entrou.</param>
+/// <param name="DocumentoId">Comprovante no acervo.</param>
+public sealed record AtualizarOutraReceitaRequestDTO(
+    string? Descricao,
+    string? Origem,
+    CategoriaDeOutraReceita Categoria,
+    long ValorEmCentavos,
+    DateOnly Data,
+    Guid? DocumentoId
+);
+
+/// <summary>Corpo do recebimento de uma receita prevista.</summary>
+/// <param name="RecebidaEm">Dia em que o dinheiro entrou, <c>aaaa-mm-dd</c>.</param>
+public sealed record ReceberOutraReceitaRequestDTO(DateOnly RecebidaEm);
+
+/// <summary>Uma receita da turma que não vem de formando.</summary>
+/// <param name="Id">Identificador.</param>
+/// <param name="Descricao">O que é.</param>
+/// <param name="Origem">De quem veio, se informado.</param>
+/// <param name="Categoria">De onde vem o dinheiro.</param>
+/// <param name="ValorEmCentavos">Valor.</param>
+/// <param name="Data">Dia previsto, ou dia em que entrou.</param>
+/// <param name="Status"><c>Prevista</c>, <c>Recebida</c> ou <c>Cancelada</c>.</param>
+/// <param name="Documento">Comprovante no acervo — abre pelo download de lá. Nulo: sem comprovante, ou deixou de ser visível à turma.</param>
+/// <param name="Atrasada">Prevista com data no passado. Calculado, nunca gravado.</param>
+public sealed record OutraReceitaDTO(
+    Guid Id,
+    string Descricao,
+    string? Origem,
+    CategoriaDeOutraReceita Categoria,
+    long ValorEmCentavos,
+    DateOnly Data,
+    StatusDaOutraReceita Status,
+    DocumentoDoAcervo? Documento,
+    bool Atrasada
+);
+
+/// <summary>A faixa da tela Receitas, dentro do mesmo filtro da lista.</summary>
+/// <param name="Todas">Todas as do filtro.</param>
+/// <param name="Prevista">A receber, atrasadas incluídas.</param>
+/// <param name="Atrasada">Previstas com data no passado.</param>
+/// <param name="Recebida">Já recebidas.</param>
+/// <param name="Cancelada">Canceladas.</param>
+public sealed record ResumoDeOutrasReceitasDTO(
+    SomaDeLancamentosDTO Todas,
+    SomaDeLancamentosDTO Prevista,
+    SomaDeLancamentosDTO Atrasada,
+    SomaDeLancamentosDTO Recebida,
+    SomaDeLancamentosDTO Cancelada
 );

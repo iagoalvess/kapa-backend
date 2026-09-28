@@ -49,23 +49,16 @@ public sealed class NotificacaoRepository(AppDbContext db) : INotificacaoReposit
             .RegrasDeNotificacao.AsNoTracking()
             .OrderBy(r => r.Gatilho)
             .ThenBy(r => r.DiasDeDeslocamento)
-            .Select(r => new RegraResumo(r.Id, r.Gatilho, r.DiasDeDeslocamento, r.Assunto, r.Template, r.Ativa, r.AvisarTesouraria))
+            .Select(r => new RegraResumo(r.Id, r.Gatilho, r.DiasDeDeslocamento, r.Ativa))
             .ToListAsync(ct);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<RegraDeNotificacao>> ListarRegrasParaEdicao(CancellationToken ct = default) =>
-        await db.RegrasDeNotificacao.ToListAsync(ct);
-
-    /// <inheritdoc />
-    public Task<RegraDeNotificacao?> ObterRegraParaEdicao(Guid regraId, CancellationToken ct = default) =>
-        db.RegrasDeNotificacao.FirstOrDefaultAsync(r => r.Id == regraId, ct);
+    public Task<RegraDeNotificacao?> ObterRegraParaEdicao(Guid id, CancellationToken ct = default) =>
+        db.RegrasDeNotificacao.FirstOrDefaultAsync(r => r.Id == id, ct);
 
     /// <inheritdoc />
     public Task AdicionarRegras(IReadOnlyList<RegraDeNotificacao> regras, CancellationToken ct = default) =>
         db.RegrasDeNotificacao.AddRangeAsync(regras, ct);
-
-    /// <inheritdoc />
-    public void RemoverRegras(IReadOnlyList<RegraDeNotificacao> regras) => db.RegrasDeNotificacao.RemoveRange(regras);
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<ParcelaParaCobranca>> ListarParaCobranca(DateOnly vencimento, CancellationToken ct = default) =>

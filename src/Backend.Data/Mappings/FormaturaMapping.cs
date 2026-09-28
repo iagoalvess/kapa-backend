@@ -11,7 +11,7 @@ namespace Backend.Data.Mappings;
 /// Sem índice para "uma turma não paga por conta": essa regra passou a depender de <c>assinaturas</c>
 /// em 18/09/2026, quando <c>Rascunho</c> deixou de existir, e índice parcial não enxerga outra
 /// tabela. Quem confere é <c>FormaturaService.Criar</c>. Ver o <c>ponytail:</c> em
-/// <c>IFormaturaRepository.ExisteGratuitaCriadaPor</c>.
+/// <c>IFormaturaRepository.ExisteGratuitaCriadaPorDeTodasAsFormaturas</c>.
 /// </remarks>
 public sealed class FormaturaMapping : IEntityTypeConfiguration<Formatura>
 {

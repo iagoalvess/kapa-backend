@@ -56,7 +56,7 @@ public static class NomesDeAuditoria
     /// </remarks>
     public const string FormandoDesligado = "formatura.formando_desligado";
 
-    /// <summary>Desfazer do desligamento: o acesso volta, e o registro do desfazer fica.</summary>
+    /// <summary>Desfazer do desligamento. Histórico: o religar saiu em 23/09/2026, e o nome fica para as linhas já gravadas.</summary>
     public const string FormandoReligado = "formatura.formando_religado";
 
     /// <summary>Alteração de item do plano: muda valor ou vencimento do que a turma deve.</summary>
@@ -71,11 +71,24 @@ public static class NomesDeAuditoria
     /// <summary>Plano de cobrança em vigor: passa a valer para quem aderir.</summary>
     public const string PlanoVigorado = "cobranca.plano_vigorado";
 
+    /// <summary>
+    /// Pedido do formando cancelado: devolve estoque e pode lançar crédito no nome de alguém.
+    /// </summary>
+    /// <remarks>
+    /// Entra na trilha porque a tesouraria cancela pedido dos outros, e o cancelamento de um pedido
+    /// já pago grava uma parcela <b>negativa</b> — dinheiro que sai da conta de quem deve. É a
+    /// pergunta "quem perdoou os R$ 360 da Ana" respondida sem depender da memória de ninguém.
+    /// </remarks>
+    public const string PedidoCancelado = "cobranca.pedido_cancelado";
+
     /// <summary>Versão nova do termo de adesão publicada.</summary>
     public const string TermoPublicado = "adesao.termo_publicado";
 
     /// <summary>Despesa cancelada: sai do caixa da turma.</summary>
     public const string DespesaCancelada = "financeiro.despesa_cancelada";
+
+    /// <summary>Receita prevista cancelada: sai da projeção do caixa (Sprint 28).</summary>
+    public const string OutraReceitaCancelada = "financeiro.outra_receita_cancelada";
 
     /// <summary>Conta bloqueada por tentativas de senha — sinal de ataque.</summary>
     /// <remarks>
@@ -107,6 +120,27 @@ public static class NomesDeAuditoria
     /// <summary>Bloqueio por tentativas de senha levantado pelo suporte.</summary>
     public const string SuporteContaDesbloqueada = "suporte.conta_desbloqueada";
 
+    /// <summary>Convite da festa emitido antes da quitação, pela Gestão, com motivo (Sprint 21, P2).</summary>
+    public const string ConvitesLiberados = "festa.convites_liberados";
+
+    /// <summary>Cortesia emitida: uma cadeira dada pela turma, com autor e motivo (Sprint 21, decisão 14).</summary>
+    public const string CortesiaEmitida = "festa.cortesia_emitida";
+
+    /// <summary>
+    /// Titular de um convite alterado pela Gestão — depois do fechamento da lista, ou no convite de outra pessoa.
+    /// </summary>
+    /// <remarks>É o que mantém a lista impressa às 18h válida à meia-noite (Sprint 21, P5).</remarks>
+    public const string ConvidadoAlterado = "festa.convidado_alterado";
+
+    /// <summary>Código de um convite revogado e trocado por outro, pela Gestão (Sprint 21, P5).</summary>
+    public const string ConviteReemitido = "festa.convite_reemitido";
+
+    /// <summary>Cota de convites da colação aberta ou reaberta pela Gestão (Sprint 30).</summary>
+    public const string CotaAberta = "festa.cota_aberta";
+
+    /// <summary>Entrada desfeita na portaria: alguém que já tinha entrado volta a poder entrar (Sprint 21, decisão 6).</summary>
+    public const string EntradaDesfeita = "festa.entrada_desfeita";
+
     /// <summary>Todos os nomes auditáveis.</summary>
     public static readonly IReadOnlyList<string> Todos =
     [
@@ -125,8 +159,16 @@ public static class NomesDeAuditoria
         ItemRemovido,
         ItemEncerrado,
         PlanoVigorado,
+        PedidoCancelado,
+        ConvitesLiberados,
+        CortesiaEmitida,
+        ConvidadoAlterado,
+        ConviteReemitido,
+        EntradaDesfeita,
+        CotaAberta,
         TermoPublicado,
         DespesaCancelada,
+        OutraReceitaCancelada,
         BloqueioPorTentativas,
         TitularAnonimizado,
         SuporteAssinaturaAtivada,

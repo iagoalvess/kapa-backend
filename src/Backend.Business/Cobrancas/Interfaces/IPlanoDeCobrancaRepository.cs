@@ -22,6 +22,13 @@ public interface IPlanoDeCobrancaRepository
     /// <summary>O plano em vigor, com os itens, sem rastreamento; nulo se a turma não tiver.</summary>
     Task<PlanoDeCobranca?> ObterVigente(CancellationToken ct = default);
 
+    /// <summary>O plano em vigor, com os itens, rastreado para alteração; nulo se a turma não tiver.</summary>
+    /// <remarks>
+    /// Os opcionais (Sprint 20) moram no plano vigente e são editados sem que a tela mande o id dele — é o
+    /// mesmo "um plano vigente por turma" que a adesão já usa, agora do lado da escrita.
+    /// </remarks>
+    Task<PlanoDeCobranca?> ObterVigenteParaEdicao(CancellationToken ct = default);
+
     /// <summary>Se a turma já tem um plano em vigor.</summary>
     Task<bool> ExisteVigente(CancellationToken ct = default);
 

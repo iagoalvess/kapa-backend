@@ -10,9 +10,14 @@ namespace Backend.Data.Repositories;
 /// As agregações do caixa da formatura selecionada.
 /// </summary>
 /// <remarks>
-/// O único lugar do projeto que lê três agregados na mesma pergunta — recebimento, parcela e despesa.
-/// Cada método é uma consulta agregada no banco: nada aqui traz lançamento para a memória para somar
-/// em C#, que é como um caixa de 2.000 linhas passa de milissegundos a segundos.
+/// O único lugar do projeto que lê quatro agregados na mesma pergunta — recebimento, parcela, despesa
+/// e receita. Cada método é uma consulta agregada no banco: nada aqui traz lançamento para a memória
+/// para somar em C#, que é como um caixa de 2.000 linhas passa de milissegundos a segundos.
+/// <para>
+/// Entrada tem duas origens desde a Sprint 28 — a parcela paga e a receita recebida —, e onde as
+/// duas se somam elas vão juntas na mesma consulta, por <see cref="EntradasDeDinheiro"/> (um
+/// <c>UNION ALL</c>): duas idas ao banco somadas em memória é como o extrato de um mês vira N+1.
+/// </para>
 /// <para>
 /// Saldo não é consultado: é <see cref="Arrecadado"/> menos <see cref="Gasto"/>, montado no service
 /// (decisão 1 da Sprint 10).
@@ -26,7 +31,7 @@ public sealed class CaixaRepository(AppDbContext db) : ICaixaRepository
 
     /// <inheritdoc />
     public async Task<long> Arrecadado(CancellationToken ct = default) =>
-        await db.Recebimentos.AsNoTracking().Where(r => r.EstornadoEm == null).SumAsync(r => (long?)r.ValorEmCentavos, ct) ?? 0;
+        await EntradasDeDinheiro.Realizadas(db).SumAsync(e => (long?)e.Valor, ct) ?? 0;
 
     /// <inheritdoc />
     public async Task<long> Gasto(CancellationToken ct = default) =>
@@ -72,9 +77,28 @@ public sealed class CaixaRepository(AppDbContext db) : ICaixaRepository
     }
 
     /// <inheritdoc />
+    /// <remarks>Receita cancelada fica de fora; a prevista aparece à parte, e nunca soma no arrecadado (P2).</remarks>
+    public async Task<IReadOnlyList<OutraReceitaPorCategoria>> OutrasReceitasPorCategoria(CancellationToken ct = default)
+    {
+        var grupos = await db
+            .OutrasReceitas.AsNoTracking()
+            .Where(r => r.Status != StatusDaOutraReceita.Cancelada)
+            .GroupBy(r => r.Categoria)
+            .Select(grupo => new OutraReceitaPorCategoria(
+                grupo.Key,
+                grupo.Count(),
+                grupo.Sum(r => r.Status == StatusDaOutraReceita.Recebida ? r.ValorEmCentavos : 0),
+                grupo.Sum(r => r.Status == StatusDaOutraReceita.Prevista ? r.ValorEmCentavos : 0)
+            ))
+            .ToListAsync(ct);
+
+        return [.. grupos.OrderByDescending(g => g.RecebidoEmCentavos + g.PrevistoEmCentavos).ThenBy(g => g.Categoria)];
+    }
+
+    /// <inheritdoc />
     /// <remarks>
-    /// As duas pontas separadas e misturadas em memória: são duas tabelas diferentes, e <c>UNION</c> de
-    /// projeções no EF Core custa mais para ler do que estas duas consultas de oito linhas.
+    /// Entradas numa consulta (parcela e receita, por <c>UNION ALL</c>) e saídas em outra, misturadas
+    /// em memória: são oito linhas de cada lado, e o que se junta aqui é a lista, não uma soma.
     /// <para>
     /// A entrada não traz o nome de quem pagou. O caixa é lido por toda a turma — inclusive pelo
     /// formando, a quem esta tela presta contas — e uma lista de quem pagou quando é dado de pessoa,
@@ -83,13 +107,31 @@ public sealed class CaixaRepository(AppDbContext db) : ICaixaRepository
     /// </remarks>
     public async Task<IReadOnlyList<LancamentoDoCaixa>> UltimosLancamentos(int quantidade, CancellationToken ct = default)
     {
-        var entradas = await (
-            from recebimento in db.Recebimentos.AsNoTracking()
-            where recebimento.EstornadoEm == null
-            orderby recebimento.PagoEm descending, recebimento.BaixadoEm descending
-            select new LancamentoDoCaixa(recebimento.PagoEm, EntradaDeParcela, recebimento.ValorEmCentavos, true)
-        )
+        var entradas = await db
+            .Recebimentos.AsNoTracking()
+            .Where(r => r.EstornadoEm == null)
+            .Select(r => new
+            {
+                Data = r.PagoEm,
+                Descricao = EntradaDeParcela,
+                Valor = r.ValorEmCentavos,
+                Momento = r.BaixadoEm,
+            })
+            .Concat(
+                db.OutrasReceitas.AsNoTracking()
+                    .Where(r => r.Status == StatusDaOutraReceita.Recebida)
+                    .Select(r => new
+                    {
+                        r.Data,
+                        r.Descricao,
+                        Valor = r.ValorEmCentavos,
+                        Momento = r.AtualizadoEm,
+                    })
+            )
+            .OrderByDescending(e => e.Data)
+            .ThenByDescending(e => e.Momento)
             .Take(quantidade)
+            .Select(e => new LancamentoDoCaixa(e.Data, e.Descricao, e.Valor, true))
             .ToListAsync(ct);
 
         var saidas = await db
@@ -107,11 +149,10 @@ public sealed class CaixaRepository(AppDbContext db) : ICaixaRepository
     /// <inheritdoc />
     public async Task<IReadOnlyList<SomaDoMes>> EntradasPorMes(CancellationToken ct = default) =>
         PorMes(
-            await db
-                .Recebimentos.AsNoTracking()
-                .Where(r => r.EstornadoEm == null)
-                .GroupBy(r => new { r.PagoEm.Year, r.PagoEm.Month })
-                .Select(grupo => new GrupoDoMes(grupo.Key.Year, grupo.Key.Month, grupo.Sum(r => r.ValorEmCentavos)))
+            await EntradasDeDinheiro
+                .Realizadas(db)
+                .GroupBy(e => new { e.Data.Year, e.Data.Month })
+                .Select(grupo => new GrupoDoMes(grupo.Key.Year, grupo.Key.Month, grupo.Sum(e => e.Valor)))
                 .ToListAsync(ct)
         );
 
@@ -127,16 +168,35 @@ public sealed class CaixaRepository(AppDbContext db) : ICaixaRepository
         );
 
     /// <inheritdoc />
-    /// <remarks>Só o que ainda vence: parcela vencida não entra em mês nenhum da projeção (decisão 6).</remarks>
-    public async Task<IReadOnlyList<SomaDoMes>> EntradasPrevistasPorMes(DateOnly hoje, CancellationToken ct = default) =>
-        PorMes(
-            await db
-                .Parcelas.AsNoTracking()
-                .Where(p => p.Status == StatusDaParcela.Aberta && p.Vencimento >= hoje)
-                .GroupBy(p => new { p.Vencimento.Year, p.Vencimento.Month })
-                .Select(grupo => new GrupoDoMes(grupo.Key.Year, grupo.Key.Month, grupo.Sum(p => p.ValorOriginalEmCentavos)))
+    /// <remarks>
+    /// Só o que ainda vence: parcela vencida não entra em mês nenhum da projeção (decisão 6), e receita
+    /// prevista atrasada também não — dinheiro prometido que não veio não é conta com que se conte.
+    /// </remarks>
+    public async Task<IReadOnlyList<SomaDoMes>> EntradasPrevistasPorMes(
+        DateOnly hoje,
+        bool comOutrasReceitasPrevistas,
+        CancellationToken ct = default
+    )
+    {
+        var previstas = db
+            .Parcelas.AsNoTracking()
+            .Where(p => p.Status == StatusDaParcela.Aberta && p.Vencimento >= hoje)
+            .Select(p => new EntradaDeDinheiro { Data = p.Vencimento, Valor = p.ValorOriginalEmCentavos });
+
+        if (comOutrasReceitasPrevistas)
+            previstas = previstas.Concat(
+                db.OutrasReceitas.AsNoTracking()
+                    .Where(r => r.Status == StatusDaOutraReceita.Prevista && r.Data >= hoje)
+                    .Select(r => new EntradaDeDinheiro { Data = r.Data, Valor = r.ValorEmCentavos })
+            );
+
+        return PorMes(
+            await previstas
+                .GroupBy(e => new { e.Data.Year, e.Data.Month })
+                .Select(grupo => new GrupoDoMes(grupo.Key.Year, grupo.Key.Month, grupo.Sum(e => e.Valor)))
                 .ToListAsync(ct)
         );
+    }
 
     /// <inheritdoc />
     /// <remarks>A despesa prevista atrasada cai no mês de hoje: o dinheiro ainda vai sair, e ignorá-la deixaria a projeção otimista.</remarks>

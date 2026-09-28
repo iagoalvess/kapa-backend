@@ -1,5 +1,9 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
+using Backend.Business.Agenda.Interfaces;
+using Backend.Business.Assinaturas.Interfaces;
+using Backend.Business.Assinaturas.Models;
+using Backend.Business.Assinaturas.Services;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common;
@@ -8,12 +12,16 @@ using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
+using Backend.Business.Festa.Interfaces;
+using Backend.Business.Festa.Models;
+using Backend.Business.Festa.Services;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Formaturas.Services;
 using Backend.Business.Formaturas.Validators;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -42,8 +50,10 @@ public sealed class DesligamentoDeFormandoTests
     private readonly IAdesaoRepository _adesoes = Substitute.For<IAdesaoRepository>();
     private readonly IFormaturaRepository _formaturas = Substitute.For<IFormaturaRepository>();
     private readonly IEventoRepository _eventos = Substitute.For<IEventoRepository>();
+    private readonly IAssinaturaRepository _assinaturas = Substitute.For<IAssinaturaRepository>();
     private readonly IEmailService _emailService = Substitute.For<IEmailService>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IConviteDoEventoRepository _convites = Substitute.For<IConviteDoEventoRepository>();
 
     /// <summary>O vínculo da turma, um por teste — o <c>Id</c> nasce com ele e não se atribui.</summary>
     private readonly VinculoDeFormatura _vinculo = new()
@@ -67,6 +77,7 @@ public sealed class DesligamentoDeFormandoTests
             .ObterMembro(FormaturaId, UsuarioId, Arg.Any<CancellationToken>())
             .Returns(new MembroDoPerfil(VinculoId, UsuarioId, "João Pedro", "joao@exemplo.com", PapelNaFormatura.Formando));
         _parcelas.ListarDoVinculo(VinculoId, Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns([]);
+        _convites.TravarDaCota(default, default).ReturnsForAnyArgs([]);
     }
 
     private MembroService Servico =>
@@ -78,6 +89,13 @@ public sealed class DesligamentoDeFormandoTests
             _formaturas,
             _eventos,
             new EmailsDeDesligamento(_emailService, Options.Create(new AplicacaoSettings())),
+            new EmissaoDeConvites(
+                _convites,
+                Substitute.For<IEventoDaTurmaRepository>(),
+                _formaturas,
+                Substitute.For<IFormaturaAtual>(),
+                NullLogger<EmissaoDeConvites>.Instance
+            ),
             new AlterarPapelValidator(),
             new DesligarFormandoValidator(),
             _unitOfWork
@@ -89,12 +107,8 @@ public sealed class DesligamentoDeFormandoTests
     /// <summary>Uma parcela do vínculo, com o vencimento relativo a hoje.</summary>
     /// <param name="diasAteVencer">Negativo para o que já venceu.</param>
     /// <param name="valorEmCentavos">Valor original.</param>
-    private Parcela Parcela(int diasAteVencer, long valorEmCentavos = 45_000) =>
-        Backend.Business.Cobrancas.Models.Parcela.Nova(
-            VinculoId,
-            Guid.CreateVersion7(),
-            new ParcelaPrevista(1, DataUtils.Hoje().AddDays(diasAteVencer), valorEmCentavos)
-        );
+    private Parcela NovaParcela(int diasAteVencer, long valorEmCentavos = 45_000) =>
+        Parcela.Nova(VinculoId, Guid.CreateVersion7(), new ParcelaPrevista(1, DataUtils.Hoje().AddDays(diasAteVencer), valorEmCentavos));
 
     private void ComVinculo(VinculoDeFormatura vinculo) =>
         _vinculos.ObterParaEdicao(UsuarioId, FormaturaId, Arg.Any<CancellationToken>()).Returns(vinculo);
@@ -108,8 +122,8 @@ public sealed class DesligamentoDeFormandoTests
     {
         // Arrange
         var vinculo = _vinculo;
-        var futura = Parcela(30);
-        var vencida = Parcela(-10);
+        var futura = NovaParcela(30);
+        var vencida = NovaParcela(-10);
         ComVinculo(vinculo);
         ComParcelas(futura, vencida);
 
@@ -129,8 +143,8 @@ public sealed class DesligamentoDeFormandoTests
     [Fact]
     public async Task Desligar_com_cancelar_atraso_cancela_tambem_o_vencido()
     {
-        var futura = Parcela(30);
-        var vencida = Parcela(-10);
+        var futura = NovaParcela(30);
+        var vencida = NovaParcela(-10);
         ComVinculo(_vinculo);
         ComParcelas(futura, vencida);
 
@@ -148,7 +162,7 @@ public sealed class DesligamentoDeFormandoTests
     [Fact]
     public async Task Desligar_nao_toca_na_parcela_paga()
     {
-        var paga = Parcela(-40);
+        var paga = NovaParcela(-40);
         paga.Pagar(45_000, DataUtils.Hoje().AddDays(-40), 45_000);
         ComVinculo(_vinculo);
         ComParcelas(paga);
@@ -163,7 +177,7 @@ public sealed class DesligamentoDeFormandoTests
     public async Task Desligar_quem_nao_aderiu_devolve_membro_sem_adesao_sem_cancelar_nada()
     {
         var vinculo = _vinculo;
-        var futura = Parcela(30);
+        var futura = NovaParcela(30);
         ComVinculo(vinculo);
         ComParcelas(futura);
         _adesoes.JaAderiuAlgumaVez(VinculoId, Arg.Any<CancellationToken>()).Returns(false);
@@ -181,7 +195,7 @@ public sealed class DesligamentoDeFormandoTests
     {
         var vinculo = _vinculo;
         vinculo.Desligar(MotivoDeSaida.Trancamento, null, DateTime.UtcNow.AddDays(-1));
-        var futura = Parcela(30);
+        var futura = NovaParcela(30);
         ComVinculo(vinculo);
         ComParcelas(futura);
 
@@ -227,7 +241,7 @@ public sealed class DesligamentoDeFormandoTests
         Evento? gravado = null;
         await _eventos.Adicionar(Arg.Do<Evento>(evento => gravado = evento), Arg.Any<CancellationToken>());
         ComVinculo(_vinculo);
-        ComParcelas(Parcela(30, 60_000), Parcela(60, 60_000));
+        ComParcelas(NovaParcela(30, 60_000), NovaParcela(60, 60_000));
 
         await Servico.Desligar(FormaturaId, UsuarioId, Pedido(motivo: MotivoDeSaida.DificuldadeFinanceira), AutorId, Ct);
 
@@ -238,6 +252,25 @@ public sealed class DesligamentoDeFormandoTests
         gravado.Dados.ShouldContain("DificuldadeFinanceira");
         gravado.Dados.ShouldContain("\"parcelasCanceladas\":2");
         gravado.Dados.ShouldContain("\"canceladoEmCentavos\":120000");
+    }
+
+    /// <summary>Quem sai da turma não leva ninguém à colação: a cota dele cai com motivo (Sprint 30, decisão 5).</summary>
+    [Fact]
+    public async Task Desligar_revoga_os_convites_da_cota_com_motivo()
+    {
+        // Arrange
+        var convite = ConviteDoEvento.Cortesia(Guid.CreateVersion7(), "MED27-AAAA", new DadosDoConvidado("Avó", null, null, null));
+        _convites.TravarDaCota(VinculoId, Arg.Any<CancellationToken>()).Returns([convite]);
+        ComVinculo(_vinculo);
+        ComParcelas();
+
+        // Act
+        var resultado = await Servico.Desligar(FormaturaId, UsuarioId, Pedido(), AutorId, Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        convite.Valido.ShouldBeFalse();
+        convite.MotivoDaRevogacao.ShouldBe(EmissaoDeConvites.MotivoDaSaida);
     }
 
     /// <summary>O resumo é o que a comissão vê antes de assinar: o atraso é um recorte do que está em aberto.</summary>
@@ -253,6 +286,7 @@ public sealed class DesligamentoDeFormandoTests
                     VinculoId,
                     UsuarioId,
                     "João Pedro",
+                    Guid.CreateVersion7(),
                     TipoDeCobranca.Mensalidade,
                     null,
                     1,
@@ -267,6 +301,7 @@ public sealed class DesligamentoDeFormandoTests
                     VinculoId,
                     UsuarioId,
                     "João Pedro",
+                    Guid.CreateVersion7(),
                     TipoDeCobranca.Mensalidade,
                     null,
                     2,
@@ -280,6 +315,7 @@ public sealed class DesligamentoDeFormandoTests
                     VinculoId,
                     UsuarioId,
                     "João Pedro",
+                    Guid.CreateVersion7(),
                     TipoDeCobranca.Mensalidade,
                     null,
                     3,
@@ -299,36 +335,5 @@ public sealed class DesligamentoDeFormandoTests
         resumo.EmAbertoEmCentavos.ShouldBe(90_000);
         resumo.ParcelasEmAtraso.ShouldBe(1);
         resumo.EmAtrasoEmCentavos.ShouldBe(45_000);
-    }
-
-    /// <summary>Religar devolve o acesso e <b>não</b> ressuscita parcela: a cobrança volta por lançamento novo.</summary>
-    [Fact]
-    public async Task Religar_devolve_o_acesso_sem_ressuscitar_parcela_cancelada()
-    {
-        var vinculo = _vinculo;
-        var cancelada = Parcela(30);
-        cancelada.Cancelar(DataUtils.Hoje());
-        vinculo.Desligar(MotivoDeSaida.Trancamento, null, DateTime.UtcNow.AddDays(-1));
-        ComVinculo(vinculo);
-
-        var resultado = await Servico.Religar(FormaturaId, UsuarioId, AutorId, Ct);
-
-        resultado.Sucesso.ShouldBeTrue();
-        vinculo.Ativo.ShouldBeTrue();
-        vinculo.Desligado.ShouldBeFalse();
-        cancelada.Status.ShouldBe(StatusDaParcela.Cancelada);
-    }
-
-    /// <summary>Religar quem só foi removido não faz sentido: não há desligamento a desfazer.</summary>
-    [Fact]
-    public async Task Religar_quem_nao_foi_desligado_e_recusado()
-    {
-        var vinculo = _vinculo;
-        vinculo.Ativo = false;
-        ComVinculo(vinculo);
-
-        var resultado = await Servico.Religar(FormaturaId, UsuarioId, AutorId, Ct);
-
-        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("formatura.membro_nao_desligado");
     }
 }

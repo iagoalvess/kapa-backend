@@ -42,7 +42,7 @@ public interface ICanalDeNotificacao
 /// </remarks>
 public interface IReguaService
 {
-    /// <summary>As formaturas que a régua percorre: só as <c>Ativa</c>.</summary>
+    /// <summary>As formaturas que a régua percorre: só as <c>Ativa</c>, e com o módulo Avisos no plano.</summary>
     /// <remarks>Suspensa ou encerrada não dispara: turma inadimplente com a Kapa não cobra os próprios alunos em nome da plataforma.</remarks>
     Task<IReadOnlyList<FormaturaParaRegua>> ListarFormaturas(CancellationToken ct = default);
 
@@ -59,7 +59,7 @@ public interface IReguaService
 }
 
 /// <summary>
-/// A régua como a comissão a governa: os degraus, o histórico, a prévia e o disparo avulso.
+/// A régua como a comissão a governa: os degraus, o histórico e o disparo avulso.
 /// </summary>
 /// <remarks>
 /// Quem é da turma vem da política do endpoint; o que é "do próprio titular" é regra daqui — a
@@ -67,25 +67,14 @@ public interface IReguaService
 /// </remarks>
 public interface INotificacaoService
 {
-    /// <summary>A régua da turma. Sem nenhuma configurada, materializa a padrão e devolve.</summary>
-    /// <remarks>Decisão 5: a turma que não configurar nada recebe a régua padrão.</remarks>
+    /// <summary>Os degraus da régua do Kapa, cada um ligado ou não. O que faltar é criado ligado.</summary>
+    /// <remarks>Decisão 5: a turma que não configurar nada recebe a régua inteira ligada.</remarks>
     Task<Result<IReadOnlyList<RegraResumo>>> ListarRegras(CancellationToken ct = default);
 
-    /// <summary>Grava a régua inteira. Variável desconhecida é recusada <b>aqui</b>, não no envio.</summary>
-    /// <param name="dados">Os degraus, um por par <c>(gatilho, dias)</c>.</param>
-    Task<Result<IReadOnlyList<RegraResumo>>> SalvarRegras(DadosDaRegua dados, CancellationToken ct = default);
-
-    /// <summary>
-    /// Manda o degrau com dados de exemplo para quem clicou — nunca para a turma.
-    /// </summary>
-    /// <remarks>
-    /// O botão que testa mandando de verdade é o botão que um dia alguém clica achando que é prévia.
-    /// O destinatário é o e-mail da conta de <paramref name="usuarioId"/>, e não um campo do corpo.
-    /// </remarks>
-    /// <param name="formaturaId">Formatura da sessão.</param>
-    /// <param name="usuarioId">Quem clicou — e quem recebe.</param>
-    /// <param name="regraId">Degrau a testar.</param>
-    Task<Result> Testar(Guid formaturaId, Guid usuarioId, Guid regraId, CancellationToken ct = default);
+    /// <summary>Liga ou desliga um degrau. Texto e destinatários são do Kapa e não mudam.</summary>
+    /// <param name="regraId">Degrau.</param>
+    /// <param name="ativa">Se dispara.</param>
+    Task<Result<IReadOnlyList<RegraResumo>>> DefinirRegra(Guid regraId, bool ativa, CancellationToken ct = default);
 
     /// <summary>Quem recebeu o quê, quando e com qual resultado.</summary>
     /// <param name="paginacao">Página pedida.</param>
@@ -140,20 +129,13 @@ public interface INotificacaoRepository
     /// <summary>Os degraus da turma, do mais cedo ao mais tarde.</summary>
     Task<IReadOnlyList<RegraResumo>> ListarRegras(CancellationToken ct = default);
 
-    /// <summary>Os degraus rastreados para alteração.</summary>
-    Task<IReadOnlyList<RegraDeNotificacao>> ListarRegrasParaEdicao(CancellationToken ct = default);
-
-    /// <summary>Um degrau rastreado; nulo se não existir aqui.</summary>
-    /// <param name="regraId">Degrau.</param>
-    Task<RegraDeNotificacao?> ObterRegraParaEdicao(Guid regraId, CancellationToken ct = default);
+    /// <summary>Um degrau rastreado para alteração, ou nulo se não é da turma.</summary>
+    /// <param name="id">Degrau.</param>
+    Task<RegraDeNotificacao?> ObterRegraParaEdicao(Guid id, CancellationToken ct = default);
 
     /// <summary>Marca degraus novos para inclusão.</summary>
     /// <param name="regras">Degraus.</param>
     Task AdicionarRegras(IReadOnlyList<RegraDeNotificacao> regras, CancellationToken ct = default);
-
-    /// <summary>Marca um degrau para remoção — o que sumiu da régua gravada.</summary>
-    /// <param name="regras">Degraus rastreados.</param>
-    void RemoverRegras(IReadOnlyList<RegraDeNotificacao> regras);
 
     /// <summary>
     /// As parcelas que vencem no dia, de quem a régua pode cobrar.

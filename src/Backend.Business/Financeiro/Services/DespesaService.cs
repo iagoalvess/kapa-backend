@@ -1,6 +1,7 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Models;
+using Backend.Business.Arquivos.Services;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
 using Backend.Business.Eventos.Interfaces;
@@ -68,6 +69,12 @@ public sealed class DespesaService(
         ".jpeg",
         ".webp",
     };
+
+    private static readonly Erro ComprovanteInvalido = Erro.Validacao(
+        "financeiro.comprovante_invalido",
+        "Envie o comprovante em PDF ou imagem (PNG, JPG ou WebP).",
+        "comprovante"
+    );
 
     private static readonly Erro NaoEncontrada = Erro.NaoEncontrado("financeiro.despesa_nao_encontrada", "Despesa não encontrada.");
 
@@ -141,7 +148,7 @@ public sealed class DespesaService(
                 "Esta despesa já foi lançada para este vencimento. Confira a lista antes de lançar de novo."
             );
 
-        var arquivo = await EnviarComprovante(comprovante, usuarioId, ct);
+        var arquivo = await EnviarComprovante(dados.PagaEm is null ? null : comprovante, usuarioId, ct);
         if (arquivo.Falhou)
             return Result.Falha<IReadOnlyList<DespesaResumo>>(arquivo.Erros);
 
@@ -280,11 +287,7 @@ public sealed class DespesaService(
         if (comprovante is null)
             return Erro.NaoEncontrado("financeiro.sem_comprovante", "Esta despesa não tem comprovante.");
 
-        return await arquivoService.Baixar(
-            comprovante.ArquivoId,
-            new SolicitanteDeArquivo(comprovante.EnviadoPorUsuarioId, EhAdministrador: false),
-            ct
-        );
+        return await arquivoService.BaixarComprovante(comprovante.ArquivoId, comprovante.EnviadoPorUsuarioId, ct);
     }
 
     /// <summary>
@@ -313,24 +316,14 @@ public sealed class DespesaService(
         ];
     }
 
-    private static SomaDeDespesas Somar(IReadOnlyList<ContagemDeDespesas> contagens, Func<ContagemDeDespesas, bool> filtro)
+    private static SomaDeLancamentos Somar(IReadOnlyList<ContagemDeDespesas> contagens, Func<ContagemDeDespesas, bool> filtro)
     {
         var linhas = contagens.Where(filtro).ToList();
 
-        return linhas.Count == 0 ? SomaDeDespesas.Zero : new SomaDeDespesas(linhas.Sum(l => l.Quantidade), linhas.Sum(l => l.ValorEmCentavos));
+        return linhas.Count == 0 ? SomaDeLancamentos.Zero : new SomaDeLancamentos(linhas.Sum(l => l.Quantidade), linhas.Sum(l => l.ValorEmCentavos));
     }
 
     /// <summary>Grava o comprovante, se veio; devolve o id do arquivo, ou nulo.</summary>
-    private async Task<Result<Guid?>> EnviarComprovante(NovoArquivo? comprovante, Guid usuarioId, CancellationToken ct)
-    {
-        if (comprovante is null)
-            return Result.Ok<Guid?>(null);
-
-        if (!ExtensoesDoComprovante.Contains(Path.GetExtension(comprovante.Nome)))
-            return Erro.Validacao("financeiro.comprovante_invalido", "Envie o comprovante em PDF ou imagem (PNG, JPG ou WebP).", "comprovante");
-
-        var arquivo = await arquivoService.Enviar(comprovante with { Categoria = CategoriaDoComprovante }, usuarioId, ct);
-
-        return arquivo.Falhou ? Result.Falha<Guid?>(arquivo.Erros) : arquivo.Valor.Id;
-    }
+    private Task<Result<Guid?>> EnviarComprovante(NovoArquivo? comprovante, Guid usuarioId, CancellationToken ct) =>
+        arquivoService.EnviarComprovante(comprovante, CategoriaDoComprovante, ExtensoesDoComprovante, ComprovanteInvalido, usuarioId, ct);
 }

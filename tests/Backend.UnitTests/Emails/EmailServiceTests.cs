@@ -50,4 +50,32 @@ public sealed class EmailServiceTests
 
         await _repositorio.Received(1).Adicionar(Arg.Is<EmailNaFila>(e => e.Prioridade == EEmailPrioridade.Alta), Arg.Any<CancellationToken>());
     }
+
+    /// <summary>O anexo (o PDF do convite) entra na mesma linha da fila — e a entrega o lê de lá.</summary>
+    [Fact]
+    public async Task O_anexo_vai_com_o_email_para_a_fila()
+    {
+        var pdf = new AnexoDoEmail("convite-MED27-7QK4.pdf", "application/pdf", [0x25, 0x50, 0x44, 0x46]);
+
+        await Criar().Enfileirar(new NovoEmail("destino@exemplo.com", "Seu convite", "<p>Olá</p>", Anexo: pdf), Ct);
+
+        await _repositorio
+            .Received(1)
+            .Adicionar(
+                Arg.Is<EmailNaFila>(e => e.Anexo != null && e.Anexo.Nome == pdf.Nome && e.Anexo.Conteudo.SequenceEqual(pdf.Conteudo)),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    /// <summary>Anexo grande não entra na fila: o teto é o que mantém os bytes no banco uma escolha razoável.</summary>
+    [Fact]
+    public async Task Anexo_acima_de_2_mb_e_recusado()
+    {
+        var grande = new AnexoDoEmail("grande.pdf", "application/pdf", new byte[AnexoDoEmail.TamanhoMaximo + 1]);
+
+        var resultado = await Criar().Enfileirar(new NovoEmail("destino@exemplo.com", "Assunto", "<p>Olá</p>", Anexo: grande), Ct);
+
+        resultado.Falhou.ShouldBeTrue();
+        await _repositorio.DidNotReceive().Adicionar(Arg.Any<EmailNaFila>(), Arg.Any<CancellationToken>());
+    }
 }

@@ -84,10 +84,7 @@ public sealed class FormandoController(IPerfilService perfilService, IUsuarioAtu
         Responder((await perfilService.ObterParaComissao(FormaturaId, usuarioId, ct)).Map(perfil => perfil.Adapt<PerfilDoFormandoDTO>()));
 
     /// <summary>A foto de um formando da turma.</summary>
-    /// <remarks>
-    /// Não usa os helpers do <c>MainController</c> porque a resposta de sucesso é a imagem, não
-    /// JSON. Sem nome de arquivo: vai <c>inline</c>, para exibir, e não como download.
-    /// </remarks>
+    /// <remarks>Sem nome de arquivo: vai <c>inline</c>, para exibir, e não como download.</remarks>
     /// <param name="usuarioId">Formando.</param>
     [HttpGet("{usuarioId:guid}/foto")]
     [Authorize(Policy = Politicas.Gestao)]
@@ -98,10 +95,7 @@ public sealed class FormandoController(IPerfilService perfilService, IUsuarioAtu
     {
         var resultado = await perfilService.BaixarFoto(FormaturaId, usuarioId, ct);
 
-        if (resultado.Falhou)
-            return Responder(resultado.Map(_ => 0));
-
-        return File(resultado.Valor.Conteudo, resultado.Valor.ContentType);
+        return Arquivo(resultado, inline: true);
     }
 
     /// <summary>Correção do cadastro pela comissão, registrada com o autor. O CPF enviado é ignorado.</summary>

@@ -24,8 +24,8 @@ public sealed class UsuarioRepository(AppDbContext db) : IUsuarioRepository
 
         if (!string.IsNullOrWhiteSpace(busca))
         {
-            var termo = $"%{busca.Trim()}%";
-            consulta = consulta.Where(u => EF.Functions.ILike(u.Nome, termo) || EF.Functions.ILike(u.Email!, termo));
+            var termo = Busca.Padrao(busca);
+            consulta = consulta.Where(u => EF.Functions.ILike(EF.Functions.Unaccent(u.Nome), termo) || EF.Functions.ILike(u.Email!, termo));
         }
 
         var total = await consulta.LongCountAsync(ct);
@@ -87,4 +87,17 @@ public sealed class UsuarioRepository(AppDbContext db) : IUsuarioRepository
 
     /// <inheritdoc />
     public Task<Usuario?> ObterParaEdicao(Guid id, CancellationToken ct = default) => db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+
+    /// <inheritdoc />
+    public Task<int> ContarAdministradoresAtivos(CancellationToken ct = default) => AdministradoresAtivos(db).CountAsync(ct);
+
+    /// <summary>As contas ativas com o perfil de administrador da plataforma.</summary>
+    /// <remarks>Também é a contagem do painel administrativo (<c>AdminRepository.ObterResumo</c>).</remarks>
+    /// <param name="db">Contexto de dados da requisição.</param>
+    internal static IQueryable<Usuario> AdministradoresAtivos(AppDbContext db) =>
+        from usuario in db.Users.AsNoTracking()
+        join vinculo in db.UserRoles on usuario.Id equals vinculo.UserId
+        join perfil in db.Roles on vinculo.RoleId equals perfil.Id
+        where perfil.Name == PerfisPadrao.Administrador && usuario.Ativo
+        select usuario;
 }

@@ -11,6 +11,7 @@ obj/
 
 # Segredos: nunca versionados. Use .env.example como referência.
 .env
+.env.production
 *.env.local
 appsettings.*.local.json
 

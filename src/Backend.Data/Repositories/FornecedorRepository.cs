@@ -81,7 +81,7 @@ public sealed class FornecedorRepository(AppDbContext db) : IFornecedorRepositor
     /// </remarks>
     public Task<bool> ExisteComNome(string nome, Guid? exceto, CancellationToken ct = default)
     {
-        var padrao = Escapar(nome);
+        var padrao = Busca.Literal(nome);
 
         return db.Fornecedores.AnyAsync(f => f.Id != exceto && EF.Functions.ILike(f.Nome, padrao), ct);
     }
@@ -95,10 +95,6 @@ public sealed class FornecedorRepository(AppDbContext db) : IFornecedorRepositor
 
     /// <inheritdoc />
     public void Remover(Fornecedor fornecedor) => db.Fornecedores.Remove(fornecedor);
-
-    /// <summary>Neutraliza os curingas do <c>LIKE</c> num texto que é para ser comparado literalmente.</summary>
-    /// <param name="texto">Texto vindo de quem digita.</param>
-    private static string Escapar(string texto) => texto.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
     private IQueryable<Fornecedor> Filtrar(FiltroDeFornecedores filtro)
     {

@@ -1,4 +1,5 @@
 using Backend.Business.Eventos.Interfaces;
+using Backend.Worker.Configuration;
 
 namespace Backend.Worker.Jobs;
 
@@ -24,65 +25,45 @@ namespace Backend.Worker.Jobs;
 /// </para>
 /// </remarks>
 /// <param name="scopeFactory">Fábrica de escopos de injeção de dependência.</param>
+/// <param name="lideranca">Trava que deixa só uma réplica rodar este job por vez.</param>
 /// <param name="configuration">Configuração da aplicação.</param>
 /// <param name="logger">Log estruturado.</param>
-public sealed class RetencaoDeEventosJob(IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<RetencaoDeEventosJob> logger)
-    : BackgroundService
+public sealed class RetencaoDeEventosJob(
+    IServiceScopeFactory scopeFactory,
+    LiderancaDeJob lideranca,
+    IConfiguration configuration,
+    ILogger<RetencaoDeEventosJob> logger
+) : JobPeriodico(lideranca, logger)
 {
-    private static readonly TimeSpan Intervalo = TimeSpan.FromHours(24);
+    private readonly int _diasDeRetencao = configuration.GetValue("Eventos:DiasDeRetencao", 180);
+
+    private readonly int _diasDaAuditoria = configuration.GetValue("Eventos:DiasDeRetencaoAuditoria", 1825);
 
     /// <inheritdoc />
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override TimeSpan Intervalo { get; } = TimeSpan.FromHours(24);
+
+    /// <inheritdoc />
+    protected override void RegistrarFalha(Exception excecao) =>
+        Logger.LogError(excecao, "Falha na retenção de eventos. A próxima execução tentará de novo.");
+
+    /// <inheritdoc />
+    protected override async Task ExecutarPassada(int passada, CancellationToken ct)
     {
-        var diasDeRetencao = configuration.GetValue("Eventos:DiasDeRetencao", 180);
-        var diasDaAuditoria = Math.Max(diasDeRetencao, configuration.GetValue("Eventos:DiasDeRetencaoAuditoria", 1825));
+        var diasDaAuditoria = Math.Max(_diasDeRetencao, _diasDaAuditoria);
 
-        using var relogio = new PeriodicTimer(Intervalo);
+        using var escopo = scopeFactory.CreateScope();
+        var repositorio = escopo.ServiceProvider.GetRequiredService<IEventoRepository>();
 
-        do
-        {
-            await ExecutarUmaVez(diasDeRetencao, diasDaAuditoria, stoppingToken);
-        } while (await EsperarProximaExecucao(relogio, stoppingToken));
-    }
+        var agora = DateTime.UtcNow;
 
-    private async Task ExecutarUmaVez(int diasDeRetencao, int diasDaAuditoria, CancellationToken ct)
-    {
-        try
-        {
-            using var escopo = scopeFactory.CreateScope();
-            var repositorio = escopo.ServiceProvider.GetRequiredService<IEventoRepository>();
+        var removidos = await repositorio.RemoverAnterioresA(agora.AddDays(-_diasDeRetencao), agora.AddDays(-diasDaAuditoria), ct);
 
-            var agora = DateTime.UtcNow;
-
-            var removidos = await repositorio.RemoverAnterioresA(agora.AddDays(-diasDeRetencao), agora.AddDays(-diasDaAuditoria), ct);
-
-            if (removidos > 0)
-                logger.LogInformation(
-                    "Retenção removeu {Removidos} eventos: {Dias} dias de uso, {DiasDaAuditoria} dias de auditoria.",
-                    removidos,
-                    diasDeRetencao,
-                    diasDaAuditoria
-                );
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception excecao)
-        {
-            logger.LogError(excecao, "Falha na retenção de eventos. A próxima execução tentará de novo.");
-        }
-    }
-
-    private static async Task<bool> EsperarProximaExecucao(PeriodicTimer relogio, CancellationToken ct)
-    {
-        try
-        {
-            return await relogio.WaitForNextTickAsync(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
-        }
+        if (removidos > 0)
+            Logger.LogInformation(
+                "Retenção removeu {Removidos} eventos: {Dias} dias de uso, {DiasDaAuditoria} dias de auditoria.",
+                removidos,
+                _diasDeRetencao,
+                diasDaAuditoria
+            );
     }
 }

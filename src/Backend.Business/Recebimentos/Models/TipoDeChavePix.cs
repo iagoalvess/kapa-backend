@@ -73,6 +73,23 @@ public static partial class ChavePix
             _ => "Chave aleatória",
         };
 
+    /// <summary>
+    /// O documento do titular, quando a chave é um: CPF mascarado, CNPJ inteiro. Nulo nas demais.
+    /// </summary>
+    /// <remarks>
+    /// É a linha "CPF ***.982.247-**" ao lado do nome, na tela de pagamento e no recibo (Sprint 22).
+    /// O CPF sai no formato de documento público; o CNPJ é público por natureza.
+    /// </remarks>
+    /// <param name="tipo">Tipo da chave.</param>
+    /// <param name="chave">Chave normalizada.</param>
+    public static string? DocumentoDoTitular(TipoDeChavePix tipo, string chave) =>
+        tipo switch
+        {
+            TipoDeChavePix.Cpf => $"CPF {FormatosBrasileiros.MascararCpf(chave)}",
+            TipoDeChavePix.Cnpj => $"CNPJ {chave}",
+            _ => null,
+        };
+
     /// <summary>O celular brasileiro em E.164 (<c>+55</c>, DDD, 9 e oito dígitos), ou nulo.</summary>
     /// <param name="texto">Telefone informado.</param>
     private static string? Celular(string texto) =>

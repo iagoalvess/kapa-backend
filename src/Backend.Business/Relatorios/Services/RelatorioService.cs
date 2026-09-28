@@ -8,6 +8,7 @@ using Backend.Business.Common.Texto;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Models;
 using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Formaturas.Models;
 using Backend.Business.Relatorios.Interfaces;
 using Backend.Business.Relatorios.Models;
 using Backend.Business.Usuarios.Interfaces;
@@ -18,7 +19,7 @@ namespace Backend.Business.Relatorios.Services;
 /// O balancete, as exportações e a fila do PDF.
 /// </summary>
 /// <remarks>
-/// A divisão de esforço é por formato: <see cref="Tabela"/> vira planilha na própria requisição;
+/// A divisão de esforço é por formato: <see cref="Planilha"/> sai na própria requisição;
 /// <see cref="Solicitar"/> grava o pedido do PDF e volta, e quem diagrama é o worker.
 /// <para>
 /// O saldo acumulado do balancete vem do <see cref="ICaixaService"/>, o mesmo do dashboard
@@ -56,10 +57,10 @@ public sealed class RelatorioService(
         CancellationToken ct = default
     )
     {
-        var formatura = await formaturaRepository.ObterDetalhe(formaturaId, ct);
+        var formatura = await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct);
 
         if (formatura is null)
-            return Erro.NaoEncontrado("formatura.nao_encontrada", "Formatura não encontrada.");
+            return ErrosDeFormatura.FormaturaNaoEncontrada;
 
         var caixa = await caixaService.Consolidado(ct);
 
@@ -73,6 +74,7 @@ public sealed class RelatorioService(
             (await usuarioRepository.ObterDetalhe(emitidoPorUsuarioId, ct))?.Nome ?? Anonimo,
             DateTime.UtcNow,
             await relatorioRepository.EntradasPorTipo(periodo, ct),
+            await relatorioRepository.OutrasReceitasPorCategoria(periodo, ct),
             await relatorioRepository.SaidasPorCategoria(periodo, ct),
             [.. (await relatorioRepository.PorFornecedor(periodo, ct)).Select(Linha)],
             caixa.Valor.SaldoEmCentavos,
@@ -82,6 +84,10 @@ public sealed class RelatorioService(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// O balancete não aceita recorte: filtrado por fornecedor ou por formando ele deixa de fechar, e
+    /// sai um papel que não bate com a cara do que bate.
+    /// </remarks>
     public async Task<Result<TabelaDoRelatorio>> Tabela(
         Guid formaturaId,
         TipoDeRelatorio tipo,
@@ -89,13 +95,11 @@ public sealed class RelatorioService(
         CancellationToken ct = default
     )
     {
-        var formatura = await formaturaRepository.ObterDetalhe(formaturaId, ct);
+        var formatura = await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct);
 
         if (formatura is null)
-            return Erro.NaoEncontrado("formatura.nao_encontrada", "Formatura não encontrada.");
+            return ErrosDeFormatura.FormaturaNaoEncontrada;
 
-        // O balancete não aceita recorte: filtrado por fornecedor ou por formando ele deixa de fechar,
-        // e sai um papel que não bate com a cara do que bate.
         var recorte = tipo == TipoDeRelatorio.Balancete ? filtro.SomentePeriodo() : filtro;
         var subtitulo = await Subtitulo(formatura.Nome, recorte, ct);
 
@@ -106,6 +110,26 @@ public sealed class RelatorioService(
             TipoDeRelatorio.Fornecedores => await Fornecedores(subtitulo, recorte, ct),
             _ => await BalanceteEmTabela(subtitulo, recorte.Periodo, ct),
         };
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<ArquivoParaDownload>> Planilha(
+        Guid formaturaId,
+        TipoDeRelatorio tipo,
+        FiltroDoRelatorio filtro,
+        CancellationToken ct = default
+    )
+    {
+        var tabela = await Tabela(formaturaId, tipo, filtro, ct);
+
+        if (tabela.Falhou)
+            return Result.Falha<ArquivoParaDownload>(tabela.Erros);
+
+        return new ArquivoParaDownload(
+            new MemoryStream(RelatorioEmExcel.Gerar(tabela.Valor)),
+            $"{tipo.ToString().ToLowerInvariant()}-{filtro.Periodo.De:yyyy-MM-dd}-a-{filtro.Periodo.Ate:yyyy-MM-dd}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
     }
 
     /// <summary>
@@ -148,6 +172,10 @@ public sealed class RelatorioService(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// O balancete não aceita recorte; gravar o filtro dele seria gravar uma promessa que a geração
+    /// não cumpre, e dois pedidos iguais deixariam de deduplicar por causa dela.
+    /// </remarks>
     public async Task<Result<SolicitacaoResumo>> Solicitar(
         TipoDeRelatorio tipo,
         FiltroDoRelatorio filtro,
@@ -155,8 +183,6 @@ public sealed class RelatorioService(
         CancellationToken ct = default
     )
     {
-        // O balancete não aceita recorte; gravar o filtro dele seria gravar uma promessa que a
-        // geração não cumpre, e dois pedidos iguais deixariam de deduplicar por causa dela.
         var recorte = tipo == TipoDeRelatorio.Balancete ? filtro.SomentePeriodo() : filtro;
         var naFila = await solicitacaoRepository.ObterNaFila(tipo, recorte, ct);
 
@@ -211,11 +237,11 @@ public sealed class RelatorioService(
     private static LinhaDeBalancete Linha(GastoPorFornecedor gasto) => new(gasto.Nome, gasto.Quantidade, gasto.PagoEmCentavos);
 
     /// <summary>
-    /// O balancete em tabela: as mesmas três aberturas do PDF, uma embaixo da outra.
+    /// O balancete em tabela: as mesmas quatro aberturas do PDF, uma embaixo da outra.
     /// </summary>
     /// <remarks>
     /// Uma planilha só, com uma coluna de bloco: o tesoureiro filtra por ela e tem os três quadros
-    /// separados. Três arquivos seriam três downloads para responder uma pergunta.
+    /// separados. Quatro arquivos seriam quatro downloads para responder uma pergunta.
     /// </remarks>
     private async Task<TabelaDoRelatorio> BalanceteEmTabela(string subtitulo, PeriodoDoRelatorio periodo, CancellationToken ct)
     {
@@ -223,6 +249,14 @@ public sealed class RelatorioService(
 
         foreach (var linha in await relatorioRepository.EntradasPorTipo(periodo, ct))
             linhas.Add([Celula.De("Entradas"), Celula.De(linha.Rotulo), Celula.Inteiro(linha.Quantidade), Celula.Reais(linha.ValorEmCentavos)]);
+
+        foreach (var linha in await relatorioRepository.OutrasReceitasPorCategoria(periodo, ct))
+            linhas.Add([
+                Celula.De("Outras receitas"),
+                Celula.De(linha.Rotulo),
+                Celula.Inteiro(linha.Quantidade),
+                Celula.Reais(linha.ValorEmCentavos),
+            ]);
 
         foreach (var linha in await relatorioRepository.SaidasPorCategoria(periodo, ct))
             linhas.Add([

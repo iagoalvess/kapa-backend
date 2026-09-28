@@ -86,6 +86,11 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
     /// dois membros homônimos trocam de lugar entre páginas e um some da listagem. Quem está na
     /// turma fica em cima porque removido é histórico, e histórico não disputa atenção.
     /// </para>
+    /// <para>
+    /// <c>TemAdesao</c> é subconsulta correlacionada, um <c>EXISTS</c> por linha: a adesão vive sob o
+    /// filtro global da formatura, que aqui é sempre a mesma que chega em <c>formaturaId</c> (vem da
+    /// claim).
+    /// </para>
     /// </remarks>
     public async Task<PaginaDe<MembroDaFormatura>> ListarMembros(
         Guid formaturaId,
@@ -107,8 +112,6 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
                 NomeCompleto = perfil == null ? null : perfil.NomeCompleto,
                 Completude = perfil == null ? 0 : perfil.Completude,
                 EssencialPreenchido = perfil != null && perfil.EssencialPreenchido,
-                // Subconsulta correlacionada, um EXISTS por linha: a adesão vive sob o filtro global
-                // da formatura, que aqui é sempre a mesma que chega em `formaturaId` (vem da claim).
                 TemAdesao = db.Adesoes.Any(adesao => adesao.VinculoId == vinculo.Id),
             };
 
@@ -182,6 +185,10 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
     /// <c>LEFT JOIN</c> do perfil, como em <see cref="ListarMembros"/>: quem nunca abriu o cadastro é
     /// justamente quem falta, e um <c>INNER JOIN</c> o deixaria de fora da contagem.
     /// </remarks>
+    public Task TravarEntradas(Guid formaturaId, CancellationToken ct = default) =>
+        db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({formaturaId.ToString()}, 0))", ct);
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<ContagemDeMembros>> ContarMembros(Guid formaturaId, CancellationToken ct = default) =>
         await (
             from vinculo in db.Vinculos.AsNoTracking()
@@ -256,6 +263,15 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
             from vinculo in db.Vinculos.AsNoTracking()
             join usuario in db.Users.AsNoTracking() on vinculo.UsuarioId equals usuario.Id
             where vinculo.FormaturaId == formaturaId && vinculo.Ativo && vinculo.Papel != PapelNaFormatura.Formando && usuario.Email != null
+            select usuario.Email!
+        ).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> ListarEmailsDosFormandos(Guid formaturaId, CancellationToken ct = default) =>
+        await (
+            from vinculo in db.Vinculos.AsNoTracking()
+            join usuario in db.Users.AsNoTracking() on vinculo.UsuarioId equals usuario.Id
+            where vinculo.FormaturaId == formaturaId && vinculo.Ativo && vinculo.Papel == PapelNaFormatura.Formando && usuario.Email != null
             select usuario.Email!
         ).ToListAsync(ct);
 

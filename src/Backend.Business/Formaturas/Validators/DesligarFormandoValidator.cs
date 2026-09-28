@@ -16,6 +16,10 @@ public sealed class DesligarFormandoValidator : AbstractValidator<DesligarForman
     public const int TamanhoDoDetalhe = 200;
 
     /// <summary>Registra as regras de validação.</summary>
+    /// <remarks>
+    /// O detalhe é obrigatório porque, dois anos depois, "por que o João saiu" é pergunta de
+    /// assembleia — e "Outro", sozinho, é o silêncio de uma coluna vazia com outro nome.
+    /// </remarks>
     public DesligarFormandoValidator()
     {
         RuleFor(x => x.Motivo)
@@ -23,8 +27,6 @@ public sealed class DesligarFormandoValidator : AbstractValidator<DesligarForman
             .WithErrorCode("membro.motivo_invalido")
             .WithMessage("Motivo inválido. Escolha um da lista.");
 
-        // Obrigatório porque, dois anos depois, "por que o João saiu" é pergunta de assembleia — e
-        // "Outro", sozinho, é o silêncio de uma coluna vazia com outro nome.
         RuleFor(x => x.Detalhe)
             .NotEmpty()
             .WithErrorCode("membro.detalhe_obrigatorio")

@@ -27,10 +27,10 @@ public sealed class EmailsDeDesligamento(IEmailService emailService, IOptions<Ap
     private readonly AplicacaoSettings _aplicacao = aplicacao.Value;
 
     /// <summary>O extrato do próprio formando — a tela que continua aberta para ele depois da saída.</summary>
-    private string LinkDoExtrato => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/minhas-parcelas";
+    private string LinkDoExtrato => _aplicacao.Link(RotasDoFront.MinhasParcelas);
 
     /// <summary>A lista de membros, onde a comissão vê o selo e pode desfazer.</summary>
-    private string LinkDosMembros => $"{_aplicacao.UrlDoFrontend.TrimEnd('/')}/formatura/membros";
+    private string LinkDosMembros => _aplicacao.Link(RotasDoFront.MembrosDaFormatura);
 
     /// <summary>Confirmação para quem saiu: o que deixou de dever, o que já pagou e o que não volta.</summary>
     /// <param name="email">Quem saiu.</param>
@@ -109,7 +109,7 @@ public sealed class EmailsDeDesligamento(IEmailService emailService, IOptions<Ap
         CancellationToken ct
     ) =>
         await emailService.Enfileirar(
-            new NovoEmail(email, $"{assunto} — {_aplicacao.Nome}", ModeloDeEmail.Montar(_aplicacao.Nome, titulo, mensagem, botao, link, mascote)),
+            new NovoEmail(email, $"{assunto} — {_aplicacao.Nome}", ModeloDeEmail.Montar(_aplicacao, titulo, mensagem, botao, link, mascote)),
             ct
         );
 }

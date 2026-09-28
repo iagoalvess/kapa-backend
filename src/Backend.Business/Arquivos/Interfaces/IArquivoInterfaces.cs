@@ -31,6 +31,10 @@ public interface IArmazenamentoDeArquivos
     /// <param name="chave">Caminho do objeto no provedor.</param>
     Task RemoverAsync(string chave, CancellationToken ct = default);
 
+    /// <summary>Remove todos os objetos cuja chave começa pelo prefixo. Não falha se não houver nenhum.</summary>
+    /// <param name="prefixo">Começo da chave, sem a barra final — uma "pasta".</param>
+    Task RemoverPrefixoAsync(string prefixo, CancellationToken ct = default);
+
     /// <summary>
     /// Uma URL que baixa o objeto sem credencial até expirar.
     /// </summary>
@@ -125,4 +129,7 @@ public interface IArquivoRepository
     /// </remarks>
     /// <param name="enviadoPorId">Dono dos arquivos.</param>
     Task<UsoDeArmazenamento> ObterUsoDoUsuario(Guid enviadoPorId, CancellationToken ct = default);
+
+    /// <summary>Quanto espaço todos os arquivos do sistema ocupam, em bytes.</summary>
+    Task<long> ObterBytesDeTodosOsArquivos(CancellationToken ct = default);
 }

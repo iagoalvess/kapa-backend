@@ -129,6 +129,31 @@ public sealed class RelatorioRepository(AppDbContext db) : IRelatorioRepository
     }
 
     /// <inheritdoc />
+    /// <remarks>Pelo dia em que entrou, como os recebimentos. Prevista e cancelada não são dinheiro que entrou.</remarks>
+    public async Task<IReadOnlyList<LinhaDeBalancete>> OutrasReceitasPorCategoria(PeriodoDoRelatorio periodo, CancellationToken ct = default)
+    {
+        var grupos = await db
+            .OutrasReceitas.AsNoTracking()
+            .Where(r => r.Status == StatusDaOutraReceita.Recebida && r.Data >= periodo.De && r.Data <= periodo.Ate)
+            .GroupBy(r => r.Categoria)
+            .Select(grupo => new
+            {
+                Categoria = grupo.Key,
+                Quantidade = grupo.Count(),
+                Valor = grupo.Sum(r => r.ValorEmCentavos),
+            })
+            .ToListAsync(ct);
+
+        return
+        [
+            .. grupos
+                .Select(grupo => new LinhaDeBalancete(RotuloDaCategoria.De(grupo.Categoria), grupo.Quantidade, grupo.Valor))
+                .OrderByDescending(linha => linha.ValorEmCentavos)
+                .ThenBy(linha => linha.Rotulo, StringComparer.Ordinal),
+        ];
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<LinhaDeBalancete>> SaidasPorCategoria(PeriodoDoRelatorio periodo, CancellationToken ct = default)
     {
         var grupos = await db
@@ -155,10 +180,7 @@ public sealed class RelatorioRepository(AppDbContext db) : IRelatorioRepository
     /// <inheritdoc />
     public async Task<TotaisDoPeriodo> Totais(PeriodoDoRelatorio periodo, CancellationToken ct = default) =>
         new(
-            await db
-                .Recebimentos.AsNoTracking()
-                .Where(r => r.EstornadoEm == null && r.PagoEm >= periodo.De && r.PagoEm <= periodo.Ate)
-                .SumAsync(r => r.ValorEmCentavos, ct),
+            await EntradasDeDinheiro.Realizadas(db).Where(e => e.Data >= periodo.De && e.Data <= periodo.Ate).SumAsync(e => e.Valor, ct),
             await db
                 .Despesas.AsNoTracking()
                 .Where(d => d.Status == StatusDaDespesa.Paga && d.PagoEm >= periodo.De && d.PagoEm <= periodo.Ate)
@@ -178,11 +200,11 @@ public sealed class RelatorioRepository(AppDbContext db) : IRelatorioRepository
     public async Task<IReadOnlyList<MesDoBalancete>> MovimentoPorMes(PeriodoDoRelatorio periodo, CancellationToken ct = default)
     {
         var entradas = Indexar(
-            await db
-                .Recebimentos.AsNoTracking()
-                .Where(r => r.EstornadoEm == null && r.PagoEm >= periodo.De && r.PagoEm <= periodo.Ate)
-                .GroupBy(r => new { r.PagoEm.Year, r.PagoEm.Month })
-                .Select(grupo => new GrupoDoMes(grupo.Key.Year, grupo.Key.Month, grupo.Sum(r => r.ValorEmCentavos)))
+            await EntradasDeDinheiro
+                .Realizadas(db)
+                .Where(e => e.Data >= periodo.De && e.Data <= periodo.Ate)
+                .GroupBy(e => new { e.Data.Year, e.Data.Month })
+                .Select(grupo => new GrupoDoMes(grupo.Key.Year, grupo.Key.Month, grupo.Sum(e => e.Valor)))
                 .ToListAsync(ct)
         );
 
@@ -275,13 +297,15 @@ public sealed class RelatorioRepository(AppDbContext db) : IRelatorioRepository
     /// Os formandos saem de <c>Devedores</c> com <c>Distinct</c>: é quem tem parcela, com o nome da
     /// mesma regra da tela de Parcelas. Filtrar por quem não tem nenhuma devolveria vazio, então a
     /// lista não os oferece.
+    /// <para>
+    /// O <c>Distinct</c> é sobre tipo anônimo, e não sobre o <c>OpcaoDeFiltro</c>: o <c>OrderBy</c>
+    /// depois de um <c>Distinct</c> de projeção com construtor não traduz — o endpoint respondia 500.
+    /// </para>
     /// </remarks>
     public async Task<OpcoesDeFiltro> OpcoesDeFiltro(CancellationToken ct = default)
     {
         var fornecedores = await db.Fornecedores.AsNoTracking().OrderBy(f => f.Nome).Select(f => new OpcaoDeFiltro(f.Id, f.Nome)).ToListAsync(ct);
 
-        // Distinct sobre tipo anônimo, e não sobre o OpcaoDeFiltro: o OrderBy depois de um Distinct
-        // de projeção com construtor não traduz — o endpoint respondia 500.
         var formandos = await ParcelaRepository
             .Devedores(db)
             .Select(d => new { d.UsuarioId, d.Nome })

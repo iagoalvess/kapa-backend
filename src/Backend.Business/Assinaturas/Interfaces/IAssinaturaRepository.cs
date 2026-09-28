@@ -42,8 +42,14 @@ public interface IAssinaturaRepository
     /// </summary>
     /// <remarks>
     /// Quem pergunta é o descarte: turma que nunca contratou pode ser jogada fora, turma que pagou
-    /// encerra. Conta assinatura em <b>qualquer</b> status, inclusive vencida — quem já pagou um
+    /// encerra. Conta assinatura paga em qualquer status, inclusive vencida — quem já pagou um
     /// ciclo tem histórico financeiro, e histórico não se descarta.
+    /// <para>
+    /// <b>Menos a <c>Pendente</c></b>, que é checkout aberto e nunca pago. Até 22/09/2026 ela
+    /// contava, e bastava abrir o checkout para a turma passar por contratada: a regra de uma turma
+    /// gratuita por conta deixava de ver a primeira, e o descarte ficava trancado. O mesmo critério
+    /// vale para <c>JaContratou</c> e <c>ExisteGratuitaCriadaPorDeTodasAsFormaturas</c>.
+    /// </para>
     /// </remarks>
     /// <param name="formaturaId">Formatura consultada.</param>
     Task<bool> ExisteAlgumaDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default);
