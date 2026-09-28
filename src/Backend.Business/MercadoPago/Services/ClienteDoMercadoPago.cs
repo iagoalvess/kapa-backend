@@ -122,8 +122,8 @@ public sealed class ClienteDoMercadoPago(HttpClient http, IOptions<MercadoPagoSe
         var cartao = pedido.Meio == MeioDePagamento.Cartao ? pedido.Cartao : null;
         var pagador = pedido.Pagador;
 
-        if (pedido.Meio == MeioDePagamento.PixAutomatico || pedido.Meio == MeioDePagamento.Cartao && cartao is null)
-            throw new ArgumentException($"{pedido.Meio} sem o que a API de Orders precisa: o Pix Automático é recorrência.", nameof(pedido));
+        if (pedido.Meio == MeioDePagamento.Cartao && cartao is null)
+            throw new ArgumentException("Cartão sem o token que o SDK gera no navegador.", nameof(pedido));
 
         using var requisicao = Requisicao(HttpMethod.Post, "v1/orders", accessToken);
         requisicao.Headers.Add("X-Idempotency-Key", referencia);
@@ -184,7 +184,7 @@ public sealed class ClienteDoMercadoPago(HttpClient http, IOptions<MercadoPagoSe
     /// <inheritdoc />
     /// <remarks>
     /// Pela API de assinaturas (<c>preapproval</c>), sem plano associado: o valor e o ciclo vão no próprio
-    /// pedido, e quem paga escolhe cartão ou Pix Automático na página do Mercado Pago (<c>init_point</c>).
+    /// pedido, e quem paga cadastra o cartão na página do Mercado Pago (<c>init_point</c>).
     /// </remarks>
     public async Task<Result<RecorrenciaNoMercadoPago>> CriarRecorrencia(
         string accessToken,

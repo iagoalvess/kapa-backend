@@ -102,6 +102,19 @@ public sealed record SnapshotDoPlano(
     public RegrasDeAtraso Regras() =>
         new(PercentualDeMulta, PercentualDeJurosAoMes, CarenciaEmDias, PercentualDeDescontoPorAntecipacao, DiasMinimosParaDesconto);
 
+    /// <summary>As parcelas do formando que saem de um item, por vencimento.</summary>
+    /// <remarks>
+    /// É daqui, e não do item, que saem "em quantas vezes" e o primeiro vencimento: quem adere tarde
+    /// tem menos parcelas que o item. Método, pelo mesmo motivo de <see cref="Regras"/>.
+    /// </remarks>
+    /// <param name="item">Item do snapshot.</param>
+    public IReadOnlyList<ParcelaSimulada> ParcelasDo(DadosDoItem item) =>
+        [
+            .. Parcelas.Where(parcela =>
+                parcela.Tipo == item.Tipo && parcela.Descricao == (string.IsNullOrWhiteSpace(item.Descricao) ? null : item.Descricao.Trim())
+            ),
+        ];
+
     /// <summary>
     /// As regras de atraso numa frase — "multa de 2% e juros de 1% ao mês…" —, a mesma no PDF e no e-mail.
     /// </summary>

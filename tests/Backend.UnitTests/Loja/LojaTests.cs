@@ -293,7 +293,6 @@ public sealed class LojaTests
     [Theory]
     [InlineData(MeioDePagamento.Pix, true)]
     [InlineData(MeioDePagamento.Cartao, false)]
-    [InlineData(MeioDePagamento.PixAutomatico, false)]
     public void Compra_so_aceita_os_meios_ligados(MeioDePagamento meio, bool aceito) =>
         new DadosDaCompraValidator().Validate(Dados() with { Meio = meio }).IsValid.ShouldBe(aceito);
 

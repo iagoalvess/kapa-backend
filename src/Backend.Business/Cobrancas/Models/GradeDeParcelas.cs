@@ -78,10 +78,12 @@ public static class GradeDeParcelas
     /// régua começava a cobrar no dia seguinte.
     /// </para>
     /// <para>
-    /// As posições (<see cref="ParcelaPrevista.Numero"/>) e os vencimentos continuam os do item: é o
-    /// que mantém "1/24" com sentido e o índice único <c>(vínculo, item, número)</c> intacto. Se
-    /// nenhuma posição sobrou — a pessoa adere depois do último vencimento —, o total inteiro vira
-    /// uma parcela na última posição, vencendo no próximo dia de vencimento a partir de hoje.
+    /// Os vencimentos continuam os do item; a numeração é a da pessoa, de 1 em diante (28/09/2026):
+    /// quem tem 12 parcelas vê "1/12" a "12/12". Até então ela herdava a posição no item, e a lista
+    /// começava em "9/20" — quem entrou tarde procurava as parcelas 1 a 8 que não devia. A comissão
+    /// compara colegas pelo vencimento, não pelo número. Se nenhum vencimento sobrou — a pessoa
+    /// adere depois do último —, o total inteiro vira uma parcela, no próximo dia de vencimento a
+    /// partir de hoje.
     /// </para>
     /// </remarks>
     /// <param name="item">Item já validado.</param>
@@ -92,14 +94,14 @@ public static class GradeDeParcelas
         var restantes = grade.Where(parcela => parcela.Vencimento >= hoje).ToList();
 
         if (restantes.Count == 0)
-            restantes = [new ParcelaPrevista(grade[^1].Numero, Vencimento(ProximoMesComODia(hoje, item.DiaDeVencimento), item.DiaDeVencimento), 0)];
+            restantes = [new ParcelaPrevista(1, Vencimento(ProximoMesComODia(hoje, item.DiaDeVencimento), item.DiaDeVencimento), 0)];
 
         if (restantes.Count == grade.Count)
             return grade;
 
         var valores = Distribuir(item.ValorEmCentavos, restantes.Count);
 
-        return [.. restantes.Select((parcela, posicao) => parcela with { ValorEmCentavos = valores[posicao] })];
+        return [.. restantes.Select((parcela, posicao) => parcela with { Numero = posicao + 1, ValorEmCentavos = valores[posicao] })];
     }
 
     /// <summary>O mês em que o dia de vencimento ainda acontece a partir de hoje — este, ou o que vem.</summary>
@@ -125,15 +127,18 @@ public static class GradeDeParcelas
         [
             .. itens
                 .SelectMany(item =>
-                    (hoje is { } dia ? DeQuemAdereEm(item, dia) : Calcular(item)).Select(parcela => new ParcelaSimulada(
+                {
+                    var grade = hoje is { } dia ? DeQuemAdereEm(item, dia) : Calcular(item);
+
+                    return grade.Select(parcela => new ParcelaSimulada(
                         item.Tipo,
                         string.IsNullOrWhiteSpace(item.Descricao) ? null : item.Descricao.Trim(),
                         parcela.Numero,
-                        item.NumeroDeParcelas,
+                        grade.Count,
                         parcela.Vencimento,
                         parcela.ValorEmCentavos
-                    ))
-                )
+                    ));
+                })
                 .OrderBy(parcela => parcela.Vencimento),
         ];
 

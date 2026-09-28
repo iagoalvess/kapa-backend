@@ -363,7 +363,7 @@ public sealed class RelatorioRepository(AppDbContext db) : IRelatorioRepository
                 devedor.Nome,
                 item.Tipo,
                 item.Descricao,
-                item.NumeroDeParcelas,
+                De = db.Parcelas.Count(p => p.VinculoId == devedor.Parcela.VinculoId && p.ItemDeCobrancaId == devedor.Parcela.ItemDeCobrancaId),
                 devedor.Parcela,
             };
 
@@ -372,7 +372,7 @@ public sealed class RelatorioRepository(AppDbContext db) : IRelatorioRepository
                 linha.Nome,
                 RotuloDoItem.De(linha.Tipo, linha.Descricao),
                 linha.Parcela.Numero,
-                linha.NumeroDeParcelas,
+                linha.De,
                 linha.Parcela.Vencimento,
                 linha.Parcela.ValorOriginalEmCentavos,
                 linha.Parcela.Status,

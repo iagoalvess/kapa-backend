@@ -59,7 +59,7 @@ public sealed record ItemDaLojaDTO(
 /// <param name="Instituicao">Instituição.</param>
 /// <param name="Festa">A festa, se a agenda já a tem.</param>
 /// <param name="ContatoDaComissao">Com quem falar sobre troca e devolução.</param>
-/// <param name="Meios">Como o comprador pode pagar (<c>Pix</c>, <c>PixAutomatico</c>, <c>Cartao</c>); vazio sem Mercado Pago.</param>
+/// <param name="Meios">Como o comprador pode pagar (<c>Pix</c> ou <c>Cartao</c>); vazio sem Mercado Pago.</param>
 /// <param name="Agora">O relógio do servidor, em UTC — a contagem regressiva sai dele (decisão 8).</param>
 /// <param name="Itens">Os convites à venda.</param>
 public sealed record LojaDTO(

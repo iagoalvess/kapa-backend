@@ -46,7 +46,6 @@ public static class FormasDePagamento
         };
 
     /// <summary>A forma que a baixa automática grava para o que o Mercado Pago cobrou.</summary>
-    /// <remarks>O Pix Automático é PIX no extrato do banco — só a autorização é recorrente.</remarks>
     /// <param name="meio">Meio da cobrança.</param>
     public static FormaDePagamento Da(MeioDePagamento meio) => meio == MeioDePagamento.Cartao ? FormaDePagamento.Cartao : FormaDePagamento.Pix;
 

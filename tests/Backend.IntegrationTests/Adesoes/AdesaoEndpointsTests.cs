@@ -476,7 +476,8 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
         return new ResumoDoTermoService(
             escopo.ServiceProvider.GetRequiredService<IAdesaoRepository>(),
             new ModeloDeTeste(),
-            Options.Create(new ResumoSettings { Modelos = ["modelo/teste"], PorRodada = 50 }),
+            // Sem teto: o banco é da suíte inteira e as turmas de outros testes vêm antes (mais antigas primeiro).
+            Options.Create(new ResumoSettings { Modelos = ["modelo/teste"], PorRodada = int.MaxValue }),
             escopo.ServiceProvider.GetRequiredService<IUnitOfWork>()
         );
     }

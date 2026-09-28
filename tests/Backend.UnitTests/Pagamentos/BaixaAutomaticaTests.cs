@@ -214,7 +214,6 @@ public sealed class BaixaAutomaticaTests
     [Theory]
     [InlineData(MeioDePagamento.Pix, FormaDePagamento.Pix)]
     [InlineData(MeioDePagamento.Cartao, FormaDePagamento.Cartao)]
-    [InlineData(MeioDePagamento.PixAutomatico, FormaDePagamento.Pix)]
     public async Task A_baixa_grava_a_forma_do_meio_da_cobranca(MeioDePagamento meio, FormaDePagamento forma)
     {
         // Arrange

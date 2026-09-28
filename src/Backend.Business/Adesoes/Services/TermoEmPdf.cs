@@ -77,13 +77,14 @@ public static partial class TermoEmPdf
                 ["Item", "Total", "Parcelas", "1º vencimento", "Dia"],
                 plano.Itens.Select(item =>
                 {
-                    var primeira = item.Grade()[0];
+                    var parcelas = plano.ParcelasDo(item);
+                    var primeira = parcelas[0];
 
                     return new[]
                     {
                         RotuloDoItem.De(item.Tipo, item.Descricao),
                         FormatosBrasileiros.Reais(item.ValorEmCentavos),
-                        $"{item.NumeroDeParcelas}×",
+                        $"{parcelas.Count}×",
                         Data(primeira.Vencimento),
                         item.DiaDeVencimento.ToString(CultureInfo.InvariantCulture),
                     };

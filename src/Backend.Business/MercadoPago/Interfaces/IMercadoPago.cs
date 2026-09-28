@@ -8,9 +8,9 @@ namespace Backend.Business.MercadoPago.Interfaces;
 /// </summary>
 /// <remarks>
 /// Genérica de propósito: quem chama passa o token, e o cliente não sabe de quem ele é — o da turma,
-/// conectada por OAuth (Sprint 25), ou o do próprio Kapa, cobrando os planos (Sprint 37). Fala dos três
-/// meios de <c>MeioDePagamento</c>: o PIX avulso e o cartão por <see cref="Emitir"/>, e o Pix Automático
-/// (com o cartão recorrente) por <see cref="CriarRecorrencia"/>. Não é o <c>IProvedorDeCobranca</c> que a
+/// conectada por OAuth (Sprint 25), ou o do próprio Kapa, cobrando os planos (Sprint 37). Fala dos dois
+/// meios de <c>MeioDePagamento</c>: o PIX avulso e o cartão por <see cref="Emitir"/>, e o cartão recorrente
+/// dos planos por <see cref="CriarRecorrencia"/>. Não é o <c>IProvedorDeCobranca</c> que a
 /// Sprint 25 recusou: é a porta de <b>um</b> provedor, com o nome dele, e existe para os testes trocarem a
 /// rede por um falso.
 /// </remarks>

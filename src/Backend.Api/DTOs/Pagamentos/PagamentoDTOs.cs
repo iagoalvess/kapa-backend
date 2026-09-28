@@ -32,7 +32,7 @@ public sealed record PixParaPagarDTO(string CopiaECola, string Chave, string Nom
 public sealed record MeioDaCobrancaDTO(MeioDeRecebimento Meio, PixParaPagarDTO? Pix, DadosBancariosDTO? Transferencia, string? Instrucao);
 
 /// <summary>Um meio do Mercado Pago da turma — baixa sozinho, sem aviso do formando.</summary>
-/// <param name="Meio"><c>Pix</c>, <c>PixAutomatico</c> ou <c>Cartao</c>.</param>
+/// <param name="Meio"><c>Pix</c> ou <c>Cartao</c>.</param>
 /// <param name="Pix">O PIX pronto, só em <c>Pix</c>.</param>
 public sealed record PagamentoPeloMercadoPagoDTO(MeioDePagamento Meio, PixDinamicoParaPagarDTO? Pix);
 

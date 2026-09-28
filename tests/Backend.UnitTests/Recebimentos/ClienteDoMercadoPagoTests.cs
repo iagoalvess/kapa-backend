@@ -133,7 +133,7 @@ public sealed class ClienteDoMercadoPagoTests
 
     /// <summary>
     /// Sprint 35: a recorrência (<c>preapproval</c>) leva valor e ciclo no próprio pedido, e volta com a página
-    /// onde a pessoa autoriza — com cartão ou Pix Automático.
+    /// onde a pessoa cadastra o cartão.
     /// </summary>
     [Fact]
     public async Task Recorrencia_leva_valor_e_ciclo_e_devolve_a_pagina_de_autorizar()

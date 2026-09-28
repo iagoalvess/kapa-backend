@@ -105,7 +105,8 @@ public sealed class GradeDeParcelasTests
         grade.Count.ShouldBe(18);
         grade.Sum(parcela => parcela.ValorEmCentavos).ShouldBe(840_000);
         grade.ShouldAllBe(parcela => parcela.Vencimento >= new DateOnly(2027, 9, 1));
-        grade[0].Numero.ShouldBe(7);
+        grade[0].Numero.ShouldBe(1);
+        grade[^1].Numero.ShouldBe(18);
         grade[0].ValorEmCentavos.ShouldBe(46_678);
         grade[^1].ValorEmCentavos.ShouldBe(46_666);
     }
@@ -134,7 +135,7 @@ public sealed class GradeDeParcelasTests
 
         // Assert
         grade.Count.ShouldBe(1);
-        grade[0].Numero.ShouldBe(24);
+        grade[0].Numero.ShouldBe(1);
         grade[0].ValorEmCentavos.ShouldBe(840_000);
         grade[0].Vencimento.ShouldBe(new DateOnly(2029, 6, 10));
     }

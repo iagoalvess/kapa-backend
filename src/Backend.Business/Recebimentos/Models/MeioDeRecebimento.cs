@@ -13,7 +13,7 @@ namespace Backend.Business.Recebimentos.Models;
 /// que ninguém previu, e recusar o aviso não desfaz o pagamento.
 /// </para>
 /// <para>
-/// O que passa pelo Mercado Pago da turma — o PIX avulso, e depois o cartão e o Pix Automático — não está
+/// O que passa pelo Mercado Pago da turma — o PIX avulso, e depois o cartão — não está
 /// aqui: é o <c>MeioDePagamento</c> (Sprint 35), que baixa sozinho, sem aviso.
 /// </para>
 /// <para>

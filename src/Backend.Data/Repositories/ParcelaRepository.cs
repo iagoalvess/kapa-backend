@@ -243,6 +243,7 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
                 .ThenByDescending(r => r.Id)
                 .Select(r => (Guid?)r.Id)
                 .FirstOrDefault(),
+            De = db.Parcelas.Count(p => p.VinculoId == devedor.Parcela.VinculoId && p.ItemDeCobrancaId == devedor.Parcela.ItemDeCobrancaId),
         };
 
     /// <summary>
@@ -300,7 +301,7 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
             linha.Item.Tipo,
             linha.Item.Descricao,
             linha.Parcela.Numero,
-            linha.Item.NumeroDeParcelas,
+            linha.De,
             linha.Parcela.Vencimento,
             linha.Parcela.ValorOriginalEmCentavos,
             linha.Parcela.Status,
@@ -386,6 +387,13 @@ internal sealed class LinhaDeParcela
 
     /// <summary>A última baixa que vale, se houver — o recibo da linha (Sprint 22).</summary>
     public Guid? RecebimentoId { get; init; }
+
+    /// <summary>Quantas parcelas a pessoa tem do item — o "de" de "3/12".</summary>
+    /// <remarks>
+    /// Contado, e não o <c>NumeroDeParcelas</c> do item: quem adere tarde tem menos parcelas que o
+    /// item, e o pedido de opcional escolhe as dele.
+    /// </remarks>
+    public int De { get; init; }
 }
 
 /// <summary>A parcela e quem deve por ela — <see cref="LinhaDeParcela"/> sem o item e sem a conferência.</summary>

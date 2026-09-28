@@ -29,7 +29,7 @@ public sealed record CartaoTokenizado(string Token, string Bandeira, int Parcela
 
 /// <summary>O que o Kapa pede ao Mercado Pago para cobrar uma vez, pela API de Orders.</summary>
 /// <param name="Referencia">O id da cobrança no Kapa: chave de idempotência e referência externa.</param>
-/// <param name="Meio">PIX ou cartão — o Pix Automático é recorrência, e vai por <see cref="PedidoDeRecorrencia"/>.</param>
+/// <param name="Meio">PIX ou cartão. A cobrança recorrente vai por <see cref="PedidoDeRecorrencia"/>.</param>
 /// <param name="ValorEmCentavos">Valor.</param>
 /// <param name="Pagador">Quem paga.</param>
 /// <param name="Validade">Por quanto tempo o PIX aceita pagamento; o cartão ignora.</param>
@@ -79,8 +79,8 @@ public sealed record PedidoConsultado(
 );
 
 /// <summary>
-/// Uma cobrança recorrente de valor fixo (<c>preapproval</c>): a pessoa autoriza uma vez, na página do Mercado
-/// Pago, com cartão ou Pix Automático, e o débito sai a cada ciclo. A Sprint 37 usa primeiro, nos planos.
+/// Uma cobrança recorrente de valor fixo (<c>preapproval</c>): a pessoa cadastra o cartão uma vez, na página do
+/// Mercado Pago, e o débito sai a cada ciclo. A Sprint 37 usa primeiro, nos planos.
 /// </summary>
 /// <param name="Referencia">O id no Kapa — a referência externa, que volta nos avisos.</param>
 /// <param name="Motivo">O que aparece para quem paga ("Kapa — plano Essencial").</param>
