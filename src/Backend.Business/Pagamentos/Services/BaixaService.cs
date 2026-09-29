@@ -109,4 +109,67 @@ public sealed class BaixaService(
 
         return true;
     }
+
+    /// <summary>Evento do estorno, com a justificativa — a segunda linha da auditoria, ao lado da baixa.</summary>
+    public const string EventoDeEstorno = "pagamento.estornado";
+
+    /// <summary>
+    /// Desfaz a última baixa da parcela: a parcela volta a ser devida, o recebimento fica estornado, o pedido
+    /// perde o que o pagamento dava, e o formando fica sabendo por quê.
+    /// </summary>
+    /// <remarks>
+    /// Dois caminhos passam por aqui: o estorno do Presidente e o do Mercado Pago que devolveu o dinheiro — a
+    /// contestação no cartão ou a devolução no painel (Sprint 39, P4). Como <see cref="Baixar"/>, não salva, e quem
+    /// chama já travou a parcela.
+    /// </remarks>
+    /// <param name="parcela">Parcela travada.</param>
+    /// <param name="recebimento">A baixa ativa dela, rastreada.</param>
+    /// <param name="usuarioId">Quem estorna.</param>
+    /// <param name="justificativa">Por quê — vai ao formando e à auditoria.</param>
+    /// <param name="enderecoIp">De onde; nulo no automático.</param>
+    /// <param name="contexto">Turma e e-mail do formando.</param>
+    /// <returns>Falha quando a parcela não tem o que estornar.</returns>
+    public async Task<Result> Estornar(
+        Parcela parcela,
+        Recebimento recebimento,
+        Guid usuarioId,
+        string justificativa,
+        string? enderecoIp,
+        ContextoDaBaixa contexto,
+        CancellationToken ct = default
+    )
+    {
+        if (parcela.Estornar(recebimento.ValorEmCentavos).Falhou)
+            return Result.Falha(Erro.Conflito("pagamento.parcela_nao_paga", "Esta parcela não tem baixa para estornar."));
+
+        recebimento.Estornar(usuarioId, justificativa, DateTime.UtcNow);
+        await quitacao.AposEstorno(parcela, ct);
+
+        await eventos.Auditar(
+            EventoDeEstorno,
+            usuarioId,
+            new
+            {
+                contexto.FormaturaId,
+                parcelaId = parcela.Id,
+                recebimentoId = recebimento.Id,
+                valorEmCentavos = recebimento.ValorEmCentavos,
+                justificativa = recebimento.JustificativaDoEstorno,
+                enderecoIp,
+            },
+            ct
+        );
+
+        if (contexto.EmailDoFormando is { } email)
+            await emails.Estornado(
+                email,
+                contexto.NomeDaTurma,
+                parcela.Vencimento,
+                recebimento.ValorEmCentavos,
+                recebimento.JustificativaDoEstorno!,
+                ct
+            );
+
+        return Result.Ok();
+    }
 }

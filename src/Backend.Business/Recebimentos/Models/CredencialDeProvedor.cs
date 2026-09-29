@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Pagamentos.Models;
 
 namespace Backend.Business.Recebimentos.Models;
 
@@ -40,6 +41,46 @@ public class CredencialDeProvedor : EntidadeDaFormatura
     /// <summary>Quem autorizou a conexão atual.</summary>
     public Guid CadastradaPorUsuarioId { get; private set; }
 
+    /// <summary>
+    /// A <c>public_key</c> da conta, que o formulário de cartão do navegador usa para tokenizar (Sprint 39). Nula na
+    /// conexão anterior à sprint: a turma conecta de novo para ligar o cartão.
+    /// </summary>
+    public string? ChavePublica { get; private set; }
+
+    /// <summary>Quando o cartão foi ligado (P7); nulo: desligado, e a opção não aparece em lugar nenhum.</summary>
+    public DateTime? CartaoLigadoEm { get; private set; }
+
+    /// <summary>Quem ligou o cartão — ligar é aceitar a taxa e o risco de contestação (P2 e P4).</summary>
+    public Guid? CartaoLigadoPorUsuarioId { get; private set; }
+
+    /// <summary>
+    /// A taxa do cartão que a turma repassa ao formando, base 10.000 (P2); nula: a turma absorve, o padrão. O
+    /// Kapa não sabe se a conta recebe na hora ou em 30 dias (P8), então quem diz o percentual é a turma.
+    /// </summary>
+    public int? TaxaDoCartaoRepassada { get; private set; }
+
+    /// <summary>
+    /// Desde quando a turma cobra as parcelas só pelo Mercado Pago (29/09/2026); nulo: modo manual, e o formando vê
+    /// só os meios da comissão e o aviso de pagamento. A loja pública não depende disto — ela é sempre Mercado Pago.
+    /// </summary>
+    /// <remarks>
+    /// Um modo ou outro, nunca os dois: com as duas listas na tela o formando escolhia o PIX da chave, sem taxa, e a
+    /// turma pagava o Mercado Pago sem se livrar da conferência. Mora na credencial porque o automático não existe
+    /// sem ela — desconectar exige voltar ao manual antes.
+    /// </remarks>
+    public DateTime? CobrancaAutomaticaEm { get; private set; }
+
+    /// <summary>Se as parcelas e os opcionais se pagam só pelo Mercado Pago.</summary>
+    public bool CobrancaAutomatica => CobrancaAutomaticaEm is not null;
+
+    /// <summary>Se o cartão aparece para o formando e para o comprador da loja.</summary>
+    public bool CartaoLigado => CartaoLigadoEm is not null && ChavePublica is not null;
+
+    /// <summary>Troca o modo de cobrança das parcelas. Quem confere se pode trocar é o service.</summary>
+    /// <param name="automatica">Liga ou desliga.</param>
+    /// <param name="agoraUtc">Quando.</param>
+    public void DefinirCobrancaAutomatica(bool automatica, DateTime agoraUtc) => CobrancaAutomaticaEm = automatica ? agoraUtc : null;
+
     /// <summary>Grava uma autorização recém-concedida, no lugar da que houver.</summary>
     /// <param name="accessToken">Token de acesso.</param>
     /// <param name="refreshToken">Token de renovação.</param>
@@ -47,9 +88,23 @@ public class CredencialDeProvedor : EntidadeDaFormatura
     /// <param name="idNoProvedor">Id da conta no Mercado Pago.</param>
     /// <param name="contaNoProvedor">Nome da conta para a tela.</param>
     /// <param name="usuarioId">Quem autorizou.</param>
-    public void Conectar(string accessToken, string refreshToken, DateTime expiraEm, long idNoProvedor, string contaNoProvedor, Guid usuarioId)
+    /// <param name="chavePublica">A <c>public_key</c> da conta, quando o Mercado Pago a devolveu.</param>
+    /// <remarks>Outra conta desliga o cartão: a taxa e o risco aceitos eram os da conta anterior.</remarks>
+    public void Conectar(
+        string accessToken,
+        string refreshToken,
+        DateTime expiraEm,
+        long idNoProvedor,
+        string contaNoProvedor,
+        Guid usuarioId,
+        string? chavePublica = null
+    )
     {
+        if (idNoProvedor != IdNoProvedor)
+            DesligarCartao();
+
         Renovar(accessToken, refreshToken, expiraEm);
+        ChavePublica = chavePublica ?? (idNoProvedor == IdNoProvedor ? ChavePublica : null);
         IdNoProvedor = idNoProvedor;
         ContaNoProvedor = contaNoProvedor;
         CadastradaPorUsuarioId = usuarioId;
@@ -65,4 +120,45 @@ public class CredencialDeProvedor : EntidadeDaFormatura
         RefreshToken = refreshToken;
         ExpiraEm = expiraEm;
     }
+
+    /// <summary>Liga o cartão (P7), com a taxa repassada ou absorvida (P2).</summary>
+    /// <param name="taxaRepassada">Base 10.000; nula, a turma absorve.</param>
+    /// <param name="usuarioId">Quem ligou.</param>
+    /// <param name="agoraUtc">Quando.</param>
+    public void LigarCartao(int? taxaRepassada, Guid usuarioId, DateTime agoraUtc)
+    {
+        TaxaDoCartaoRepassada = taxaRepassada;
+        CartaoLigadoPorUsuarioId = usuarioId;
+        CartaoLigadoEm = agoraUtc;
+    }
+
+    /// <summary>Desliga o cartão: some das telas. O que já foi cobrado segue conciliado pelo pedido.</summary>
+    public void DesligarCartao()
+    {
+        CartaoLigadoEm = null;
+        CartaoLigadoPorUsuarioId = null;
+        TaxaDoCartaoRepassada = null;
+    }
+
+    /// <summary>O cartão pronto para a tela de pagar este valor; nulo com o cartão desligado.</summary>
+    /// <param name="valorEmCentavos">O valor do PIX.</param>
+    public CartaoParaPagar? CartaoPara(long valorEmCentavos) =>
+        CartaoLigado && valorEmCentavos > 0
+            ? new CartaoParaPagar(
+                ChavePublica!,
+                valorEmCentavos + AcrescimoDoCartao(valorEmCentavos),
+                AcrescimoDoCartao(valorEmCentavos),
+                MeiosDePagamento.ParcelasNoCartao
+            )
+            : null;
+
+    /// <summary>
+    /// Quanto o cartão cobra a mais para a turma receber o valor cheio com a taxa repassada (P2): o valor bruto é
+    /// o líquido dividido por (1 − taxa), arredondado para cima; zero quando a turma absorve.
+    /// </summary>
+    /// <param name="valorEmCentavos">O valor do PIX — o que a turma quer receber.</param>
+    public long AcrescimoDoCartao(long valorEmCentavos) =>
+        TaxaDoCartaoRepassada is { } taxa && valorEmCentavos > 0
+            ? (long)Math.Ceiling(valorEmCentavos * 10_000m / (10_000 - taxa)) - valorEmCentavos
+            : 0;
 }

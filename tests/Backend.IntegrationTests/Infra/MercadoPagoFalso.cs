@@ -33,6 +33,22 @@ public sealed class MercadoPagoFalso : IMercadoPago
     /// <summary>A conta que "autorizou".</summary>
     public const string Conta = "turma@mp.testes";
 
+    /// <summary>A chave pública da conta, que o formulário do cartão usa (Sprint 39).</summary>
+    public const string ChavePublica = "APP_USR-chave-publica-de-teste";
+
+    /// <summary>O token de cartão que o falso recusa — o cartão sem limite.</summary>
+    public const string CartaoRecusado = "cartao-recusado";
+
+    /// <summary>A tarifa que o falso desconta de cada pedido pago, base 10.000 — zero por padrão (Sprint 39, P6).</summary>
+    public int Tarifa { get; set; }
+
+    private readonly ConcurrentDictionary<string, SituacaoDoPedido> _devolvidos = new();
+
+    /// <summary>O pagador contestou no cartão, ou a turma devolveu pelo painel: o pedido pago volta (Sprint 39, P4).</summary>
+    /// <param name="idExterno">O pedido.</param>
+    /// <param name="situacao"><c>Contestado</c> ou <c>Devolvido</c>.</param>
+    public void Devolver(string idExterno, SituacaoDoPedido situacao) => _devolvidos[idExterno] = situacao;
+
     private readonly ConcurrentDictionary<string, (Guid Referencia, long Valor)> _pedidos = new();
     private readonly ConcurrentDictionary<string, bool> _pagos = new();
 
@@ -57,7 +73,7 @@ public sealed class MercadoPagoFalso : IMercadoPago
 
     /// <inheritdoc />
     public Task<Result<TokensDoMercadoPago>> Autorizar(string codigo, CancellationToken ct = default) =>
-        Task.FromResult(Result.Ok(new TokensDoMercadoPago(AccessToken, "renovacao", 42, DateTime.UtcNow.AddDays(180))));
+        Task.FromResult(Result.Ok(new TokensDoMercadoPago(AccessToken, "renovacao", 42, DateTime.UtcNow.AddDays(180), ChavePublica)));
 
     /// <inheritdoc />
     public Task<Result<TokensDoMercadoPago>> Renovar(string refreshToken, CancellationToken ct = default) =>
@@ -71,9 +87,18 @@ public sealed class MercadoPagoFalso : IMercadoPago
     public Task<Result<DocumentoEmitido>> Emitir(string accessToken, PedidoDeCobranca pedido, CancellationToken ct = default)
     {
         var id = $"ORD{pedido.Referencia:N}".ToUpperInvariant();
+
+        if (pedido.Cartao?.Token == CartaoRecusado)
+            return Task.FromResult(Result.Falha<DocumentoEmitido>(Erro.Conflito("pagamento.cartao_recusado", "O cartão foi recusado.")));
+
         _pedidos[id] = (pedido.Referencia, pedido.ValorEmCentavos);
 
-        return Task.FromResult(Result.Ok(new DocumentoEmitido(id, $"00020126-{id}")));
+        if (pedido.Cartao is null)
+            return Task.FromResult(Result.Ok(new DocumentoEmitido(id, $"00020126-{id}")));
+
+        Pagar(id);
+
+        return Task.FromResult(Result.Ok(new DocumentoEmitido(id, null, SituacaoDoPedido.Pago)));
     }
 
     /// <summary>Os pedidos consultados, pelo id — o aviso da conta do Kapa não consulta nenhum.</summary>
@@ -225,9 +250,23 @@ public sealed class MercadoPagoFalso : IMercadoPago
             Result.Ok(
                 _pagamentos.Values.LastOrDefault(pagamento =>
                     pagamento.Referencia == referencia.ToString("N") && pagamento.Situacao == SituacaoDoPagamento.Aprovado
-                )
+                ) ?? DoPedidoPago(referencia)
             )
         );
+
+    /// <summary>O pagamento de um pedido pago, com o líquido descontada a <see cref="Tarifa"/>.</summary>
+    private PagamentoNoMercadoPago? DoPedidoPago(Guid referencia) =>
+        _pedidos.FirstOrDefault(pedido => pedido.Value.Referencia == referencia && _pagos.ContainsKey(pedido.Key)) is { Key: not null } pago
+            ? new PagamentoNoMercadoPago(
+                pago.Key,
+                referencia.ToString("N"),
+                SituacaoDoPagamento.Aprovado,
+                pago.Value.Valor,
+                DateTime.UtcNow,
+                false,
+                pago.Value.Valor - pago.Value.Valor * Tarifa / 10_000
+            )
+            : null;
 
     /// <inheritdoc />
     public Task<Result> Estornar(string accessToken, string idDoPagamento, long valorEmCentavos, Guid chave, CancellationToken ct = default)
@@ -243,6 +282,9 @@ public sealed class MercadoPagoFalso : IMercadoPago
         _consultados[idExterno] = true;
         var (referencia, valor) = _pedidos[idExterno];
         var pago = _pagos.ContainsKey(idExterno);
+
+        if (_devolvidos.TryGetValue(idExterno, out var devolvido))
+            return Task.FromResult(Result.Ok(new PedidoConsultado(idExterno, referencia.ToString("N"), devolvido, 0, null)));
 
         return Task.FromResult(
             Result.Ok(

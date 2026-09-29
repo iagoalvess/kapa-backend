@@ -91,9 +91,9 @@ public sealed class CompraDeConviteRepository(AppDbContext db, CifraDeCampo cifr
             .ComprasDeConvite.Where(c =>
                 c.ItemDeCobrancaId == itemId
                 && EF.Property<string?>(c, CompraDeConviteMapping.PropriedadeDoHmac) == hmac
-                && (c.Status == StatusDaCompra.Pendente || c.Status == StatusDaCompra.Paga)
+                && c.Status != StatusDaCompra.Expirada
             )
-            .SumAsync(c => c.Quantidade, ct);
+            .SumAsync(c => c.Quantidade - c.ConvitesCancelados, ct);
     }
 
     /// <inheritdoc />
@@ -128,6 +128,88 @@ public sealed class CompraDeConviteRepository(AppDbContext db, CifraDeCampo cifr
     /// <inheritdoc />
     public async Task<IReadOnlyList<CompraDeConvite>> ListarDoEmailParaEdicao(string email, CancellationToken ct = default) =>
         await db.ComprasDeConvite.Where(c => c.Email == email).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public Task DevolverAoItem(Guid itemId, int quantidade, CancellationToken ct = default)
+    {
+        var formaturaId = FormaturaDaSessao();
+        var agora = DateTime.UtcNow;
+
+        return db.Database.ExecuteSqlAsync(
+            $"""
+            UPDATE itens_de_cobranca
+               SET reservados = GREATEST(0, reservados - {quantidade}), atualizado_em = {agora}
+             WHERE id = {itemId} AND formatura_id = {formaturaId}
+            """,
+            ct
+        );
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Guid>> ListarComLugar(CancellationToken ct = default) =>
+        await db
+            .ComprasDeConvite.AsNoTracking()
+            .Where(c => c.Status != StatusDaCompra.Pendente && c.Status != StatusDaCompra.Expirada && c.ConvitesCancelados < c.Quantidade)
+            .OrderBy(c => c.CriadoEm)
+            .Select(c => c.Id)
+            .ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<ConviteDaCompra>> ListarConvites(Guid compraId, CancellationToken ct = default) =>
+        await db
+            .ConvitesDoEvento.AsNoTracking()
+            .Where(c => c.CompraId == compraId)
+            .OrderBy(c => c.RevogadoEm != null)
+            .ThenBy(c => c.Sequencial)
+            .ThenByDescending(c => c.EmitidoEm)
+            .Select(c => new ConviteDaCompra(
+                c.Id,
+                c.Sequencial,
+                c.Codigo,
+                c.NomeDoConvidado,
+                db.CheckIns.Where(k => k.ConviteId == c.Id && k.DesfeitoEm == null).Select(k => (DateTime?)k.ValidadoEm).FirstOrDefault(),
+                c.RevogadoEm,
+                c.MotivoDaRevogacao
+            ))
+            .ToListAsync(ct);
+
+    /// <inheritdoc />
+    public Task<PedidoDeCancelamento?> ObterUltimoPedido(Guid compraId, CancellationToken ct = default) =>
+        db
+            .PedidosDeCancelamento.AsNoTracking()
+            .Where(p => p.CompraId == compraId)
+            .OrderBy(p => p.Status != StatusDoPedidoDeCancelamento.Aberto)
+            .ThenByDescending(p => p.PedidoEm)
+            .FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    public Task<PedidoDeCancelamento?> TravarPedido(Guid pedidoId, CancellationToken ct = default) =>
+        db.PedidosDeCancelamento.FromSql($"SELECT * FROM pedidos_de_cancelamento WHERE id = {pedidoId} FOR UPDATE").FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<PedidoNaGestao>> ListarPedidosAbertos(CancellationToken ct = default) =>
+        await (
+            from pedido in db.PedidosDeCancelamento.AsNoTracking()
+            join compra in db.ComprasDeConvite.AsNoTracking() on pedido.CompraId equals compra.Id
+            join item in db.ItensDeCobranca.AsNoTracking() on compra.ItemDeCobrancaId equals item.Id
+            where pedido.Status == StatusDoPedidoDeCancelamento.Aberto
+            orderby pedido.PedidoEm
+            select new PedidoNaGestao(
+                pedido.Id,
+                compra.Id,
+                compra.NomeDoComprador,
+                compra.Email,
+                string.IsNullOrWhiteSpace(item.Descricao) ? "Convite da festa" : item.Descricao,
+                compra.Quantidade,
+                pedido.ConviteIds.Length,
+                pedido.Motivo,
+                pedido.PedidoEm
+            )
+        ).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task AdicionarPedido(PedidoDeCancelamento pedido, CancellationToken ct = default) =>
+        await db.PedidosDeCancelamento.AddAsync(pedido, ct);
 
     /// <inheritdoc />
     public void EsquecerCpf(CompraDeConvite compra) => db.Entry(compra).Property(CompraDeConviteMapping.PropriedadeDoHmac).CurrentValue = null;
@@ -217,13 +299,13 @@ public sealed class CompraDeConviteRepository(AppDbContext db, CifraDeCampo cifr
                 g.Key.Status,
                 g.Key.Meio,
                 Compras = g.Count(),
-                Convites = g.Sum(c => c.Quantidade),
-                Pago = g.Sum(c => c.ValorPagoEmCentavos ?? 0),
+                Convites = g.Sum(c => c.Quantidade - c.ConvitesCancelados),
+                Pago = g.Sum(c => (c.ValorPagoEmCentavos ?? 0) - c.ValorEstornadoEmCentavos),
             })
             .ToListAsync(ct);
 
         return new ResumoDaLoja(
-            grupos.Where(g => g.Status == StatusDaCompra.Paga).Sum(g => g.Convites),
+            grupos.Where(g => g.Status != StatusDaCompra.Pendente && g.Status != StatusDaCompra.Expirada).Sum(g => g.Convites),
             grupos.Where(g => g.Status == StatusDaCompra.Pendente && g.Meio == MeioDePagamento.Pix).Sum(g => g.Convites),
             grupos.Where(g => g.Status == StatusDaCompra.ADevolver).Sum(g => g.Compras),
             grupos.Sum(g => g.Pago)
@@ -245,6 +327,7 @@ public sealed class CompraDeConviteRepository(AppDbContext db, CifraDeCampo cifr
                         .SetProperty(c => c.Email, (string?)null)
                         .SetProperty(c => c.Cpf, (string?)null)
                         .SetProperty(c => c.CpfDoPagador, (string?)null)
+                        .SetProperty(c => c.Convidados, (string?)null)
                         .SetProperty(c => EF.Property<string?>(c, CompraDeConviteMapping.PropriedadeDoHmac), (string?)null)
                         .SetProperty(c => c.DadosApagadosEm, DateTime.UtcNow)
                         .SetProperty(c => c.VersaoDoLink, c => c.VersaoDoLink + 1),
@@ -257,7 +340,12 @@ public sealed class CompraDeConviteRepository(AppDbContext db, CifraDeCampo cifr
         var consulta =
             from compra in db.ComprasDeConvite.AsNoTracking()
             join item in db.ItensDeCobranca.AsNoTracking() on compra.ItemDeCobrancaId equals item.Id
-            select new LinhaDeCompra { Compra = compra, Item = item.Descricao };
+            select new LinhaDeCompra
+            {
+                Compra = compra,
+                Item = item.Descricao,
+                PedidoAberto = db.PedidosDeCancelamento.Any(p => p.CompraId == compra.Id && p.Status == StatusDoPedidoDeCancelamento.Aberto),
+            };
 
         if (filtro.Status is { } status)
             consulta = consulta.Where(linha => linha.Compra.Status == status);
@@ -292,7 +380,11 @@ public sealed class CompraDeConviteRepository(AppDbContext db, CifraDeCampo cifr
             compra.ExpiraEm,
             compra.PagaEm,
             compra.ValorPagoEmCentavos,
-            compra.CpfDoPagador is { } pagador && compra.Cpf is { } comprador && FormatosBrasileiros.SomenteDigitos(pagador) != comprador
+            compra.CpfDoPagador is { } pagador && compra.Cpf is { } comprador && FormatosBrasileiros.SomenteDigitos(pagador) != comprador,
+            compra.ConvitesCancelados,
+            compra.ValorADevolverEmCentavos,
+            compra.DevolvidaEm,
+            linha.PedidoAberto
         );
     }
 
@@ -307,4 +399,7 @@ internal sealed class LinhaDeCompra
 
     /// <summary>Descrição do item.</summary>
     public string? Item { get; init; }
+
+    /// <summary>Se há pedido de cancelamento esperando a Gestão.</summary>
+    public bool PedidoAberto { get; init; }
 }

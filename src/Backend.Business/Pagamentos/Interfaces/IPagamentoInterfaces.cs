@@ -62,6 +62,20 @@ public interface IPagamentoService
     );
 
     /// <summary>
+    /// Paga uma ou várias parcelas no cartão, pelo Mercado Pago da turma (Sprint 39): a baixa chega sozinha, sem
+    /// aviso. Só o dono.
+    /// </summary>
+    /// <remarks>
+    /// 409 <c>pagamento.cartao_desligado</c> com o cartão desligado na turma; <c>pagamento.valor_mudou</c> quando o
+    /// valor não é o que a tela mostrou — nada é cobrado; <c>pagamento.cartao_recusado</c> quando o cartão não passou.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Quem paga.</param>
+    /// <param name="dados">Parcelas, cartão tokenizado e o valor que a tela mostrou.</param>
+    /// <returns>Pago, ou em análise — a parcela muda sozinha quando o Mercado Pago decidir.</returns>
+    Task<Result<SituacaoDoCartao>> PagarNoCartao(Guid formaturaId, Guid usuarioId, PagamentoNoCartao dados, CancellationToken ct = default);
+
+    /// <summary>
     /// O "já paguei": grava os informes pendentes e não muda parcela nenhuma. Só o dono.
     /// </summary>
     /// <remarks>
@@ -193,6 +207,9 @@ public interface IInformeRepository
     /// <remarks>Lido sob a trava das parcelas, é o que decide entre o aviso e a baixa que chegam juntos.</remarks>
     /// <param name="parcelaIds">Parcelas.</param>
     Task<bool> ExistePendente(IReadOnlyCollection<Guid> parcelaIds, CancellationToken ct = default);
+
+    /// <summary>Quantos avisos da turma esperam conferência — o que impede trocar para a cobrança automática.</summary>
+    Task<int> ContarPendentes(CancellationToken ct = default);
 
     /// <summary>Os avisos pendentes destas parcelas, rastreados — a baixa automática os confirma junto.</summary>
     /// <param name="parcelaIds">Parcelas.</param>

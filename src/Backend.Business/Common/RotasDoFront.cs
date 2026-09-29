@@ -28,11 +28,23 @@ public static class RotasDoFront
     /// <summary>Conferência de pagamentos da tesouraria.</summary>
     public const string Conferencia = "/financeiro/conferencia";
 
+    /// <summary>As parcelas da turma, na gestão — onde a tesouraria vê o estorno do Mercado Pago (Sprint 39).</summary>
+    public const string ParcelasDaTurma = "/cobrancas/parcelas";
+
     /// <summary>Lembretes da régua de cobrança.</summary>
     public const string Lembretes = "/notificacoes/lembretes";
 
     /// <summary>Portal de privacidade do titular.</summary>
     public const string MinhaPrivacidade = "/minha-privacidade";
+
+    /// <summary>O plano de cobrança da turma — o próximo passo de "criou e não voltou" (Sprint 40).</summary>
+    public const string PlanoDeCobranca = "/cobrancas";
+
+    /// <summary>Os planos do Kapa, de onde a turma contrata.</summary>
+    public const string Planos = "/assinatura/planos";
+
+    /// <summary>A página pública "Não quero mais receber" do e-mail de marketing (Sprint 40), com o token na query.</summary>
+    public const string Descadastro = "/descadastro";
 
     /// <summary>Tela de aceite de convite no front-end (<c>ROTAS.convite</c>); o token vai logo depois da barra.</summary>
     public const string Convite = "/convite/";
@@ -45,6 +57,9 @@ public static class RotasDoFront
 
     /// <summary>A compra da loja pelo link de acesso, com o token no fim (Sprint 26, decisão 10) — <c>/compra/:token</c>.</summary>
     public const string Compra = "/compra/";
+
+    /// <summary>As compras da loja, do lado da Gestão — a fila de pedidos de cancelamento (Sprint 38).</summary>
+    public const string ComprasDaLoja = "/cobrancas/loja";
 }
 
 /// <summary>

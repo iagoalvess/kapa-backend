@@ -64,8 +64,10 @@ public sealed class ProcessamentoDaFilaDeEmail(
         if (lote.Count == 0)
             return false;
 
+        await DescartarMarketingDeQuemSaiu(lote, agora, ct);
+
         await Parallel.ForEachAsync(
-            lote,
+            lote.Where(email => email.Status == EEmailStatus.Enviando),
             new ParallelOptions { MaxDegreeOfParallelism = EnviosEmParalelo, CancellationToken = ct },
             async (email, token) => await EnviarUm(email, token)
         );
@@ -86,11 +88,33 @@ public sealed class ProcessamentoDaFilaDeEmail(
         return new LimpezaDaFilaDeEmail(presos, removidos);
     }
 
+    /// <summary>
+    /// Tira do lote o marketing de quem não quer mais receber: conferido agora, e não quando entrou na fila.
+    /// </summary>
+    /// <remarks>
+    /// Uma consulta por lote, e só quando há marketing nele. Sem conta no e-mail é marketing mal montado —
+    /// sai descartado, que é o lado seguro.
+    /// </remarks>
+    /// <param name="lote">E-mails reservados.</param>
+    /// <param name="agoraUtc">Momento da rodada.</param>
+    private async Task DescartarMarketingDeQuemSaiu(IReadOnlyList<EmailNaFila> lote, DateTime agoraUtc, CancellationToken ct)
+    {
+        var marketing = lote.Where(email => email.Categoria == ECategoriaDeEmail.Marketing).ToList();
+
+        if (marketing.Count == 0)
+            return;
+
+        var recebem = await repositorio.ListarQueRecebemMarketing([.. marketing.Select(email => email.UsuarioId ?? Guid.Empty).Distinct()], ct);
+
+        foreach (var email in marketing.Where(email => email.UsuarioId is not { } id || !recebem.Contains(id)))
+            email.Descartar(agoraUtc);
+    }
+
     private async Task EnviarUm(EmailNaFila email, CancellationToken ct)
     {
         try
         {
-            await emailSender.EnviarAsync(new MensagemDeEmail(email.Para, email.Assunto, email.CorpoHtml, email.Anexo), ct);
+            await emailSender.EnviarAsync(new MensagemDeEmail(email.Para, email.Assunto, email.CorpoHtml, email.Anexo, email.LinkDeDescadastro), ct);
             email.MarcarEnviado(DateTime.UtcNow);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)

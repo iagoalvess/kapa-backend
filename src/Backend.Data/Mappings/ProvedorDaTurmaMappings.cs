@@ -27,6 +27,7 @@ public sealed class CredencialDeProvedorMapping : IEntityTypeConfiguration<Crede
         builder.Property(c => c.AccessToken).HasMaxLength(1000).IsRequired();
         builder.Property(c => c.RefreshToken).HasMaxLength(1000).IsRequired();
         builder.Property(c => c.ContaNoProvedor).HasMaxLength(200).IsRequired();
+        builder.Property(c => c.ChavePublica).HasMaxLength(200);
 
         builder
             .HasIndex(c => c.FormaturaId, "ix_credenciais_de_provedor_uma_por_formatura")

@@ -15,6 +15,7 @@ using Backend.Business.Loja.Interfaces;
 using Backend.Business.Loja.Models;
 using Backend.Business.MercadoPago.Models;
 using Backend.Business.Pagamentos.Models;
+using Backend.Business.Pagamentos.Services;
 using Backend.Business.Recebimentos.Interfaces;
 using Backend.Business.Recebimentos.Models;
 using Backend.Business.Recebimentos.Services;
@@ -50,6 +51,9 @@ namespace Backend.Business.Loja.Services;
 /// <param name="codigos">A assinatura do token do convite.</param>
 /// <param name="link">O link assinado da compra.</param>
 /// <param name="emails">Reserva e link reenviado.</param>
+/// <param name="cancelamento">O pedido de cancelamento pelo link (Sprint 38, P1).</param>
+/// <param name="baixa">A confirmação do que o cartão pagou (Sprint 39) — a mesma do aviso do Mercado Pago.</param>
+/// <param name="cartaoValidator">Forma do cartão tokenizado.</param>
 /// <param name="escopo">A turma da requisição anônima.</param>
 /// <param name="fila">A fila de escrita da turma (decisão 8).</param>
 /// <param name="validator">Forma da compra.</param>
@@ -66,6 +70,9 @@ public sealed class LojaService(
     CodigoDoConvite codigos,
     LinkDaCompra link,
     EmailsDaLoja emails,
+    ICancelamentoDaCompraService cancelamento,
+    BaixaAutomatica baixa,
+    IValidator<CartaoTokenizado> cartaoValidator,
     FormaturaDoProcessamento escopo,
     IFilaDaTurma fila,
     IValidator<DadosDaCompra> validator,
@@ -88,6 +95,11 @@ public sealed class LojaService(
 
     private static readonly Erro Esgotado = Erro.Conflito("loja.esgotado", "Os convites esgotaram.");
 
+    private static readonly Erro CartaoDesligado = Erro.Conflito(
+        "pagamento.cartao_desligado",
+        "A turma não está aceitando cartão agora. Faça a compra pelo PIX."
+    );
+
     /// <inheritdoc />
     public async Task<Result<LojaDaTurma>> AbrirLoja(Guid formaturaId, CancellationToken ct = default)
     {
@@ -107,7 +119,7 @@ public sealed class LojaService(
             turma.Instituicao,
             await Festa(ct),
             vendedor.Contato,
-            credencial is null ? [] : MeiosDePagamento.Ligados,
+            MeiosDePagamento.DaTurma(credencial),
             agora,
             [
                 .. itens
@@ -162,6 +174,9 @@ public sealed class LojaService(
 
         if (await mercadoPago.Credencial(ct) is not { } credencial)
             return Erro.Conflito("loja.sem_pagamento", "A loja está sem meio de pagamento agora. Tente mais tarde ou fale com a comissão.");
+
+        if (!MeiosDePagamento.DaTurma(credencial).Contains(compra.Meio))
+            return CartaoDesligado;
 
         var prazos = Prazos(agora);
         var vendedor = await emails.Vendedor(formaturaId, ct);
@@ -252,7 +267,7 @@ public sealed class LojaService(
         var agora = DateTime.UtcNow;
         var viva = await provedor.ObterViva(CobrancaBancaria.ChaveDaCompra(compra.Id), ct);
 
-        if (compra.Status != StatusDaCompra.Pendente || viva is { Status: StatusDaCobrancaBancaria.Emitida })
+        if (compra.Status != StatusDaCompra.Pendente || compra.Meio == MeioDePagamento.Cartao || viva is { Status: StatusDaCobrancaBancaria.Emitida })
             return await ParaOComprador(compra, ct);
 
         if (viva is null && compra.ExpiraEm - FolgaDaReserva - agora < EmissaoNoMercadoPago.ValidadeMinima)
@@ -267,6 +282,55 @@ public sealed class LojaService(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// O cartão é cobrado dentro da reserva, que continua sendo a de 31 minutos: vencida, o lugar já voltou ao estoque,
+    /// e o comprador faz uma compra nova. A baixa é a da <c>BaixaAutomatica</c>, como no PIX — a compra paga ganha os
+    /// convites ali; o cartão em análise confirma quando o Mercado Pago avisar.
+    /// </remarks>
+    public async Task<Result<CompraParaOComprador>> PagarNoCartao(string token, CartaoDaCompra dados, CancellationToken ct = default)
+    {
+        var validacao = cartaoValidator.Validar(dados.Cartao);
+        if (validacao.Falhou)
+            return Result.Falha<CompraParaOComprador>(validacao.Erros);
+
+        var localizada = await Localizar(token, ct);
+        if (localizada.Falhou)
+            return Result.Falha<CompraParaOComprador>(localizada.Erros);
+
+        var compra = localizada.Valor;
+
+        if (compra.Status != StatusDaCompra.Pendente || compra.Meio != MeioDePagamento.Cartao || compra.ExpiraEm <= DateTime.UtcNow)
+            return Erro.Conflito(
+                "loja.compra_nao_pendente",
+                "Esta compra não está esperando pagamento no cartão. Se a reserva venceu, faça uma compra nova."
+            );
+
+        if (await mercadoPago.Credencial(ct) is not { } credencial || credencial.CartaoPara(compra.ValorEmCentavos) is not { } cartao)
+            return CartaoDesligado;
+
+        if (cartao.ValorEmCentavos != dados.ValorEmCentavos)
+            return Erro.Conflito(
+                "pagamento.valor_mudou",
+                $"O valor mudou para {FormatosBrasileiros.Reais(cartao.ValorEmCentavos)}. Confira e pague de novo — o cartão não foi cobrado."
+            );
+
+        var cobranca = await mercadoPago.CartaoDaCompra(
+            credencial,
+            compra.Id,
+            compra.ValorEmCentavos,
+            new PagadorNoMercadoPago(compra.Email!),
+            dados.Cartao,
+            ct
+        );
+        if (cobranca.Falhou)
+            return Result.Falha<CompraParaOComprador>(cobranca.Erros);
+
+        await baixa.Conciliar(cobranca.Valor.Id, ct);
+
+        return await ParaOComprador((await compras.Obter(compra.Id, ct))!, ct);
+    }
+
+    /// <inheritdoc />
     public async Task<Result<MeuConvite>> NomearConvidado(string token, Guid conviteId, DadosDoConvidado dados, CancellationToken ct = default)
     {
         var compra = await Localizar(token, ct);
@@ -274,6 +338,18 @@ public sealed class LojaService(
             return Result.Falha<MeuConvite>(compra.Erros);
 
         return await conviteService.NomearDaCompra(conviteId, compra.Valor.Id, dados, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<CompraParaOComprador>> PedirCancelamento(string token, PedidoDoComprador dados, CancellationToken ct = default)
+    {
+        var compra = await Localizar(token, ct);
+        if (compra.Falhou)
+            return Result.Falha<CompraParaOComprador>(compra.Erros);
+
+        var pedido = await cancelamento.Pedir(compra.Valor, dados, ct);
+
+        return pedido.Falhou ? Result.Falha<CompraParaOComprador>(pedido.Erros) : await ParaOComprador(compra.Valor, ct);
     }
 
     /// <inheritdoc />
@@ -342,7 +418,11 @@ public sealed class LojaService(
         await compras.Listar(paginacao.Normalizar(), filtro, ct);
 
     /// <inheritdoc />
-    public async Task<Result<ResumoDaLoja>> Resumir(CancellationToken ct = default) => await compras.Resumir(ct);
+    public async Task<Result<ResumoDaLoja>> Resumir(CancellationToken ct = default) =>
+        await compras.Resumir(ct) with
+        {
+            FestaId = (await agenda.ObterDoTipo(TipoDeEvento.Festa, ct))?.Id,
+        };
 
     /// <inheritdoc />
     public async Task<Result<ArquivoParaDownload>> Exportar(FiltroDeCompras filtro, CancellationToken ct = default)
@@ -400,7 +480,8 @@ public sealed class LojaService(
             StatusDaCompra.Pendente => "Aguardando pagamento",
             StatusDaCompra.Paga => "Paga",
             StatusDaCompra.Expirada => "Expirada",
-            _ => "A devolver",
+            StatusDaCompra.ADevolver => "A devolver",
+            _ => "Devolvida",
         };
 
     /// <summary>
@@ -418,12 +499,18 @@ public sealed class LojaService(
         return (documento + FolgaDaReserva, documento);
     }
 
-    /// <summary>Aponta o escopo e devolve a turma, se ela está ativa — turma suspensa ou encerrada não vende.</summary>
+    /// <summary>
+    /// Aponta o escopo e devolve a turma, se ela está ativa e a festa não foi cancelada — turma suspensa ou
+    /// encerrada não vende, e festa cancelada também não (Sprint 38, P10).
+    /// </summary>
     private async Task<FormaturaDetalhe?> TurmaVendendo(Guid formaturaId, CancellationToken ct)
     {
         escopo.Apontar(formaturaId);
 
-        return await formaturas.ObterDetalheDeTodasAsFormaturas(formaturaId, ct) is { Status: StatusDaFormatura.Ativa } turma ? turma : null;
+        if (await formaturas.ObterDetalheDeTodasAsFormaturas(formaturaId, ct) is not { Status: StatusDaFormatura.Ativa } turma)
+            return null;
+
+        return await agenda.ObterDoTipo(TipoDeEvento.Festa, ct) is { Situacao: SituacaoDoEvento.Cancelado } ? null : turma;
     }
 
     /// <summary>
@@ -440,7 +527,10 @@ public sealed class LojaService(
         return await compras.Obter(compraId, ct) is { } compra && link.Confere(token, compra) ? compra : CompraNaoEncontrada;
     }
 
-    /// <summary>Emite o PIX; a falha não desfaz a reserva — a tela oferece tentar de novo.</summary>
+    /// <summary>
+    /// Emite o PIX; a falha não desfaz a reserva — a tela oferece tentar de novo. A compra no cartão não emite nada:
+    /// ela é cobrada quando o comprador manda o cartão (<see cref="PagarNoCartao"/>).
+    /// </summary>
     private async Task Emitir(
         CredencialDeProvedor credencial,
         CompraDeConvite compra,
@@ -449,7 +539,7 @@ public sealed class LojaService(
         CancellationToken ct
     )
     {
-        if (compra.Status != StatusDaCompra.Pendente)
+        if (compra.Status != StatusDaCompra.Pendente || compra.Meio == MeioDePagamento.Cartao)
             return;
 
         var cobranca = await mercadoPago.DaCompra(credencial, compra.Id, compra.Meio, compra.ValorEmCentavos, documentoAte, pagador, ct);
@@ -473,7 +563,9 @@ public sealed class LojaService(
             && viva.Pagavel(agora)
                 ? new CobrancaDaCompra(viva.Meio, viva.CopiaECola, viva.ExpiraEm)
                 : null;
-        var dosConvites = compra.Status == StatusDaCompra.Paga ? await convites.ListarDaCompra(compra.Id, ct) : [];
+        var paga = compra.Status is not (StatusDaCompra.Pendente or StatusDaCompra.Expirada);
+        var dosConvites = paga ? await convites.ListarDaCompra(compra.Id, ct) : [];
+        var pedido = paga ? await compras.ObterUltimoPedido(compra.Id, ct) : null;
 
         return new CompraParaOComprador(
             compra.Id,
@@ -493,7 +585,16 @@ public sealed class LojaService(
             festa?.ListaAberta(agora) ?? true,
             PodeApagar(compra, festa),
             [.. dosConvites.Select(linha => ConviteDoEventoService.ParaMeu(linha.Convite, linha.ValidadoEm, codigos))],
-            compra.FormaturaId
+            compra.FormaturaId,
+            compra.ConvitesCancelados,
+            compra.ValorADevolverEmCentavos,
+            pedido is null
+                ? null
+                : new PedidoDoCompradorNaTela(pedido.Status, pedido.PedidoEm, pedido.ConviteIds.Length, pedido.RespondidoEm, pedido.MotivoDaResposta),
+            pedido is not { Status: StatusDoPedidoDeCancelamento.Aberto } && dosConvites.Any(linha => linha.ValidadoEm is null),
+            compra is { Status: StatusDaCompra.Pendente, Meio: MeioDePagamento.Cartao } && compra.ExpiraEm > agora && cobranca is null
+                ? (await mercadoPago.Credencial(ct))?.CartaoPara(compra.ValorEmCentavos)
+                : null
         );
     }
 
@@ -512,6 +613,16 @@ public sealed class LojaService(
             Nome = dados.Nome?.Trim() ?? string.Empty,
             Email = dados.Email?.Trim().ToLowerInvariant() ?? string.Empty,
             Cpf = FormatosBrasileiros.SomenteDigitos(dados.Cpf),
+            Convidados =
+            [
+                .. dados.Convidados.Select(c =>
+                    c with
+                    {
+                        Nome = c.Nome.Trim(),
+                        NumeroDoDocumento = DocumentoDoConvidado.Normalizar(c.TipoDoDocumento, c.NumeroDoDocumento),
+                    }
+                ),
+            ],
         };
 
     /// <summary>Quem paga, como o Mercado Pago pede: e-mail e nome — a turma reconhece o comprador no painel dela.</summary>

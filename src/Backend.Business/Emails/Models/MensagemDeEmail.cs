@@ -8,13 +8,20 @@ namespace Backend.Business.Emails.Models;
 /// <param name="CorpoHtml">Corpo em HTML.</param>
 /// <param name="Prioridade">Ordem de atendimento na fila.</param>
 /// <param name="Anexo">Um arquivo para baixar junto — o PDF do convite da festa. Nulo é o caso comum.</param>
+/// <param name="Marketing">Preenchido, o e-mail é de marketing do Kapa (Sprint 40). Nulo é transacional.</param>
 public sealed record NovoEmail(
     string Para,
     string Assunto,
     string CorpoHtml,
     EEmailPrioridade Prioridade = EEmailPrioridade.Normal,
-    AnexoDoEmail? Anexo = null
+    AnexoDoEmail? Anexo = null,
+    MarketingDoEmail? Marketing = null
 );
+
+/// <summary>O que faz de um e-mail um e-mail de marketing: de quem conferir a preferência e por onde sair.</summary>
+/// <param name="UsuarioId">A conta do destinatário — o envio só sai se ela ainda quer receber.</param>
+/// <param name="LinkDeDescadastro">A URL do descadastro de um clique, que vai no <c>List-Unsubscribe</c>.</param>
+public sealed record MarketingDoEmail(Guid UsuarioId, string LinkDeDescadastro);
 
 /// <summary>
 /// Mensagem pronta para entregar ao servidor de e-mail.
@@ -27,7 +34,11 @@ public sealed record NovoEmail(
 /// <param name="Assunto">Assunto da mensagem.</param>
 /// <param name="CorpoHtml">Corpo em HTML.</param>
 /// <param name="Anexo">Arquivo anexado, se houver.</param>
-public sealed record MensagemDeEmail(string Para, string Assunto, string CorpoHtml, AnexoDoEmail? Anexo = null);
+/// <param name="LinkDeDescadastro">
+/// Preenchido, a mensagem é de marketing: sai pelo remetente de marketing, com os cabeçalhos da RFC 8058. Nulo no
+/// transacional, que nunca os leva.
+/// </param>
+public sealed record MensagemDeEmail(string Para, string Assunto, string CorpoHtml, AnexoDoEmail? Anexo = null, string? LinkDeDescadastro = null);
 
 /// <summary>
 /// Um arquivo anexado ao e-mail, com os bytes junto.

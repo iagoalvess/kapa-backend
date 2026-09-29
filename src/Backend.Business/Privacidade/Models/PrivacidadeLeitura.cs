@@ -1,5 +1,6 @@
 using Backend.Business.Formandos.Models;
 using Backend.Business.Legal.Models;
+using Backend.Business.Marketing.Models;
 
 namespace Backend.Business.Privacidade.Models;
 
@@ -128,7 +129,13 @@ public sealed record MinhaAdesao(int Versao, DateTime AceitoEm, string EnderecoI
 /// <param name="Preferencias">O que a pessoa desligou ou deixou ligado, por turma.</param>
 /// <param name="NotificacoesEnviadas">Quantas notificações já saíram para ela.</param>
 /// <param name="UltimaEnviadaEm">Quando saiu a última, em UTC.</param>
-public sealed record MinhasComunicacoes(IReadOnlyList<MinhaPreferencia> Preferencias, int NotificacoesEnviadas, DateTime? UltimaEnviadaEm);
+/// <param name="DoKapa">"Receber novidades do Kapa": a preferência, o histórico e os e-mails de marketing mandados (Sprint 40).</param>
+public sealed record MinhasComunicacoes(
+    IReadOnlyList<MinhaPreferencia> Preferencias,
+    int NotificacoesEnviadas,
+    DateTime? UltimaEnviadaEm,
+    ComunicacaoDoKapa DoKapa
+);
 
 /// <summary>Uma preferência de notificação do titular.</summary>
 /// <param name="FormaturaId">Turma a que ela pertence.</param>

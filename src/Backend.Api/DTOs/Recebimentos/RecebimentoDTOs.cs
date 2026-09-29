@@ -55,7 +55,31 @@ public sealed record PixDeTesteDTO(string CopiaECola, long ValorEmCentavos);
 /// <param name="ContaNoProvedor">E-mail ou apelido da conta que autorizou.</param>
 /// <param name="ConectadoEm">Quando a autorização atual foi dada, em UTC.</param>
 /// <param name="ConectadoPor">Nome de quem autorizou.</param>
-public sealed record ProvedorConectadoDTO(string ContaNoProvedor, DateTime ConectadoEm, string? ConectadoPor);
+/// <param name="Cartao">O cartão da turma (Sprint 39).</param>
+/// <param name="CobrancaAutomaticaEm">Desde quando parcelas e opcionais se pagam só pelo Mercado Pago, em UTC; nulo: cobrança manual.</param>
+public sealed record ProvedorConectadoDTO(
+    string ContaNoProvedor,
+    DateTime ConectadoEm,
+    string? ConectadoPor,
+    CartaoDaTurmaDTO Cartao,
+    DateTime? CobrancaAutomaticaEm
+);
+
+/// <summary>Trocar o modo de cobrança das parcelas.</summary>
+/// <param name="Automatica">Verdadeiro: só Mercado Pago; falso ou ausente: os meios da comissão, com aviso e conferência.</param>
+public sealed record ModoDeCobrancaRequestDTO(bool? Automatica);
+
+/// <summary>O cartão da turma (Sprint 39, P2 e P7).</summary>
+/// <param name="Disponivel">Se a conexão permite ligar; falso, o Presidente conecta a conta de novo antes.</param>
+/// <param name="LigadoEm">Quando foi ligado, em UTC; nulo, desligado.</param>
+/// <param name="LigadoPor">Nome de quem ligou.</param>
+/// <param name="TaxaRepassada">Taxa repassada a quem paga, base 10.000; nula, a turma absorve.</param>
+public sealed record CartaoDaTurmaDTO(bool Disponivel, DateTime? LigadoEm, string? LigadoPor, int? TaxaRepassada);
+
+/// <summary>Ligar ou desligar o cartão (Sprint 39).</summary>
+/// <param name="Ligado">Liga ou desliga.</param>
+/// <param name="TaxaRepassada">Base 10.000, de 1 a 1500; nula, a turma absorve.</param>
+public sealed record ConfiguracaoDoCartaoRequestDTO(bool? Ligado, int? TaxaRepassada);
 
 /// <summary>O Mercado Pago da turma. <c>provedor</c> nulo: ainda não conectou.</summary>
 /// <param name="Provedor">A conexão, ou nula.</param>

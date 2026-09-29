@@ -148,7 +148,14 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
             );
         });
 
-        return new MeusDados(conta, turmas, consentimentos, new MinhasComunicacoes(preferencias, enviadas?.Quantidade ?? 0, enviadas?.Ultima));
+        var doKapa = await ComunicacaoDoKapaRepository.DoTitular(db, usuarioId, maximoDeEnvios: null, ct);
+
+        return new MeusDados(
+            conta,
+            turmas,
+            consentimentos,
+            new MinhasComunicacoes(preferencias, enviadas?.Quantidade ?? 0, enviadas?.Ultima, doKapa)
+        );
     }
 
     /// <inheritdoc />

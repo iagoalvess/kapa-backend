@@ -1,4 +1,5 @@
 using Backend.Business.Assinaturas.Models;
+using Backend.Business.Marketing.Models;
 using Backend.Business.Pagamentos.Models;
 
 namespace Backend.Business.Admin.Models;
@@ -157,6 +158,7 @@ public sealed record MembroNoSuporte(Guid UsuarioId, string Nome, string Email, 
 /// <param name="AnonimizadoEm">Quando a conta foi anonimizada por pedido de eliminação, ou nulo.</param>
 /// <param name="CriadoEm">Quando a conta nasceu, em UTC.</param>
 /// <param name="Vinculos">Turmas da pessoa, ativas primeiro.</param>
+/// <param name="ComunicacaoDoKapa">Se recebe as novidades do Kapa, o histórico e os últimos e-mails de marketing (Sprint 40).</param>
 public sealed record UsuarioNoSuporte(
     Guid Id,
     string Nome,
@@ -168,7 +170,8 @@ public sealed record UsuarioNoSuporte(
     IReadOnlyList<string> Perfis,
     DateTime? AnonimizadoEm,
     DateTime CriadoEm,
-    IReadOnlyList<VinculoNoSuporte> Vinculos
+    IReadOnlyList<VinculoNoSuporte> Vinculos,
+    ComunicacaoDoKapa ComunicacaoDoKapa
 );
 
 /// <summary>Uma turma de que a pessoa participa.</summary>

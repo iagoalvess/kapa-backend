@@ -4,6 +4,8 @@ using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Services;
+using Backend.Business.Financeiro.Interfaces;
+using Backend.Business.Financeiro.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Loja.Services;
 using Backend.Business.MercadoPago.Interfaces;
@@ -45,6 +47,12 @@ namespace Backend.Business.Pagamentos.Services;
 /// que trouxe o dinheiro. Para o caixa, a linha é igual à da baixa manual. Aviso pendente do formando
 /// sobre a mesma parcela é confirmado junto — senão sobraria na fila da tesouraria uma parcela já paga.
 /// </para>
+/// <para>
+/// Sprint 39: no pagamento, a tarifa do Mercado Pago entra no caixa como despesa paga (P6), e a taxa repassada a
+/// quem pagou, como receita — o balancete fecha com o extrato dele linha a linha. E a cobrança paga que o Mercado
+/// Pago diz ter voltado ao pagador (contestação no cartão ou devolução pelo painel) desfaz o que ela pagou — as
+/// baixas, ou a compra da loja — e avisa a comissão (P4).
+/// </para>
 /// </remarks>
 /// <param name="provedor">Credencial e cobranças.</param>
 /// <param name="mercadoPago">A API.</param>
@@ -55,6 +63,10 @@ namespace Backend.Business.Pagamentos.Services;
 /// <param name="baixaService">A baixa em si.</param>
 /// <param name="pagamentoDaCompra">A confirmação da compra da loja, quando a cobrança é dela (Sprint 26).</param>
 /// <param name="eventos">Auditoria das pendências — o que foi pago sem parcela para baixar.</param>
+/// <param name="recebimentoRepository">As baixas que a devolução desfaz.</param>
+/// <param name="despesas">A tarifa do Mercado Pago no caixa (P6).</param>
+/// <param name="receitas">A taxa do cartão repassada a quem pagou (P2).</param>
+/// <param name="avisos">O aviso da devolução à comissão (P4).</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class BaixaAutomatica(
@@ -67,6 +79,10 @@ public sealed class BaixaAutomatica(
     BaixaService baixaService,
     PagamentoDaCompra pagamentoDaCompra,
     IEventoRepository eventos,
+    IRecebimentoRepository recebimentoRepository,
+    IDespesaRepository despesas,
+    IOutraReceitaRepository receitas,
+    EmailsDePagamento avisos,
     IUnitOfWork unitOfWork,
     ILogger<BaixaAutomatica> logger
 )
@@ -74,17 +90,26 @@ public sealed class BaixaAutomatica(
     /// <summary>Pagamento que o Mercado Pago confirmou e não achou parcela aberta para baixar — pendência da tesouraria.</summary>
     public const string EventoDePagoSemParcela = "pagamento.pago_sem_parcela";
 
+    /// <summary>A cobrança paga voltou ao pagador e o Kapa desfez o que ela pagou (Sprint 39, P4).</summary>
+    public const string EventoDeDevolucao = "pagamento.devolvido_no_mercado_pago";
+
+    /// <summary>A justificativa do estorno quando o pagador contesta no cartão — a frase da P4.</summary>
+    public const string MotivoDaContestacao = "contestação no cartão";
+
+    /// <summary>A justificativa do estorno quando a turma devolve pelo painel do Mercado Pago.</summary>
+    public const string MotivoDaDevolucao = "devolvido no Mercado Pago";
+
     /// <summary>
-    /// Consulta a cobrança no Mercado Pago e baixa as parcelas se ela foi paga. O escopo precisa estar
-    /// apontado para a turma da cobrança.
+    /// Consulta a cobrança no Mercado Pago e baixa as parcelas se ela foi paga — ou, se ela já estava paga e o
+    /// dinheiro voltou ao pagador, desfaz o que ela pagou. O escopo precisa estar apontado para a turma da cobrança.
     /// </summary>
     /// <param name="cobrancaId">Cobrança.</param>
     /// <param name="ct">Token de cancelamento.</param>
-    /// <returns>Se baixou agora; falso quando não havia o que baixar.</returns>
+    /// <returns>Se baixou ou estornou agora; falso quando não havia o que fazer.</returns>
     public async Task<Result<bool>> Conciliar(Guid cobrancaId, CancellationToken ct = default)
     {
         var cobranca = await provedor.ObterCobranca(cobrancaId, ct);
-        if (cobranca is not { Status: StatusDaCobrancaBancaria.Emitida, IdExterno: { } idExterno })
+        if (cobranca is not { Status: StatusDaCobrancaBancaria.Emitida or StatusDaCobrancaBancaria.Paga, IdExterno: { } idExterno })
             return false;
 
         var credencial = await provedor.ObterCredencial(ct);
@@ -110,9 +135,17 @@ public sealed class BaixaAutomatica(
 
         var pedido = consulta.Valor;
 
+        if (cobranca.Status == StatusDaCobrancaBancaria.Paga)
+            return pedido.Situacao is SituacaoDoPedido.Devolvido or SituacaoDoPedido.Contestado
+                ? await Devolver(cobranca.Id, pedido.Situacao, credencial.CadastradaPorUsuarioId, ct)
+                : false;
+
         var vencidaHaUmDia = cobranca.ExpiraEm < DateTime.UtcNow.AddDays(-1);
 
-        if (pedido.Situacao == SituacaoDoPedido.Encerrado || pedido.Situacao == SituacaoDoPedido.Aberto && vencidaHaUmDia)
+        if (
+            pedido.Situacao is SituacaoDoPedido.Encerrado or SituacaoDoPedido.Devolvido or SituacaoDoPedido.Contestado
+            || pedido.Situacao == SituacaoDoPedido.Aberto && vencidaHaUmDia
+        )
         {
             if (await provedor.TravarCobranca(cobranca.Id, ct) is { Status: StatusDaCobrancaBancaria.Emitida } travada)
             {
@@ -132,9 +165,180 @@ public sealed class BaixaAutomatica(
             return false;
         }
 
+        var tarifa = await Tarifa(credencial.AccessToken, cobranca.Id, ct);
+        var semAcrescimo = pedido with { ValorPagoEmCentavos = cobranca.SemAcrescimo(pedido.ValorPagoEmCentavos) };
+
         return cobranca.CompraId is { } compraId
-            ? await ConfirmarCompra(cobranca.Id, compraId, cobranca.FormaturaId, pedido, ct)
-            : await Baixar(cobranca.Id, cobranca.FormaturaId, credencial.CadastradaPorUsuarioId, pedido, ct);
+            ? await ConfirmarCompra(cobranca.Id, compraId, cobranca.FormaturaId, semAcrescimo, tarifa, ct)
+            : await Baixar(cobranca.Id, cobranca.FormaturaId, credencial.CadastradaPorUsuarioId, semAcrescimo, tarifa, ct);
+    }
+
+    /// <summary>
+    /// A tarifa que o Mercado Pago descontou do pagamento — o valor menos o líquido que caiu na conta (P6).
+    /// </summary>
+    /// <remarks>
+    /// O pedido não traz a tarifa; o pagamento dele, buscado pela referência, traz o líquido. Consulta antes da
+    /// transação, como a do pedido (decisão 12a). <c>ponytail:</c> se a busca falhar, a baixa segue sem a
+    /// tarifa e o log avisa — o formando não espera pelo caixa; a tesouraria lança a tarifa à mão se faltar.
+    /// </remarks>
+    private async Task<long> Tarifa(string accessToken, Guid cobrancaId, CancellationToken ct)
+    {
+        var pagamento = await mercadoPago.BuscarPagamentoAprovado(accessToken, cobrancaId, ct);
+
+        if (pagamento.Falhou)
+            logger.LogWarning("Tarifa da cobrança {CobrancaId} não lida no Mercado Pago; a baixa segue sem ela.", cobrancaId);
+
+        return pagamento is { Sucesso: true, Valor: { } lido } ? lido.TarifaEmCentavos : 0;
+    }
+
+    /// <summary>
+    /// O que o pagamento deixa no caixa além da baixa: a tarifa do Mercado Pago como despesa paga e, com a taxa do
+    /// cartão repassada, o acréscimo que o pagador pagou como receita (P2 e P6). Na transação de quem chama.
+    /// </summary>
+    private async Task LancarNoCaixa(CobrancaBancaria cobranca, long tarifaEmCentavos, DateOnly pagoEm, CancellationToken ct)
+    {
+        var referencia = Referencia(cobranca);
+
+        if (tarifaEmCentavos > 0)
+            await despesas.Adicionar([Despesa.TarifaDoMercadoPago($"Tarifas do Mercado Pago — {referencia}", tarifaEmCentavos, pagoEm)], ct);
+
+        if (cobranca.AcrescimoEmCentavos <= 0)
+            return;
+
+        var acrescimo = OutraReceita.Nova(
+            new NovaOutraReceita(
+                $"Taxa do cartão paga por quem pagou — {referencia}",
+                null,
+                CategoriaDeOutraReceita.Outros,
+                cobranca.AcrescimoEmCentavos,
+                pagoEm,
+                Recebida: true
+            )
+        );
+        await receitas.Adicionar(acrescimo, ct);
+        cobranca.AcrescimoNoCaixa(acrescimo.Id);
+    }
+
+    /// <summary>
+    /// Como o caixa nomeia a cobrança nos lançamentos dela: o meio e o fim do id. As descrições são únicas por turma e
+    /// dia, e é o id que separa dois pagamentos no mesmo dia.
+    /// </summary>
+    private static string Referencia(CobrancaBancaria cobranca) =>
+        $"{MeiosDePagamento.Rotulo(cobranca.Meio)} {cobranca.Id.ToString("N")[^8..].ToUpperInvariant()}";
+
+    /// <summary>
+    /// A cobrança paga voltou ao pagador (P4): desfaz o que ela pagou, sob a trava da cobrança — aviso e
+    /// conciliação juntos desfazem uma vez —, e avisa a comissão.
+    /// </summary>
+    /// <remarks>
+    /// Nas parcelas, estorna a baixa ativa de cada uma que ainda está com a forma desta cobrança — a baixa manual
+    /// que a tesouraria fez depois não é desta cobrança, e fica. Na loja, cancela a compra pelo caminho da Sprint 38,
+    /// sem lista a devolver: o dinheiro já voltou. O acréscimo repassado volta junto — o pagador recebeu tudo —, e a
+    /// tarifa lançada fica: o Mercado Pago não a devolve na contestação.
+    /// </remarks>
+    private async Task<Result<bool>> Devolver(Guid cobrancaId, SituacaoDoPedido situacao, Guid usuarioId, CancellationToken ct)
+    {
+        var motivo = situacao == SituacaoDoPedido.Contestado ? MotivoDaContestacao : MotivoDaDevolucao;
+
+        return await unitOfWork.EmTransacaoAsync(
+            async token =>
+            {
+                var cobranca = await provedor.TravarCobranca(cobrancaId, token);
+                if (cobranca is not { Status: StatusDaCobrancaBancaria.Paga })
+                    return Result.Ok(false);
+
+                var nomeDaTurma = await formaturaRepository.ObterNome(cobranca.FormaturaId, token) ?? string.Empty;
+
+                var desfeito = cobranca.CompraId is { } compraId
+                    ? await pagamentoDaCompra.Devolver(compraId, motivo, usuarioId, token)
+                    : await EstornarParcelas(cobranca, motivo, usuarioId, nomeDaTurma, token);
+
+                if (desfeito.Falhou)
+                    return Result.Falha<bool>(desfeito.Erros);
+
+                if (cobranca.ReceitaDoAcrescimoId is { } receitaDoAcrescimo)
+                    await receitas.Adicionar(
+                        OutraReceita.Estorno(
+                            receitaDoAcrescimo,
+                            $"Estorno da taxa do cartão — {Referencia(cobranca)} ({motivo})",
+                            cobranca.AcrescimoEmCentavos,
+                            DataUtils.Hoje(),
+                            CategoriaDeOutraReceita.Outros
+                        ),
+                        token
+                    );
+
+                cobranca.Estornada();
+
+                foreach (var email in await vinculoRepository.ListarEmailsDaComissao(cobranca.FormaturaId, token))
+                    await avisos.DevolvidoNoMercadoPago(email, nomeDaTurma, motivo, cobranca.ValorEmCentavos, desfeito.Valor, token);
+
+                await eventos.Auditar(
+                    EventoDeDevolucao,
+                    usuarioId,
+                    new
+                    {
+                        formaturaId = cobranca.FormaturaId,
+                        cobrancaId,
+                        compraId = cobranca.CompraId,
+                        parcelaIds = cobranca.ParcelaIds,
+                        valorEmCentavos = cobranca.ValorEmCentavos,
+                        motivo,
+                    },
+                    token
+                );
+
+                await unitOfWork.SalvarAsync(token);
+
+                logger.LogWarning("Cobrança {CobrancaId} voltou ao pagador ({Motivo}): {Desfeito} desfeito.", cobrancaId, motivo, desfeito.Valor);
+
+                return Result.Ok(true);
+            },
+            ct
+        );
+    }
+
+    /// <summary>Estorna as baixas desta cobrança nas parcelas dela; devolve o que foi desfeito, para o e-mail da comissão.</summary>
+    private async Task<Result<string>> EstornarParcelas(
+        CobrancaBancaria cobranca,
+        string motivo,
+        Guid usuarioId,
+        string nomeDaTurma,
+        CancellationToken ct
+    )
+    {
+        var parcelas = await parcelaRepository.TravarParaBaixa(cobranca.ParcelaIds, ct);
+        var emailsDosFormandos = await vinculoRepository.ListarEmailsDosVinculos([.. parcelas.Select(p => p.VinculoId).Distinct()], ct);
+        var forma = FormasDePagamento.Da(cobranca.Meio);
+        var estornadas = 0;
+
+        foreach (var parcela in parcelas)
+        {
+            if (await recebimentoRepository.ObterAtivoParaEdicao(parcela.Id, ct) is not { } recebimento || recebimento.Forma != forma)
+                continue;
+
+            var estorno = await baixaService.Estornar(
+                parcela,
+                recebimento,
+                usuarioId,
+                motivo,
+                null,
+                new ContextoDaBaixa(
+                    cobranca.FormaturaId,
+                    nomeDaTurma,
+                    RegrasDeAtraso.Nenhuma,
+                    emailsDosFormandos.GetValueOrDefault(parcela.VinculoId)
+                ),
+                ct
+            );
+
+            if (estorno.Falhou)
+                return Result.Falha<string>(estorno.Erros);
+
+            estornadas++;
+        }
+
+        return estornadas == 1 ? "a baixa de 1 parcela" : $"a baixa de {estornadas} parcelas";
     }
 
     /// <summary>
@@ -146,6 +350,7 @@ public sealed class BaixaAutomatica(
         Guid compraId,
         Guid formaturaId,
         PedidoConsultado pedido,
+        long tarifaEmCentavos,
         CancellationToken ct
     ) =>
         await unitOfWork.EmTransacaoAsync(
@@ -157,6 +362,12 @@ public sealed class BaixaAutomatica(
 
                 var confirmada = await pagamentoDaCompra.Confirmar(compraId, pedido, formaturaId, token);
                 cobranca.Paga();
+                await LancarNoCaixa(
+                    cobranca,
+                    tarifaEmCentavos,
+                    DateOnly.FromDateTime(DataUtils.ParaExibicao(pedido.PagoEm ?? DateTime.UtcNow)),
+                    token
+                );
                 await unitOfWork.SalvarAsync(token);
 
                 return Result.Ok(confirmada);
@@ -168,7 +379,14 @@ public sealed class BaixaAutomatica(
     /// Baixa as parcelas da cobrança paga, dividindo o valor da mais antiga para a mais nova — cada uma até
     /// o devido no dia do pagamento, e o que sobrar na última, como no aviso de várias parcelas.
     /// </summary>
-    private async Task<Result<bool>> Baixar(Guid cobrancaId, Guid formaturaId, Guid usuarioId, PedidoConsultado pedido, CancellationToken ct)
+    private async Task<Result<bool>> Baixar(
+        Guid cobrancaId,
+        Guid formaturaId,
+        Guid usuarioId,
+        PedidoConsultado pedido,
+        long tarifaEmCentavos,
+        CancellationToken ct
+    )
     {
         var pagoEm = DateOnly.FromDateTime(DataUtils.ParaExibicao(pedido.PagoEm ?? DateTime.UtcNow));
         var nomeDaTurma = await formaturaRepository.ObterNome(formaturaId, ct) ?? string.Empty;
@@ -214,6 +432,7 @@ public sealed class BaixaAutomatica(
                 }
 
                 cobranca.Paga();
+                await LancarNoCaixa(cobranca, tarifaEmCentavos, pagoEm, token);
 
                 if (baixadas == 0)
                 {

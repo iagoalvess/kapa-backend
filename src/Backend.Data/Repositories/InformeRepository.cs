@@ -29,6 +29,9 @@ public sealed class InformeRepository(AppDbContext db) : IInformeRepository
         db.Informes.AnyAsync(i => parcelaIds.Contains(i.ParcelaId) && i.Status == StatusDoInforme.Pendente, ct);
 
     /// <inheritdoc />
+    public Task<int> ContarPendentes(CancellationToken ct = default) => db.Informes.CountAsync(i => i.Status == StatusDoInforme.Pendente, ct);
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<InformeDePagamento>> ListarPendentesParaEdicao(
         IReadOnlyCollection<Guid> parcelaIds,
         CancellationToken ct = default

@@ -122,6 +122,26 @@ public class Despesa : EntidadeDaFormatura
         return Result.Ok();
     }
 
+    /// <summary>
+    /// A tarifa que o Mercado Pago descontou de um pagamento (Sprint 39, P6): já paga, na categoria Taxas, sem
+    /// fornecedor e sem comprovante — a prova é o extrato do Mercado Pago, e é com ele que o balancete fecha.
+    /// </summary>
+    /// <param name="descricao">O que é, com o pagamento que a gerou.</param>
+    /// <param name="valorEmCentavos">A tarifa.</param>
+    /// <param name="pagoEm">Dia do pagamento que a gerou.</param>
+    public static Despesa TarifaDoMercadoPago(string descricao, long valorEmCentavos, DateOnly pagoEm) =>
+        new()
+        {
+            LancamentoId = Guid.CreateVersion7(),
+            Descricao = descricao,
+            Categoria = CategoriaDeDespesa.Taxas,
+            ValorEmCentavos = valorEmCentavos,
+            Competencia = PrimeiroDoMes(pagoEm),
+            Vencimento = pagoEm,
+            Status = StatusDaDespesa.Paga,
+            PagoEm = pagoEm,
+        };
+
     /// <summary>Registra a saída do dinheiro, com o comprovante.</summary>
     /// <remarks>Sem comprovante não paga (decisão 3): quem barra o nulo é o service, antes de chegar aqui.</remarks>
     /// <param name="pagoEm">Dia em que o dinheiro saiu.</param>

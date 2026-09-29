@@ -51,10 +51,24 @@ public sealed class EmailFilaRepository(AppDbContext db) : IEmailFilaRepository
     }
 
     /// <inheritdoc />
+    /// <remarks>Conta anonimizada ou desativada não recebe, mesmo com a preferência ligada no banco.</remarks>
+    public async Task<IReadOnlySet<Guid>> ListarQueRecebemMarketing(IReadOnlyCollection<Guid> usuarioIds, CancellationToken ct = default) =>
+        (
+            await db
+                .Users.AsNoTracking()
+                .Where(u => usuarioIds.Contains(u.Id) && u.ReceberComunicacaoDoKapa && u.Ativo && u.AnonimizadoEm == null)
+                .Select(u => u.Id)
+                .ToListAsync(ct)
+        ).ToHashSet();
+
+    /// <inheritdoc />
     /// <remarks><c>ExecuteDeleteAsync</c>: limpeza em massa do worker, sem nada a compor — a mesma exceção de <c>RefreshTokenRepository</c>.</remarks>
     public Task<int> RemoverConcluidosAnterioresA(DateTime limiteUtc, CancellationToken ct = default) =>
         db
-            .EmailsFila.Where(e => (e.Status == EEmailStatus.Enviado || e.Status == EEmailStatus.Falhou) && e.AtualizadoEm < limiteUtc)
+            .EmailsFila.Where(e =>
+                (e.Status == EEmailStatus.Enviado || e.Status == EEmailStatus.Falhou || e.Status == EEmailStatus.Descartado)
+                && e.AtualizadoEm < limiteUtc
+            )
             .ExecuteDeleteAsync(ct);
 
     /// <inheritdoc />

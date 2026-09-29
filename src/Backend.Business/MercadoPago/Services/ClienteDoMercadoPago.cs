@@ -366,7 +366,8 @@ public sealed class ClienteDoMercadoPago(HttpClient http, IOptions<MercadoPagoSe
             SituacaoDoPagamentoDe(pagamento.Status),
             (long)Math.Round((pagamento.TransactionAmount ?? 0) * 100m),
             pagamento.DateApproved?.ToUniversalTime(),
-            pagamento.OperationType == "recurring_payment"
+            pagamento.OperationType == "recurring_payment",
+            pagamento.TransactionDetails?.NetReceivedAmount is { } liquido ? (long)Math.Round(liquido * 100m) : null
         );
 
     /// <summary>O <c>status</c> de um pagamento como o Kapa o entende; o que não é conhecido fica pendente.</summary>
@@ -398,7 +399,7 @@ public sealed class ClienteDoMercadoPago(HttpClient http, IOptions<MercadoPagoSe
             pedido.Id ?? idExterno,
             pedido.ExternalReference,
             situacao,
-            situacao == SituacaoDoPedido.Pago ? Centavos(pedido.TotalPaidAmount) : 0,
+            situacao == SituacaoDoPedido.Pago ? SemJurosDoComprador(pedido) : 0,
             situacao == SituacaoDoPedido.Pago ? pedido.LastUpdatedDate?.ToUniversalTime() : null,
             pedido.Payer?.Identification is { Type: "CPF", Number: { } cpf } ? cpf : null
         );
@@ -406,15 +407,27 @@ public sealed class ClienteDoMercadoPago(HttpClient http, IOptions<MercadoPagoSe
 
     /// <summary>
     /// Pago é <c>processed</c> com <c>accredited</c> — o dinheiro creditado, não só aprovado. O que não vai
-    /// mais ser pago (vencido, cancelado, recusado, devolvido) é encerrado; o resto segue aberto.
+    /// mais ser pago (vencido, cancelado, recusado) é encerrado; o devolvido e o contestado são o pago que
+    /// voltou (Sprint 39, P4); o resto segue aberto — inclusive a devolução parcial, que continua <c>processed</c>.
     /// </summary>
+    /// <remarks>
+    /// O valor pago, em <see cref="ConsultarPedido"/>, é o do pedido, e não o <c>total_paid_amount</c>: no cartão
+    /// parcelado ele inclui os juros que o comprador paga ao Mercado Pago (100,00 viram 111,23 em 3×, sandbox de
+    /// 28/09/2026), e a turma recebe só o valor do pedido (P3).
+    /// </remarks>
     private static SituacaoDoPedido Situacao(Pedido pedido) =>
         (pedido.Status, pedido.StatusDetail) switch
         {
             ("processed", "accredited") => SituacaoDoPedido.Pago,
-            ("expired" or "canceled" or "failed" or "refunded" or "charged_back", _) => SituacaoDoPedido.Encerrado,
+            ("refunded", _) => SituacaoDoPedido.Devolvido,
+            ("charged_back", _) => SituacaoDoPedido.Contestado,
+            ("expired" or "canceled" or "failed", _) => SituacaoDoPedido.Encerrado,
             _ => SituacaoDoPedido.Aberto,
         };
+
+    /// <summary>O pago sem os juros do parcelamento, que são do comprador com o Mercado Pago; sem o total, o pago.</summary>
+    private static long SemJurosDoComprador(Pedido pedido) =>
+        Centavos(pedido.TotalAmount) is > 0 and var total ? Math.Min(Centavos(pedido.TotalPaidAmount), total) : Centavos(pedido.TotalPaidAmount);
 
     /// <summary>
     /// A recorrência como o Kapa a entende. O que o Mercado Pago não documenta como estado conhecido fica
@@ -495,7 +508,13 @@ public sealed class ClienteDoMercadoPago(HttpClient http, IOptions<MercadoPagoSe
         if (string.IsNullOrWhiteSpace(tokens.AccessToken) || string.IsNullOrWhiteSpace(tokens.RefreshToken))
             return Indisponivel;
 
-        return new TokensDoMercadoPago(tokens.AccessToken, tokens.RefreshToken, tokens.UserId, DateTime.UtcNow.AddSeconds(tokens.ExpiresIn));
+        return new TokensDoMercadoPago(
+            tokens.AccessToken,
+            tokens.RefreshToken,
+            tokens.UserId,
+            DateTime.UtcNow.AddSeconds(tokens.ExpiresIn),
+            string.IsNullOrWhiteSpace(tokens.PublicKey) ? null : tokens.PublicKey
+        );
     }
 
     /// <summary>
@@ -577,7 +596,7 @@ public sealed class ClienteDoMercadoPago(HttpClient http, IOptions<MercadoPagoSe
         string? RefreshToken
     );
 
-    private sealed record RespostaDeToken(string? AccessToken, string? RefreshToken, long UserId, int ExpiresIn);
+    private sealed record RespostaDeToken(string? AccessToken, string? RefreshToken, long UserId, int ExpiresIn, string? PublicKey);
 
     private sealed record Usuario(long Id, string? Nickname, string? Email, string? SiteId, IReadOnlyList<string>? Tags);
 
@@ -649,8 +668,11 @@ public sealed class ClienteDoMercadoPago(HttpClient http, IOptions<MercadoPagoSe
         string? Status,
         decimal? TransactionAmount,
         DateTime? DateApproved,
-        string? OperationType
+        string? OperationType,
+        DetalhesDaTransacao? TransactionDetails
     );
+
+    private sealed record DetalhesDaTransacao(decimal? NetReceivedAmount);
 
     private sealed record BuscaDePagamentos(IReadOnlyList<PagamentoLido>? Results);
 

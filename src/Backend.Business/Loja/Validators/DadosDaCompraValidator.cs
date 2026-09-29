@@ -1,6 +1,7 @@
 using Backend.Business.Cobrancas.Validators;
 using Backend.Business.Common.Texto;
 using Backend.Business.Common.Validacao;
+using Backend.Business.Festa.Validators;
 using Backend.Business.Loja.Models;
 using Backend.Business.Pagamentos.Models;
 using FluentValidation;
@@ -8,7 +9,8 @@ using FluentValidation;
 namespace Backend.Business.Loja.Validators;
 
 /// <summary>
-/// Forma da compra: nome, e-mail, CPF com dígito verificador (P6) e um meio que a loja oferece.
+/// Forma da compra: nome, e-mail, CPF com dígito verificador (P6), um meio que a loja oferece e o titular de cada
+/// convite — nome e documento já na compra, sem convite "a definir".
 /// </summary>
 /// <remarks>
 /// Roda antes de qualquer consulta: o CPF inválido é recusado antes da reserva, e nada da compra chega à
@@ -47,6 +49,17 @@ public sealed class DadosDaCompraValidator : AbstractValidator<DadosDaCompra>
             .Must(MeiosDePagamento.Ligados.Contains)
             .OverridePropertyName("meio")
             .WithMessage("Escolha como pagar entre as opções da loja.");
+
+        RuleFor(x => x.Convidados)
+            .Must((compra, convidados) => convidados.Count == compra.Quantidade)
+            .OverridePropertyName("convidados")
+            .WithMessage("Diga quem vai usar cada convite.");
+
+        RuleForEach(x => x.Convidados)
+            .SetValidator(new DadosDoConvidadoValidator())
+            .ChildRules(convidado =>
+                convidado.RuleFor(c => c.NumeroDoDocumento).NotEmpty().WithMessage("Informe o documento de quem vai usar o convite.")
+            );
 
         RuleFor(x => x.ChaveDeIdempotencia)
             .NotEmpty()

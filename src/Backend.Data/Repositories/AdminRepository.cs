@@ -22,6 +22,9 @@ namespace Backend.Data.Repositories;
 /// <param name="db">Contexto de dados da requisição.</param>
 public sealed class AdminRepository(AppDbContext db) : IAdminRepository
 {
+    /// <summary>Quantos e-mails de marketing a conta no suporte mostra — os últimos respondem "por que recebi isto?".</summary>
+    private const int EnviosDeMarketingNoSuporte = 10;
+
     /// <inheritdoc />
     /// <remarks>
     /// As contagens de usuário saem em uma consulta só (agregação no banco); sessões e
@@ -363,7 +366,8 @@ public sealed class AdminRepository(AppDbContext db) : IAdminRepository
             conta.Perfis,
             conta.AnonimizadoEm,
             conta.CriadoEm,
-            vinculos
+            vinculos,
+            await ComunicacaoDoKapaRepository.DoTitular(db, usuarioId, EnviosDeMarketingNoSuporte, ct)
         );
     }
 }

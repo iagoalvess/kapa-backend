@@ -46,6 +46,35 @@ public sealed class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<Smtp
     /// </remarks>
     public async Task EnviarAsync(MensagemDeEmail mensagem, CancellationToken ct = default)
     {
+        using var mime = Montar(mensagem);
+
+        using var cliente = new SmtpClient();
+
+        var seguranca = _settings.Porta == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
+
+        await cliente.ConnectAsync(_settings.Host, _settings.Porta, seguranca, ct);
+
+        if (!string.IsNullOrWhiteSpace(_settings.Usuario))
+            await cliente.AuthenticateAsync(_settings.Usuario, _settings.Senha, ct);
+
+        await cliente.SendAsync(mime, ct);
+        await cliente.DisconnectAsync(true, ct);
+
+        if (!string.IsNullOrWhiteSpace(_settings.RedirecionarPara))
+            logger.LogWarning(
+                "E-mail de {Destinatario} desviado para {Caixa}: Smtp:RedirecionarPara está preenchido.",
+                TextoUtils.MascararEmail(mensagem.Para),
+                TextoUtils.MascararEmail(_settings.RedirecionarPara)
+            );
+        else
+            logger.LogInformation("E-mail entregue ao servidor SMTP para {Destinatario}.", TextoUtils.MascararEmail(mensagem.Para));
+    }
+
+    /// <summary>A mensagem MIME como sai: corpo, imagens, anexo, remetente e — só no marketing — os cabeçalhos do descadastro.</summary>
+    /// <remarks>Separada do envio para o teste conferir os cabeçalhos sem servidor SMTP.</remarks>
+    /// <param name="mensagem">O que a fila entregou.</param>
+    public MimeMessage Montar(MensagemDeEmail mensagem)
+    {
         var desviado = !string.IsNullOrWhiteSpace(_settings.RedirecionarPara);
         var destinatario = desviado ? _settings.RedirecionarPara : mensagem.Para;
 
@@ -63,35 +92,49 @@ public sealed class SmtpEmailSender(IOptions<SmtpSettings> options, ILogger<Smtp
         if (mensagem.Anexo is { } anexo)
             corpo.Attachments.Add(anexo.Nome, anexo.Conteudo, ContentType.Parse(anexo.ContentType));
 
-        using var mime = new MimeMessage
+        var mime = new MimeMessage
         {
             Subject = desviado ? $"[para {mensagem.Para}] {mensagem.Assunto}" : mensagem.Assunto,
             Body = corpo.ToMessageBody(),
         };
 
-        mime.From.Add(new MailboxAddress(_settings.RemetenteNome, _settings.RemetenteEmail));
         mime.To.Add(MailboxAddress.Parse(destinatario));
 
-        using var cliente = new SmtpClient();
-
-        var seguranca = _settings.Porta == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
-
-        await cliente.ConnectAsync(_settings.Host, _settings.Porta, seguranca, ct);
-
-        if (!string.IsNullOrWhiteSpace(_settings.Usuario))
-            await cliente.AuthenticateAsync(_settings.Usuario, _settings.Senha, ct);
-
-        await cliente.SendAsync(mime, ct);
-        await cliente.DisconnectAsync(true, ct);
-
-        if (desviado)
-            logger.LogWarning(
-                "E-mail de {Destinatario} desviado para {Caixa}: Smtp:RedirecionarPara está preenchido.",
-                TextoUtils.MascararEmail(mensagem.Para),
-                TextoUtils.MascararEmail(destinatario)
-            );
+        if (mensagem.LinkDeDescadastro is { } descadastro)
+            ComoMarketing(mime, descadastro);
         else
-            logger.LogInformation("E-mail entregue ao servidor SMTP para {Destinatario}.", TextoUtils.MascararEmail(mensagem.Para));
+            mime.From.Add(new MailboxAddress(_settings.RemetenteNome, _settings.RemetenteEmail));
+
+        return mime;
+    }
+
+    /// <summary>
+    /// Remetente, resposta e os cabeçalhos do descadastro de um clique, que só o marketing leva.
+    /// </summary>
+    /// <remarks>
+    /// <c>List-Unsubscribe</c> com <c>List-Unsubscribe-Post: List-Unsubscribe=One-Click</c> é a RFC 8058, que
+    /// Gmail e Yahoo exigem desde 2024 de quem manda em volume: o cliente mostra "Cancelar inscrição" ao lado
+    /// do remetente e faz ele mesmo o <c>POST</c> na URL. Sem os dois, o e-mail vai para o spam.
+    /// <para>
+    /// Transacional nunca leva: cobrança e redefinição de senha não são lista de que se sai.
+    /// </para>
+    /// </remarks>
+    /// <param name="mime">Mensagem sendo montada.</param>
+    /// <param name="descadastro">URL do descadastro, na API.</param>
+    private void ComoMarketing(MimeMessage mime, string descadastro)
+    {
+        mime.From.Add(
+            new MailboxAddress(
+                string.IsNullOrWhiteSpace(_settings.RemetenteDeMarketingNome) ? _settings.RemetenteNome : _settings.RemetenteDeMarketingNome,
+                string.IsNullOrWhiteSpace(_settings.RemetenteDeMarketingEmail) ? _settings.RemetenteEmail : _settings.RemetenteDeMarketingEmail
+            )
+        );
+
+        if (!string.IsNullOrWhiteSpace(_settings.ResponderMarketingPara))
+            mime.ReplyTo.Add(MailboxAddress.Parse(_settings.ResponderMarketingPara));
+
+        mime.Headers.Add("List-Unsubscribe", $"<{descadastro}>");
+        mime.Headers.Add("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
     }
 
     /// <summary>

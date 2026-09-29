@@ -1,4 +1,5 @@
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.MercadoPago.Models;
 using Backend.Business.Recebimentos.Models;
 
 namespace Backend.Business.Pagamentos.Models;
@@ -128,7 +129,27 @@ public sealed record MeioDaCobranca(MeioDeRecebimento Meio, PixParaPagar? Pix, D
 /// <summary>Um meio do Mercado Pago da turma, com o que a tela precisa mostrar — baixa sozinho, sem aviso.</summary>
 /// <param name="Meio">Qual é o meio.</param>
 /// <param name="Pix">O PIX pronto, só em <see cref="MeioDePagamento.Pix"/>.</param>
-public sealed record PagamentoPeloMercadoPago(MeioDePagamento Meio, PixDinamicoParaPagar? Pix);
+/// <param name="Cartao">O formulário do cartão e o valor que ele cobra, só em <see cref="MeioDePagamento.Cartao"/> (Sprint 39).</param>
+public sealed record PagamentoPeloMercadoPago(MeioDePagamento Meio, PixDinamicoParaPagar? Pix, CartaoParaPagar? Cartao = null);
+
+/// <summary>O pagamento de parcelas no cartão, como a tela o manda (Sprint 39).</summary>
+/// <param name="ParcelaIds">As parcelas, de 1 a 24.</param>
+/// <param name="Cartao">O que o formulário do Mercado Pago devolveu.</param>
+/// <param name="ValorEmCentavos">
+/// O valor que a tela mostrou — com o acréscimo, se houver. Se o valor do dia mudou desde então, o pagamento é
+/// recusado antes de cobrar, e a tela mostra o novo.
+/// </param>
+public sealed record PagamentoNoCartao(IReadOnlyList<Guid> ParcelaIds, CartaoTokenizado Cartao, long ValorEmCentavos);
+
+/// <summary>Em que pé ficou o pagamento no cartão.</summary>
+public enum SituacaoDoCartao
+{
+    /// <summary>Aprovado, e as parcelas já estão pagas.</summary>
+    Pago,
+
+    /// <summary>O Mercado Pago pôs em análise, ou a baixa não confirmou ainda: as parcelas mudam sozinhas quando ele decidir.</summary>
+    EmAnalise,
+}
 
 /// <summary>
 /// A cobrança de uma parcela — ou de várias no mesmo pagamento: quanto, e por onde a turma aceita.

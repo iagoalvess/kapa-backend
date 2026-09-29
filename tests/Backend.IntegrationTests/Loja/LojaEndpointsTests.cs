@@ -13,6 +13,7 @@ using Backend.Business.Common.Datas;
 using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Models;
 using Backend.Business.Loja.Models;
+using Backend.Business.MercadoPago.Models;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Recebimentos.Models;
 using Backend.Data.Criptografia;
@@ -32,7 +33,7 @@ namespace Backend.IntegrationTests.Loja;
 /// </summary>
 /// <param name="fabrica">API de teste compartilhada.</param>
 [Collection(ColecaoDeApi.Nome)]
-public sealed class LojaEndpointsTests(ApiFactory fabrica)
+public sealed partial class LojaEndpointsTests(ApiFactory fabrica)
 {
     private const string Aviso = "/api/v1/webhooks/cobranca/mercadopago";
 
@@ -85,7 +86,8 @@ public sealed class LojaEndpointsTests(ApiFactory fabrica)
 
         // Assert — paga, dois convites, uma receita, e o e-mail com o link
         paga.Status.ShouldBe(StatusDaCompra.Paga);
-        paga.Convites.Count().ShouldBe(2);
+        paga.Convites.Select(c => c.NomeDoConvidado).ShouldBe(["Convidado 1", "Convidado 2"]);
+        paga.Convites.ShouldAllBe(c => c.Documento != null && c.Token != null);
         paga.Cobranca.ShouldBeNull();
         await using (var contexto = fabrica.ContextoDe(loja.Turma.FormaturaId))
         {
@@ -97,7 +99,7 @@ public sealed class LojaEndpointsTests(ApiFactory fabrica)
             (await contexto.EmailsFila.AnyAsync(e => e.Para == email && e.CorpoHtml.Contains(criada.Token), Ct)).ShouldBeTrue();
         }
 
-        // Act — o aviso chega de novo, e o comprador nomeia o primeiro convite
+        // Act — o aviso chega de novo, e o comprador passa o primeiro convite para outra pessoa
         (await Avisar(loja, loja.Falso.Pedidos.Single().Key)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var nomeado = await Ler<MeuConviteDTO>(
             await loja.Anonimo.PutAsJsonAsync(
@@ -108,9 +110,10 @@ public sealed class LojaEndpointsTests(ApiFactory fabrica)
             )
         );
 
-        // Assert — o aviso repetido não emitiu mais nada, e o convite nomeado tem link
+        // Assert — o aviso repetido não emitiu mais nada nem desfez a troca, e o convite trocado tem código novo
         nomeado.NomeDoConvidado.ShouldBe("Tia Carmem");
         nomeado.Token.ShouldNotBeNull();
+        nomeado.Codigo.ShouldNotBe(paga.Convites.First().Codigo);
         await using (var contexto = fabrica.ContextoDe(loja.Turma.FormaturaId))
         {
             (await contexto.ConvitesDoEvento.CountAsync(c => c.CompraId == criada.Compra.Id && c.RevogadoEm == null, Ct)).ShouldBe(2);
@@ -157,6 +160,12 @@ public sealed class LojaEndpointsTests(ApiFactory fabrica)
         await using var loja = await Montar(estoque: 3, abertura: DateTime.UtcNow.AddHours(2));
 
         await Problema(await Comprar(loja, Pedido(1, Email(), "52998224724")), HttpStatusCode.BadRequest, "cpf");
+        await Problema(await Comprar(loja, Pedido(2, Email(), "52998224725") with { Convidados = [] }), HttpStatusCode.BadRequest, "convidados");
+        await Problema(
+            await Comprar(loja, Pedido(1, Email(), "52998224725") with { Convidados = [new ConvidadoRequestDTO("Tia Carmem", null, null, null)] }),
+            HttpStatusCode.BadRequest,
+            "convidados[0].numero_do_documento"
+        );
         await Problema(await Comprar(loja, Pedido(1, Email(), "52998224725")), HttpStatusCode.Conflict, "cobranca.venda_nao_aberta");
         (await Reservados(loja)).ShouldBe(0);
     }
@@ -268,6 +277,31 @@ public sealed class LojaEndpointsTests(ApiFactory fabrica)
         await Problema(resposta, HttpStatusCode.Conflict, "loja.sem_mercado_pago");
     }
 
+    /// <summary>
+    /// 29/09/2026: na cobrança manual a loja continua vendendo pelo Mercado Pago, e por isso ele não se desconecta com
+    /// item à venda — a vitrine ficaria de pé sem ter como pagar. Encerrado o item, desconecta.
+    /// </summary>
+    [Fact]
+    public async Task Na_cobranca_manual_a_loja_vende_e_segura_a_desconexao()
+    {
+        // Arrange — conectada no manual, com um convite na loja
+        await using var loja = await Montar(estoque: 3);
+        var presidente = Cliente(loja.Api, loja.Turma.Presidente.Cliente);
+        const string MercadoPago = "/api/v1/recebimentos/conta/mercado-pago";
+
+        // Act
+        var vitrine = await Ler<LojaDTO>(await loja.Anonimo.GetAsync($"/api/v1/loja/{loja.Turma.FormaturaId}", Ct));
+        var comLoja = await presidente.DeleteAsync(MercadoPago, Ct);
+        (await presidente.PostAsync($"/api/v1/cobrancas/opcionais/{loja.ItemId}/encerrar", null, Ct)).EnsureSuccessStatusCode();
+        var semLoja = await presidente.DeleteAsync(MercadoPago, Ct);
+
+        // Assert
+        (await Ler<ProvedorDaTurmaDTO>(await presidente.GetAsync(MercadoPago, Ct))).Provedor.ShouldBeNull();
+        vitrine.Meios.ShouldBe([MeioDePagamento.Pix]);
+        await Problema(comLoja, HttpStatusCode.Conflict, "recebimento.loja_aberta");
+        semLoja.StatusCode.ShouldBe(HttpStatusCode.NoContent, await semLoja.Content.ReadAsStringAsync(Ct));
+    }
+
     private async Task<Loja> Montar(int? estoque, int? limite = null, long? precoPublico = null, DateTime? abertura = null, bool comFesta = false)
     {
         var falso = new MercadoPagoFalso();
@@ -311,6 +345,67 @@ public sealed class LojaEndpointsTests(ApiFactory fabrica)
         return new Loja(falso, api, turma, item.Id, anonimo);
     }
 
+    /// <summary>
+    /// Sprint 39, P5: com o cartão ligado, o comprador escolhe cartão, paga pela tela da compra e recebe os convites na
+    /// hora; a taxa repassada vira receita à parte. A contestação no cartão revoga os convites e estorna a venda.
+    /// </summary>
+    [Fact]
+    public async Task Comprar_no_cartao_confirma_na_hora_e_a_contestacao_revoga_os_convites()
+    {
+        // Arrange
+        await using var loja = await Montar(estoque: 3, limite: 2, precoPublico: 25_000, comFesta: true);
+        var presidente = Cliente(loja.Api, loja.Turma.Presidente.Cliente);
+        (
+            await presidente.PutAsJsonAsync("/api/v1/recebimentos/conta/mercado-pago/cartao", new ConfiguracaoDoCartaoRequestDTO(true, 500), Json, Ct)
+        ).EnsureSuccessStatusCode();
+
+        // Act — a vitrine e a compra no cartão
+        var vitrine = await Ler<LojaDTO>(await loja.Anonimo.GetAsync($"/api/v1/loja/{loja.Turma.FormaturaId}", Ct));
+        var criada = await Ler<CompraCriadaDTO>(await Comprar(loja, Pedido(2, Email(), "529.982.247-25") with { Meio = MeioDePagamento.Cartao }));
+
+        // Assert — reservou sem emitir nada: o cartão só é cobrado com os dados dele
+        vitrine.Meios.ShouldBe([MeioDePagamento.Pix, MeioDePagamento.Cartao]);
+        criada.Compra.Cobranca.ShouldBeNull();
+        criada.Compra.Cartao!.ValorEmCentavos.ShouldBe((long)Math.Ceiling(50_000 / 0.95m));
+        loja.Falso.Pedidos.ShouldBeEmpty();
+
+        // Act — o comprador paga no cartão
+        var paga = await Ler<CompraDTO>(
+            await loja.Anonimo.PostAsJsonAsync(
+                $"/api/v1/loja/compras/{criada.Token}/cartao",
+                new CartaoDaCompraRequestDTO("tok-visa", "visa", 2, criada.Compra.Cartao.ValorEmCentavos),
+                Json,
+                Ct
+            )
+        );
+
+        // Assert — paga na hora, com os convites, a venda pelo preço e o acréscimo à parte
+        paga.Status.ShouldBe(StatusDaCompra.Paga);
+        paga.Convites.Count().ShouldBe(2);
+        paga.Cartao.ShouldBeNull();
+        await using (var contexto = fabrica.ContextoDe(loja.Turma.FormaturaId))
+        {
+            var receitas = await contexto.OutrasReceitas.OrderBy(r => r.ValorEmCentavos).ToListAsync(Ct);
+            receitas.Select(r => r.ValorEmCentavos).ShouldBe([criada.Compra.Cartao.AcrescimoEmCentavos, 50_000]);
+            receitas[1].Categoria.ShouldBe(CategoriaDeOutraReceita.VendaDeConvite);
+        }
+
+        // Act — o comprador contesta no cartão, e o Mercado Pago avisa
+        var pedido = loja.Falso.Pedidos.Single().Key;
+        loja.Falso.Devolver(pedido, SituacaoDoPedido.Contestado);
+        (await Avisar(loja, pedido)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var devolvida = await Ler<CompraDTO>(await loja.Anonimo.GetAsync($"/api/v1/loja/compras/{criada.Token}", Ct));
+
+        // Assert — convites revogados, venda estornada, e a compra fora da lista a devolver: o dinheiro já voltou
+        devolvida.Status.ShouldBe(StatusDaCompra.Devolvida);
+        devolvida.Convites.ShouldBeEmpty();
+        devolvida.ValorADevolverEmCentavos.ShouldBe(0);
+        await using var depois = fabrica.ContextoDe(loja.Turma.FormaturaId);
+        (await depois.OutrasReceitas.Where(r => r.Categoria == CategoriaDeOutraReceita.VendaDeConvite).SumAsync(r => r.ValorEmCentavos, Ct)).ShouldBe(
+            0
+        );
+    }
+
     private static OpcionalRequestDTO Opcional(int? estoque, int? limite, long? precoPublico, DateTime? abertura) =>
         new(
             TipoDeCobranca.ConviteExtra,
@@ -329,7 +424,16 @@ public sealed class LojaEndpointsTests(ApiFactory fabrica)
         );
 
     private static CompraRequestDTO Pedido(int quantidade, string email, string cpf) =>
-        new(Guid.Empty, quantidade, "Maria Souza", email, cpf, MeioDePagamento.Pix, Guid.CreateVersion7());
+        new(
+            Guid.Empty,
+            quantidade,
+            "Maria Souza",
+            email,
+            cpf,
+            MeioDePagamento.Pix,
+            Guid.CreateVersion7(),
+            [.. Enumerable.Range(1, quantidade).Select(i => new ConvidadoRequestDTO($"Convidado {i}", TipoDeDocumento.Rg, "1234567", null))]
+        );
 
     private static Task<HttpResponseMessage> Comprar(Loja loja, CompraRequestDTO pedido) =>
         loja.Anonimo.PostAsJsonAsync($"/api/v1/loja/{loja.Turma.FormaturaId}/compras", pedido with { ItemDeCobrancaId = loja.ItemId }, Json, Ct);

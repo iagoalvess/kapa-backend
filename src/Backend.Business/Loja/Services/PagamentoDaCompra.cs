@@ -27,6 +27,7 @@ namespace Backend.Business.Loja.Services;
 /// <param name="receitas">A outra receita que a compra paga vira (decisão 4).</param>
 /// <param name="emissao">Os convites da compra (Sprint 21, decisão 12).</param>
 /// <param name="emails">A confirmação e o "pagou sem lugar".</param>
+/// <param name="cancelamento">O desfazer da compra, quando o Mercado Pago devolve o pagamento (Sprint 39).</param>
 /// <param name="unitOfWork">Fronteira transacional da expiração.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class PagamentoDaCompra(
@@ -34,6 +35,7 @@ public sealed class PagamentoDaCompra(
     IOutraReceitaRepository receitas,
     EmissaoDeConvites emissao,
     EmailsDaLoja emails,
+    ICancelamentoDaCompraService cancelamento,
     IUnitOfWork unitOfWork,
     ILogger<PagamentoDaCompra> logger
 )
@@ -86,7 +88,7 @@ public sealed class PagamentoDaCompra(
 
         if (compra.Status == StatusDaCompra.Paga)
         {
-            var emitidos = await emissao.EmitirDaCompra(compra.Id, compra.Quantidade, ct);
+            var emitidos = await emissao.EmitirDaCompra(compra, ct);
             if (emitidos.Falhou)
                 logger.LogWarning("Compra {CompraId} paga sem convites: {Motivo}", compra.Id, emitidos.PrimeiroErro.Mensagem);
 
@@ -105,6 +107,17 @@ public sealed class PagamentoDaCompra(
 
         return true;
     }
+
+    /// <summary>
+    /// O pagamento da compra voltou ao comprador pelo Mercado Pago (Sprint 39, P4 e P5): o caminho da Sprint 38 revoga
+    /// os convites e estorna a receita. Na transação de quem chama — a da <c>BaixaAutomatica</c>, sob a trava da cobrança.
+    /// </summary>
+    /// <param name="compraId">A compra.</param>
+    /// <param name="motivo">Por quê.</param>
+    /// <param name="usuarioId">Em nome de quem.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    public Task<Result<string>> Devolver(Guid compraId, string motivo, Guid usuarioId, CancellationToken ct = default) =>
+        cancelamento.DevolverPeloMercadoPago(compraId, motivo, usuarioId, ct);
 
     /// <summary>
     /// Expira a compra pendente vencida e devolve o estoque — condicional, então rodar de novo não devolve

@@ -1,3 +1,4 @@
+using Backend.Business.Pagamentos.Models;
 using Backend.Business.Recebimentos.Interfaces;
 using Backend.Business.Recebimentos.Models;
 using Backend.Data.Context;
@@ -17,7 +18,20 @@ public sealed class ProvedorDaTurmaRepository(AppDbContext db) : IProvedorDaTurm
             from credencial in db.CredenciaisDeProvedor.AsNoTracking()
             join usuario in db.Users.AsNoTracking() on credencial.CadastradaPorUsuarioId equals usuario.Id into autores
             from autor in autores.DefaultIfEmpty()
-            select new ProvedorConectado(credencial.ContaNoProvedor, credencial.AtualizadoEm, autor == null ? null : autor.Nome)
+            join quemLigou in db.Users.AsNoTracking() on credencial.CartaoLigadoPorUsuarioId equals quemLigou.Id into ligaram
+            from ligou in ligaram.DefaultIfEmpty()
+            select new ProvedorConectado(
+                credencial.ContaNoProvedor,
+                credencial.AtualizadoEm,
+                autor == null ? null : autor.Nome,
+                new CartaoDaTurma(
+                    credencial.ChavePublica != null,
+                    credencial.CartaoLigadoEm,
+                    ligou == null ? null : ligou.Nome,
+                    credencial.TaxaDoCartaoRepassada
+                ),
+                credencial.CobrancaAutomaticaEm
+            )
         ).SingleOrDefaultAsync(ct);
 
     /// <inheritdoc />
@@ -60,8 +74,8 @@ public sealed class ProvedorDaTurmaRepository(AppDbContext db) : IProvedorDaTurm
 
         var gravadas = await db.Database.ExecuteSqlAsync(
             $"""
-            INSERT INTO cobrancas_bancarias (id, formatura_id, meio, conta_no_provedor, parcela_ids, compra_id, chave, valor_em_centavos, status, expira_em, criado_em, atualizado_em)
-            VALUES ({cobranca.Id}, {formaturaId}, {meio}, {cobranca.ContaNoProvedor}, {cobranca.ParcelaIds}, {cobranca.CompraId}, {cobranca.Chave}, {cobranca.ValorEmCentavos}, {status}, {cobranca.ExpiraEm}, {agora}, {agora})
+            INSERT INTO cobrancas_bancarias (id, formatura_id, meio, conta_no_provedor, parcela_ids, compra_id, chave, valor_em_centavos, acrescimo_em_centavos, receita_do_acrescimo_id, status, expira_em, criado_em, atualizado_em)
+            VALUES ({cobranca.Id}, {formaturaId}, {meio}, {cobranca.ContaNoProvedor}, {cobranca.ParcelaIds}, {cobranca.CompraId}, {cobranca.Chave}, {cobranca.ValorEmCentavos}, {cobranca.AcrescimoEmCentavos}, {cobranca.ReceitaDoAcrescimoId}, {status}, {cobranca.ExpiraEm}, {agora}, {agora})
             ON CONFLICT (formatura_id, chave) WHERE status IN ('Emitindo', 'Emitida') DO NOTHING
             """,
             ct
@@ -76,6 +90,17 @@ public sealed class ProvedorDaTurmaRepository(AppDbContext db) : IProvedorDaTurm
             .CobrancasBancarias.AsNoTracking()
             .Where(c => c.Chave == chave && (c.Status == StatusDaCobrancaBancaria.Emitindo || c.Status == StatusDaCobrancaBancaria.Emitida))
             .SingleOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    public Task<int> ContarPixDeParcelaEmAberto(DateTime agoraUtc, CancellationToken ct = default) =>
+        db.CobrancasBancarias.CountAsync(
+            c =>
+                c.CompraId == null
+                && c.Meio == MeioDePagamento.Pix
+                && (c.Status == StatusDaCobrancaBancaria.Emitindo || c.Status == StatusDaCobrancaBancaria.Emitida)
+                && c.ExpiraEm > agoraUtc,
+            ct
+        );
 
     /// <inheritdoc />
     public Task<CobrancaBancaria?> ObterCobranca(Guid id, CancellationToken ct = default) =>

@@ -16,6 +16,22 @@ public enum EEmailStatus
 
     /// <summary>Esgotou as tentativas. Não será mais tentado automaticamente.</summary>
     Falhou = 3,
+
+    /// <summary>Marketing cujo destinatário saiu entre o enfileiramento e o envio. Não sai, e não é falha.</summary>
+    Descartado = 4,
+}
+
+/// <summary>Que tipo de mensagem é — decide o remetente, os cabeçalhos e se a preferência é conferida.</summary>
+public enum ECategoriaDeEmail
+{
+    /// <summary>Consequência de algo que a pessoa ou a turma fez: cobrança, convite, senha, aviso. Sai sempre.</summary>
+    Transacional = 0,
+
+    /// <summary>
+    /// O Kapa falando dele mesmo (Sprint 40). Sai do remetente de marketing, leva <c>List-Unsubscribe</c> e só
+    /// sai se a pessoa ainda quer receber no momento do envio.
+    /// </summary>
+    Marketing = 1,
 }
 
 /// <summary>Ordem de atendimento na fila.</summary>
@@ -64,6 +80,15 @@ public class EmailNaFila : Entity
     public AnexoDoEmail? Anexo =>
         AnexoNome is { } nome && AnexoContentType is { } tipo && AnexoConteudo is { } conteudo ? new AnexoDoEmail(nome, tipo, conteudo) : null;
 
+    /// <summary>Transacional ou marketing.</summary>
+    public ECategoriaDeEmail Categoria { get; set; } = ECategoriaDeEmail.Transacional;
+
+    /// <summary>A conta do destinatário, no marketing: é por ela que o envio confere a preferência. Nulo no transacional.</summary>
+    public Guid? UsuarioId { get; set; }
+
+    /// <summary>A URL do descadastro de um clique, no marketing. Nulo no transacional — e é isso que o deixa sem os cabeçalhos.</summary>
+    public string? LinkDeDescadastro { get; set; }
+
     /// <summary>Situação atual.</summary>
     public EEmailStatus Status { get; set; } = EEmailStatus.Pendente;
 
@@ -98,6 +123,15 @@ public class EmailNaFila : Entity
         Status = EEmailStatus.Enviado;
         EnviadoEm = agoraUtc;
         UltimoErro = null;
+        AtualizadoEm = agoraUtc;
+    }
+
+    /// <summary>Desiste do e-mail sem enviar: o destinatário do marketing saiu depois de ele entrar na fila.</summary>
+    /// <param name="agoraUtc">Momento da desistência.</param>
+    public void Descartar(DateTime agoraUtc)
+    {
+        Status = EEmailStatus.Descartado;
+        UltimoErro = "Destinatário não recebe mais comunicação do Kapa.";
         AtualizadoEm = agoraUtc;
     }
 

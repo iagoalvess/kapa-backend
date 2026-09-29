@@ -25,11 +25,13 @@ public sealed class EmailNaFilaMapping : IEntityTypeConfiguration<EmailNaFila>
         builder.Property(e => e.UltimoErro).HasMaxLength(1000);
         builder.Property(e => e.AnexoNome).HasMaxLength(200);
         builder.Property(e => e.AnexoContentType).HasMaxLength(100);
+        builder.Property(e => e.LinkDeDescadastro).HasMaxLength(500);
 
         builder.Ignore(e => e.Anexo);
 
         builder.Property(e => e.Status).HasConversion<int>();
         builder.Property(e => e.Prioridade).HasConversion<int>();
+        builder.Property(e => e.Categoria).HasConversion<int>();
 
         builder
             .HasIndex(e => new

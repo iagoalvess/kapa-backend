@@ -17,7 +17,14 @@ public sealed record LoginRequestDTO(string Email, string Senha);
 /// <param name="Email">E-mail, que também é o login.</param>
 /// <param name="Senha">Senha.</param>
 /// <param name="Aceites">Versão vigente de cada documento legal, obtida em <c>GET /legal/vigentes</c>.</param>
-public sealed record RegistrarRequestDTO(string Nome, string Email, string Senha, IReadOnlyList<AceiteDeDocumentoDTO>? Aceites);
+/// <param name="ReceberComunicacaoDoKapa">A caixa "Quero receber dicas e novidades do Kapa", desmarcada por padrão (Sprint 40). Ausente é não.</param>
+public sealed record RegistrarRequestDTO(
+    string Nome,
+    string Email,
+    string Senha,
+    IReadOnlyList<AceiteDeDocumentoDTO>? Aceites,
+    bool? ReceberComunicacaoDoKapa = null
+);
 
 /// <summary>Versão de documento legal que o usuário leu e aceitou.</summary>
 /// <param name="Tipo"><c>TermosDeUso</c> ou <c>PoliticaDePrivacidade</c>.</param>

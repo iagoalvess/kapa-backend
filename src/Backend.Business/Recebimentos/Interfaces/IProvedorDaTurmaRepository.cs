@@ -52,6 +52,13 @@ public interface IProvedorDaTurmaRepository
     /// <param name="chave">A chave (<see cref="CobrancaBancaria.ChaveDoPix"/>, <see cref="CobrancaBancaria.ChaveDaCompra"/>).</param>
     Task<CobrancaBancaria?> ObterViva(string chave, CancellationToken ct = default);
 
+    /// <summary>
+    /// Quantos PIX de parcela do Mercado Pago ainda aceitam pagamento — o que impede voltar à cobrança manual. A
+    /// compra da loja não conta: ela é sempre Mercado Pago.
+    /// </summary>
+    /// <param name="agoraUtc">Referência da validade.</param>
+    Task<int> ContarPixDeParcelaEmAberto(DateTime agoraUtc, CancellationToken ct = default);
+
     /// <summary>Uma cobrança, só para leitura.</summary>
     Task<CobrancaBancaria?> ObterCobranca(Guid id, CancellationToken ct = default);
 

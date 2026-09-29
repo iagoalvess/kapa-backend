@@ -120,3 +120,23 @@ internal static class RegrasDoCampoBancario
             .MaximumLength(ContaDeRecebimentoValidator.TamanhoDoCampoBancario)
             .WithMessage($"{rotulo} deve ter no máximo {ContaDeRecebimentoValidator.TamanhoDoCampoBancario} caracteres.");
 }
+
+/// <summary>Forma da configuração do cartão (Sprint 39, P2).</summary>
+/// <remarks>
+/// A taxa repassada vai até 15%: acima disso não é a tarifa do Mercado Pago, é engano de digitação — e um formando
+/// pagando 30% a mais sem ninguém perceber. Nula é a turma absorvendo, o padrão.
+/// </remarks>
+public sealed class ConfiguracaoDoCartaoValidator : AbstractValidator<ConfiguracaoDoCartao>
+{
+    /// <summary>Taxa máxima repassável, base 10.000.</summary>
+    public const int TaxaMaxima = 1500;
+
+    /// <summary>Monta as regras.</summary>
+    public ConfiguracaoDoCartaoValidator()
+    {
+        RuleFor(c => c.TaxaRepassada)
+            .InclusiveBetween(1, TaxaMaxima)
+            .When(c => c.TaxaRepassada is not null)
+            .WithMessage("A taxa repassada deve ficar entre 0,01% e 15%.");
+    }
+}

@@ -43,6 +43,16 @@ public interface ILojaService
     /// <param name="token">O segredo do link.</param>
     Task<Result<CompraParaOComprador>> EmitirCobranca(string token, CancellationToken ct = default);
 
+    /// <summary>Paga no cartão a compra pendente que o comprador fez escolhendo o cartão (Sprint 39, P5).</summary>
+    /// <remarks>
+    /// 409 <c>loja.compra_nao_pendente</c> se já não espera pagamento; <c>pagamento.cartao_desligado</c> com o cartão
+    /// desligado; <c>pagamento.valor_mudou</c> se o valor não é o que a tela mostrou; <c>pagamento.cartao_recusado</c>
+    /// quando o cartão não passou — a reserva continua, e dá para tentar outro cartão.
+    /// </remarks>
+    /// <param name="token">O segredo do link.</param>
+    /// <param name="dados">O cartão tokenizado e o valor mostrado.</param>
+    Task<Result<CompraParaOComprador>> PagarNoCartao(string token, CartaoDaCompra dados, CancellationToken ct = default);
+
     /// <summary>Nomeia ou transfere um convite da compra — as regras são as do convite do formando (Sprint 21).</summary>
     /// <param name="token">O segredo do link.</param>
     /// <param name="conviteId">O convite.</param>
@@ -56,6 +66,11 @@ public interface ILojaService
     /// <param name="formaturaId">A turma da rota.</param>
     /// <param name="email">E-mail da compra.</param>
     Task<Result> ReenviarLink(Guid formaturaId, string email, CancellationToken ct = default);
+
+    /// <summary>Pede o cancelamento de convites da compra — a Gestão aprova ou recusa (Sprint 38, P1).</summary>
+    /// <param name="token">O segredo do link.</param>
+    /// <param name="dados">Os convites (nulo é todos) e o motivo, opcional.</param>
+    Task<Result<CompraParaOComprador>> PedirCancelamento(string token, PedidoDoComprador dados, CancellationToken ct = default);
 
     /// <summary>
     /// Apaga nome, e-mail e CPF do comprador (decisão 5): depois da festa, ou já na compra expirada.
@@ -74,6 +89,88 @@ public interface ILojaService
     /// <summary>A lista de compras em planilha, com os contatos — para a comissão devolver (P5).</summary>
     /// <param name="filtro">Status e busca.</param>
     Task<Result<ArquivoParaDownload>> Exportar(FiltroDeCompras filtro, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Desfazer uma compra paga da loja: o cancelamento da Gestão, a festa cancelada, a devolução e o pedido do
+/// comprador (Sprint 38).
+/// </summary>
+/// <remarks>
+/// Cancelar é uma operação só (decisão 1): revoga os convites, devolve o lugar ao estoque, lança o estorno da
+/// receita, leva a compra à lista a devolver, avisa o comprador e grava a auditoria — tudo na mesma transação.
+/// O Kapa não devolve dinheiro (decisão 2): quem faz o PIX de volta é a comissão, e marca a compra devolvida
+/// com o comprovante.
+/// </remarks>
+public interface ICancelamentoDaCompraService
+{
+    /// <summary>Os convites da compra — válidos e cancelados —, para a Gestão escolher o que cancelar.</summary>
+    /// <param name="compraId">A compra.</param>
+    Task<Result<IReadOnlyList<ConviteDaCompra>>> ListarConvites(Guid compraId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Cancela convites de uma compra paga — alguns (P4) ou todos os que ainda valem.
+    /// </summary>
+    /// <remarks>
+    /// Idempotente pela revogação efetiva (decisão 3): convite já cancelado não devolve lugar nem estorna de
+    /// novo, e cancelar outra vez o que já foi cancelado é 409 <c>loja.compra_ja_cancelada</c>. Convite com
+    /// entrada na portaria é 409 <c>loja.convite_ja_validado</c> (P3); compra pendente ou expirada, 409
+    /// <c>loja.compra_nao_paga</c> (P8).
+    /// </remarks>
+    /// <param name="compraId">A compra.</param>
+    /// <param name="dados">Os convites (nulo é todos) e o motivo.</param>
+    /// <param name="usuarioId">Quem cancela, da Gestão.</param>
+    Task<Result<CompraCancelada>> Cancelar(Guid compraId, DadosDoCancelamento dados, Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Festa cancelada (P6): cancela todas as compras pagas da loja e as põe na lista a devolver.
+    /// </summary>
+    /// <remarks>
+    /// Alcança só a loja pública: os convites de formando seguem o cancelamento de pedido da Sprint 20. A compra
+    /// pendente fica de fora (P8) — sai pela expiração.
+    /// </remarks>
+    /// <param name="eventoId">A festa.</param>
+    /// <param name="motivo">Por que — vai para a auditoria, a portaria e o e-mail.</param>
+    /// <param name="usuarioId">Quem cancela — o Presidente.</param>
+    /// <returns>Quantas compras foram canceladas agora.</returns>
+    Task<Result<int>> CancelarVendasDoEvento(Guid eventoId, string motivo, Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>A comissão fez o PIX de volta: a compra sai da lista a devolver (decisão 2).</summary>
+    /// <remarks>Sem comprovante, 400 <c>loja.comprovante_obrigatorio</c>; fora da lista, 409 <c>loja.compra_nao_a_devolver</c>.</remarks>
+    /// <param name="compraId">A compra.</param>
+    /// <param name="comprovante">PDF ou imagem do PIX.</param>
+    /// <param name="usuarioId">Quem marca, da Tesouraria.</param>
+    Task<Result> MarcarDevolvida(Guid compraId, NovoArquivo? comprovante, Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>
+    /// O Mercado Pago devolveu o pagamento da compra — contestação no cartão ou devolução pelo painel (Sprint 39, P4
+    /// e P5): revoga os convites, estorna a receita e a compra fica devolvida. Na transação de quem chama, sem salvar.
+    /// </summary>
+    /// <param name="compraId">A compra, já com o escopo na turma dela.</param>
+    /// <param name="motivo">"contestação no cartão" ou "devolvido no Mercado Pago".</param>
+    /// <param name="usuarioId">Em nome de quem — quem conectou o Mercado Pago.</param>
+    /// <returns>O que foi desfeito, para o e-mail da comissão.</returns>
+    Task<Result<string>> DevolverPeloMercadoPago(Guid compraId, string motivo, Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>O comprador pede o cancelamento pelo link (P1). Com um aberto, fica o mesmo (decisão 5).</summary>
+    /// <remarks>Quem chama é a loja, depois de conferir o link e apontar o escopo para a turma da compra.</remarks>
+    /// <param name="compra">A compra do link.</param>
+    /// <param name="dados">Os convites e o motivo, opcional.</param>
+    Task<Result> Pedir(CompraDeConvite compra, PedidoDoComprador dados, CancellationToken ct = default);
+
+    /// <summary>Os pedidos de cancelamento abertos, do mais antigo.</summary>
+    Task<Result<IReadOnlyList<PedidoNaGestao>>> ListarPedidos(CancellationToken ct = default);
+
+    /// <summary>Aprova o pedido: é o cancelamento da Gestão, com o pedido como origem.</summary>
+    /// <remarks>Pedido já respondido é 409 <c>loja.pedido_ja_respondido</c>.</remarks>
+    /// <param name="pedidoId">O pedido.</param>
+    /// <param name="usuarioId">Quem aprova.</param>
+    Task<Result<CompraCancelada>> Aprovar(Guid pedidoId, Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>Recusa o pedido, com motivo: os convites continuam valendo, e o comprador é avisado.</summary>
+    /// <param name="pedidoId">O pedido.</param>
+    /// <param name="motivo">Por que.</param>
+    /// <param name="usuarioId">Quem recusa.</param>
+    Task<Result> Recusar(Guid pedidoId, string motivo, Guid usuarioId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -155,6 +252,41 @@ public interface ICompraDeConviteRepository
     /// <summary>As compras com este e-mail, rastreadas — para girar o link.</summary>
     /// <param name="email">E-mail, em minúsculas.</param>
     Task<IReadOnlyList<CompraDeConvite>> ListarDoEmailParaEdicao(string email, CancellationToken ct = default);
+
+    /// <summary>
+    /// Devolve lugares ao estoque do item — na transação de quem chama, sob a trava da compra (Sprint 38, decisão 1).
+    /// </summary>
+    /// <remarks>
+    /// A mesma exceção de <see cref="ReservarNoItem"/>: é a linha que a abertura de vendas disputa, e
+    /// <c>reservados = reservados - q</c> numa instrução não perde a reserva que entrou no meio. A garantia contra
+    /// devolver duas vezes não mora aqui: <paramref name="quantidade"/> são os convites que quem chama acabou de
+    /// revogar.
+    /// </remarks>
+    /// <param name="itemId">Item.</param>
+    /// <param name="quantidade">Lugares.</param>
+    Task DevolverAoItem(Guid itemId, int quantidade, CancellationToken ct = default);
+
+    /// <summary>Os convites de uma compra, válidos e revogados, por posição e emissão.</summary>
+    /// <param name="compraId">A compra.</param>
+    Task<IReadOnlyList<ConviteDaCompra>> ListarConvites(Guid compraId, CancellationToken ct = default);
+
+    /// <summary>As compras com lugar valendo, pagas — o alvo do cancelamento da festa (P6).</summary>
+    Task<IReadOnlyList<Guid>> ListarComLugar(CancellationToken ct = default);
+
+    /// <summary>O pedido de cancelamento aberto da compra, ou o último respondido; nulo se nunca houve.</summary>
+    /// <param name="compraId">A compra.</param>
+    Task<PedidoDeCancelamento?> ObterUltimoPedido(Guid compraId, CancellationToken ct = default);
+
+    /// <summary>Um pedido de cancelamento travado até o fim da transação; nulo se não existir aqui.</summary>
+    /// <param name="pedidoId">O pedido.</param>
+    Task<PedidoDeCancelamento?> TravarPedido(Guid pedidoId, CancellationToken ct = default);
+
+    /// <summary>Os pedidos abertos, com a compra, do mais antigo.</summary>
+    Task<IReadOnlyList<PedidoNaGestao>> ListarPedidosAbertos(CancellationToken ct = default);
+
+    /// <summary>Marca um pedido de cancelamento novo para inclusão.</summary>
+    /// <param name="pedido">O pedido.</param>
+    Task AdicionarPedido(PedidoDeCancelamento pedido, CancellationToken ct = default);
 
     /// <summary>Apaga o HMAC do CPF junto com os dados da compra.</summary>
     /// <param name="compra">Compra rastreada, com os dados já apagados.</param>

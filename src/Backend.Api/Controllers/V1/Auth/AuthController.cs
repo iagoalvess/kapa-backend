@@ -54,7 +54,8 @@ public sealed class AuthController(IAuthService authService, IUsuarioAtual usuar
             requisicao.Nome,
             requisicao.Email,
             requisicao.Senha,
-            [.. (requisicao.Aceites ?? []).OfType<AceiteDeDocumentoDTO>().Select(aceite => new AceiteDeDocumento(aceite.Tipo, aceite.Versao))]
+            [.. (requisicao.Aceites ?? []).OfType<AceiteDeDocumentoDTO>().Select(aceite => new AceiteDeDocumento(aceite.Tipo, aceite.Versao))],
+            requisicao.ReceberComunicacaoDoKapa ?? false
         );
 
         var resultado = await authService.Registrar(dados, usuarioAtual.Origem, ct);

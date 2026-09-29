@@ -6,6 +6,8 @@ using Backend.Business.Common.Texto;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Legal.Interfaces;
 using Backend.Business.Legal.Models;
+using Backend.Business.Marketing.Interfaces;
+using Backend.Business.Marketing.Models;
 using Backend.Business.Usuarios.Models;
 using FluentValidation;
 using Microsoft.AspNetCore.Identity;
@@ -23,6 +25,7 @@ namespace Backend.Business.Auth.Services;
 /// <param name="vinculoRepository">Consulta do vínculo com a formatura da sessão.</param>
 /// <param name="emailsDeConta">Montagem e envio das mensagens de conta.</param>
 /// <param name="legalService">Registro do consentimento dado no cadastro.</param>
+/// <param name="comunicacaoDoKapa">A caixa de marketing do cadastro, quando marcada.</param>
 /// <param name="registrarValidator">Validador dos dados de registro.</param>
 /// <param name="credenciaisValidator">Validador das credenciais de login.</param>
 /// <param name="contaOptions">Regras do ciclo de vida da conta.</param>
@@ -35,6 +38,7 @@ public sealed class AuthService(
     IVinculoRepository vinculoRepository,
     IEmailsDeConta emailsDeConta,
     ILegalService legalService,
+    IComunicacaoDoKapaService comunicacaoDoKapa,
     IValidator<RegistrarUsuario> registrarValidator,
     IValidator<Credenciais> credenciaisValidator,
     IOptions<ContaSettings> contaOptions,
@@ -294,6 +298,19 @@ public sealed class AuthService(
         var aceite = await legalService.RegistrarAceites(usuario.Id, dados.Aceites, origem, ct);
         if (aceite.Falhou)
             return Result.Falha<ParDeTokens>(aceite.Erros);
+
+        if (dados.ReceberComunicacaoDoKapa)
+        {
+            var marketing = await comunicacaoDoKapa.DefinirPreferencia(
+                usuario.Id,
+                receber: true,
+                OrigemDoConsentimentoDeMarketing.Cadastro,
+                origem,
+                ct
+            );
+            if (marketing.Falhou)
+                return Result.Falha<ParDeTokens>(marketing.Erros);
+        }
 
         var confirmacao = await userManager.GenerateEmailConfirmationTokenAsync(usuario);
         await emailsDeConta.EnfileirarConfirmacao(usuario, confirmacao, ct);

@@ -43,6 +43,18 @@ public class OutraReceita : EntidadeDaFormatura
     /// <summary>Comprovante no acervo (Sprint 11), visível para a turma. Opcional: rendimento raramente tem.</summary>
     public Guid? DocumentoId { get; private set; }
 
+    /// <summary>
+    /// A receita que este lançamento estorna (Sprint 38, P5). Nulo na receita comum.
+    /// </summary>
+    /// <remarks>
+    /// O estorno é recebido e <b>negativo</b>, na data da devolução: o arrecadado, a meta e o balancete somam os
+    /// dois e voltam ao valor sem a venda, e a receita original — de um mês que pode já estar fechado — não muda.
+    /// </remarks>
+    public Guid? EstornoDeId { get; private set; }
+
+    /// <summary>Se é o estorno de outra receita.</summary>
+    public bool EhEstorno => EstornoDeId is not null;
+
     /// <summary>Uma receita nova — já recebida, quando o dinheiro já caiu na conta.</summary>
     /// <param name="dados">Dados já validados.</param>
     public static OutraReceita Nova(NovaOutraReceita dados)
@@ -56,6 +68,35 @@ public class OutraReceita : EntidadeDaFormatura
     }
 
     /// <summary>
+    /// O estorno de uma receita recebida: outra receita, recebida, com o valor negativo e a mesma categoria (P5).
+    /// </summary>
+    /// <remarks>
+    /// Não passa pelo validator da receita comum, que recusa valor negativo: é um tipo de lançamento, não uma
+    /// exceção à regra da receita (P5). Quem cria é o sistema — nenhuma tela lança estorno à mão.
+    /// </remarks>
+    /// <param name="original">A receita estornada.</param>
+    /// <param name="descricao">O que o extrato mostra.</param>
+    /// <param name="valorEmCentavos">Quanto volta — positivo; gravado negativo.</param>
+    /// <param name="data">A data da devolução.</param>
+    /// <param name="categoria">A categoria da original — a venda de convite, ou a taxa do cartão repassada (Sprint 39).</param>
+    public static OutraReceita Estorno(
+        Guid original,
+        string descricao,
+        long valorEmCentavos,
+        DateOnly data,
+        CategoriaDeOutraReceita categoria = CategoriaDeOutraReceita.VendaDeConvite
+    ) =>
+        new()
+        {
+            Status = StatusDaOutraReceita.Recebida,
+            Descricao = descricao,
+            Categoria = categoria,
+            ValorEmCentavos = -valorEmCentavos,
+            Data = data,
+            EstornoDeId = original,
+        };
+
+    /// <summary>
     /// Corrige o que a tesouraria digitou errado — prevista ou recebida, como a despesa paga.
     /// </summary>
     /// <param name="dados">Dados já validados.</param>
@@ -63,6 +104,9 @@ public class OutraReceita : EntidadeDaFormatura
     {
         if (Status == StatusDaOutraReceita.Cancelada)
             return Result.Falha(ErroCancelada);
+
+        if (EhEstorno)
+            return Result.Falha(Erro.Conflito("financeiro.outra_receita_estorno", "Este lançamento é o estorno de uma venda e não se edita."));
 
         Preencher(dados);
 

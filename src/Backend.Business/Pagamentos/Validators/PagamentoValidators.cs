@@ -1,4 +1,5 @@
 using Backend.Business.Common.Datas;
+using Backend.Business.MercadoPago.Models;
 using Backend.Business.Pagamentos.Models;
 using FluentValidation;
 
@@ -107,4 +108,21 @@ public sealed class EstornarBaixaValidator : AbstractValidator<EstornarBaixa>
             .WithMessage("Explique por que a baixa está sendo desfeita.")
             .MaximumLength(LimitesDoPagamento.TextoMaximo)
             .WithMessage($"A justificativa deve ter no máximo {LimitesDoPagamento.TextoMaximo} caracteres.");
+}
+
+/// <summary>
+/// Forma do cartão que o formulário do Mercado Pago tokenizou no navegador (Sprint 39) — na parcela e na loja.
+/// </summary>
+/// <remarks>Só a forma: se o token vale e se o cartão passa, quem diz é o Mercado Pago na cobrança.</remarks>
+public sealed class CartaoTokenizadoValidator : AbstractValidator<CartaoTokenizado>
+{
+    /// <summary>Monta as regras.</summary>
+    public CartaoTokenizadoValidator()
+    {
+        RuleFor(c => c.Token).NotEmpty().WithMessage("O cartão não foi lido. Preencha os dados do cartão de novo.").MaximumLength(200);
+        RuleFor(c => c.Bandeira).NotEmpty().WithMessage("O cartão não foi lido. Preencha os dados do cartão de novo.").MaximumLength(40);
+        RuleFor(c => c.Parcelas)
+            .InclusiveBetween(1, MeiosDePagamento.ParcelasNoCartao)
+            .WithMessage($"Escolha de 1 a {MeiosDePagamento.ParcelasNoCartao} vezes.");
+    }
 }

@@ -7,6 +7,7 @@ using Backend.Business.Common.Datas;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
 using Backend.Business.Festa.Interfaces;
+using Backend.Business.Festa.Models;
 using Backend.Business.Festa.Services;
 using Backend.Business.Festa.Settings;
 using Backend.Business.Financeiro.Interfaces;
@@ -50,7 +51,8 @@ public sealed class LojaTests
                 " Maria@Teste.dev ",
                 "52998224725",
                 MeioDePagamento.Pix,
-                Guid.CreateVersion7()
+                Guid.CreateVersion7(),
+                [Convidado("Tia Carmem"), Convidado("Tio Beto")]
             ),
             20_000,
             DateTime.UtcNow.AddMinutes(31)
@@ -61,7 +63,8 @@ public sealed class LojaTests
         ICompraDeConviteRepository? compras = null,
         IOutraReceitaRepository? receitas = null,
         IConviteDoEventoRepository? convites = null,
-        IEmailService? emailService = null
+        IEmailService? emailService = null,
+        ICancelamentoDaCompraService? cancelamento = null
     ) =>
         new(
             compras ?? Substitute.For<ICompraDeConviteRepository>(),
@@ -80,6 +83,7 @@ public sealed class LojaTests
                 Substitute.For<IFormaturaRepository>(),
                 Substitute.For<IVinculoRepository>()
             ),
+            cancelamento ?? Substitute.For<ICancelamentoDaCompraService>(),
             Substitute.For<IUnitOfWork>(),
             NullLogger<PagamentoDaCompra>.Instance
         );
@@ -292,7 +296,8 @@ public sealed class LojaTests
 
     [Theory]
     [InlineData(MeioDePagamento.Pix, true)]
-    [InlineData(MeioDePagamento.Cartao, false)]
+    [InlineData(MeioDePagamento.Cartao, true)]
+    [InlineData((MeioDePagamento)99, false)]
     public void Compra_so_aceita_os_meios_ligados(MeioDePagamento meio, bool aceito) =>
         new DadosDaCompraValidator().Validate(Dados() with { Meio = meio }).IsValid.ShouldBe(aceito);
 
@@ -309,7 +314,19 @@ public sealed class LojaTests
     private static DadosDoItem Convite => new(TipoDeCobranca.ConviteExtra, "Convite adulto", 20_000, 1, 10, DataUtils.Hoje().AddMonths(1));
 
     private static DadosDaCompra Dados() =>
-        new(Guid.CreateVersion7(), 1, "Maria Souza", "maria@teste.dev", "52998224725", MeioDePagamento.Pix, Guid.CreateVersion7());
+        new(
+            Guid.CreateVersion7(),
+            1,
+            "Maria Souza",
+            "maria@teste.dev",
+            "52998224725",
+            MeioDePagamento.Pix,
+            Guid.CreateVersion7(),
+            [Convidado("Tia Carmem")]
+        );
+
+    /// <summary>Um titular com RG, como a compra manda.</summary>
+    public static DadosDoConvidado Convidado(string nome) => new(nome, TipoDeDocumento.Rg, "1234567", null);
 
     private static PedidoConsultado Pago(long valor) => new("ORD1", null, SituacaoDoPedido.Pago, valor, DateTime.UtcNow);
 

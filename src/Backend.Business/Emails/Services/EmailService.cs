@@ -38,6 +38,9 @@ public sealed class EmailService(IEmailFilaRepository emailFilaRepository, IVali
             AnexoNome = dados.Anexo?.Nome,
             AnexoContentType = dados.Anexo?.ContentType,
             AnexoConteudo = dados.Anexo?.Conteudo,
+            Categoria = dados.Marketing is null ? ECategoriaDeEmail.Transacional : ECategoriaDeEmail.Marketing,
+            UsuarioId = dados.Marketing?.UsuarioId,
+            LinkDeDescadastro = dados.Marketing?.LinkDeDescadastro,
         };
 
         await emailFilaRepository.Adicionar(email, ct);

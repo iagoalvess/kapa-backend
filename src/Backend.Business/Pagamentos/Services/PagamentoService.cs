@@ -7,8 +7,10 @@ using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Cobrancas.Services;
 using Backend.Business.Common.Datas;
+using Backend.Business.Common.Texto;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.MercadoPago.Models;
 using Backend.Business.Pagamentos.Interfaces;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Recebimentos.Interfaces;
@@ -36,7 +38,9 @@ namespace Backend.Business.Pagamentos.Services;
 /// <param name="perfilRepository">Quem pede, e com que papel.</param>
 /// <param name="arquivoService">Comprovantes.</param>
 /// <param name="mercadoPago">O PIX do Mercado Pago da turma, quando ela conectou (Sprint 25).</param>
+/// <param name="baixa">A baixa do que o cartão pagou (Sprint 39) — a mesma do aviso do Mercado Pago.</param>
 /// <param name="informeValidator">Forma do "já paguei".</param>
+/// <param name="cartaoValidator">Forma do cartão tokenizado.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class PagamentoService(
@@ -47,7 +51,9 @@ public sealed class PagamentoService(
     IPerfilRepository perfilRepository,
     IArquivoService arquivoService,
     EmissaoNoMercadoPago mercadoPago,
+    BaixaAutomatica baixa,
     IValidator<NovoInforme> informeValidator,
+    IValidator<CartaoTokenizado> cartaoValidator,
     IUnitOfWork unitOfWork,
     ILogger<PagamentoService> logger
 ) : IPagamentoService
@@ -198,6 +204,11 @@ public sealed class PagamentoService(
     /// <param name="parcelaIds">Parcelas do pagamento; a primeira — a mais antiga, no lote — dá o identificador do PIX estático.</param>
     /// <param name="emailDoPagador">E-mail do dono das parcelas; nulo quando quem vê é a tesouraria, que não paga — e então não se emite PIX dinâmico.</param>
     /// <param name="ct">Token de cancelamento.</param>
+    /// <remarks>
+    /// Um modo ou o outro (29/09/2026): na cobrança automática, só o Mercado Pago — e, se ele não responde, a tela
+    /// pede para tentar de novo em vez de oferecer a chave da comissão, que voltaria a exigir aviso e conferência;
+    /// na manual, só os meios da comissão, e nada se emite no Mercado Pago.
+    /// </remarks>
     private async Task<Result<CobrancaDaParcela>> Cobrar(
         long valorEmCentavos,
         IReadOnlyList<Guid> parcelaIds,
@@ -205,19 +216,31 @@ public sealed class PagamentoService(
         CancellationToken ct
     )
     {
-        var conta = await contaRepository.ObterDetalhe(ct);
-        var peloMercadoPago = await PeloMercadoPago(valorEmCentavos, parcelaIds, emailDoPagador, ct);
+        if (await CredencialAutomatica(ct) is { } credencial)
+        {
+            var peloMercadoPago = await PeloMercadoPago(credencial, valorEmCentavos, parcelaIds, emailDoPagador, ct);
 
-        if (peloMercadoPago.Count == 0 && (conta is null || conta.Meios.Habilitados.Count == 0))
+            if (emailDoPagador is not null && peloMercadoPago.Count == 0)
+                return Erro.Indisponivel(
+                    "pagamento.mercado_pago_indisponivel",
+                    "O Mercado Pago não respondeu agora. Tente de novo em alguns minutos."
+                );
+
+            return new CobrancaDaParcela(valorEmCentavos, Identificador(parcelaIds[0]), peloMercadoPago, []);
+        }
+
+        var conta = await contaRepository.ObterDetalhe(ct);
+
+        if (conta is null || conta.Meios.Habilitados.Count == 0)
             return SemConta;
 
-        var meios = conta?.Meios ?? new MeiosDaConta(null, null, null);
+        var meios = conta.Meios;
         var identificador = Identificador(parcelaIds[0]);
 
         return new CobrancaDaParcela(
             valorEmCentavos,
             identificador,
-            peloMercadoPago,
+            [],
             [
                 .. meios.Habilitados.Select(meio =>
                     meio switch
@@ -243,23 +266,104 @@ public sealed class PagamentoService(
     }
 
     /// <summary>
-    /// Os meios do Mercado Pago da turma (<see cref="MeiosDePagamento.Ligados"/>): hoje o PIX, emitido na hora.
+    /// Os meios do Mercado Pago da turma (<see cref="MeiosDePagamento.DaTurma"/>): o PIX, emitido na hora, e o
+    /// cartão, quando a Tesouraria o ligou (Sprint 39) — que só se cobra quando o formando manda o formulário.
     /// Só para o dono das parcelas: a tesouraria vê a cobrança de qualquer um, mas nada se emite em nome dela.
     /// </summary>
     private async Task<IReadOnlyList<PagamentoPeloMercadoPago>> PeloMercadoPago(
+        CredencialDeProvedor credencial,
         long valorEmCentavos,
         IReadOnlyList<Guid> parcelaIds,
         string? emailDoPagador,
         CancellationToken ct
     )
     {
-        if (emailDoPagador is null || await mercadoPago.Credencial(ct) is not { } credencial)
+        if (emailDoPagador is null)
             return [];
 
-        return await mercadoPago.Pix(credencial, parcelaIds, valorEmCentavos, emailDoPagador, ct) is { } pix
-            ? [new PagamentoPeloMercadoPago(MeioDePagamento.Pix, pix)]
-            : [];
+        var pix = await mercadoPago.Pix(credencial, parcelaIds, valorEmCentavos, emailDoPagador, ct);
+        var cartao = credencial.CartaoPara(valorEmCentavos);
+
+        return
+        [
+            .. pix is null ? [] : new[] { new PagamentoPeloMercadoPago(MeioDePagamento.Pix, pix) },
+            .. cartao is null ? [] : new[] { new PagamentoPeloMercadoPago(MeioDePagamento.Cartao, null, cartao) },
+        ];
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// As parcelas passam pelas mesmas conferências do aviso — só o dono, abertas, sem aviso pendente. O valor é
+    /// recalculado aqui, e se não for o que a tela mostrou o cartão não é cobrado: depois da meia-noite o valor do
+    /// dia muda, e cobrar outro número do que a pessoa confirmou é o erro que não se desfaz. Quem baixa é a
+    /// <see cref="BaixaAutomatica"/>, pela consulta ao pedido — o aviso do Mercado Pago que chegar depois encontra
+    /// a cobrança já paga.
+    /// </remarks>
+    public async Task<Result<SituacaoDoCartao>> PagarNoCartao(
+        Guid formaturaId,
+        Guid usuarioId,
+        PagamentoNoCartao dados,
+        CancellationToken ct = default
+    )
+    {
+        var validacao = cartaoValidator.Validar(dados.Cartao);
+        if (validacao.Falhou)
+            return Result.Falha<SituacaoDoCartao>(validacao.Erros);
+
+        if (dados.ParcelaIds.Count == 0 || dados.ParcelaIds.Count > ParcelasPorInforme)
+            return Erro.Validacao(
+                "pagamento.parcelas_do_informe",
+                $"Escolha de 1 a {ParcelasPorInforme} parcelas para este pagamento.",
+                campo: "parcela_ids"
+            );
+
+        var conferidas = await Conferir(formaturaId, usuarioId, dados.ParcelaIds, ct);
+        if (conferidas.Falhou)
+            return Result.Falha<SituacaoDoCartao>(conferidas.Erros);
+
+        var parcelas = conferidas.Valor;
+        var valor = parcelas.Sum(parcela => parcela.ValorDoDia?.TotalEmCentavos ?? parcela.ValorOriginalEmCentavos);
+
+        if (await CredencialAutomatica(ct) is not { } credencial || credencial.CartaoPara(valor) is not { } cartao)
+            return Erro.Conflito(
+                "pagamento.cartao_desligado",
+                "A turma não está aceitando cartão agora. Volte à tela de pagar e veja os meios de hoje."
+            );
+
+        if (cartao.ValorEmCentavos != dados.ValorEmCentavos)
+            return Erro.Conflito(
+                "pagamento.valor_mudou",
+                $"O valor mudou para {FormatosBrasileiros.Reais(cartao.ValorEmCentavos)}. Confira e pague de novo — o cartão não foi cobrado."
+            );
+
+        var titular = await perfilRepository.ObterTitular(formaturaId, usuarioId, ct);
+
+        var cobranca = await mercadoPago.Cartao(
+            credencial,
+            [.. parcelas.Select(parcela => parcela.Id)],
+            valor,
+            new PagadorNoMercadoPago(titular!.Email),
+            dados.Cartao,
+            ct
+        );
+        if (cobranca.Falhou)
+            return Result.Falha<SituacaoDoCartao>(cobranca.Erros);
+
+        var baixou = await baixa.Conciliar(cobranca.Valor.Id, ct);
+
+        logger.LogInformation(
+            "Cartão de {Quantidade} parcela(s) do vínculo {VinculoId}: cobrança {CobrancaId}.",
+            parcelas.Count,
+            parcelas[0].VinculoId,
+            cobranca.Valor.Id
+        );
+
+        return baixou is { Sucesso: true, Valor: true } ? SituacaoDoCartao.Pago : SituacaoDoCartao.EmAnalise;
+    }
+
+    /// <summary>A credencial da turma quando ela cobra pelo Mercado Pago; nula no modo manual ou sem conexão.</summary>
+    private async Task<CredencialDeProvedor?> CredencialAutomatica(CancellationToken ct) =>
+        await mercadoPago.Credencial(ct) is { CobrancaAutomatica: true } credencial ? credencial : null;
 
     /// <summary>Com quem falar para pagar em espécie, e onde quando a comissão disse.</summary>
     private static string InstrucaoDoDinheiro(DinheiroComAlguem dinheiro) =>
@@ -294,6 +398,12 @@ public sealed class PagamentoService(
                 "pagamento.parcelas_do_informe",
                 $"Escolha de 1 a {ParcelasPorInforme} parcelas para este pagamento.",
                 campo: "parcela_ids"
+            );
+
+        if (await CredencialAutomatica(ct) is not null)
+            return Erro.Conflito(
+                "pagamento.aviso_desligado",
+                "Esta turma recebe pelo Mercado Pago, e o pagamento é confirmado sozinho. Se você pagou por fora, fale com a tesouraria."
             );
 
         var conferidas = await Conferir(formaturaId, usuarioId, parcelaIds, ct);

@@ -4,6 +4,10 @@ using Backend.Business.Agenda.Models;
 using Backend.Business.Agenda.Services;
 using Backend.Business.Agenda.Validators;
 using Backend.Business.Common.Datas;
+using Backend.Business.Festa.Interfaces;
+using Backend.Business.Festa.Models;
+using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Formaturas.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -21,9 +25,21 @@ public sealed class AgendaServiceTests
     private static DateOnly Hoje => DataUtils.Hoje();
 
     private readonly IEventoDaTurmaRepository _eventos = Substitute.For<IEventoDaTurmaRepository>();
+    private readonly IPendenciasDaTurmaRepository _pendencias = Substitute.For<IPendenciasDaTurmaRepository>();
+    private readonly IConviteDoEventoRepository _convites = Substitute.For<IConviteDoEventoRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
-    private AgendaService Servico => new(_eventos, new DadosDoEventoValidator(), _unitOfWork, NullLogger<AgendaService>.Instance);
+    public AgendaServiceTests()
+    {
+        _pendencias.ContarVendasDaFesta(Arg.Any<CancellationToken>()).Returns(new VendasDaFesta(0, 0));
+        _convites.TravarValidosDoEvento(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([]);
+        _unitOfWork
+            .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result>>>(), Arg.Any<CancellationToken>())
+            .Returns(chamada => chamada.Arg<Func<CancellationToken, Task<Result>>>()(CancellationToken.None));
+    }
+
+    private AgendaService Servico =>
+        new(_eventos, _pendencias, _convites, new DadosDoEventoValidator(), _unitOfWork, NullLogger<AgendaService>.Instance);
 
     private static DadosDoEvento Dados(
         TipoDeEvento tipo = TipoDeEvento.Reuniao,
@@ -179,4 +195,49 @@ public sealed class AgendaServiceTests
 
     private static EventoResumo Resumo(Guid? id = null) =>
         new(id ?? Guid.CreateVersion7(), "Reunião da comissão", TipoDeEvento.Reuniao, SituacaoDoEvento.AConfirmar, Hoje, null, null, null);
+
+    /// <summary>Sprint 38, P10: festa com venda de pé não se cancela nem se exclui, e o erro diz o caminho.</summary>
+    [Fact]
+    public async Task Festa_com_vendas_nao_cancela_nem_exclui()
+    {
+        // Arrange
+        var festa = EventoDaTurma.Novo(Dados(TipoDeEvento.Festa, "Festa"));
+        _eventos.ObterParaEdicao(festa.Id, Arg.Any<CancellationToken>()).Returns(festa);
+        _pendencias.ContarVendasDaFesta(Arg.Any<CancellationToken>()).Returns(new VendasDaFesta(2, 1));
+
+        // Act
+        var cancelada = await Servico.Atualizar(festa.Id, Dados(TipoDeEvento.Festa, "Festa", situacao: SituacaoDoEvento.Cancelado), Ct);
+        var excluida = await Servico.Excluir(festa.Id, Ct);
+
+        // Assert
+        var erro = cancelada.Erros.ShouldHaveSingleItem();
+        erro.Codigo.ShouldBe("agenda.evento_com_vendas");
+        erro.Mensagem.ShouldContain("Cancelar as vendas da festa");
+        erro.Mensagem.ShouldContain("pedidos de convite");
+        excluida.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("agenda.evento_com_vendas");
+        festa.Cancelado.ShouldBeFalse();
+        _eventos.DidNotReceiveWithAnyArgs().Remover(default!);
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
+    }
+
+    /// <summary>Sprint 38, P10: sem vendas, cancelar revoga o que sobrou — cortesia e cota — com o motivo.</summary>
+    [Fact]
+    public async Task Cancelar_evento_sem_vendas_revoga_os_convites_que_sobraram()
+    {
+        // Arrange
+        var colacao = EventoDaTurma.Novo(Dados(TipoDeEvento.Colacao, "Colação"));
+        var cortesia = ConviteDoEvento.Cortesia(colacao.Id, "MED27-AAAA", new DadosDoConvidado("Prof. Carlos", null, null, null));
+        _eventos.ObterParaEdicao(colacao.Id, Arg.Any<CancellationToken>()).Returns(colacao);
+        _eventos.Obter(colacao.Id, Arg.Any<CancellationToken>()).Returns(Resumo());
+        _convites.TravarValidosDoEvento(colacao.Id, Arg.Any<CancellationToken>()).Returns([cortesia]);
+
+        // Act
+        var resultado = await Servico.Atualizar(colacao.Id, Dados(TipoDeEvento.Colacao, "Colação", situacao: SituacaoDoEvento.Cancelado), Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        cortesia.Valido.ShouldBeFalse();
+        cortesia.MotivoDaRevogacao.ShouldBe(AgendaService.MotivoDoCancelamento);
+        await _pendencias.DidNotReceiveWithAnyArgs().ContarVendasDaFesta(Ct);
+    }
 }

@@ -58,7 +58,7 @@ public static class ReguaDoKapa
             new(
                 "Parcela em atraso",
                 "Oi, {nome}. A parcela de {formatura} que venceu em {vencimento} ainda está em aberto, e o valor "
-                    + "atualizado é {valor}. Se você já pagou, avise pelo extrato para a tesouraria conferir."
+                    + "atualizado é {valor}. Pague pelo extrato; se já pagou, confira por lá se falta algum passo."
             )
         ),
         new(
@@ -67,7 +67,7 @@ public static class ReguaDoKapa
             new(
                 "Parcela com 15 dias de atraso",
                 "Oi, {nome}. A parcela de {formatura} que venceu em {vencimento} está em aberto há 15 dias, e o "
-                    + "valor atualizado é {valor}. Pague pelo extrato ou, se já pagou, avise por lá."
+                    + "valor atualizado é {valor}. Pague pelo extrato ou, se já pagou, confira por lá se falta algum passo."
             ),
             new(
                 "Parcelas com 15 dias de atraso",

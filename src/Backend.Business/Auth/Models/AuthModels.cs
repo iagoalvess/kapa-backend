@@ -12,7 +12,14 @@ public sealed record Credenciais(string Email, string Senha);
 /// <param name="Email">E-mail, que também é o login.</param>
 /// <param name="Senha">Senha em texto puro.</param>
 /// <param name="Aceites">Versões dos documentos legais aceitas no cadastro — uma por documento.</param>
-public sealed record RegistrarUsuario(string Nome, string Email, string Senha, IReadOnlyList<AceiteDeDocumento> Aceites);
+/// <param name="ReceberComunicacaoDoKapa">Se marcou a caixa de marketing do Kapa (Sprint 40, P1: consentimento).</param>
+public sealed record RegistrarUsuario(
+    string Nome,
+    string Email,
+    string Senha,
+    IReadOnlyList<AceiteDeDocumento> Aceites,
+    bool ReceberComunicacaoDoKapa = false
+);
 
 /// <summary>
 /// Par de tokens devolvido ao cliente após autenticar ou renovar.

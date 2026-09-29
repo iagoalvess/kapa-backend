@@ -55,6 +55,13 @@ public interface IEmailFilaRepository
     /// <param name="agoraUtc">Momento da reserva.</param>
     Task<IReadOnlyList<EmailNaFila>> ReservarLote(int tamanho, DateTime agoraUtc, CancellationToken ct = default);
 
+    /// <summary>Das contas informadas, as que ainda recebem comunicação do Kapa — conta ativa e preferência ligada.</summary>
+    /// <remarks>
+    /// Lido no <b>envio</b>, e não no enfileiramento (Sprint 40): quem saiu entre um e outro não recebe.
+    /// </remarks>
+    /// <param name="usuarioIds">Destinatários dos e-mails de marketing do lote.</param>
+    Task<IReadOnlySet<Guid>> ListarQueRecebemMarketing(IReadOnlyCollection<Guid> usuarioIds, CancellationToken ct = default);
+
     /// <summary>Apaga os já enviados ou desistidos que não mudam desde <paramref name="limiteUtc"/>.</summary>
     /// <remarks>
     /// O corpo guarda nome, valores e links de redefinição de senha: mantê-lo para sempre era guardar

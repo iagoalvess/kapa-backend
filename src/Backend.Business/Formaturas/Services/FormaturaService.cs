@@ -15,6 +15,7 @@ namespace Backend.Business.Formaturas.Services;
 /// <param name="formaturaRepository">A formatura em si.</param>
 /// <param name="vinculoRepository">Vínculos do usuário.</param>
 /// <param name="assinaturaRepository">Assinatura que ainda renova, e que impede o encerramento.</param>
+/// <param name="pendencias">O que ainda está em aberto na turma, e que impede o encerramento (Sprint 38, P11).</param>
 /// <param name="provedor">PSP, para expirar o checkout de um rascunho descartado.</param>
 /// <param name="authService">Emissão da sessão com a formatura escolhida.</param>
 /// <param name="dadosValidator">Validador dos dados cadastrais.</param>
@@ -23,6 +24,7 @@ public sealed class FormaturaService(
     IFormaturaRepository formaturaRepository,
     IVinculoRepository vinculoRepository,
     IAssinaturaRepository assinaturaRepository,
+    IPendenciasDaTurmaRepository pendencias,
     IProvedorDeAssinatura provedor,
     IAuthService authService,
     IValidator<DadosDaFormatura> dadosValidator,
@@ -164,8 +166,10 @@ public sealed class FormaturaService(
     /// O Presidente cancela a renovação antes; a vigência paga continua valendo até o fim.
     /// </para>
     /// <para>
-    /// ponytail: a regra "sem parcela em aberto" (<c>formatura.pendencias_em_aberto</c>) entra
-    /// junto da entidade de parcela, na Sprint 6 — hoje não existe parcela para estar em aberto.
+    /// Dinheiro pendente também recusa, com <c>formatura.pendencias_em_aberto</c> e as contagens em <c>dados</c>
+    /// (Sprint 38, P11): turma encerrada não aceita escrita, e encerrar no meio de uma devolução, de uma
+    /// conferência ou de um cancelamento congelaria tudo sem volta. A turma resolve — baixa, cancela, devolve —
+    /// e então encerra.
     /// </para>
     /// </remarks>
     public async Task<Result> Encerrar(Guid formaturaId, CancellationToken ct = default)
@@ -174,6 +178,18 @@ public sealed class FormaturaService(
 
         if (formatura is null)
             return Result.Falha(ErrosDeFormatura.FormaturaNaoEncontrada);
+
+        if (await pendencias.ContarParaEncerrar(DateTime.UtcNow, ct) is { Alguma: true } emAberto)
+            return Result.Falha(
+                new Erro(
+                    "formatura.pendencias_em_aberto",
+                    $"Resolva antes de encerrar: {string.Join("; ", emAberto.Descrever())}.",
+                    ETipoErro.Conflito
+                )
+                {
+                    Dados = emAberto,
+                }
+            );
 
         if (await assinaturaRepository.ObterDetalheDaMaisRecente(ct) is { Status: StatusDaAssinatura.Ativa })
             return Result.Falha(Erro.Conflito("formatura.assinatura_ativa", "Cancele a renovação da assinatura antes de encerrar a formatura."));

@@ -23,18 +23,21 @@ public sealed class FormaturaServiceTests
     private readonly IFormaturaRepository _formaturas = Substitute.For<IFormaturaRepository>();
     private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
     private readonly IAssinaturaRepository _assinaturas = Substitute.For<IAssinaturaRepository>();
+    private readonly IPendenciasDaTurmaRepository _pendencias = Substitute.For<IPendenciasDaTurmaRepository>();
     private readonly IProvedorDeAssinatura _provedor = Substitute.For<IProvedorDeAssinatura>();
     private readonly IAuthService _auth = Substitute.For<IAuthService>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
     public FormaturaServiceTests()
     {
+        _pendencias.ContarParaEncerrar(Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(new PendenciasDaTurma(0, 0, 0, 0, 0, 0, 0));
         _unitOfWork
             .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<ParDeTokens>>>>(), Arg.Any<CancellationToken>())
             .Returns(chamada => chamada.Arg<Func<CancellationToken, Task<Result<ParDeTokens>>>>()(CancellationToken.None));
     }
 
-    private FormaturaService Servico => new(_formaturas, _vinculos, _assinaturas, _provedor, _auth, new DadosDaFormaturaValidator(), _unitOfWork);
+    private FormaturaService Servico =>
+        new(_formaturas, _vinculos, _assinaturas, _pendencias, _provedor, _auth, new DadosDaFormaturaValidator(), _unitOfWork);
 
     private static DadosDaFormatura Dados(int? ano = null) => new("Medicina 2027.1 — UFPR", "UFPR", "Medicina", ano ?? DateTime.UtcNow.Year + 1, 1);
 
@@ -182,6 +185,25 @@ public sealed class FormaturaServiceTests
         resultado.Sucesso.ShouldBeTrue();
         formatura.Status.ShouldBe(StatusDaFormatura.Descartada);
         await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Sprint 38, P11: dinheiro pendente impede encerrar, e a resposta diz o que falta.</summary>
+    [Fact]
+    public async Task Encerrar_com_pendencias_devolve_conflito_com_a_contagem_sem_gravar()
+    {
+        var formatura = Em(StatusDaFormatura.Ativa);
+        _formaturas.ObterParaEdicao(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(formatura);
+        var pendencias = new PendenciasDaTurma(3, 0, 0, 0, 1, 0, 0);
+        _pendencias.ContarParaEncerrar(Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(pendencias);
+
+        var resultado = await Servico.Encerrar(Guid.CreateVersion7(), Ct);
+
+        var erro = resultado.Erros.ShouldHaveSingleItem();
+        erro.Codigo.ShouldBe("formatura.pendencias_em_aberto");
+        erro.Mensagem.ShouldContain("3 parcelas em aberto; 1 compra da loja a devolver");
+        erro.Dados.ShouldBe(pendencias);
+        formatura.Status.ShouldBe(StatusDaFormatura.Ativa);
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
     }
 
     /// <summary>Com a renovação ligada, encerrar deixaria o PSP cobrando uma turma fechada.</summary>

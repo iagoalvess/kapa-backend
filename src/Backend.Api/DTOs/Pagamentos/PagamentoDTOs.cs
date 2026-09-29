@@ -34,7 +34,33 @@ public sealed record MeioDaCobrancaDTO(MeioDeRecebimento Meio, PixParaPagarDTO? 
 /// <summary>Um meio do Mercado Pago da turma — baixa sozinho, sem aviso do formando.</summary>
 /// <param name="Meio"><c>Pix</c> ou <c>Cartao</c>.</param>
 /// <param name="Pix">O PIX pronto, só em <c>Pix</c>.</param>
-public sealed record PagamentoPeloMercadoPagoDTO(MeioDePagamento Meio, PixDinamicoParaPagarDTO? Pix);
+/// <param name="Cartao">O formulário do cartão e o valor que ele cobra, só em <c>Cartao</c> (Sprint 39).</param>
+public sealed record PagamentoPeloMercadoPagoDTO(MeioDePagamento Meio, PixDinamicoParaPagarDTO? Pix, CartaoParaPagarDTO? Cartao);
+
+/// <summary>O cartão pronto para pagar (Sprint 39): o formulário do Mercado Pago tokeniza no navegador.</summary>
+/// <param name="ChavePublica">A <c>public_key</c> da conta da turma, para o SDK do Mercado Pago.</param>
+/// <param name="ValorEmCentavos">O que o cartão cobra — o valor do PIX mais o acréscimo.</param>
+/// <param name="AcrescimoEmCentavos">A taxa repassada a quem paga; zero quando a turma absorve.</param>
+/// <param name="MaximoDeParcelas">Em quantas vezes, no máximo; os juros do parcelamento são de quem paga.</param>
+public sealed record CartaoParaPagarDTO(string ChavePublica, long ValorEmCentavos, long AcrescimoEmCentavos, int MaximoDeParcelas);
+
+/// <summary>O pagamento de parcelas no cartão (Sprint 39).</summary>
+/// <param name="ParcelaIds">As parcelas, de 1 a 24.</param>
+/// <param name="Token">O token do cartão que o formulário do Mercado Pago gerou.</param>
+/// <param name="Bandeira">O <c>payment_method_id</c> que o formulário identificou.</param>
+/// <param name="Parcelas">Em quantas vezes, de 1 a 12.</param>
+/// <param name="ValorEmCentavos">O valor que a tela mostrou.</param>
+public sealed record PagamentoNoCartaoRequestDTO(
+    IReadOnlyList<Guid>? ParcelaIds,
+    string? Token,
+    string? Bandeira,
+    int? Parcelas,
+    long? ValorEmCentavos
+);
+
+/// <summary>Em que pé ficou o pagamento no cartão.</summary>
+/// <param name="Situacao"><c>Pago</c> — as parcelas já estão pagas — ou <c>EmAnalise</c>.</param>
+public sealed record PagamentoNoCartaoDTO(SituacaoDoCartao Situacao);
 
 /// <summary>O PIX do Mercado Pago da turma: o copia-e-cola e até quando vale.</summary>
 /// <param name="CopiaECola">O BR Code; o QR é desenhado no navegador.</param>

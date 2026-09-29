@@ -96,4 +96,55 @@ public sealed class ProcessamentoDaFilaDeEmailTests
         falho.Status.ShouldBe(EEmailStatus.Pendente);
         await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
     }
+
+    /// <summary>A preferência é conferida no envio (Sprint 40): quem saiu depois de enfileirar não recebe.</summary>
+    [Fact]
+    public async Task Marketing_de_quem_saiu_e_descartado_e_o_transacional_sai()
+    {
+        // Arrange
+        var saiu = Guid.CreateVersion7();
+        var ficou = Guid.CreateVersion7();
+        var paraQuemSaiu = Marketing(saiu);
+        var paraQuemFicou = Marketing(ficou);
+        var transacional = Reservado();
+        _fila.ReservarLote(3, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns([paraQuemSaiu, paraQuemFicou, transacional]);
+        _fila
+            .ListarQueRecebemMarketing(Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 2), Arg.Any<CancellationToken>())
+            .Returns(new HashSet<Guid> { ficou });
+
+        // Act
+        await Servico(tamanhoDoLote: 3).ProcessarLote(Ct);
+
+        // Assert
+        paraQuemSaiu.Status.ShouldBe(EEmailStatus.Descartado);
+        paraQuemFicou.Status.ShouldBe(EEmailStatus.Enviado);
+        transacional.Status.ShouldBe(EEmailStatus.Enviado);
+        await _remetente.Received(2).EnviarAsync(Arg.Any<MensagemDeEmail>(), Arg.Any<CancellationToken>());
+        await _remetente
+            .Received(1)
+            .EnviarAsync(Arg.Is<MensagemDeEmail>(m => m.LinkDeDescadastro == "https://api/descadastro"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Lote_so_transacional_nao_consulta_preferencia()
+    {
+        // Arrange
+        _fila.ReservarLote(2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns([Reservado()]);
+
+        // Act
+        await Servico().ProcessarLote(Ct);
+
+        // Assert
+        await _fila.DidNotReceive().ListarQueRecebemMarketing(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
+    }
+
+    private static EmailNaFila Marketing(Guid usuarioId)
+    {
+        var email = Reservado();
+        email.Categoria = ECategoriaDeEmail.Marketing;
+        email.UsuarioId = usuarioId;
+        email.LinkDeDescadastro = "https://api/descadastro";
+
+        return email;
+    }
 }

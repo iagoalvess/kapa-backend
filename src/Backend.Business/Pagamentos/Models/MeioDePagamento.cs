@@ -1,3 +1,5 @@
+using Backend.Business.Recebimentos.Models;
+
 namespace Backend.Business.Pagamentos.Models;
 
 /// <summary>
@@ -23,11 +25,21 @@ public enum MeioDePagamento
 /// <summary>O que cada meio oferece hoje e como se escreve.</summary>
 public static class MeiosDePagamento
 {
+    /// <summary>Os meios que o Kapa sabe cobrar — o cartão entrou na Sprint 39. Cada turma oferece os seus (<see cref="DaTurma"/>).</summary>
+    public static readonly IReadOnlyList<MeioDePagamento> Ligados = [MeioDePagamento.Pix, MeioDePagamento.Cartao];
+
+    /// <summary>Em quantas vezes o formando e o comprador podem dividir no cartão; os juros são de quem paga (Sprint 39, P3).</summary>
+    public const int ParcelasNoCartao = 12;
+
     /// <summary>
-    /// Os meios que já cobram de verdade. <c>ponytail:</c> o cartão entra aqui nas Sprints 37
-    /// (planos) e 39 (comissão e loja), com o fluxo de cada um.
+    /// Os meios que a turma oferece pelo Mercado Pago dela: nenhum sem conexão, o PIX com ela, e o cartão só
+    /// quando a Tesouraria o ligou (Sprint 39, P7).
     /// </summary>
-    public static readonly IReadOnlyList<MeioDePagamento> Ligados = [MeioDePagamento.Pix];
+    /// <param name="credencial">A autorização da turma, ou nula.</param>
+    public static IReadOnlyList<MeioDePagamento> DaTurma(CredencialDeProvedor? credencial) =>
+        credencial is null ? []
+        : credencial.CartaoLigado ? Ligados
+        : [MeioDePagamento.Pix];
 
     /// <summary>Rótulo do meio, para e-mail, planilha e log.</summary>
     /// <param name="meio">Meio.</param>

@@ -62,10 +62,13 @@ public sealed class EmailsDoConvite(IEmailService emailService, IOptions<Aplicac
         );
     }
 
-    /// <summary>O convite que esta pessoa tinha foi passado para outra — o QR antigo não entra mais.</summary>
-    /// <param name="email">Convidado anterior.</param>
+    /// <summary>O convite que esta pessoa tinha deixou de valer — o QR antigo não entra mais.</summary>
+    /// <param name="email">Convidado.</param>
     /// <param name="evento">O evento.</param>
-    public Task Cancelado(string email, EventoDoConvite evento, CancellationToken ct = default) =>
+    /// <param name="porque">
+    /// O que aconteceu, em HTML já escapado; nulo é a transferência — quem comprou passou o convite para outra pessoa.
+    /// </param>
+    public Task Cancelado(string email, EventoDoConvite evento, string? porque = null, CancellationToken ct = default) =>
         emailService.Enfileirar(
             new NovoEmail(
                 email,
@@ -73,8 +76,9 @@ public sealed class EmailsDoConvite(IEmailService emailService, IOptions<Aplicac
                 ModeloDeEmail.Montar(
                     _aplicacao,
                     "Seu convite foi cancelado",
-                    $"O convite em seu nome para <strong>{ModeloDeEmail.Texto(evento.Titulo)}</strong> foi transferido para outra pessoa "
-                        + "por quem o comprou, e o código anterior não vale mais na portaria. Se isto é um engano, fale com quem te convidou.",
+                    $"O convite em seu nome para <strong>{ModeloDeEmail.Texto(evento.Titulo)}</strong> "
+                        + (porque ?? "foi transferido para outra pessoa por quem o comprou")
+                        + ", e o código não vale mais na portaria. Se isto é um engano, fale com quem te convidou.",
                     null,
                     null,
                     Mascote.Erro

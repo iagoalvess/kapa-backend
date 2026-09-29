@@ -41,6 +41,19 @@ public sealed class SmtpSettings
     /// <summary>Nome de exibição do remetente.</summary>
     public string RemetenteNome { get; init; } = string.Empty;
 
+    /// <summary>Endereço que assina o marketing do Kapa (P4 da Sprint 40). Vazio, sai pelo <see cref="RemetenteEmail"/>.</summary>
+    /// <remarks>
+    /// Subdomínio próprio (<c>novidades@novidades.kapaformaturas.com.br</c>), com SPF e DKIM próprios no Resend:
+    /// a reputação de uma campanha ruim fica nele, e a cobrança e a redefinição de senha continuam chegando.
+    /// </remarks>
+    public string RemetenteDeMarketingEmail { get; init; } = string.Empty;
+
+    /// <summary>Nome de exibição do remetente de marketing. Vazio, usa <see cref="RemetenteNome"/>.</summary>
+    public string RemetenteDeMarketingNome { get; init; } = string.Empty;
+
+    /// <summary>Para onde vai a resposta a um e-mail de marketing (<c>suporte@</c>). Vazio, sem <c>Reply-To</c>.</summary>
+    public string ResponderMarketingPara { get; init; } = string.Empty;
+
     /// <summary>
     /// Caixa que recebe <b>tudo</b> no lugar do destinatário real. Vazio, cada um recebe o seu.
     /// </summary>

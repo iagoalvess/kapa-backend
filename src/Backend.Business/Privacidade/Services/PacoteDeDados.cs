@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Backend.Business.Marketing.Models;
 using Backend.Business.Privacidade.Models;
 
 namespace Backend.Business.Privacidade.Services;
@@ -67,6 +68,7 @@ public static class PacoteDeDados
             );
             Gravar(zip, "consentimentos.csv", Csv(["documento", "versao", "registrado_em", "revogacao"], Consentimentos(dados)));
             Gravar(zip, "comunicacoes.csv", Csv(["turma", "tipo", "ativa"], Comunicacoes(dados)));
+            Gravar(zip, "novidades-do-kapa.csv", Csv(["registro", "detalhe", "em"], NovidadesDoKapa(dados.Comunicacoes.DoKapa)));
         }
 
         return memoria.ToArray();
@@ -183,6 +185,22 @@ public static class PacoteDeDados
             return (string[])[turma?.Formatura ?? preferencia.FormaturaId.ToString(), preferencia.Tipo, Sim(preferencia.Ativa)];
         });
 
+    /// <summary>A preferência de marketing: o estado atual, cada aceite e oposição, e cada e-mail mandado (Sprint 40).</summary>
+    /// <param name="doKapa">Preferência, histórico e envios.</param>
+    private static IEnumerable<string[]> NovidadesDoKapa(ComunicacaoDoKapa doKapa) =>
+        [
+            ["preferência atual", doKapa.Receber ? "recebe" : "não recebe", string.Empty],
+            .. doKapa.Historico.Select(registro =>
+                (string[])
+                    [
+                        registro.Aceito ? "aceite" : "oposição",
+                        $"{registro.Origem} (texto versão {registro.VersaoDoTexto})",
+                        DataHora(registro.RegistradoEm),
+                    ]
+            ),
+            .. doKapa.Envios.Select(envio => (string[])["e-mail enviado", $"{envio.Jornada} — {envio.Formatura}", DataHora(envio.EnviadoEm)]),
+        ];
+
     /// <summary>
     /// O texto que explica o pacote a quem o abriu.
     /// </summary>
@@ -208,6 +226,7 @@ public static class PacoteDeDados
             parcelas.csv        Uma linha por parcela, com vencimento, valor e situação.
             consentimentos.csv  Cada aceite e cada revogação de Termos de Uso e Política de Privacidade.
             comunicacoes.csv    Quais avisos você deixou ligados em cada turma.
+            novidades-do-kapa.csv  Se você recebe as novidades do Kapa, quando aceitou ou saiu, e o que já mandamos.
 
             Os arquivos .csv usam ponto e vírgula e abrem direto no Excel.
 

@@ -14,7 +14,8 @@ using Microsoft.Extensions.Options;
 namespace Backend.Business.Loja.Services;
 
 /// <summary>
-/// Os e-mails para quem comprou na loja: a reserva, a confirmação, o pagamento sem lugar e o link reenviado.
+/// Os e-mails para quem comprou na loja: a reserva, a confirmação, o pagamento sem lugar, o link reenviado e o
+/// cancelamento — e o aviso à comissão do pedido de cancelamento (Sprint 38).
 /// </summary>
 /// <remarks>
 /// Todos levam o link da compra — é por ele que o comprador sem conta volta (decisão 10) — e todos dizem
@@ -78,9 +79,9 @@ public sealed class EmailsDaLoja(
             vendedor,
             $"Pagamento confirmado: {Convites(compra)} — {vendedor.Turma}",
             "Seus convites estão prontos",
-            $"O pagamento de <strong>{Convites(compra)}</strong> foi confirmado. Os convites são nominais: pelo link abaixo você "
-                + "informa o nome e o documento de quem vai usar cada um, manda para a pessoa e baixa o PDF. Dá para trocar até 24 horas antes da festa.",
-            "Nomear meus convites",
+            $"O pagamento de <strong>{Convites(compra)}</strong> foi confirmado. Pelo link abaixo você vê cada convite, manda para "
+                + "quem vai usar e baixa o PDF. Se alguém não puder ir, dá para trocar o nome até 24 horas antes da festa.",
+            "Ver meus convites",
             Mascote.Feliz,
             ct
         );
@@ -115,6 +116,82 @@ public sealed class EmailsDaLoja(
             Mascote.Cadeado,
             ct
         );
+
+    /// <summary>
+    /// Convites cancelados pela turma (Sprint 38, decisão 4): quais deixaram de valer, quanto volta e quem devolve.
+    /// </summary>
+    /// <param name="compra">A compra, já cancelada.</param>
+    /// <param name="lugares">Quantos convites deixaram de valer agora.</param>
+    /// <param name="estornoEmCentavos">Quanto a turma devolve por eles.</param>
+    /// <param name="motivo">O motivo que a comissão escreveu.</param>
+    /// <param name="vendedor">Nome da turma e contato da comissão.</param>
+    public Task Cancelada(
+        CompraDeConvite compra,
+        int lugares,
+        long estornoEmCentavos,
+        string motivo,
+        Vendedor vendedor,
+        CancellationToken ct = default
+    )
+    {
+        var quantos = lugares == 1 ? "1 convite" : $"{lugares} convites";
+        var sobraram = compra.LugaresValendo switch
+        {
+            0 => string.Empty,
+            1 => " O outro convite da compra continua valendo, com o mesmo código.",
+            var n => $" Os outros {n} convites da compra continuam valendo, com o mesmo código.",
+        };
+
+        return Enviar(
+            compra,
+            vendedor,
+            $"Convite cancelado: {quantos} — {vendedor.Turma}",
+            lugares == 1 ? "Seu convite foi cancelado" : "Seus convites foram cancelados",
+            $"A comissão da turma cancelou <strong>{quantos}</strong> da sua compra (motivo: {ModeloDeEmail.Texto(motivo)}), e o código não vale mais na portaria.{sobraram} "
+                + $"A turma vai devolver <strong>{ModeloDeEmail.Texto(FormatosBrasileiros.Reais(estornoEmCentavos))}</strong> por PIX, da conta dela — o {ModeloDeEmail.Texto(_aplicacao.Nome)} não movimenta o dinheiro da venda.",
+            "Ver minha compra",
+            Mascote.Erro,
+            ct
+        );
+    }
+
+    /// <summary>A comissão recusou o pedido de cancelamento (Sprint 38, P1): os convites continuam valendo.</summary>
+    /// <param name="compra">A compra.</param>
+    /// <param name="motivo">Por que a comissão recusou.</param>
+    /// <param name="vendedor">Nome da turma e contato da comissão.</param>
+    public Task PedidoRecusado(CompraDeConvite compra, string motivo, Vendedor vendedor, CancellationToken ct = default) =>
+        Enviar(
+            compra,
+            vendedor,
+            $"Seu pedido de cancelamento foi recusado — {vendedor.Turma}",
+            "Seu pedido de cancelamento foi recusado",
+            $"A comissão da turma recusou o cancelamento que você pediu. Motivo: <strong>{ModeloDeEmail.Texto(motivo)}</strong>. "
+                + "Seus convites continuam valendo, com os mesmos códigos.",
+            "Ver minha compra",
+            Mascote.Checklist,
+            ct
+        );
+
+    /// <summary>O comprador pediu cancelamento pelo link (Sprint 38, P1): a comissão tem uma pendência.</summary>
+    /// <param name="compra">A compra.</param>
+    /// <param name="convites">Quantos convites ele pede para cancelar.</param>
+    /// <param name="formaturaId">A turma — o e-mail vai para a comissão dela.</param>
+    public async Task PedidoRecebido(CompraDeConvite compra, int convites, Guid formaturaId, CancellationToken ct = default)
+    {
+        var quantos = convites == 1 ? "1 convite" : $"{convites} convites";
+        var html = ModeloDeEmail.Montar(
+            _aplicacao,
+            "Pedido de cancelamento na loja",
+            $"<strong>{ModeloDeEmail.Texto(compra.NomeDoComprador ?? "Um comprador")}</strong> pediu o cancelamento de <strong>{quantos}</strong> "
+                + "comprados na loja da turma. Os convites continuam valendo até a comissão aprovar ou recusar o pedido.",
+            "Responder o pedido",
+            _aplicacao.Link(RotasDoFront.ComprasDaLoja),
+            Mascote.Checklist
+        );
+
+        foreach (var email in await vinculos.ListarEmailsDaComissao(formaturaId, ct))
+            await emailService.Enfileirar(new NovoEmail(email, $"Pedido de cancelamento: {quantos} — loja da turma", html), ct);
+    }
 
     private Task<Result<Guid>> Enviar(
         CompraDeConvite compra,

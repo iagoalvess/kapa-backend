@@ -10,6 +10,7 @@ using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
+using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Interfaces;
@@ -24,6 +25,7 @@ using Backend.Business.Pagamentos.Validators;
 using Backend.Business.Recebimentos.Interfaces;
 using Backend.Business.Recebimentos.Models;
 using Backend.Business.Recebimentos.Services;
+using Backend.UnitTests.Loja;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -129,7 +131,30 @@ public sealed class PagamentoServiceTests
                 _unitOfWork,
                 NullLogger<EmissaoNoMercadoPago>.Instance
             ),
+            new BaixaAutomatica(
+                _provedor,
+                _mercadoPago,
+                _parcelas,
+                _informes,
+                _vinculos,
+                _formaturas,
+                new BaixaService(
+                    _recebimentos,
+                    _eventos,
+                    new EmailsDePagamento(_email, Options.Create(new AplicacaoSettings())),
+                    Substitute.For<IQuitacaoDePedidos>()
+                ),
+                LojaTests.Pagamento(),
+                _eventos,
+                _recebimentos,
+                Substitute.For<IDespesaRepository>(),
+                Substitute.For<IOutraReceitaRepository>(),
+                new EmailsDePagamento(_email, Options.Create(new AplicacaoSettings())),
+                _unitOfWork,
+                NullLogger<BaixaAutomatica>.Instance
+            ),
             new NovoInformeValidator(),
+            new CartaoTokenizadoValidator(),
             _unitOfWork,
             NullLogger<PagamentoService>.Instance
         );
@@ -148,9 +173,7 @@ public sealed class PagamentoServiceTests
                 _formaturas,
                 _arquivos,
                 new BaixaService(_recebimentos, _eventos, emails, Substitute.For<IQuitacaoDePedidos>()),
-                Substitute.For<IQuitacaoDePedidos>(),
                 emails,
-                _eventos,
                 new BaixaManualValidator(),
                 new ConfirmarInformesValidator(),
                 new RecusarInformeValidator(),
@@ -927,11 +950,11 @@ public sealed class PagamentoServiceTests
     }
 
     /// <summary>
-    /// Sprint 25: com o Mercado Pago conectado, o dono da parcela vê o PIX dinâmico primeiro, e os meios
-    /// da conta continuam — o estático é a queda (P7). A emissão reserva antes de chamar (decisão 12a).
+    /// Na cobrança automática (29/09/2026) o dono da parcela vê só o PIX do Mercado Pago — os meios da comissão
+    /// saem da tela. A emissão reserva antes de chamar (decisão 12a da Sprint 25).
     /// </summary>
     [Fact]
-    public async Task Com_o_mercado_pago_conectado_o_dono_ve_o_pix_dinamico_antes_dos_outros_meios()
+    public async Task Na_cobranca_automatica_o_dono_ve_so_o_mercado_pago()
     {
         // Arrange
         var parcela = DaAna(_hoje.AddDays(5));
@@ -947,7 +970,7 @@ public sealed class PagamentoServiceTests
         // Assert
         cobranca.Valor.PeloMercadoPago.ShouldHaveSingleItem().Meio.ShouldBe(MeioDePagamento.Pix);
         cobranca.Valor.PeloMercadoPago[0].Pix!.CopiaECola.ShouldBe("00020126-dinamico");
-        cobranca.Valor.Meios.Select(m => m.Meio).ShouldBe([MeioDeRecebimento.Pix]);
+        cobranca.Valor.Meios.ShouldBeEmpty();
         _reservada!.Status.ShouldBe(StatusDaCobrancaBancaria.Emitida);
         _reservada.ParcelaIds.ShouldBe([parcela.Id]);
         await _mercadoPago
@@ -960,11 +983,12 @@ public sealed class PagamentoServiceTests
     }
 
     /// <summary>
-    /// P7 e decisão 12a: sem resposta do Mercado Pago, a tela fica com os outros meios — e a reserva continua
-    /// em <c>Emitindo</c>, porque o pedido pode ter nascido lá e a próxima tentativa tem de usar a mesma chave.
+    /// Decisão 12a: sem resposta do Mercado Pago, a tela pede para tentar de novo — a chave da comissão não entra no
+    /// lugar (29/09/2026) — e a reserva continua em <c>Emitindo</c>, porque o pedido pode ter nascido lá e a próxima
+    /// tentativa tem de usar a mesma chave.
     /// </summary>
     [Fact]
-    public async Task Mercado_pago_sem_resposta_deixa_os_outros_meios_e_guarda_a_reserva()
+    public async Task Mercado_pago_sem_resposta_pede_para_tentar_de_novo_e_guarda_a_reserva()
     {
         // Arrange
         var parcela = DaAna(_hoje.AddDays(5));
@@ -978,9 +1002,70 @@ public sealed class PagamentoServiceTests
         var cobranca = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
 
         // Assert
+        cobranca.PrimeiroErro.Codigo.ShouldBe("pagamento.mercado_pago_indisponivel");
+        _reservada!.Status.ShouldBe(StatusDaCobrancaBancaria.Emitindo);
+    }
+
+    /// <summary>Conectada mas na cobrança manual: só os meios da comissão, e nada é emitido no Mercado Pago.</summary>
+    [Fact]
+    public async Task Na_cobranca_manual_o_mercado_pago_conectado_fica_fora_da_tela()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+        PrepararMercadoPago(cartaoLigado: true, automatica: false);
+
+        // Act
+        var cobranca = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+
+        // Assert
         cobranca.Valor.PeloMercadoPago.ShouldBeEmpty();
         cobranca.Valor.Meios.ShouldHaveSingleItem().Meio.ShouldBe(MeioDeRecebimento.Pix);
-        _reservada!.Status.ShouldBe(StatusDaCobrancaBancaria.Emitindo);
+        await _mercadoPago.DidNotReceiveWithAnyArgs().Emitir(default!, default!, Ct);
+    }
+
+    /// <summary>Na cobrança automática não há "já paguei": quem pagou por fora fala com a tesouraria, que dá baixa.</summary>
+    [Fact]
+    public async Task Na_cobranca_automatica_o_formando_nao_avisa_pagamento()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        PrepararMercadoPago();
+
+        // Act
+        var resultado = await Servico.Informar(
+            FormaturaId,
+            Ana.UsuarioId,
+            [parcela.Id],
+            new NovoInforme(_hoje, 350_000, MeioDeRecebimento.Pix),
+            null,
+            Ct
+        );
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("pagamento.aviso_desligado");
+        await _informes.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+    }
+
+    /// <summary>Na cobrança manual o cartão não passa, mesmo ligado: ele é do Mercado Pago.</summary>
+    [Fact]
+    public async Task Na_cobranca_manual_o_cartao_e_recusado()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        PrepararMercadoPago(cartaoLigado: true, automatica: false);
+
+        // Act
+        var pago = await Servico.PagarNoCartao(
+            FormaturaId,
+            Ana.UsuarioId,
+            new PagamentoNoCartao([parcela.Id], new CartaoTokenizado("tok-1", "visa", 1), ValorDaParcela),
+            Ct
+        );
+
+        // Assert
+        pago.PrimeiroErro.Codigo.ShouldBe("pagamento.cartao_desligado");
+        await _mercadoPago.DidNotReceiveWithAnyArgs().Emitir(default!, default!, Ct);
     }
 
     /// <summary>Decisão 12a: recusa do Mercado Pago (4xx) é definitiva — a reserva é solta.</summary>
@@ -1080,18 +1165,195 @@ public sealed class PagamentoServiceTests
         var cobranca = await Servico.GerarCobranca(FormaturaId, Tesoureira.UsuarioId, parcela.Id, Ct);
 
         // Assert
-        cobranca.Valor.Meios.ShouldHaveSingleItem().Meio.ShouldBe(MeioDeRecebimento.Pix);
+        cobranca.Valor.PeloMercadoPago.ShouldBeEmpty();
+        cobranca.Valor.Meios.ShouldBeEmpty();
         await _mercadoPago.DidNotReceiveWithAnyArgs().Emitir(default!, default!, Ct);
     }
+
+    /// <summary>
+    /// Sprint 39, P2: com o cartão ligado e a taxa repassada, o cartão aparece depois do PIX, com o valor que faz a
+    /// turma receber o do PIX inteiro — o bruto é o líquido dividido por (1 − taxa).
+    /// </summary>
+    [Fact]
+    public async Task Com_o_cartao_ligado_o_dono_ve_o_cartao_com_a_taxa_repassada()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+        PrepararMercadoPago(cartaoLigado: true, taxaRepassada: 500);
+        _mercadoPago
+            .Emitir("token", Arg.Any<PedidoDeCobranca>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new DocumentoEmitido("ORD1", "00020126-dinamico")));
+
+        // Act
+        var cobranca = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+
+        // Assert
+        var valor = cobranca.Valor.ValorEmCentavos;
+        cobranca.Valor.PeloMercadoPago.Select(m => m.Meio).ShouldBe([MeioDePagamento.Pix, MeioDePagamento.Cartao]);
+        var noCartao = cobranca.Valor.PeloMercadoPago[1].Cartao!;
+        noCartao.ChavePublica.ShouldBe("APP_USR-publica");
+        noCartao.ValorEmCentavos.ShouldBe((long)Math.Ceiling(valor / 0.95m));
+        noCartao.AcrescimoEmCentavos.ShouldBe(noCartao.ValorEmCentavos - valor);
+        noCartao.MaximoDeParcelas.ShouldBe(12);
+    }
+
+    /// <summary>Sprint 39, P7: com o cartão desligado, a opção não aparece.</summary>
+    [Fact]
+    public async Task Com_o_cartao_desligado_so_o_pix_aparece()
+    {
+        var parcela = DaAna(_hoje.AddDays(5));
+        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
+        PrepararMercadoPago();
+        _mercadoPago
+            .Emitir("token", Arg.Any<PedidoDeCobranca>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new DocumentoEmitido("ORD1", "00020126-dinamico")));
+
+        var cobranca = await Servico.GerarCobranca(FormaturaId, Ana.UsuarioId, parcela.Id, Ct);
+
+        cobranca.Valor.PeloMercadoPago.ShouldHaveSingleItem().Meio.ShouldBe(MeioDePagamento.Pix);
+    }
+
+    /// <summary>
+    /// Sprint 39: o cartão cobra o valor com o acréscimo, com o token do formulário, e a baixa da consulta paga as
+    /// parcelas na hora.
+    /// </summary>
+    [Fact]
+    public async Task Cartao_aprovado_cobra_o_valor_com_o_acrescimo_e_baixa_na_hora()
+    {
+        // Arrange
+        var parcela = DaAna(_hoje.AddDays(5));
+        PrepararMercadoPago(cartaoLigado: true, taxaRepassada: 500);
+        var noCartao = (long)Math.Ceiling(ValorDaParcela / 0.95m);
+        _mercadoPago
+            .Emitir("token", Arg.Any<PedidoDeCobranca>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new DocumentoEmitido("ORD9", null, SituacaoDoPedido.Pago)));
+        _provedor.ObterCobranca(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(_ => _reservada);
+        _provedor.TravarCobranca(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(_ => _reservada);
+        _mercadoPago
+            .ConsultarPedido("token", "ORD9", Arg.Any<CancellationToken>())
+            .Returns(_ => Result.Ok(new PedidoConsultado("ORD9", _reservada!.Id.ToString("N"), SituacaoDoPedido.Pago, noCartao, DateTime.UtcNow)));
+        _mercadoPago
+            .BuscarPagamentoAprovado(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok<PagamentoNoMercadoPago?>(null));
+        _unitOfWork
+            .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<bool>>>>(), Arg.Any<CancellationToken>())
+            .Returns(chamada => chamada.Arg<Func<CancellationToken, Task<Result<bool>>>>()(Ct));
+
+        // Act
+        var pago = await Servico.PagarNoCartao(
+            FormaturaId,
+            Ana.UsuarioId,
+            new PagamentoNoCartao([parcela.Id], new CartaoTokenizado("tok-1", "visa", 3), noCartao),
+            Ct
+        );
+
+        // Assert
+        pago.Valor.ShouldBe(SituacaoDoCartao.Pago);
+        _reservada!.Status.ShouldBe(StatusDaCobrancaBancaria.Paga);
+        _reservada.AcrescimoEmCentavos.ShouldBe(noCartao - ValorDaParcela);
+        await _mercadoPago
+            .Received(1)
+            .Emitir(
+                "token",
+                Arg.Is<PedidoDeCobranca>(p =>
+                    p.Meio == MeioDePagamento.Cartao && p.ValorEmCentavos == noCartao && p.Cartao!.Token == "tok-1" && p.Cartao.Parcelas == 3
+                ),
+                Arg.Any<CancellationToken>()
+            );
+        await _recebimentos
+            .Received(1)
+            .Adicionar(
+                Arg.Is<Recebimento>(r => r.Forma == FormaDePagamento.Cartao && r.ValorEmCentavos == ValorDaParcela),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    /// <summary>Sprint 39: o valor que a tela mostrou não é mais o do dia — nada é cobrado.</summary>
+    [Fact]
+    public async Task Cartao_com_valor_diferente_do_dia_nao_cobra()
+    {
+        var parcela = DaAna(_hoje.AddDays(5));
+        PrepararMercadoPago(cartaoLigado: true);
+
+        var pago = await Servico.PagarNoCartao(
+            FormaturaId,
+            Ana.UsuarioId,
+            new PagamentoNoCartao([parcela.Id], new CartaoTokenizado("tok-1", "visa", 1), 1),
+            Ct
+        );
+
+        pago.PrimeiroErro.Codigo.ShouldBe("pagamento.valor_mudou");
+        await _mercadoPago.DidNotReceiveWithAnyArgs().Emitir(default!, default!, Ct);
+    }
+
+    /// <summary>Sprint 39, P7: com o cartão desligado, o pagamento é recusado antes de cobrar.</summary>
+    [Fact]
+    public async Task Cartao_desligado_recusa_o_pagamento()
+    {
+        var parcela = DaAna(_hoje.AddDays(5));
+        PrepararMercadoPago();
+
+        var pago = await Servico.PagarNoCartao(
+            FormaturaId,
+            Ana.UsuarioId,
+            new PagamentoNoCartao([parcela.Id], new CartaoTokenizado("tok-1", "visa", 1), ValorDaParcela),
+            Ct
+        );
+
+        pago.PrimeiroErro.Codigo.ShouldBe("pagamento.cartao_desligado");
+    }
+
+    /// <summary>Parcela de outro formando não se paga no cartão de ninguém: 404, como no aviso.</summary>
+    [Fact]
+    public async Task Cartao_na_parcela_de_outro_formando_e_404()
+    {
+        var parcela = DaAna(_hoje.AddDays(5));
+        PrepararMercadoPago(cartaoLigado: true);
+
+        var pago = await Servico.PagarNoCartao(
+            FormaturaId,
+            Bruno.UsuarioId,
+            new PagamentoNoCartao([parcela.Id], new CartaoTokenizado("tok-1", "visa", 1), ValorDaParcela),
+            Ct
+        );
+
+        pago.PrimeiroErro.Codigo.ShouldBe(ErrosDePagamento.ParcelaNaoEncontrada.Codigo);
+    }
+
+    /// <summary>Forma do cartão: mais de 12 vezes não chega ao Mercado Pago (P3).</summary>
+    [Fact]
+    public async Task Cartao_em_mais_de_12_vezes_e_recusado_pela_forma()
+    {
+        var parcela = DaAna(_hoje.AddDays(5));
+
+        var pago = await Servico.PagarNoCartao(
+            FormaturaId,
+            Ana.UsuarioId,
+            new PagamentoNoCartao([parcela.Id], new CartaoTokenizado("tok-1", "visa", 13), 100),
+            Ct
+        );
+
+        pago.PrimeiroErro.Tipo.ShouldBe(ETipoErro.Validacao);
+    }
+
+    /// <summary>O valor do dia de <see cref="DaAna"/> antes do vencimento: sem multa, juros nem desconto.</summary>
+    private const long ValorDaParcela = 350_000;
 
     /// <summary>A cobrança que a emissão reservou, capturada para o teste conferir o status.</summary>
     private CobrancaBancaria? _reservada;
 
     /// <summary>Turma conectada ao Mercado Pago, com a reserva de emissão aceita e devolvida rastreada.</summary>
-    private void PrepararMercadoPago()
+    /// <param name="cartaoLigado">Liga o cartão.</param>
+    /// <param name="taxaRepassada">Taxa do cartão repassada.</param>
+    /// <param name="automatica">Cobrança automática; falso: conectada, mas no modo manual.</param>
+    private void PrepararMercadoPago(bool cartaoLigado = false, int? taxaRepassada = null, bool automatica = true)
     {
         var credencial = new CredencialDeProvedor();
-        credencial.Conectar("token", "renovacao", DateTime.UtcNow.AddDays(100), 1, "turma@mp.dev", Ana.UsuarioId);
+        credencial.Conectar("token", "renovacao", DateTime.UtcNow.AddDays(100), 1, "turma@mp.dev", Ana.UsuarioId, "APP_USR-publica");
+        credencial.DefinirCobrancaAutomatica(automatica, DateTime.UtcNow);
+        if (cartaoLigado)
+            credencial.LigarCartao(taxaRepassada, Ana.UsuarioId, DateTime.UtcNow);
         _provedor.ObterCredencial(Arg.Any<CancellationToken>()).Returns(credencial);
         _perfis.ObterTitular(FormaturaId, Ana.UsuarioId, Arg.Any<CancellationToken>()).Returns(Ana);
         _provedor.ReservarEmissao(Arg.Do<CobrancaBancaria>(c => _reservada = c), Arg.Any<CancellationToken>()).Returns(true);

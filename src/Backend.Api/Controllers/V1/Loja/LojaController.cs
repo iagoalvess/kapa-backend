@@ -5,6 +5,8 @@ using Backend.Api.DTOs.Loja;
 using Backend.Business.Abstractions;
 using Backend.Business.Festa.Models;
 using Backend.Business.Loja.Interfaces;
+using Backend.Business.Loja.Models;
+using Backend.Business.MercadoPago.Models;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -92,6 +94,34 @@ public sealed class LojaController(ILojaService loja) : MainController
     public async Task<IActionResult> EmitirCobranca(string token, CancellationToken ct) =>
         Responder((await loja.EmitirCobranca(token, ct)).Map(compra => compra.Adapt<CompraDTO>()));
 
+    /// <summary>Paga no cartão a compra pendente no cartão (Sprint 39, P5).</summary>
+    /// <remarks>
+    /// O número do cartão nunca chega aqui: o formulário do Mercado Pago o tokeniza no navegador. 409
+    /// <c>loja.compra_nao_pendente</c>, <c>pagamento.cartao_desligado</c>, <c>pagamento.valor_mudou</c> ou
+    /// <c>pagamento.cartao_recusado</c> — este último mantém a reserva, e dá para tentar outro cartão.
+    /// </remarks>
+    /// <param name="token">O segredo do link.</param>
+    /// <param name="requisicao">O cartão tokenizado e o valor mostrado.</param>
+    [HttpPost("compras/{token}/cartao")]
+    [EnableRateLimiting(RateLimitConfig.Loja)]
+    [ProducesResponseType(typeof(CompraDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> PagarNoCartao(string token, [FromBody] CartaoDaCompraRequestDTO requisicao, CancellationToken ct) =>
+        Responder(
+            (
+                await loja.PagarNoCartao(
+                    token,
+                    new CartaoDaCompra(
+                        new CartaoTokenizado(requisicao.Token ?? string.Empty, requisicao.Bandeira ?? string.Empty, requisicao.Parcelas ?? 0),
+                        requisicao.ValorEmCentavos ?? 0
+                    ),
+                    ct
+                )
+            ).Map(compra => compra.Adapt<CompraDTO>())
+        );
+
     /// <summary>Nomeia ou transfere um convite da compra.</summary>
     /// <remarks>As regras do convite da Sprint 21: até 24 h antes da festa, e trocar o titular troca o código.</remarks>
     /// <param name="token">O segredo do link.</param>
@@ -113,6 +143,26 @@ public sealed class LojaController(ILojaService loja) : MainController
                     ct
                 )
             ).Map(convite => convite.Adapt<MeuConviteDTO>())
+        );
+
+    /// <summary>Pede à comissão o cancelamento de convites da compra (Sprint 38, P1).</summary>
+    /// <remarks>
+    /// É um pedido: os convites continuam valendo até a comissão aprovar ou recusar, e a compra devolvida mostra o
+    /// status. Com um pedido aberto, devolve a compra com o mesmo pedido. Compra não paga: 409 <c>loja.compra_nao_paga</c>.
+    /// </remarks>
+    /// <param name="token">O segredo do link.</param>
+    /// <param name="requisicao">Convites (vazio é todos) e motivo, opcional.</param>
+    [HttpPost("compras/{token}/pedido-de-cancelamento")]
+    [EnableRateLimiting(RateLimitConfig.Loja)]
+    [ProducesResponseType(typeof(CompraDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> PedirCancelamento(string token, [FromBody] PedidoDeCancelamentoRequestDTO requisicao, CancellationToken ct) =>
+        Responder(
+            (await loja.PedirCancelamento(token, new PedidoDoComprador(requisicao.ConviteIds, requisicao.Motivo), ct)).Map(compra =>
+                compra.Adapt<CompraDTO>()
+            )
         );
 
     /// <summary>Apaga nome, e-mail e CPF de quem comprou — depois da festa, ou da compra que expirou.</summary>

@@ -1,4 +1,5 @@
 using Backend.Api.DTOs.Assinaturas;
+using Backend.Api.DTOs.Privacidade;
 using Backend.Business.Admin.Models;
 
 namespace Backend.Api.DTOs.Admin;
@@ -105,6 +106,7 @@ public sealed record MembroNoSuporteDTO(Guid UsuarioId, string Nome, string Emai
 /// <param name="AnonimizadoEm">Anonimização por pedido de eliminação, em UTC, ou nulo.</param>
 /// <param name="CriadoEm">Nascimento da conta, em UTC.</param>
 /// <param name="Vinculos">Turmas da pessoa, ativas primeiro.</param>
+/// <param name="ComunicacaoDoKapa">Se recebe as novidades do Kapa, e os últimos e-mails de marketing (Sprint 40).</param>
 public sealed record UsuarioNoSuporteDTO(
     Guid Id,
     string Nome,
@@ -116,7 +118,8 @@ public sealed record UsuarioNoSuporteDTO(
     IReadOnlyList<string> Perfis,
     DateTime? AnonimizadoEm,
     DateTime CriadoEm,
-    IReadOnlyList<VinculoNoSuporteDTO> Vinculos
+    IReadOnlyList<VinculoNoSuporteDTO> Vinculos,
+    ComunicacaoDoKapaDTO ComunicacaoDoKapa
 );
 
 /// <summary>Uma turma de que a pessoa participa.</summary>

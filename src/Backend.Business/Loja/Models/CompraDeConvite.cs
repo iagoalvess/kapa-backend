@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Backend.Business.Abstractions;
+using Backend.Business.Festa.Models;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Recebimentos.Models;
 
@@ -21,6 +23,9 @@ public enum StatusDaCompra
     /// para a lista de devolução da comissão (P5) — nunca fica paga e sem convite em silêncio.
     /// </summary>
     ADevolver,
+
+    /// <summary>A comissão fez o PIX de volta e anexou o comprovante (Sprint 38, decisão 2): sai da lista a devolver.</summary>
+    Devolvida,
 }
 
 /// <summary>
@@ -69,6 +74,13 @@ public class CompraDeConvite : EntidadeDaFormatura
     public string? Cpf { get; private set; }
 
     /// <summary>
+    /// Quem vai usar cada convite, informado na compra: a lista de <see cref="DadosDoConvidado"/> em JSON, cifrada no
+    /// banco. A emissão copia cada um para o convite da mesma posição; depois disso a troca é pelo convite.
+    /// Nula depois da exclusão ou do descarte.
+    /// </summary>
+    public string? Convidados { get; private set; }
+
+    /// <summary>
     /// O id que a tela sorteia ao abrir o formulário (decisão 7): a mesma chave devolve a mesma compra, e F5
     /// ou clique duplo não reservam duas vezes.
     /// </summary>
@@ -98,6 +110,36 @@ public class CompraDeConvite : EntidadeDaFormatura
     /// <summary>Quando e-mail e CPF foram apagados — descarte depois da festa ou pedido do comprador.</summary>
     public DateTime? DadosApagadosEm { get; private set; }
 
+    /// <summary>
+    /// Quantos lugares da compra deixaram de valer (Sprint 38): cancelados pela Gestão, ou os que nunca houve —
+    /// a compra paga sem lugar (decisão 9 da Sprint 26) nasce com todos aqui.
+    /// </summary>
+    public int ConvitesCancelados { get; private set; }
+
+    /// <summary>A soma dos estornos lançados contra a receita da compra (Sprint 38, P5).</summary>
+    public long ValorEstornadoEmCentavos { get; private set; }
+
+    /// <summary>Quanto a comissão ainda tem de devolver ao comprador — zera quando ela marca devolvida (P9).</summary>
+    public long ValorADevolverEmCentavos { get; private set; }
+
+    /// <summary>Quando a comissão marcou a devolução, em UTC.</summary>
+    public DateTime? DevolvidaEm { get; private set; }
+
+    /// <summary>O comprovante do PIX de volta, no módulo de arquivos (decisão 2).</summary>
+    public Guid? ComprovanteDaDevolucaoId { get; private set; }
+
+    /// <summary>O que o comprador de fato pagou — o valor da compra, se o Mercado Pago não informou outro.</summary>
+    public long ValorPago => ValorPagoEmCentavos ?? ValorEmCentavos;
+
+    /// <summary>Quantos lugares ainda valem: os reservados da pendente, os não cancelados da paga, nenhum da expirada.</summary>
+    public int LugaresValendo =>
+        Status switch
+        {
+            StatusDaCompra.Pendente => Quantidade,
+            StatusDaCompra.Expirada => 0,
+            _ => Quantidade - ConvitesCancelados,
+        };
+
     /// <summary>Construtor do EF.</summary>
     protected CompraDeConvite() { }
 
@@ -116,9 +158,14 @@ public class CompraDeConvite : EntidadeDaFormatura
         Email = dados.Email.Trim().ToLowerInvariant();
         Cpf = dados.Cpf;
         ChaveDeIdempotencia = dados.ChaveDeIdempotencia;
+        Convidados = dados.Convidados.Count > 0 ? JsonSerializer.Serialize(dados.Convidados) : null;
         ExpiraEm = expiraEm;
         Status = StatusDaCompra.Pendente;
     }
+
+    /// <summary>Os titulares informados na compra, na ordem dos convites; vazia na compra antiga ou depois da exclusão.</summary>
+    public IReadOnlyList<DadosDoConvidado> Titulares() =>
+        Convidados is null ? [] : JsonSerializer.Deserialize<List<DadosDoConvidado>>(Convidados) ?? [];
 
     /// <summary>
     /// Registra o pagamento. Pendente vira paga; expirada vira paga se <paramref name="reservouDeNovo"/>, e
@@ -128,10 +175,10 @@ public class CompraDeConvite : EntidadeDaFormatura
     /// <param name="pagaEm">Quando, em UTC.</param>
     /// <param name="cpfDoPagador">O CPF que o Mercado Pago informou, se informou.</param>
     /// <param name="reservouDeNovo">Na compra expirada, se o estoque ainda tinha lugar.</param>
-    /// <returns>Se mudou — falso quando já estava paga ou a devolver.</returns>
+    /// <returns>Se mudou — falso quando já estava paga, a devolver ou devolvida.</returns>
     public bool Pagar(long valorPagoEmCentavos, DateTime pagaEm, string? cpfDoPagador, bool reservouDeNovo)
     {
-        if (Status is StatusDaCompra.Paga or StatusDaCompra.ADevolver)
+        if (Status is not (StatusDaCompra.Pendente or StatusDaCompra.Expirada))
             return false;
 
         Status = Status == StatusDaCompra.Expirada && !reservouDeNovo ? StatusDaCompra.ADevolver : StatusDaCompra.Paga;
@@ -139,7 +186,67 @@ public class CompraDeConvite : EntidadeDaFormatura
         PagaEm = pagaEm;
         CpfDoPagador = cpfDoPagador;
 
+        if (Status == StatusDaCompra.ADevolver)
+        {
+            ConvitesCancelados = Quantidade;
+            ValorADevolverEmCentavos = valorPagoEmCentavos;
+        }
+
         return true;
+    }
+
+    /// <summary>
+    /// Tira lugares da compra e calcula o estorno deles (Sprint 38, decisões 1 e 6): a compra vai para a lista a
+    /// devolver.
+    /// </summary>
+    /// <remarks>
+    /// O estorno é o pago por convite vezes os cancelados; o centavo que a divisão deixa vai no último lugar da
+    /// compra, então cancelar tudo, de uma vez ou aos poucos, estorna exatamente o que entrou. A taxa do Mercado
+    /// Pago não volta — ele cobrou da turma. Quem garante que <paramref name="lugares"/> não conta duas vezes o
+    /// mesmo convite é o chamador: só os que ele revogou agora, sob a trava da compra (decisão 3).
+    /// </remarks>
+    /// <param name="lugares">Quantos lugares deixam de valer — entre 1 e <see cref="LugaresValendo"/>.</param>
+    /// <returns>O valor do estorno, em centavos.</returns>
+    public long Cancelar(int lugares)
+    {
+        if (lugares < 1 || lugares > LugaresValendo || Status is StatusDaCompra.Pendente or StatusDaCompra.Expirada)
+            throw new InvalidOperationException($"Compra {Id}: não dá para cancelar {lugares} de {LugaresValendo} lugares no status {Status}.");
+
+        ConvitesCancelados += lugares;
+
+        var estorno = ConvitesCancelados == Quantidade ? ValorPago - ValorEstornadoEmCentavos : lugares * (ValorPago / Quantidade);
+
+        ValorEstornadoEmCentavos += estorno;
+        ValorADevolverEmCentavos += estorno;
+        Status = StatusDaCompra.ADevolver;
+
+        return estorno;
+    }
+
+    /// <summary>
+    /// A comissão fez o PIX de volta (decisão 2): a compra sai da lista a devolver.
+    /// </summary>
+    /// <remarks>
+    /// A compra paga sem lugar (decisão 9 da Sprint 26) não passou por <see cref="Cancelar"/>, e a receita dela
+    /// continua inteira: o estorno dela nasce aqui, na data da devolução (P5).
+    /// </remarks>
+    /// <param name="agora">Instante, em UTC.</param>
+    /// <param name="comprovanteId">O comprovante do PIX; nulo quando quem devolveu foi o Mercado Pago — contestação no cartão ou devolução pelo painel (Sprint 39, P4).</param>
+    /// <returns>O estorno que ainda faltava lançar, em centavos — zero na compra cancelada, que já estornou.</returns>
+    public long Devolver(DateTime agora, Guid? comprovanteId)
+    {
+        if (Status != StatusDaCompra.ADevolver)
+            throw new InvalidOperationException($"Compra {Id} marcada devolvida no status {Status}.");
+
+        var estorno = LugaresValendo == 0 ? ValorPago - ValorEstornadoEmCentavos : 0;
+
+        ValorEstornadoEmCentavos += estorno;
+        ValorADevolverEmCentavos = 0;
+        DevolvidaEm = agora;
+        ComprovanteDaDevolucaoId = comprovanteId;
+        Status = StatusDaCompra.Devolvida;
+
+        return estorno;
     }
 
     /// <summary>Liga a compra à receita que ela virou.</summary>
@@ -163,6 +270,7 @@ public class CompraDeConvite : EntidadeDaFormatura
         Email = null;
         Cpf = null;
         CpfDoPagador = null;
+        Convidados = null;
         DadosApagadosEm = agora;
         VersaoDoLink++;
 

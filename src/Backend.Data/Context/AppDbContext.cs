@@ -16,6 +16,7 @@ using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Legal.Models;
 using Backend.Business.Loja.Models;
+using Backend.Business.Marketing.Models;
 using Backend.Business.Notificacoes.Models;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Privacidade.Models;
@@ -186,6 +187,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Compras da loja pública (Sprint 26).</summary>
     public DbSet<CompraDeConvite> ComprasDeConvite => Set<CompraDeConvite>();
 
+    /// <summary>Pedidos de cancelamento do comprador da loja (Sprint 38, P1).</summary>
+    public DbSet<PedidoDeCancelamento> PedidosDeCancelamento => Set<PedidoDeCancelamento>();
+
     /// <summary>Acervo de cada formatura: atas, contratos, orçamentos, regulamentos.</summary>
     public DbSet<Documento> Documentos => Set<Documento>();
 
@@ -209,6 +213,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// (decisão 2 da Sprint 14).
     /// </remarks>
     public DbSet<SolicitacaoDePrivacidade> SolicitacoesDePrivacidade => Set<SolicitacaoDePrivacidade>();
+
+    /// <summary>Histórico da preferência "Receber novidades do Kapa" (Sprint 40). Append-only.</summary>
+    public DbSet<ConsentimentoDeMarketing> ConsentimentosDeMarketing => Set<ConsentimentoDeMarketing>();
+
+    /// <summary>Os e-mails de marketing que o Kapa mandou, um por pessoa, turma e jornada (Sprint 40).</summary>
+    public DbSet<EnvioDeMarketing> EnviosDeMarketing => Set<EnvioDeMarketing>();
 
     /// <summary>
     /// Formatura que os filtros globais enxergam.
@@ -244,6 +254,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
         builder.Entity<ConviteDoEvento>().Property(c => c.NumeroDoDocumento).HasConversion(cifra.Conversor());
         builder.Entity<ConviteDoEvento>().Property(c => c.EmailDoConvidado).HasConversion(cifra.Conversor());
         builder.Entity<CompraDeConvite>().Property(c => c.Cpf).HasConversion(cifra.Conversor());
+        builder.Entity<CompraDeConvite>().Property(c => c.Convidados).HasConversion(cifra.Conversor());
         builder.Entity<CompraDeConvite>().Property(c => c.CpfDoPagador).HasConversion(cifra.Conversor());
         builder.Entity<CredencialDeProvedor>().Property(c => c.AccessToken).HasConversion((ValueConverter)cifra.Conversor());
         builder.Entity<CredencialDeProvedor>().Property(c => c.RefreshToken).HasConversion((ValueConverter)cifra.Conversor());

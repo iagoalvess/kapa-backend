@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -5,6 +6,7 @@ using System.Web;
 using Backend.Api.DTOs.Pagamentos;
 using Backend.Api.DTOs.Recebimentos;
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Common.Datas;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Recebimentos.Models;
@@ -59,7 +61,8 @@ public sealed class MercadoPagoEndpointsTests(ApiFactory fabrica)
         corpo.ShouldNotContain(MercadoPagoFalso.AccessToken);
         JsonSerializer.Deserialize<ProvedorDaTurmaDTO>(corpo, Json)!.Provedor!.ContaNoProvedor.ShouldBe(MercadoPagoFalso.Conta);
 
-        // Act — o formando abre a parcela
+        // Act — a turma passa a cobrar pelo Mercado Pago, e o formando abre a parcela
+        await LigarCobrancaAutomatica(presidente);
         var aluno = Cliente(api, formando.Cliente);
         var extrato = await Ler<ExtratoDTO>(await aluno.GetAsync("/api/v1/extrato/eu", Ct));
         var parcela = extrato.Proxima!.Id;
@@ -101,7 +104,9 @@ public sealed class MercadoPagoEndpointsTests(ApiFactory fabrica)
         var turma = await fabrica.TurmaComPlano();
         var formando = await fabrica.FormandoComAdesao(turma.FormaturaId);
         var anonimo = Cliente(api, null);
-        await Conectar(Cliente(api, turma.Presidente.Cliente), anonimo);
+        var presidente = Cliente(api, turma.Presidente.Cliente);
+        await Conectar(presidente, anonimo);
+        await LigarCobrancaAutomatica(presidente);
         var aluno = Cliente(api, formando.Cliente);
         var parcela = (await Ler<ExtratoDTO>(await aluno.GetAsync("/api/v1/extrato/eu", Ct))).Proxima!.Id;
         var cobranca = await Ler<CobrancaDaParcelaDTO>(await aluno.GetAsync($"/api/v1/parcelas/{parcela}/cobranca", Ct));
@@ -201,6 +206,82 @@ public sealed class MercadoPagoEndpointsTests(ApiFactory fabrica)
         await ProblemaCom(conectada, "recebimento.chave_pix_obrigatoria");
         desconectada.StatusCode.ShouldBe(HttpStatusCode.OK, await desconectada.Content.ReadAsStringAsync(Ct));
     }
+
+    /// <summary>
+    /// 29/09/2026: um modo ou o outro. Conectar não muda o modo; o manual mostra só a comissão e aceita aviso; ir para o
+    /// automático espera a fila de avisos esvaziar; no automático não há aviso nem desconexão; voltar ao manual espera
+    /// o PIX do Mercado Pago de hoje vencer.
+    /// </summary>
+    [Fact]
+    public async Task Modo_de_cobranca_troca_so_sem_nada_no_meio_do_caminho()
+    {
+        // Arrange — conectada, ainda no manual
+        await using var api = new MercadoPagoFalso().Na(fabrica);
+        var turma = await fabrica.TurmaComPlano();
+        var formando = await fabrica.FormandoComAdesao(turma.FormaturaId);
+        var presidente = Cliente(api, turma.Presidente.Cliente);
+        var aluno = Cliente(api, formando.Cliente);
+        await Conectar(presidente, Cliente(api, null));
+        var parcelas = (await Ler<ExtratoDTO>(await aluno.GetAsync("/api/v1/extrato/eu", Ct))).Parcelas.Select(p => p.Id).ToList();
+
+        // Act / Assert — no manual, só a comissão, e o aviso entra na fila
+        var manual = await Ler<CobrancaDaParcelaDTO>(await aluno.GetAsync($"/api/v1/parcelas/{parcelas[0]}/cobranca", Ct));
+        manual.PeloMercadoPago.ShouldBeEmpty();
+        manual.Meios.ShouldNotBeEmpty();
+        (await aluno.PostAsync($"/api/v1/parcelas/{parcelas[0]}/informes", Informe(), Ct)).EnsureSuccessStatusCode();
+
+        await ProblemaCom(await Modo(presidente, automatica: true), "recebimento.avisos_pendentes");
+
+        await using (var contexto = fabrica.ContextoDe(turma.FormaturaId))
+        {
+            var informe = await contexto.Informes.SingleAsync(Ct);
+            (
+                await presidente.PostAsJsonAsync($"/api/v1/informes/{informe.Id}/recusar", new RecusarInformeRequestDTO("Não achei."), Json, Ct)
+            ).EnsureSuccessStatusCode();
+        }
+
+        // Act / Assert — fila vazia, troca; no automático, sem aviso e sem desconectar
+        var automatica = await Modo(presidente, automatica: true);
+        automatica.StatusCode.ShouldBe(HttpStatusCode.OK, await automatica.Content.ReadAsStringAsync(Ct));
+        (await Ler<ProvedorDaTurmaDTO>(automatica)).Provedor!.CobrancaAutomaticaEm.ShouldNotBeNull();
+
+        await ProblemaCom(await aluno.PostAsync($"/api/v1/parcelas/{parcelas[1]}/informes", Informe(), Ct), "pagamento.aviso_desligado");
+        await ProblemaCom(await presidente.DeleteAsync(Conta, Ct), "recebimento.cobranca_automatica_ligada");
+
+        var pelo = await Ler<CobrancaDaParcelaDTO>(await aluno.GetAsync($"/api/v1/parcelas/{parcelas[1]}/cobranca", Ct));
+        pelo.Meios.ShouldBeEmpty();
+        pelo.PeloMercadoPago.ShouldHaveSingleItem().Meio.ShouldBe(MeioDePagamento.Pix);
+
+        // Act / Assert — o PIX de hoje segura a volta ao manual; vencido, ela passa
+        await ProblemaCom(await Modo(presidente, automatica: false), "recebimento.pix_em_aberto");
+
+        await using (var contexto = fabrica.ContextoDe(turma.FormaturaId))
+            await contexto
+                .CobrancasBancarias.IgnoreQueryFilters()
+                .Where(c => c.FormaturaId == turma.FormaturaId)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.ExpiraEm, DateTime.UtcNow.AddMinutes(-1)), Ct);
+
+        var devolta = await Modo(presidente, automatica: false);
+        devolta.StatusCode.ShouldBe(HttpStatusCode.OK, await devolta.Content.ReadAsStringAsync(Ct));
+        (await Ler<ProvedorDaTurmaDTO>(devolta)).Provedor!.CobrancaAutomaticaEm.ShouldBeNull();
+        (await presidente.DeleteAsync(Conta, Ct)).EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Troca o modo de cobrança da turma.</summary>
+    private static Task<HttpResponseMessage> Modo(HttpClient cliente, bool automatica) =>
+        cliente.PutAsJsonAsync($"{Conta}/cobranca", new ModoDeCobrancaRequestDTO(automatica), Json, Ct);
+
+    /// <summary>Liga a cobrança automática — conectar sozinho deixa a turma no manual.</summary>
+    private static async Task LigarCobrancaAutomatica(HttpClient presidente) => (await Modo(presidente, automatica: true)).EnsureSuccessStatusCode();
+
+    /// <summary>Um "já paguei" de hoje, em PIX, sem comprovante.</summary>
+    private static MultipartFormDataContent Informe() =>
+        new()
+        {
+            { new StringContent(DataUtils.Hoje().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)), "pagoEm" },
+            { new StringContent("100"), "valorEmCentavos" },
+            { new StringContent(nameof(MeioDeRecebimento.Pix)), "meio" },
+        };
 
     /// <summary>O presidente cadastra a chave, clica em conectar e o navegador volta do Mercado Pago com o código.</summary>
     private static async Task Conectar(HttpClient presidente, HttpClient anonimo)

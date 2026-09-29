@@ -54,7 +54,7 @@ public sealed class EmissaoNoMercadoPago(
     public async Task<CredencialDeProvedor?> Credencial(CancellationToken ct = default) =>
         _config.Ligado ? await repositorio.ObterCredencial(ct) : null;
 
-    /// <summary>O PIX das parcelas, ou nulo quando o Mercado Pago falhou — a tela fica com os meios da comissão (P7).</summary>
+    /// <summary>O PIX das parcelas, ou nulo quando o Mercado Pago falhou — a tela pede para tentar de novo (29/09/2026).</summary>
     /// <param name="credencial">A autorização da turma.</param>
     /// <param name="parcelaIds">Parcelas que o pagamento cobre.</param>
     /// <param name="valorEmCentavos">O valor do dia, somado.</param>
@@ -84,6 +84,73 @@ public sealed class EmissaoNoMercadoPago(
         );
 
         return emitida.Sucesso ? new PixDinamicoParaPagar(emitida.Valor.CopiaECola!, emitida.Valor.ExpiraEm) : null;
+    }
+
+    /// <summary>
+    /// Cobra as parcelas no cartão (Sprint 39): o valor do dia mais o acréscimo da taxa repassada, com o token que
+    /// o formulário do Mercado Pago gerou no navegador.
+    /// </summary>
+    /// <remarks>
+    /// O cartão volta decidido na resposta, mas quem baixa continua sendo a <c>BaixaAutomatica</c>, pela consulta
+    /// — o mesmo caminho do aviso e da conciliação, e a mesma trava contra a baixa em dobro.
+    /// </remarks>
+    /// <param name="credencial">A autorização da turma, com o cartão ligado.</param>
+    /// <param name="parcelaIds">Parcelas que o pagamento cobre.</param>
+    /// <param name="valorEmCentavos">O valor do dia, somado, sem o acréscimo.</param>
+    /// <param name="pagador">Quem paga.</param>
+    /// <param name="cartao">O cartão tokenizado.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    /// <returns>A cobrança emitida; <c>pagamento.cartao_recusado</c> quando o cartão não passou.</returns>
+    public async Task<Result<CobrancaBancaria>> Cartao(
+        CredencialDeProvedor credencial,
+        IReadOnlyCollection<Guid> parcelaIds,
+        long valorEmCentavos,
+        PagadorNoMercadoPago pagador,
+        CartaoTokenizado cartao,
+        CancellationToken ct = default
+    )
+    {
+        var acrescimo = credencial.AcrescimoDoCartao(valorEmCentavos);
+
+        return await ObterOuEmitir(
+            credencial,
+            CobrancaBancaria.NoCartao(credencial.IdNoProvedor, parcelaIds, valorEmCentavos + acrescimo, acrescimo, cartao.Token, DateTime.UtcNow),
+            pagador,
+            ct,
+            cartao
+        );
+    }
+
+    /// <summary>
+    /// Cobra a compra da loja no cartão (Sprint 39, P5): o total com o acréscimo da taxa repassada, uma cobrança viva
+    /// por compra — o cartão em análise não é cobrado de novo.
+    /// </summary>
+    /// <param name="credencial">A autorização da turma, com o cartão ligado.</param>
+    /// <param name="compraId">A compra.</param>
+    /// <param name="valorEmCentavos">Total da compra, sem o acréscimo.</param>
+    /// <param name="pagador">Quem paga.</param>
+    /// <param name="cartao">O cartão tokenizado.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    public async Task<Result<CobrancaBancaria>> CartaoDaCompra(
+        CredencialDeProvedor credencial,
+        Guid compraId,
+        long valorEmCentavos,
+        PagadorNoMercadoPago pagador,
+        CartaoTokenizado cartao,
+        CancellationToken ct = default
+    )
+    {
+        var acrescimo = credencial.AcrescimoDoCartao(valorEmCentavos);
+        var nova = CobrancaBancaria.DaCompra(
+            MeioDePagamento.Cartao,
+            credencial.IdNoProvedor,
+            compraId,
+            valorEmCentavos + acrescimo,
+            DateTime.UtcNow + CobrancaBancaria.AnaliseDoCartao,
+            acrescimo
+        );
+
+        return await ObterOuEmitir(credencial, nova, pagador, ct, cartao);
     }
 
     /// <summary>
@@ -136,7 +203,8 @@ public sealed class EmissaoNoMercadoPago(
         CredencialDeProvedor credencial,
         CobrancaBancaria nova,
         PagadorNoMercadoPago pagador,
-        CancellationToken ct
+        CancellationToken ct,
+        CartaoTokenizado? cartao = null
     )
     {
         var agora = DateTime.UtcNow;
@@ -152,7 +220,7 @@ public sealed class EmissaoNoMercadoPago(
             var pendente = (await repositorio.ObterCobrancaParaEdicao(viva.Id, ct))!;
 
             if (viva.ExpiraEm > agora + ValidadeMinima)
-                return await Enviar(credencial, pendente, pagador, agora, ct);
+                return await Enviar(credencial, pendente, pagador, agora, ct, cartao);
 
             pendente.Falhou();
             await unitOfWork.SalvarAsync(ct);
@@ -161,7 +229,7 @@ public sealed class EmissaoNoMercadoPago(
         if (!await repositorio.ReservarEmissao(nova, ct))
             return await repositorio.ObterViva(nova.Chave, ct) is { } outra && outra.Pagavel(agora + FolgaParaPagar) ? outra : EmEmissao;
 
-        return await Enviar(credencial, (await repositorio.ObterCobrancaParaEdicao(nova.Id, ct))!, pagador, agora, ct);
+        return await Enviar(credencial, (await repositorio.ObterCobrancaParaEdicao(nova.Id, ct))!, pagador, agora, ct, cartao);
     }
 
     /// <summary>Quanto a reserva sem resposta espera antes de ser retomada: o tempo limite da chamada, com folga.</summary>
@@ -176,12 +244,13 @@ public sealed class EmissaoNoMercadoPago(
         CobrancaBancaria reservada,
         PagadorNoMercadoPago pagador,
         DateTime agora,
-        CancellationToken ct
+        CancellationToken ct,
+        CartaoTokenizado? cartao = null
     )
     {
         var emitido = await mercadoPago.Emitir(
             credencial.AccessToken,
-            new PedidoDeCobranca(reservada.Id, reservada.Meio, reservada.ValorEmCentavos, pagador, reservada.ExpiraEm - agora),
+            new PedidoDeCobranca(reservada.Id, reservada.Meio, reservada.ValorEmCentavos, pagador, reservada.ExpiraEm - agora, cartao),
             ct
         );
 

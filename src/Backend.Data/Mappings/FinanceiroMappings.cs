@@ -123,6 +123,10 @@ public sealed class OutraReceitaMapping : IEntityTypeConfiguration<OutraReceita>
     /// O documento é <c>SetNull</c>, como o contrato do item da festa: apagar o arquivo do acervo tira
     /// o comprovante, não a receita — o dinheiro entrou de qualquer jeito.
     /// </para>
+    /// <para>
+    /// O estorno aponta a receita que estorna com <c>NO ACTION</c>, e não <c>RESTRICT</c> (Sprint 38): a retenção
+    /// apaga a tabela inteira numa instrução, e só o <c>NO ACTION</c> confere a chave no fim dela.
+    /// </para>
     /// </remarks>
     public void Configure(EntityTypeBuilder<OutraReceita> builder)
     {
@@ -159,5 +163,6 @@ public sealed class OutraReceitaMapping : IEntityTypeConfiguration<OutraReceita>
 
         builder.HasOne<Documento>().WithMany().HasForeignKey(r => r.DocumentoId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne<Formatura>().WithMany().HasForeignKey(r => r.FormaturaId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<OutraReceita>().WithMany().HasForeignKey(r => r.EstornoDeId).OnDelete(DeleteBehavior.NoAction);
     }
 }

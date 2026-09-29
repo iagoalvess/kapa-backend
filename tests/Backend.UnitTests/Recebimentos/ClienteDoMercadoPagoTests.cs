@@ -193,12 +193,15 @@ public sealed class ClienteDoMercadoPagoTests
     [InlineData("processed", "accredited", SituacaoDoPedido.Pago, 5000)]
     [InlineData("action_required", "waiting_transfer", SituacaoDoPedido.Aberto, 0)]
     [InlineData("expired", "expired", SituacaoDoPedido.Encerrado, 0)]
+    [InlineData("refunded", "refunded", SituacaoDoPedido.Devolvido, 0)]
+    [InlineData("charged_back", "in_process", SituacaoDoPedido.Contestado, 0)]
+    [InlineData("processed", "partially_refunded", SituacaoDoPedido.Aberto, 0)]
     public async Task Pedido_consultado_diz_se_foi_pago_e_quanto(string status, string detalhe, SituacaoDoPedido situacao, long pago)
     {
         // Arrange
         var cliente = Cliente(_ =>
             Json(
-                $$"""{"id":"ORD1","external_reference":"abc","status":"{{status}}","status_detail":"{{detalhe}}","total_paid_amount":"50.00","last_updated_date":"2026-09-24T20:50:41.511Z"}"""
+                $$"""{"id":"ORD1","external_reference":"abc","status":"{{status}}","status_detail":"{{detalhe}}","total_amount":"50.00","total_paid_amount":"50.00","last_updated_date":"2026-09-24T20:50:41.511Z"}"""
             )
         );
 
@@ -209,6 +212,41 @@ public sealed class ClienteDoMercadoPagoTests
         pedido.Valor.Situacao.ShouldBe(situacao);
         pedido.Valor.Referencia.ShouldBe("abc");
         pedido.Valor.ValorPagoEmCentavos.ShouldBe(pago);
+    }
+
+    [Fact]
+    public async Task Cartao_parcelado_baixa_o_valor_do_pedido_sem_os_juros_do_comprador()
+    {
+        // Arrange
+        var cliente = Cliente(_ =>
+            Json(
+                """{"id":"ORD1","external_reference":"abc","status":"processed","status_detail":"accredited","total_amount":"100.00","total_paid_amount":"111.23"}"""
+            )
+        );
+
+        // Act
+        var pedido = await cliente.ConsultarPedido("token", "ORD1", Ct);
+
+        // Assert
+        pedido.Valor.ValorPagoEmCentavos.ShouldBe(10_000);
+    }
+
+    [Fact]
+    public async Task Pagamento_buscado_traz_o_liquido_e_a_tarifa()
+    {
+        // Arrange
+        var cliente = Cliente(_ =>
+            Json(
+                """{"results":[{"id":181392479300,"external_reference":"abc","status":"approved","transaction_amount":100,"transaction_details":{"net_received_amount":95.02}}]}"""
+            )
+        );
+
+        // Act
+        var pagamento = await cliente.BuscarPagamentoAprovado("token", Guid.CreateVersion7(), Ct);
+
+        // Assert
+        pagamento.Valor!.LiquidoEmCentavos.ShouldBe(9_502);
+        pagamento.Valor.TarifaEmCentavos.ShouldBe(498);
     }
 
     [Theory]

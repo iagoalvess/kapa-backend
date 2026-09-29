@@ -160,6 +160,10 @@ public static partial class ModeloDeEmail
     /// <param name="botao">Texto do botão, ou nulo para nenhum.</param>
     /// <param name="link">Destino do botão.</param>
     /// <param name="mascote">Qual mascote abre a mensagem.</param>
+    /// <param name="marketing">
+    /// Preenchido, o rodapé vira o do marketing (Sprint 40): por que a pessoa recebe e o link para sair, que o
+    /// CAPEM pede — e sem o "não responda", porque o marketing responde para o suporte.
+    /// </param>
     /// <remarks>
     /// Sem "se o botão não funcionar, copie este endereço": o botão é um <c>&lt;a href&gt;</c>, e ele
     /// funciona. A linha só emprestava a um e-mail nosso a cara de um phishing, que é quem precisa
@@ -171,9 +175,17 @@ public static partial class ModeloDeEmail
         string mensagemHtml,
         string? botao,
         string? link,
-        Mascote mascote = Mascote.Feliz
+        Mascote mascote = Mascote.Feliz,
+        RodapeDeMarketing? marketing = null
     )
     {
+        var privacidade =
+            $"<a href=\"{aplicacao.LinkDoSite(RotasDoSite.Privacidade)}\" style=\"color:#9a9a94;text-decoration:underline\">Política de Privacidade</a>";
+
+        var rodape = marketing is null
+            ? $"{Texto(aplicacao.Nome)} — mensagem automática, não responda.<br>{privacidade}"
+            : $"{marketing.MotivoHtml}<br><a href=\"{marketing.LinkDeDescadastro}\" style=\"color:#9a9a94;text-decoration:underline\">Não quero mais receber</a> · {privacidade}";
+
         var acao =
             botao is null || link is null
                 ? string.Empty
@@ -239,9 +251,7 @@ public static partial class ModeloDeEmail
                       </td>
                     </tr>
                     <tr>
-                      <td align="center" style="padding:18px 16px 0;font-family:{Fonte};font-size:12px;line-height:19px;color:#9a9a94;text-align:center">{Texto(
-                          aplicacao.Nome
-                      )} — mensagem automática, não responda.<br><a href="{aplicacao.LinkDoSite(RotasDoSite.Privacidade)}" style="color:#9a9a94;text-decoration:underline">Política de Privacidade</a></td>
+                      <td align="center" style="padding:18px 16px 0;font-family:{Fonte};font-size:12px;line-height:19px;color:#9a9a94;text-align:center">{rodape}</td>
                     </tr>
                   </table>
                 </td>
@@ -253,8 +263,14 @@ public static partial class ModeloDeEmail
     }
 
     /// <summary>O arquivo do mascote, que é o nome dele em minúsculas.</summary>
+    /// <param name="mascote">Mascote.</param>
     public static string Arquivo(Mascote mascote) => mascote.ToString().ToLowerInvariant();
 
     /// <summary>O PNG embutido no assembly, ou nulo se alguém tiver removido o arquivo.</summary>
     private static Stream? Recurso(string nome) => RecursosDaMarca.Abrir(nome);
 }
+
+/// <summary>O rodapé do e-mail de marketing: por que a pessoa recebe e por onde sai.</summary>
+/// <param name="MotivoHtml">"Você recebe este e-mail porque…", já em HTML — quem monta codifica o nome da turma.</param>
+/// <param name="LinkDeDescadastro">A página de descadastro no app.</param>
+public sealed record RodapeDeMarketing(string MotivoHtml, string LinkDeDescadastro);

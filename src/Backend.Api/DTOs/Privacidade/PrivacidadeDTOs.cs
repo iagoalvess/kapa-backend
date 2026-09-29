@@ -118,7 +118,40 @@ public sealed record MinhaAdesaoDTO(int Versao, DateTime AceitoEm, string Endere
 /// <param name="Preferencias">O que a pessoa deixou ligado, por turma.</param>
 /// <param name="NotificacoesEnviadas">Quantas notificações já saíram para ela.</param>
 /// <param name="UltimaEnviadaEm">Quando saiu a última. Nulo se nunca saiu nenhuma.</param>
-public sealed record MinhasComunicacoesDTO(IReadOnlyList<MinhaPreferenciaDTO> Preferencias, int NotificacoesEnviadas, DateTime? UltimaEnviadaEm);
+/// <param name="DoKapa">"Receber novidades do Kapa": preferência, histórico e e-mails de marketing mandados.</param>
+public sealed record MinhasComunicacoesDTO(
+    IReadOnlyList<MinhaPreferenciaDTO> Preferencias,
+    int NotificacoesEnviadas,
+    DateTime? UltimaEnviadaEm,
+    ComunicacaoDoKapaDTO DoKapa
+);
+
+/// <summary>A preferência de marketing do Kapa, o histórico dela e o que já foi mandado (Sprint 40).</summary>
+/// <param name="Receber">Se recebe hoje.</param>
+/// <param name="Historico">Aceites e oposições, do mais recente.</param>
+/// <param name="Envios">E-mails de marketing mandados, do mais recente.</param>
+public sealed record ComunicacaoDoKapaDTO(
+    bool Receber,
+    IReadOnlyList<RegistroDaComunicacaoDoKapaDTO> Historico,
+    IReadOnlyList<EnvioDoKapaDTO> Envios
+);
+
+/// <summary>Uma mudança da preferência.</summary>
+/// <param name="Aceito">Aceite ou oposição.</param>
+/// <param name="Origem"><c>cadastro</c>, <c>descadastro_pelo_email</c> ou <c>minha_privacidade</c>.</param>
+/// <param name="VersaoDoTexto">Versão do texto da caixa.</param>
+/// <param name="RegistradoEm">Quando, em UTC.</param>
+public sealed record RegistroDaComunicacaoDoKapaDTO(bool Aceito, string Origem, string VersaoDoTexto, DateTime RegistradoEm);
+
+/// <summary>Um e-mail de marketing mandado.</summary>
+/// <param name="Jornada"><c>criou_e_nao_voltou</c> ou <c>montou_e_parou</c>.</param>
+/// <param name="Formatura">A turma de que ele falava.</param>
+/// <param name="EnviadoEm">Quando, em UTC.</param>
+public sealed record EnvioDoKapaDTO(string Jornada, string Formatura, DateTime EnviadoEm);
+
+/// <summary>Liga ou desliga "Receber novidades do Kapa".</summary>
+/// <param name="Receber">O valor novo.</param>
+public sealed record ComunicacaoDoKapaRequestDTO(bool Receber);
 
 /// <summary>Uma preferência de notificação.</summary>
 /// <param name="FormaturaId">Turma.</param>

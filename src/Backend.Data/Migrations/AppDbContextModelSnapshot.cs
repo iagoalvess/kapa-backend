@@ -1332,6 +1332,10 @@ namespace Backend.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("atualizado_em");
 
+                    b.Property<int>("Categoria")
+                        .HasColumnType("integer")
+                        .HasColumnName("categoria");
+
                     b.Property<string>("CorpoHtml")
                         .IsRequired()
                         .HasColumnType("text")
@@ -1344,6 +1348,11 @@ namespace Backend.Data.Migrations
                     b.Property<DateTime?>("EnviadoEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("enviado_em");
+
+                    b.Property<string>("LinkDeDescadastro")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("link_de_descadastro");
 
                     b.Property<string>("Para")
                         .IsRequired()
@@ -1371,6 +1380,10 @@ namespace Backend.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("ultimo_erro");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
 
                     b.HasKey("Id")
                         .HasName("pk_emails_fila");
@@ -2159,6 +2172,10 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("documento_id");
 
+                    b.Property<Guid?>("EstornoDeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("estorno_de_id");
+
                     b.Property<Guid>("FormaturaId")
                         .HasColumnType("uuid")
                         .HasColumnName("formatura_id");
@@ -2189,6 +2206,9 @@ namespace Backend.Data.Migrations
 
                     b.HasIndex("DocumentoId")
                         .HasDatabaseName("ix_outras_receitas_documento_id");
+
+                    b.HasIndex("EstornoDeId")
+                        .HasDatabaseName("ix_outras_receitas_estorno_de_id");
 
                     b.HasIndex("FormaturaId")
                         .HasDatabaseName("ix_outras_receitas_formatura_id");
@@ -2591,6 +2611,18 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("chave_de_idempotencia");
 
+                    b.Property<Guid?>("ComprovanteDaDevolucaoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("comprovante_da_devolucao_id");
+
+                    b.Property<string>("Convidados")
+                        .HasColumnType("text")
+                        .HasColumnName("convidados");
+
+                    b.Property<int>("ConvitesCancelados")
+                        .HasColumnType("integer")
+                        .HasColumnName("convites_cancelados");
+
                     b.Property<string>("Cpf")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
@@ -2613,6 +2645,10 @@ namespace Backend.Data.Migrations
                     b.Property<DateTime?>("DadosApagadosEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("dados_apagados_em");
+
+                    b.Property<DateTime?>("DevolvidaEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("devolvida_em");
 
                     b.Property<string>("Email")
                         .HasMaxLength(200)
@@ -2660,9 +2696,17 @@ namespace Backend.Data.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<long>("ValorADevolverEmCentavos")
+                        .HasColumnType("bigint")
+                        .HasColumnName("valor_a_devolver_em_centavos");
+
                     b.Property<long>("ValorEmCentavos")
                         .HasColumnType("bigint")
                         .HasColumnName("valor_em_centavos");
+
+                    b.Property<long>("ValorEstornadoEmCentavos")
+                        .HasColumnType("bigint")
+                        .HasColumnName("valor_estornado_em_centavos");
 
                     b.Property<long?>("ValorPagoEmCentavos")
                         .HasColumnType("bigint")
@@ -2682,6 +2726,9 @@ namespace Backend.Data.Migrations
                     b.HasIndex("ChaveDeIdempotencia")
                         .IsUnique()
                         .HasDatabaseName("ix_compras_de_convite_chave_de_idempotencia");
+
+                    b.HasIndex("ComprovanteDaDevolucaoId")
+                        .HasDatabaseName("ix_compras_de_convite_comprovante_da_devolucao_id");
 
                     b.HasIndex("FormaturaId")
                         .HasDatabaseName("ix_compras_de_convite_formatura_id");
@@ -2704,10 +2751,186 @@ namespace Backend.Data.Migrations
 
                     b.ToTable("compras_de_convite", null, t =>
                         {
+                            t.HasCheckConstraint("ck_compras_de_convite_cancelados", "convites_cancelados BETWEEN 0 AND quantidade");
+
                             t.HasCheckConstraint("ck_compras_de_convite_quantidade", "quantidade > 0");
 
                             t.HasCheckConstraint("ck_compras_de_convite_valor", "valor_em_centavos >= 0");
                         });
+                });
+
+            modelBuilder.Entity("Backend.Business.Loja.Models.PedidoDeCancelamento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid>("CompraId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("compra_id");
+
+                    b.PrimitiveCollection<Guid[]>("ConviteIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("convite_ids");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("motivo");
+
+                    b.Property<string>("MotivoDaResposta")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("motivo_da_resposta");
+
+                    b.Property<DateTime>("PedidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pedido_em");
+
+                    b.Property<DateTime?>("RespondidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("respondido_em");
+
+                    b.Property<Guid?>("RespondidoPorUsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("respondido_por_usuario_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_pedidos_de_cancelamento");
+
+                    b.HasIndex("CompraId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_pedidos_de_cancelamento_um_aberto")
+                        .HasFilter("status = 'Aberto'");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_pedidos_de_cancelamento_formatura_id");
+
+                    b.HasIndex("FormaturaId", "Status")
+                        .HasDatabaseName("ix_pedidos_de_cancelamento_formatura_id_status");
+
+                    b.ToTable("pedidos_de_cancelamento", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Marketing.Models.ConsentimentoDeMarketing", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Aceito")
+                        .HasColumnType("boolean")
+                        .HasColumnName("aceito");
+
+                    b.Property<string>("EnderecoIp")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)")
+                        .HasColumnName("endereco_ip");
+
+                    b.Property<string>("Origem")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("origem");
+
+                    b.Property<DateTime>("RegistradoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("registrado_em");
+
+                    b.Property<string>("UserAgent")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("user_agent");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.Property<string>("VersaoDoTexto")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("versao_do_texto");
+
+                    b.HasKey("Id")
+                        .HasName("pk_consentimentos_de_marketing");
+
+                    b.HasIndex("UsuarioId", "RegistradoEm")
+                        .HasDatabaseName("ix_consentimentos_de_marketing_usuario_id_registrado_em");
+
+                    b.ToTable("consentimentos_de_marketing", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Marketing.Models.EnvioDeMarketing", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<DateTime>("EnviadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("enviado_em");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<string>("Jornada")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("jornada");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_envios_de_marketing");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_envios_de_marketing_formatura_id");
+
+                    b.HasIndex("UsuarioId", "EnviadoEm")
+                        .HasDatabaseName("ix_envios_de_marketing_usuario_id_enviado_em");
+
+                    b.HasIndex("UsuarioId", "FormaturaId", "Jornada")
+                        .IsUnique()
+                        .HasDatabaseName("ix_envios_de_marketing_usuario_id_formatura_id_jornada");
+
+                    b.ToTable("envios_de_marketing", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Business.Notificacoes.Models.NotificacaoEnviada", b =>
@@ -3175,6 +3398,10 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<long>("AcrescimoEmCentavos")
+                        .HasColumnType("bigint")
+                        .HasColumnName("acrescimo_em_centavos");
+
                     b.Property<DateTime>("AtualizadoEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("atualizado_em");
@@ -3225,6 +3452,10 @@ namespace Backend.Data.Migrations
                         .IsRequired()
                         .HasColumnType("uuid[]")
                         .HasColumnName("parcela_ids");
+
+                    b.Property<Guid?>("ReceitaDoAcrescimoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("receita_do_acrescimo_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -3378,6 +3609,23 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("cadastrada_por_usuario_id");
 
+                    b.Property<DateTime?>("CartaoLigadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cartao_ligado_em");
+
+                    b.Property<Guid?>("CartaoLigadoPorUsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cartao_ligado_por_usuario_id");
+
+                    b.Property<string>("ChavePublica")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("chave_publica");
+
+                    b.Property<DateTime?>("CobrancaAutomaticaEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cobranca_automatica_em");
+
                     b.Property<string>("ContaNoProvedor")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -3405,6 +3653,10 @@ namespace Backend.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("refresh_token");
+
+                    b.Property<int?>("TaxaDoCartaoRepassada")
+                        .HasColumnType("integer")
+                        .HasColumnName("taxa_do_cartao_repassada");
 
                     b.HasKey("Id")
                         .HasName("pk_credenciais_de_provedor");
@@ -3647,6 +3899,10 @@ namespace Backend.Data.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean")
                         .HasColumnName("phone_number_confirmed");
+
+                    b.Property<bool>("ReceberComunicacaoDoKapa")
+                        .HasColumnType("boolean")
+                        .HasColumnName("receber_comunicacao_do_kapa");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text")
@@ -4281,6 +4537,12 @@ namespace Backend.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_outras_receitas_documentos_documento_id");
 
+                    b.HasOne("Backend.Business.Financeiro.Models.OutraReceita", null)
+                        .WithMany()
+                        .HasForeignKey("EstornoDeId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_outras_receitas_outras_receitas_estorno_de_id");
+
                     b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
                         .WithMany()
                         .HasForeignKey("FormaturaId")
@@ -4451,6 +4713,12 @@ namespace Backend.Data.Migrations
 
             modelBuilder.Entity("Backend.Business.Loja.Models.CompraDeConvite", b =>
                 {
+                    b.HasOne("Backend.Business.Arquivos.Models.Arquivo", null)
+                        .WithMany()
+                        .HasForeignKey("ComprovanteDaDevolucaoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_compras_de_convite_arquivos_comprovante_da_devolucao_id");
+
                     b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
                         .WithMany()
                         .HasForeignKey("FormaturaId")
@@ -4470,6 +4738,50 @@ namespace Backend.Data.Migrations
                         .HasForeignKey("OutraReceitaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_compras_de_convite_outras_receitas_outra_receita_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Loja.Models.PedidoDeCancelamento", b =>
+                {
+                    b.HasOne("Backend.Business.Loja.Models.CompraDeConvite", null)
+                        .WithMany()
+                        .HasForeignKey("CompraId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_pedidos_de_cancelamento_compras_de_convite_compra_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_pedidos_de_cancelamento_formaturas_formatura_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Marketing.Models.ConsentimentoDeMarketing", b =>
+                {
+                    b.HasOne("Backend.Business.Usuarios.Models.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_consentimentos_de_marketing_asp_net_users_usuario_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Marketing.Models.EnvioDeMarketing", b =>
+                {
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_envios_de_marketing_formaturas_formatura_id");
+
+                    b.HasOne("Backend.Business.Usuarios.Models.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_envios_de_marketing_asp_net_users_usuario_id");
                 });
 
             modelBuilder.Entity("Backend.Business.Notificacoes.Models.NotificacaoEnviada", b =>

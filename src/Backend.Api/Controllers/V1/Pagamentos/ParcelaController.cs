@@ -6,6 +6,7 @@ using Backend.Api.DTOs.Pagamentos;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Assinaturas.Models;
+using Backend.Business.MercadoPago.Models;
 using Backend.Business.Pagamentos.Interfaces;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Recebimentos.Models;
@@ -83,6 +84,37 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, ITesou
             (await pagamentoService.GerarCobrancaDeVarias(FormaturaId, usuarioAtual.Id, parcelaIds ?? [], ct)).Map(cobranca =>
                 cobranca.Adapt<CobrancaDaParcelaDTO>()
             )
+        );
+
+    /// <summary>Paga uma ou várias parcelas no cartão, pelo Mercado Pago da turma (Sprint 39). Só o dono.</summary>
+    /// <remarks>
+    /// O número do cartão nunca chega aqui: o formulário do Mercado Pago o tokeniza no navegador. A parcela paga muda
+    /// sozinha, sem aviso. 409 <c>pagamento.cartao_desligado</c>, <c>pagamento.valor_mudou</c> (nada foi cobrado) ou
+    /// <c>pagamento.cartao_recusado</c>; e os mesmos da cobrança de várias parcelas.
+    /// </remarks>
+    /// <param name="requisicao">Parcelas, cartão tokenizado e o valor mostrado.</param>
+    [HttpPost("cartao")]
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
+    [Authorize(Policy = Politicas.ExigeFormaturaRecebendo)]
+    [RegistrarEvento("pagamento.cartao")]
+    [ProducesResponseType(typeof(PagamentoNoCartaoDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> PagarNoCartao([FromBody] PagamentoNoCartaoRequestDTO requisicao, CancellationToken ct) =>
+        Responder(
+            (
+                await pagamentoService.PagarNoCartao(
+                    FormaturaId,
+                    usuarioAtual.Id,
+                    new PagamentoNoCartao(
+                        requisicao.ParcelaIds ?? [],
+                        new CartaoTokenizado(requisicao.Token ?? string.Empty, requisicao.Bandeira ?? string.Empty, requisicao.Parcelas ?? 0),
+                        requisicao.ValorEmCentavos ?? 0
+                    ),
+                    ct
+                )
+            ).Map(situacao => new PagamentoNoCartaoDTO(situacao))
         );
 
     /// <summary>O "já paguei" de uma parcela: avisa a tesouraria. A parcela não muda até ela conferir.</summary>

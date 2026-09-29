@@ -145,6 +145,18 @@ public static class NomesDeAuditoria
     /// <summary>Entrada desfeita na portaria: alguém que já tinha entrado volta a poder entrar (Sprint 21, decisão 6).</summary>
     public const string EntradaDesfeita = "festa.entrada_desfeita";
 
+    /// <summary>Convites de uma compra da loja cancelados pela Gestão, com motivo e estorno (Sprint 38, decisão 1).</summary>
+    public const string CompraCancelada = "loja.compra_cancelada";
+
+    /// <summary>Todas as vendas da loja canceladas de uma vez, pelo Presidente — a festa cancelada (Sprint 38, P6).</summary>
+    public const string VendasDaFestaCanceladas = "loja.vendas_da_festa_canceladas";
+
+    /// <summary>A comissão marcou a compra como devolvida, com o comprovante do PIX (Sprint 38, decisão 2).</summary>
+    public const string CompraDevolvida = "loja.compra_devolvida";
+
+    /// <summary>Pedido de cancelamento do comprador recusado pela Gestão, com motivo (Sprint 38, P1).</summary>
+    public const string PedidoDeCancelamentoRecusado = "loja.pedido_de_cancelamento_recusado";
+
     /// <summary>Todos os nomes auditáveis.</summary>
     public static readonly IReadOnlyList<string> Todos =
     [
@@ -170,6 +182,10 @@ public static class NomesDeAuditoria
         ConviteReemitido,
         EntradaDesfeita,
         CotaAberta,
+        CompraCancelada,
+        VendasDaFestaCanceladas,
+        CompraDevolvida,
+        PedidoDeCancelamentoRecusado,
         TermoPublicado,
         DespesaCancelada,
         OutraReceitaCancelada,

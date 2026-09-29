@@ -76,6 +76,7 @@ nossa, e o `trace_id` é o que o resolve.
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
+| <a id="agenda.evento_com_vendas"></a>`agenda.evento_com_vendas` | 409 | A festa tem compra da loja de pé ou pedido de convite de formando confirmado: não se marca "Cancelado" nem se exclui. A mensagem diz o caminho, e <code>dados</code> traz <code>compras_da_loja</code> e <code>pedidos_de_convite</code> (Sprint 38, P10). |
 | <a id="agenda.evento_nao_encontrado"></a>`agenda.evento_nao_encontrado` | 404 | Evento não encontrado na agenda. |
 
 ### arquivo
@@ -232,6 +233,7 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="financeiro.outra_receita_cancelada"></a>`financeiro.outra_receita_cancelada` | 409 | Esta receita foi cancelada. Lance uma nova. |
 | <a id="financeiro.outra_receita_data_futura"></a>`financeiro.outra_receita_data_futura` | 400 | Receita recebida não pode ter data no futuro. |
 | <a id="financeiro.outra_receita_duplicada"></a>`financeiro.outra_receita_duplicada` | 409 | Esta receita já foi lançada para esta data. Confira a lista antes de lançar de novo. |
+| <a id="financeiro.outra_receita_estorno"></a>`financeiro.outra_receita_estorno` | 409 | O lançamento é o estorno de uma venda da loja e não se edita (Sprint 38, P5). |
 | <a id="financeiro.outra_receita_ja_recebida"></a>`financeiro.outra_receita_ja_recebida` | 409 | Esta receita já foi recebida. Para acertar algum dado, edite-a. |
 | <a id="financeiro.outra_receita_nao_encontrada"></a>`financeiro.outra_receita_nao_encontrada` | 404 | Receita não encontrada. |
 | <a id="financeiro.sem_comprovante"></a>`financeiro.sem_comprovante` | 404 | Esta despesa não tem comprovante. |
@@ -254,6 +256,7 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="formatura.membro_ja_desligado"></a>`formatura.membro_ja_desligado` | 409 | Esta pessoa já foi desligada da turma. |
 | <a id="formatura.membro_sem_adesao"></a>`formatura.membro_sem_adesao` | 409 | Esta pessoa ainda não aderiu ao termo e não deve nada à turma. Use Remover. |
 | <a id="formatura.nao_encontrada"></a>`formatura.nao_encontrada` | 404 | Formatura não encontrada. |
+| <a id="formatura.pendencias_em_aberto"></a>`formatura.pendencias_em_aberto` | 409 | Há dinheiro pendente na turma — parcela, aviso de pagamento, pedido não quitado, compra da loja pendente ou a devolver, pedido de cancelamento ou cobrança viva. A mensagem lista o que falta, e <code>dados</code> traz as contagens (Sprint 38, P11). |
 | <a id="formatura.sem_vinculo"></a>`formatura.sem_vinculo` | 403 | Você não participa desta formatura. |
 | <a id="formatura.transicao_invalida"></a>`formatura.transicao_invalida` | 409 | Uma formatura … não pode passar para …. |
 | <a id="formatura.ultimo_presidente"></a>`formatura.ultimo_presidente` | 409 | A formatura precisa de ao menos um presidente ativo. Promova outra pessoa antes. |
@@ -274,14 +277,23 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
+| <a id="loja.compra_ja_cancelada"></a>`loja.compra_ja_cancelada` | 409 | Os convites pedidos já foram cancelados — cancelar de novo não devolve lugar nem estorna outra vez (Sprint 38, decisão 3). |
+| <a id="loja.compra_nao_a_devolver"></a>`loja.compra_nao_a_devolver` | 409 | A compra não está na lista a devolver. |
 | <a id="loja.compra_nao_encontrada"></a>`loja.compra_nao_encontrada` | 404 | Não encontramos esta compra — o link é antigo, errado ou foi substituído por um reenvio. |
+| <a id="loja.compra_nao_paga"></a>`loja.compra_nao_paga` | 409 | Compra pendente não se cancela: ela expira sozinha se o PIX não for pago (Sprint 38, P8). |
+| <a id="loja.comprovante_invalido"></a>`loja.comprovante_invalido` | 400 | O comprovante da devolução precisa ser PDF ou imagem (PNG, JPG ou WebP). |
+| <a id="loja.comprovante_obrigatorio"></a>`loja.comprovante_obrigatorio` | 400 | Marcar a compra devolvida exige o comprovante do PIX de volta (Sprint 38, decisão 2). |
+| <a id="loja.convite_ja_validado"></a>`loja.convite_ja_validado` | 409 | O convite já entrou na festa, e convite usado não se cancela; a Gestão desfaz a entrada antes, se for o caso (Sprint 38, P3). |
 | <a id="loja.cpf_invalido"></a>`loja.cpf_invalido` | 400 | CPF com dígito verificador inválido; recusado antes da reserva (P6). |
 | <a id="loja.dados_ainda_necessarios"></a>`loja.dados_ainda_necessarios` | 409 | Os dados do comprador sustentam os convites e a devolução até a festa. |
 | <a id="loja.esgotado"></a>`loja.esgotado` | 409 | Os convites esgotaram — ou restam menos que a quantidade pedida. Responde antes da fila (decisão 8). |
+| <a id="loja.evento_sem_loja"></a>`loja.evento_sem_loja` | 409 | Só a festa vende convites pela loja — o cancelamento das vendas é da festa (Sprint 38, P6). |
 | <a id="loja.fila_cheia"></a>`loja.fila_cheia` | 429 | Muita gente comprando na mesma turma. Tente de novo depois do <code>Retry-After</code>, com a mesma chave de idempotência. |
 | <a id="loja.item_nao_encontrado"></a>`loja.item_nao_encontrado` | 404 | Este convite não está à venda nesta loja. |
 | <a id="loja.limite_por_pessoa"></a>`loja.limite_por_pessoa` | 409 | O CPF já tem o máximo de convites deste tipo (P3). |
 | <a id="loja.nao_encontrada"></a>`loja.nao_encontrada` | 404 | A turma não existe, não está ativa ou não vende nada pela loja. |
+| <a id="loja.pedido_ja_respondido"></a>`loja.pedido_ja_respondido` | 409 | O pedido de cancelamento já foi aprovado ou recusado. |
+| <a id="loja.pedido_nao_encontrado"></a>`loja.pedido_nao_encontrado` | 404 | Pedido de cancelamento não encontrado nesta turma. |
 | <a id="loja.reserva_no_fim"></a>`loja.reserva_no_fim` | 409 | Não dá mais para gerar o pagamento desta reserva. Faça uma compra nova. |
 | <a id="loja.sem_mercado_pago"></a>`loja.sem_mercado_pago` | 409 | A loja pública precisa do Mercado Pago da turma conectado. |
 | <a id="loja.sem_pagamento"></a>`loja.sem_pagamento` | 409 | A loja está sem meio de pagamento agora. |
@@ -311,11 +323,13 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
+| <a id="pagamento.aviso_desligado"></a>`pagamento.aviso_desligado` | 409 | A turma cobra pelo Mercado Pago (29/09/2026): não há aviso de pagamento, e quem pagou por fora fala com a tesouraria. |
 | <a id="pagamento.cartao_recusado"></a>`pagamento.cartao_recusado` | 409 | O cartão foi recusado pelo emissor ou pelo Mercado Pago. Confira os dados, tente outro cartão ou pague pelo PIX (Sprint 35; a tela chega na 37). |
 | <a id="pagamento.comprovante_invalido"></a>`pagamento.comprovante_invalido` | 400 | Envie o comprovante em PDF ou imagem (PNG, JPG ou WebP). |
 | <a id="pagamento.informe_ja_conferido"></a>`pagamento.informe_ja_conferido` | 409 | Este aviso de pagamento já foi conferido. |
 | <a id="pagamento.informe_nao_encontrado"></a>`pagamento.informe_nao_encontrado` | 404 | Aviso de pagamento não encontrado. |
 | <a id="pagamento.informe_pendente"></a>`pagamento.informe_pendente` | 409 | Você já avisou o pagamento de uma dessas parcelas. A tesouraria vai conferir, e você recebe um e-mail quando for confirmado. |
+| <a id="pagamento.mercado_pago_indisponivel"></a>`pagamento.mercado_pago_indisponivel` | 503 | Na cobrança automática, o Mercado Pago não respondeu ao gerar o PIX. Tente de novo em alguns minutos. |
 | <a id="pagamento.parcela_nao_aberta"></a>`pagamento.parcela_nao_aberta` | 409 | Esta parcela não está em aberto. |
 | <a id="pagamento.parcela_nao_encontrada"></a>`pagamento.parcela_nao_encontrada` | 404 | Parcela não encontrada. |
 | <a id="pagamento.parcela_nao_paga"></a>`pagamento.parcela_nao_paga` | 409 | Esta parcela não tem pagamento a estornar. |
@@ -363,9 +377,13 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
+| <a id="recebimento.avisos_pendentes"></a>`recebimento.avisos_pendentes` | 409 | Trocar para a cobrança automática com avisos de pagamento esperando conferência. |
 | <a id="recebimento.chave_pix_obrigatoria"></a>`recebimento.chave_pix_obrigatoria` | 409 | Com o Mercado Pago conectado, a chave PIX continua na conta: é por ela que o formando paga quando o Mercado Pago não responde. |
+| <a id="recebimento.cobranca_automatica_ligada"></a>`recebimento.cobranca_automatica_ligada` | 409 | Desconectar o Mercado Pago com a turma na cobrança automática: volte ao manual antes. |
 | <a id="recebimento.conta_ja_conferida"></a>`recebimento.conta_ja_conferida` | 409 | Esta chave já foi conferida. |
 | <a id="recebimento.conta_sem_mudanca"></a>`recebimento.conta_sem_mudanca` | 409 | Estes dados são os mesmos da conta atual. |
+| <a id="recebimento.pix_em_aberto"></a>`recebimento.pix_em_aberto` | 409 | Voltar à cobrança manual com PIX de parcela do Mercado Pago ainda pagável (vale até a meia-noite). |
+| <a id="recebimento.loja_aberta"></a>`recebimento.loja_aberta` | 409 | Desconectar o Mercado Pago com item à venda na loja pública: ela só vende por ele. Encerre as vendas antes. |
 | <a id="recebimento.provedor_recusou"></a>`recebimento.provedor_recusou` | 409 | O Mercado Pago recusou este pagamento. Tente outro meio ou fale com a comissão. |
 | <a id="recebimento.sem_chave_pix"></a>`recebimento.sem_chave_pix` | 409 | Esta turma não aceita PIX. |
 | <a id="recebimento.sem_conta"></a>`recebimento.sem_conta` | 404 | A turma ainda não cadastrou a conta de recebimento. |

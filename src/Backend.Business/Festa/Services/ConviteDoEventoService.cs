@@ -247,7 +247,7 @@ public sealed class ConviteDoEventoService(
                     await convites.Adicionar(final, token);
 
                     if (emailAnterior is not null)
-                        await emails.Cancelado(emailAnterior, evento, token);
+                        await emails.Cancelado(emailAnterior, evento, ct: token);
                 }
                 else
                 {
@@ -454,7 +454,7 @@ public sealed class ConviteDoEventoService(
 
                 foreach (var compra in comprasPendentes)
                 {
-                    var emitidos = await emissao.EmitirDaCompra(compra.Id, compra.Quantidade, token);
+                    var emitidos = await emissao.EmitirDaCompra(compra, token);
                     if (emitidos.Falhou)
                         return emitidos;
                 }

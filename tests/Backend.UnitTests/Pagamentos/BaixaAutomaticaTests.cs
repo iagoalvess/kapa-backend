@@ -4,7 +4,10 @@ using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common;
 using Backend.Business.Common.Datas;
 using Backend.Business.Emails.Interfaces;
+using Backend.Business.Emails.Models;
 using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Financeiro.Interfaces;
+using Backend.Business.Financeiro.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Loja.Interfaces;
 using Backend.Business.Loja.Models;
@@ -42,6 +45,11 @@ public sealed class BaixaAutomaticaTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IEventoRepository _eventos = Substitute.For<IEventoRepository>();
     private readonly ICompraDeConviteRepository _compras = Substitute.For<ICompraDeConviteRepository>();
+    private readonly IDespesaRepository _despesas = Substitute.For<IDespesaRepository>();
+    private readonly IOutraReceitaRepository _receitas = Substitute.For<IOutraReceitaRepository>();
+    private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
+    private readonly ICancelamentoDaCompraService _cancelamento = Substitute.For<ICancelamentoDaCompraService>();
+    private readonly IEmailService _email = Substitute.For<IEmailService>();
 
     private readonly DateOnly _hoje = DataUtils.Hoje();
     private readonly Parcela _antiga;
@@ -65,6 +73,9 @@ public sealed class BaixaAutomaticaTests
             .ObterRegrasDeAtraso(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<Guid, RegrasDeAtraso>());
         _informes.ListarPendentesParaEdicao(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns([]);
+        _mercadoPago
+            .BuscarPagamentoAprovado(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok<PagamentoNoMercadoPago?>(null));
         _unitOfWork
             .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<bool>>>>(), Arg.Any<CancellationToken>())
             .Returns(chamada => chamada.Arg<Func<CancellationToken, Task<Result<bool>>>>()(Ct));
@@ -76,16 +87,20 @@ public sealed class BaixaAutomaticaTests
             _mercadoPago,
             _parcelas,
             _informes,
-            Substitute.For<IVinculoRepository>(),
+            _vinculos,
             Substitute.For<IFormaturaRepository>(),
             new BaixaService(
                 _recebimentos,
                 _eventos,
-                new EmailsDePagamento(Substitute.For<IEmailService>(), Options.Create(new AplicacaoSettings())),
+                new EmailsDePagamento(_email, Options.Create(new AplicacaoSettings())),
                 Substitute.For<IQuitacaoDePedidos>()
             ),
-            LojaTests.Pagamento(_compras),
+            LojaTests.Pagamento(_compras, _receitas, cancelamento: _cancelamento),
             _eventos,
+            _recebimentos,
+            _despesas,
+            _receitas,
+            new EmailsDePagamento(_email, Options.Create(new AplicacaoSettings())),
             _unitOfWork,
             NullLogger<BaixaAutomatica>.Instance
         );
@@ -248,5 +263,171 @@ public sealed class BaixaAutomaticaTests
         baixou.Valor.ShouldBeFalse();
         _cobranca.Status.ShouldBe(StatusDaCobrancaBancaria.Encerrada);
         await _mercadoPago.DidNotReceiveWithAnyArgs().ConsultarPedido(default!, default!, Ct);
+    }
+
+    /// <summary>Sprint 39, P6: a tarifa do Mercado Pago — o valor menos o líquido — entra no caixa como despesa paga.</summary>
+    [Fact]
+    public async Task Pagamento_lanca_a_tarifa_do_mercado_pago_como_despesa_paga()
+    {
+        // Arrange
+        Pago(60_000);
+        _mercadoPago
+            .BuscarPagamentoAprovado("token", _cobranca.Id, Arg.Any<CancellationToken>())
+            .Returns(Result.Ok<PagamentoNoMercadoPago?>(new("1", null, SituacaoDoPagamento.Aprovado, 60_000, DateTime.UtcNow, false, 57_012)));
+
+        // Act
+        await Baixa.Conciliar(_cobranca.Id, Ct);
+
+        // Assert
+        await _despesas
+            .Received(1)
+            .Adicionar(
+                Arg.Is<IReadOnlyList<Despesa>>(d =>
+                    d.Count == 1 && d[0].ValorEmCentavos == 2_988 && d[0].Status == StatusDaDespesa.Paga && d[0].Categoria == CategoriaDeDespesa.Taxas
+                ),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    /// <summary>Sprint 39, P2: a taxa repassada não baixa parcela — as parcelas recebem o valor do dia, e o acréscimo vira receita.</summary>
+    [Fact]
+    public async Task Taxa_repassada_vira_receita_e_as_parcelas_recebem_sem_ela()
+    {
+        // Arrange
+        _cobranca = CobrancaBancaria.NoCartao(1, [_antiga.Id, _nova.Id], 63_000, 3_000, "tok", DateTime.UtcNow);
+        _cobranca.Emitida("ORD1", null);
+        Pago(63_000);
+
+        // Act
+        await Baixa.Conciliar(_cobranca.Id, Ct);
+
+        // Assert
+        await _recebimentos.Received(2).Adicionar(Arg.Is<Recebimento>(r => r.ValorEmCentavos == 30_000), Arg.Any<CancellationToken>());
+        await _receitas
+            .Received(1)
+            .Adicionar(
+                Arg.Is<OutraReceita>(r => r.ValorEmCentavos == 3_000 && r.Status == StatusDaOutraReceita.Recebida),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    /// <summary>Sprint 39, P4: a cobrança paga que o pagador contestou no cartão estorna as baixas dela e avisa a comissão.</summary>
+    [Fact]
+    public async Task Contestacao_no_cartao_estorna_as_baixas_e_avisa_a_comissao()
+    {
+        // Arrange
+        _cobranca = Cobranca(MeioDePagamento.Cartao);
+        Pago(60_000);
+        var baixas = new List<Recebimento>();
+        _recebimentos.When(r => r.Adicionar(Arg.Any<Recebimento>(), Arg.Any<CancellationToken>())).Do(c => baixas.Add(c.Arg<Recebimento>()));
+        await Baixa.Conciliar(_cobranca.Id, Ct);
+        _recebimentos
+            .ObterAtivoParaEdicao(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(c => baixas.FirstOrDefault(b => b.ParcelaId == c.Arg<Guid>()));
+        _vinculos.ListarEmailsDaComissao(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(["tesouraria@kapa.dev"]);
+        _mercadoPago
+            .ConsultarPedido("token", "ORD1", Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new PedidoConsultado("ORD1", _cobranca.Id.ToString("N"), SituacaoDoPedido.Contestado, 0, null)));
+
+        // Act
+        var estornou = await Baixa.Conciliar(_cobranca.Id, Ct);
+
+        // Assert
+        estornou.Valor.ShouldBeTrue();
+        _cobranca.Status.ShouldBe(StatusDaCobrancaBancaria.Estornada);
+        _antiga.Status.ShouldBe(StatusDaParcela.Aberta);
+        _nova.Status.ShouldBe(StatusDaParcela.Aberta);
+        baixas.ShouldAllBe(b => b.EstornadoEm != null && b.JustificativaDoEstorno == BaixaAutomatica.MotivoDaContestacao);
+        await _email.Received(1).Enfileirar(Arg.Is<NovoEmail>(e => e.Para == "tesouraria@kapa.dev"), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>P4 e P6: a devolução estorna também o acréscimo repassado — o pagador recebeu o valor inteiro de volta.</summary>
+    [Fact]
+    public async Task Devolucao_estorna_o_acrescimo_repassado()
+    {
+        // Arrange
+        _cobranca = CobrancaBancaria.NoCartao(1, [_antiga.Id, _nova.Id], 63_000, 3_000, "tok", DateTime.UtcNow);
+        _cobranca.Emitida("ORD1", null);
+        Pago(63_000);
+        var lancadas = new List<OutraReceita>();
+        _receitas.When(r => r.Adicionar(Arg.Any<OutraReceita>(), Arg.Any<CancellationToken>())).Do(c => lancadas.Add(c.Arg<OutraReceita>()));
+        await Baixa.Conciliar(_cobranca.Id, Ct);
+        _mercadoPago
+            .ConsultarPedido("token", "ORD1", Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new PedidoConsultado("ORD1", _cobranca.Id.ToString("N"), SituacaoDoPedido.Devolvido, 0, null)));
+
+        // Act
+        await Baixa.Conciliar(_cobranca.Id, Ct);
+
+        // Assert
+        lancadas.Select(r => r.ValorEmCentavos).ShouldBe([3_000, -3_000]);
+        lancadas[1].EstornoDeId.ShouldBe(lancadas[0].Id);
+        lancadas[1].Categoria.ShouldBe(CategoriaDeOutraReceita.Outros);
+    }
+
+    /// <summary>A baixa manual feita depois, por outro meio, não é desta cobrança: a devolução não a toca.</summary>
+    [Fact]
+    public async Task Devolucao_nao_estorna_baixa_de_outro_meio()
+    {
+        // Arrange
+        _cobranca = Cobranca(MeioDePagamento.Cartao);
+        _cobranca.Paga();
+        var manual = Recebimento.Novo(
+            _antiga.Id,
+            null,
+            new DadosDaBaixa(FormaDePagamento.Dinheiro, _hoje, 30_000, null, PresidenteId, null, DateTime.UtcNow),
+            30_000
+        );
+        _recebimentos.ObterAtivoParaEdicao(_antiga.Id, Arg.Any<CancellationToken>()).Returns(manual);
+        _mercadoPago
+            .ConsultarPedido("token", "ORD1", Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new PedidoConsultado("ORD1", _cobranca.Id.ToString("N"), SituacaoDoPedido.Devolvido, 0, null)));
+
+        // Act
+        await Baixa.Conciliar(_cobranca.Id, Ct);
+
+        // Assert
+        manual.EstornadoEm.ShouldBeNull();
+        _cobranca.Status.ShouldBe(StatusDaCobrancaBancaria.Estornada);
+    }
+
+    /// <summary>Sprint 39, P5: a compra da loja devolvida pelo Mercado Pago vai pelo cancelamento da Sprint 38.</summary>
+    [Fact]
+    public async Task Compra_da_loja_devolvida_vai_pelo_cancelamento()
+    {
+        // Arrange
+        var compraId = Guid.CreateVersion7();
+        _cobranca = CobrancaBancaria.DaCompra(MeioDePagamento.Cartao, 1, compraId, 40_000, DateTime.UtcNow.AddDays(2));
+        _cobranca.Emitida("ORD1", null);
+        _cobranca.Paga();
+        _cancelamento
+            .DevolverPeloMercadoPago(compraId, BaixaAutomatica.MotivoDaDevolucao, PresidenteId, Arg.Any<CancellationToken>())
+            .Returns(Result.Ok("a compra da loja"));
+        _mercadoPago
+            .ConsultarPedido("token", "ORD1", Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new PedidoConsultado("ORD1", _cobranca.Id.ToString("N"), SituacaoDoPedido.Devolvido, 0, null)));
+
+        // Act
+        var desfez = await Baixa.Conciliar(_cobranca.Id, Ct);
+
+        // Assert
+        desfez.Valor.ShouldBeTrue();
+        await _cancelamento
+            .Received(1)
+            .DevolverPeloMercadoPago(compraId, BaixaAutomatica.MotivoDaDevolucao, PresidenteId, Arg.Any<CancellationToken>());
+        await _parcelas.DidNotReceiveWithAnyArgs().TravarParaBaixa(default!, Ct);
+    }
+
+    /// <summary>A cobrança paga que segue paga lá não muda nada — o aviso repetido do pagamento.</summary>
+    [Fact]
+    public async Task Cobranca_paga_que_segue_paga_nao_faz_nada()
+    {
+        _cobranca.Paga();
+        Pago(60_000);
+
+        var fez = await Baixa.Conciliar(_cobranca.Id, Ct);
+
+        fez.Valor.ShouldBeFalse();
+        _cobranca.Status.ShouldBe(StatusDaCobrancaBancaria.Paga);
     }
 }

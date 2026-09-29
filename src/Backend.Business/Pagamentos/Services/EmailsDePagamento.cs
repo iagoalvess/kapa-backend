@@ -120,6 +120,36 @@ public sealed class EmailsDePagamento(IEmailService emailService, IOptions<Aplic
             ct
         );
 
+    /// <summary>
+    /// O Mercado Pago tirou da conta da turma um pagamento que já tinha baixado — contestação no cartão ou
+    /// devolução pelo painel —, e o Kapa estornou sozinho (Sprint 39, P4). Para a comissão.
+    /// </summary>
+    /// <param name="email">Membro da comissão.</param>
+    /// <param name="formatura">Nome da turma.</param>
+    /// <param name="motivo">"contestação no cartão" ou "devolvido no Mercado Pago".</param>
+    /// <param name="valorEmCentavos">O valor do pagamento.</param>
+    /// <param name="oQue">O que foi desfeito ("2 parcelas de Fulana", "a compra A1B2C3D4 da loja").</param>
+    public Task DevolvidoNoMercadoPago(
+        string email,
+        string formatura,
+        string motivo,
+        long valorEmCentavos,
+        string oQue,
+        CancellationToken ct = default
+    ) =>
+        Enfileirar(
+            email,
+            $"Pagamento estornado pelo Mercado Pago — {formatura}",
+            "Pagamento estornado pelo Mercado Pago",
+            $"Um pagamento de {FormatosBrasileiros.Reais(valorEmCentavos)} para <strong>{ModeloDeEmail.Texto(formatura)}</strong> "
+                + $"saiu da conta Mercado Pago da turma — motivo: <em>{ModeloDeEmail.Texto(motivo)}</em>. "
+                + $"O Kapa desfez sozinho {ModeloDeEmail.Texto(oQue)}, que volta a ficar em aberto. "
+                + "Se a turma contestar e ganhar, registre o pagamento de novo pela baixa manual.",
+            Mascote.Alerta,
+            ("Ver as parcelas", _aplicacao.Link(RotasDoFront.ParcelasDaTurma)),
+            ct
+        );
+
     private static string Dia(DateOnly dia) => dia.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
 
     /// <summary>Enfileira o aviso no modelo da casa; sem botão próprio, o botão leva ao extrato.</summary>

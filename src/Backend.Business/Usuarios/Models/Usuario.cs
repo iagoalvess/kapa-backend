@@ -44,6 +44,19 @@ public class Usuario : IdentityUser<Guid>
     /// </remarks>
     public DateTime? AnonimizadoEm { get; set; }
 
+    /// <summary>
+    /// Se a pessoa quer receber dicas e novidades do Kapa por e-mail. Nasce desligada.
+    /// </summary>
+    /// <remarks>
+    /// Por conta, e não por turma (Sprint 40): o marketing é do Kapa com a pessoa. Consentimento (P1) — só
+    /// quem marcou a caixa no cadastro ou ligou em "Minha privacidade" recebe. O histórico de cada mudança
+    /// está em <c>ConsentimentoDeMarketing</c>; aqui fica só o estado, que é o que o envio confere.
+    /// <para>
+    /// Ligada não basta: só recebe quem é da comissão de turma do gratuito, e nunca formando.
+    /// </para>
+    /// </remarks>
+    public bool ReceberComunicacaoDoKapa { get; set; }
+
     /// <summary>Momento de criação, em UTC.</summary>
     public DateTime CriadoEm { get; set; }
 

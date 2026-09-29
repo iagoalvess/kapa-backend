@@ -1,5 +1,7 @@
 using Backend.Business.Festa.Models;
+using Backend.Business.MercadoPago.Models;
 using Backend.Business.Pagamentos.Models;
+using Backend.Business.Recebimentos.Models;
 
 namespace Backend.Business.Loja.Models;
 
@@ -11,6 +13,7 @@ namespace Backend.Business.Loja.Models;
 /// <param name="Cpf">CPF de quem compra — o limite por pessoa (P3). Normalizado para só dígitos.</param>
 /// <param name="Meio">Como paga — um de <see cref="MeiosDePagamento.Ligados"/>.</param>
 /// <param name="ChaveDeIdempotencia">O id que a tela sorteou ao abrir o formulário (decisão 7).</param>
+/// <param name="Convidados">Quem vai usar cada convite, na ordem dos convites: um por unidade, com nome e documento.</param>
 public sealed record DadosDaCompra(
     Guid ItemDeCobrancaId,
     int Quantidade,
@@ -18,7 +21,8 @@ public sealed record DadosDaCompra(
     string Email,
     string Cpf,
     MeioDePagamento Meio,
-    Guid ChaveDeIdempotencia
+    Guid ChaveDeIdempotencia,
+    IReadOnlyList<DadosDoConvidado> Convidados
 );
 
 /// <summary>A loja da turma, como a página pública a mostra.</summary>
@@ -84,6 +88,11 @@ public sealed record CobrancaDaCompra(MeioDePagamento Meio, string? CopiaECola, 
 /// <param name="PodeApagarDados">Se a festa já passou e os dados ainda existem: a exclusão fica disponível (decisão 5).</param>
 /// <param name="Convites">Os convites válidos, por posição.</param>
 /// <param name="FormaturaId">A turma — o caminho de volta para a loja.</param>
+/// <param name="ConvitesCancelados">Quantos lugares da compra deixaram de valer (Sprint 38).</param>
+/// <param name="ValorADevolverEmCentavos">O que a comissão ainda devolve.</param>
+/// <param name="PedidoDeCancelamento">O pedido aberto, ou o último respondido (P1).</param>
+/// <param name="PodePedirCancelamento">Se há convite que o comprador pode pedir para cancelar — válido, sem entrada, sem pedido aberto.</param>
+/// <param name="Cartao">O formulário do cartão e o valor que ele cobra, na compra pendente no cartão (Sprint 39, P5).</param>
 public sealed record CompraParaOComprador(
     Guid Id,
     StatusDaCompra Status,
@@ -102,8 +111,18 @@ public sealed record CompraParaOComprador(
     bool ListaAberta,
     bool PodeApagarDados,
     IReadOnlyList<MeuConvite> Convites,
-    Guid FormaturaId
+    Guid FormaturaId,
+    int ConvitesCancelados,
+    long ValorADevolverEmCentavos,
+    PedidoDoCompradorNaTela? PedidoDeCancelamento,
+    bool PodePedirCancelamento,
+    CartaoParaPagar? Cartao = null
 );
+
+/// <summary>O cartão da compra, como a tela o manda (Sprint 39, P5).</summary>
+/// <param name="Cartao">O que o formulário do Mercado Pago devolveu.</param>
+/// <param name="ValorEmCentavos">O valor que a tela mostrou, com o acréscimo se houver.</param>
+public sealed record CartaoDaCompra(CartaoTokenizado Cartao, long ValorEmCentavos);
 
 /// <summary>A compra recém-criada, com o link que só a resposta leva.</summary>
 /// <param name="Token">O segredo do link de acesso — a tela navega para ele.</param>
@@ -130,6 +149,10 @@ public sealed record FiltroDeCompras(StatusDaCompra? Status = null, string? Busc
 /// <param name="PagaEm">Quando pagou.</param>
 /// <param name="ValorPagoEmCentavos">O que entrou.</param>
 /// <param name="PagadorDiferente">O CPF de quem pagou não é o da compra — o sinal da P6.</param>
+/// <param name="ConvitesCancelados">Quantos lugares deixaram de valer (Sprint 38).</param>
+/// <param name="ValorADevolverEmCentavos">O que a comissão ainda devolve.</param>
+/// <param name="DevolvidaEm">Quando a comissão marcou a devolução.</param>
+/// <param name="PedidoDeCancelamentoAberto">Se o comprador pediu cancelamento e a Gestão ainda não respondeu.</param>
 public sealed record CompraNaGestao(
     Guid Id,
     DateTime CriadaEm,
@@ -144,17 +167,91 @@ public sealed record CompraNaGestao(
     DateTime ExpiraEm,
     DateTime? PagaEm,
     long? ValorPagoEmCentavos,
-    bool PagadorDiferente
+    bool PagadorDiferente,
+    int ConvitesCancelados,
+    long ValorADevolverEmCentavos,
+    DateTime? DevolvidaEm,
+    bool PedidoDeCancelamentoAberto
 );
 
 /// <summary>A conta da loja para a Gestão: o que vendeu e o que está preso esperando (decisão 3).</summary>
 /// <param name="ConvitesVendidos">Convites em compras pagas.</param>
 /// <param name="AguardandoPix">Convites presos em compras pendentes de PIX.</param>
 /// <param name="ComprasADevolver">Compras pagas sem lugar — a devolução é da comissão (P5).</param>
-/// <param name="ArrecadadoEmCentavos">O que entrou pela loja.</param>
-public sealed record ResumoDaLoja(int ConvitesVendidos, int AguardandoPix, int ComprasADevolver, long ArrecadadoEmCentavos);
+/// <param name="ArrecadadoEmCentavos">O que entrou pela loja, menos os estornos (Sprint 38).</param>
+/// <param name="FestaId">A festa da agenda — o alvo de "Cancelar as vendas da festa" (Sprint 38, P6); nula sem festa.</param>
+public sealed record ResumoDaLoja(int ConvitesVendidos, int AguardandoPix, int ComprasADevolver, long ArrecadadoEmCentavos, Guid? FestaId = null);
 
 /// <summary>Uma compra pendente vencida, para o job expirar — e a turma dela, para apontar o escopo.</summary>
 /// <param name="CompraId">Compra.</param>
 /// <param name="FormaturaId">Turma.</param>
 public sealed record CompraAExpirar(Guid CompraId, Guid FormaturaId);
+
+/// <summary>O cancelamento que a Gestão pede (Sprint 38).</summary>
+/// <param name="ConviteIds">Os convites; nulo ou vazio é todos os que ainda valem.</param>
+/// <param name="Motivo">Por que — obrigatório: vai para a auditoria, a portaria e o e-mail.</param>
+public sealed record DadosDoCancelamento(IReadOnlyList<Guid>? ConviteIds, string Motivo);
+
+/// <summary>O que o cancelamento fez.</summary>
+/// <param name="ConvitesCancelados">Quantos lugares deixaram de valer agora.</param>
+/// <param name="EstornoEmCentavos">O estorno lançado contra a receita da venda.</param>
+public sealed record CompraCancelada(int ConvitesCancelados, long EstornoEmCentavos);
+
+/// <summary>Um convite da compra, como a Gestão o vê para escolher o que cancelar.</summary>
+/// <param name="Id">Convite.</param>
+/// <param name="Sequencial">A posição na compra.</param>
+/// <param name="Codigo">O código da porta.</param>
+/// <param name="NomeDoConvidado">Quem vai usar; nulo enquanto a definir.</param>
+/// <param name="ValidadoEm">A entrada na portaria, se houve — convite usado não se cancela (P3).</param>
+/// <param name="RevogadoEm">Quando deixou de valer.</param>
+/// <param name="MotivoDaRevogacao">Por quê.</param>
+public sealed record ConviteDaCompra(
+    Guid Id,
+    int Sequencial,
+    string Codigo,
+    string? NomeDoConvidado,
+    DateTime? ValidadoEm,
+    DateTime? RevogadoEm,
+    string? MotivoDaRevogacao
+);
+
+/// <summary>O pedido de cancelamento do comprador, pelo link (P1).</summary>
+/// <param name="ConviteIds">Os convites; nulo ou vazio é todos os que ele ainda pode pedir.</param>
+/// <param name="Motivo">Por que, se ele quiser dizer.</param>
+public sealed record PedidoDoComprador(IReadOnlyList<Guid>? ConviteIds, string? Motivo);
+
+/// <summary>O pedido como o comprador o acompanha no link.</summary>
+/// <param name="Status">Aberto, aprovado ou recusado.</param>
+/// <param name="PedidoEm">Quando pediu, em UTC.</param>
+/// <param name="Convites">Quantos convites pediu para cancelar.</param>
+/// <param name="RespondidoEm">Quando a comissão respondeu.</param>
+/// <param name="MotivoDaResposta">Por que a comissão recusou.</param>
+public sealed record PedidoDoCompradorNaTela(
+    StatusDoPedidoDeCancelamento Status,
+    DateTime PedidoEm,
+    int Convites,
+    DateTime? RespondidoEm,
+    string? MotivoDaResposta
+);
+
+/// <summary>Um pedido de cancelamento aberto, na fila da Gestão.</summary>
+/// <param name="Id">O pedido.</param>
+/// <param name="CompraId">A compra.</param>
+/// <param name="Nome">Quem comprou.</param>
+/// <param name="Email">E-mail da compra.</param>
+/// <param name="Item">Convite comprado.</param>
+/// <param name="QuantidadeDaCompra">Quantos a compra tem.</param>
+/// <param name="Convites">Quantos ele pede para cancelar.</param>
+/// <param name="Motivo">Por que, se disse.</param>
+/// <param name="PedidoEm">Quando pediu, em UTC — o que conta se o prazo do CDC valer (P2).</param>
+public sealed record PedidoNaGestao(
+    Guid Id,
+    Guid CompraId,
+    string? Nome,
+    string? Email,
+    string Item,
+    int QuantidadeDaCompra,
+    int Convites,
+    string? Motivo,
+    DateTime PedidoEm
+);

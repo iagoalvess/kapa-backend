@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Legal.Models;
+using Backend.Business.Marketing.Models;
 using Backend.Business.Privacidade.Models;
 using Backend.Business.Privacidade.Services;
 using Shouldly;
@@ -24,7 +25,17 @@ public sealed class PacoteDeDadosTests
         var nomes = Abrir(Dados()).Keys;
 
         nomes.ShouldBe(
-            ["LEIA-ME.txt", "dados.json", "conta.csv", "turmas.csv", "cadastro.csv", "parcelas.csv", "consentimentos.csv", "comunicacoes.csv"],
+            [
+                "LEIA-ME.txt",
+                "dados.json",
+                "conta.csv",
+                "turmas.csv",
+                "cadastro.csv",
+                "parcelas.csv",
+                "consentimentos.csv",
+                "comunicacoes.csv",
+                "novidades-do-kapa.csv",
+            ],
             ignoreOrder: true
         );
     }
@@ -46,6 +57,18 @@ public sealed class PacoteDeDadosTests
 
         json.ShouldContain("\"nomeCompleto\": \"Ana Souza\"");
         json.ShouldContain("\"totalEmCentavos\": 840000");
+    }
+
+    /// <summary>A preferência de marketing, o histórico e os envios vão no pacote (Sprint 40).</summary>
+    [Fact]
+    public void Novidades_do_kapa_levam_preferencia_historico_e_envios()
+    {
+        var novidades = Abrir(Dados())["novidades-do-kapa.csv"];
+
+        novidades.ShouldContain("preferência atual;não recebe");
+        novidades.ShouldContain("oposição;descadastro_pelo_email");
+        novidades.ShouldContain("aceite;cadastro");
+        novidades.ShouldContain("criou_e_nao_voltou — Medicina 2027");
     }
 
     /// <summary>O Excel em português abre com ponto e vírgula, e o BOM impede "JosÃ©".</summary>
@@ -163,7 +186,19 @@ public sealed class PacoteDeDadosTests
                 ),
             ],
             [new ConsentimentoDoUsuario(Guid.CreateVersion7(), TipoDeDocumento.PoliticaDePrivacidade, "1", Agora, false)],
-            new MinhasComunicacoes([new MinhaPreferencia(formaturaId, "ParcelaAVencer", true)], 3, Agora)
+            new MinhasComunicacoes(
+                [new MinhaPreferencia(formaturaId, "ParcelaAVencer", true)],
+                3,
+                Agora,
+                new ComunicacaoDoKapa(
+                    false,
+                    [
+                        new RegistroDaComunicacaoDoKapa(false, OrigemDoConsentimentoDeMarketing.DescadastroPeloEmail, "1", Agora),
+                        new RegistroDaComunicacaoDoKapa(true, OrigemDoConsentimentoDeMarketing.Cadastro, "1", Agora.AddDays(-20)),
+                    ],
+                    [new EnvioDoKapa(JornadaDeMarketing.CriouENaoVoltou, "Medicina 2027", Agora.AddDays(-2))]
+                )
+            )
         );
     }
 }

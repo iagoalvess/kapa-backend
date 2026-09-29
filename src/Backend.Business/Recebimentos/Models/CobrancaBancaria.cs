@@ -12,7 +12,7 @@ public enum StatusDaCobrancaBancaria
     /// <summary>O Mercado Pago criou o pedido; o PIX vale até <see cref="CobrancaBancaria.ExpiraEm"/>.</summary>
     Emitida,
 
-    /// <summary>O pedido falhou ou não voltou; a tela caiu no PIX estático (P7).</summary>
+    /// <summary>O pedido falhou ou não voltou; a tela pediu para tentar de novo.</summary>
     Falhou,
 
     /// <summary>O Mercado Pago confirmou o pagamento e as parcelas foram baixadas.</summary>
@@ -20,6 +20,12 @@ public enum StatusDaCobrancaBancaria
 
     /// <summary>Venceu, foi cancelada ou reemitida: não vai mais ser paga.</summary>
     Encerrada,
+
+    /// <summary>
+    /// Foi paga e o dinheiro voltou — contestação no cartão ou devolução no painel do Mercado Pago —, e as baixas
+    /// foram estornadas (Sprint 39, P4).
+    /// </summary>
+    Estornada,
 }
 
 /// <summary>
@@ -65,6 +71,15 @@ public class CobrancaBancaria : EntidadeDaFormatura
 
     /// <summary>O valor cobrado.</summary>
     public long ValorEmCentavos { get; private set; }
+
+    /// <summary>
+    /// A parte de <see cref="ValorEmCentavos"/> que é a taxa do cartão repassada a quem paga (Sprint 39, P2): não
+    /// baixa parcela nem paga convite — entra no caixa como receita, ao lado da tarifa.
+    /// </summary>
+    public long AcrescimoEmCentavos { get; private set; }
+
+    /// <summary>A receita que o acréscimo virou no caixa — a devolução a estorna junto (Sprint 39, P4).</summary>
+    public Guid? ReceitaDoAcrescimoId { get; private set; }
 
     /// <summary>Situação.</summary>
     public StatusDaCobrancaBancaria Status { get; private set; }
@@ -112,8 +127,49 @@ public class CobrancaBancaria : EntidadeDaFormatura
     /// <param name="compraId">A compra.</param>
     /// <param name="valorEmCentavos">Valor da compra.</param>
     /// <param name="expiraEm">Fim da validade do documento, em UTC.</param>
-    public static CobrancaBancaria DaCompra(MeioDePagamento meio, long contaNoProvedor, Guid compraId, long valorEmCentavos, DateTime expiraEm) =>
-        new(meio, contaNoProvedor, [], valorEmCentavos, expiraEm, ChaveDaCompra(compraId)) { CompraId = compraId };
+    /// <param name="acrescimoEmCentavos">A taxa do cartão repassada, dentro do valor (Sprint 39).</param>
+    public static CobrancaBancaria DaCompra(
+        MeioDePagamento meio,
+        long contaNoProvedor,
+        Guid compraId,
+        long valorEmCentavos,
+        DateTime expiraEm,
+        long acrescimoEmCentavos = 0
+    ) =>
+        new(meio, contaNoProvedor, [], valorEmCentavos, expiraEm, ChaveDaCompra(compraId))
+        {
+            CompraId = compraId,
+            AcrescimoEmCentavos = acrescimoEmCentavos,
+        };
+
+    /// <summary>
+    /// A cobrança no cartão das parcelas (Sprint 39): uma por token — o token do cartão é de uso único, e o clique
+    /// duplo com o mesmo token reaproveita a cobrança em vez de cobrar duas vezes.
+    /// </summary>
+    /// <param name="contaNoProvedor">A conta do Mercado Pago que cobra.</param>
+    /// <param name="parcelaIds">Parcelas cobertas.</param>
+    /// <param name="valorEmCentavos">Valor, com o acréscimo.</param>
+    /// <param name="acrescimoEmCentavos">A taxa repassada, dentro do valor.</param>
+    /// <param name="tokenDoCartao">O token do formulário.</param>
+    /// <param name="agoraUtc">Agora.</param>
+    public static CobrancaBancaria NoCartao(
+        long contaNoProvedor,
+        IReadOnlyCollection<Guid> parcelaIds,
+        long valorEmCentavos,
+        long acrescimoEmCentavos,
+        string tokenDoCartao,
+        DateTime agoraUtc
+    ) =>
+        new(MeioDePagamento.Cartao, contaNoProvedor, parcelaIds, valorEmCentavos, agoraUtc + AnaliseDoCartao, $"cartao:{tokenDoCartao}")
+        {
+            AcrescimoEmCentavos = acrescimoEmCentavos,
+        };
+
+    /// <summary>
+    /// Quanto a cobrança no cartão fica viva para a conciliação: o cartão costuma decidir na hora, mas o que o
+    /// Mercado Pago põe em análise pode levar até dois dias.
+    /// </summary>
+    public static readonly TimeSpan AnaliseDoCartao = TimeSpan.FromDays(2);
 
     /// <summary>A chave da cobrança de uma compra: a compra tem um documento só enquanto ele vive.</summary>
     /// <param name="compraId">A compra.</param>
@@ -137,6 +193,17 @@ public class CobrancaBancaria : EntidadeDaFormatura
 
     /// <summary>Não vai mais ser paga.</summary>
     public void Encerrada() => Status = StatusDaCobrancaBancaria.Encerrada;
+
+    /// <summary>Liga a cobrança à receita do acréscimo.</summary>
+    /// <param name="receitaId">A receita.</param>
+    public void AcrescimoNoCaixa(Guid receitaId) => ReceitaDoAcrescimoId = receitaId;
+
+    /// <summary>O dinheiro voltou ao pagador e as baixas foram desfeitas (Sprint 39, P4).</summary>
+    public void Estornada() => Status = StatusDaCobrancaBancaria.Estornada;
+
+    /// <summary>O que de fato paga parcela ou convite: o pago menos a taxa repassada.</summary>
+    /// <param name="pagoEmCentavos">O que o Mercado Pago diz que foi pago.</param>
+    public long SemAcrescimo(long pagoEmCentavos) => Math.Max(0, pagoEmCentavos - AcrescimoEmCentavos);
 
     /// <summary>Se ainda pode ser paga: emitida e dentro da validade.</summary>
     /// <param name="agoraUtc">Agora.</param>

@@ -19,6 +19,7 @@ using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Legal.Interfaces;
 using Backend.Business.Loja.Interfaces;
+using Backend.Business.Marketing.Interfaces;
 using Backend.Business.MercadoPago.Settings;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Pagamentos.Interfaces;
@@ -163,6 +164,7 @@ public static class DependenciasData
         services.AddScoped<IPedidoRepository, PedidoRepository>();
         services.AddScoped<IConviteDoEventoRepository, ConviteDoEventoRepository>();
         services.AddScoped<ICompraDeConviteRepository, CompraDeConviteRepository>();
+        services.AddScoped<IPendenciasDaTurmaRepository, PendenciasDaTurmaRepository>();
         services.AddScoped<IMesaRepository, MesaRepository>();
         services.AddScoped<IAdesaoRepository, AdesaoRepository>();
         services.AddScoped<IContaDeRecebimentoRepository, ContaDeRecebimentoRepository>();
@@ -182,6 +184,7 @@ public static class DependenciasData
         services.AddScoped<INotificacaoRepository, NotificacaoRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
         services.AddScoped<IPrivacidadeRepository, PrivacidadeRepository>();
+        services.AddScoped<IComunicacaoDoKapaRepository, ComunicacaoDoKapaRepository>();
 
         return services;
     }

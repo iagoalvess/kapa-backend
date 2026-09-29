@@ -48,6 +48,9 @@ using Backend.Business.Legal.Interfaces;
 using Backend.Business.Legal.Services;
 using Backend.Business.Loja.Interfaces;
 using Backend.Business.Loja.Services;
+using Backend.Business.Marketing.Interfaces;
+using Backend.Business.Marketing.Services;
+using Backend.Business.Marketing.Settings;
 using Backend.Business.MercadoPago.Interfaces;
 using Backend.Business.MercadoPago.Services;
 using Backend.Business.MercadoPago.Settings;
@@ -99,6 +102,7 @@ public static class DependenciasBusiness
         services.AddOptions<IaSettings>().Bind(configuration.GetSection(IaSettings.Secao));
         services.AddOptions<ResumoSettings>().Bind(configuration.GetSection(ResumoSettings.Secao));
         services.AddOptions<MercadoPagoSettings>().Bind(configuration.GetSection(MercadoPagoSettings.Secao));
+        services.AddOptions<ComunicacaoDoKapaSettings>().Bind(configuration.GetSection(ComunicacaoDoKapaSettings.Secao));
 
         services.AddValidatorsFromAssembly(typeof(DependenciasBusiness).Assembly, ServiceLifetime.Singleton);
 
@@ -238,6 +242,7 @@ public static class DependenciasBusiness
         services.AddScoped<DonosDeMesa>();
         services.AddSingleton<CodigoDoConvite>();
         services.AddScoped<ILojaService, LojaService>();
+        services.AddScoped<ICancelamentoDaCompraService, CancelamentoDaCompra>();
         services.AddScoped<PagamentoDaCompra>();
         services.AddScoped<EmailsDaLoja>();
         services.AddSingleton<LinkDaCompra>();
@@ -289,6 +294,10 @@ public static class DependenciasBusiness
         services.AddScoped<IProcessamentoDePrivacidadeService, ProcessamentoDePrivacidadeService>();
         services.AddScoped<IAnonimizacaoDeTitular, AnonimizacaoDeTitular>();
         services.AddScoped<EmailsDePrivacidade>();
+        services.AddScoped<IComunicacaoDoKapaService, ComunicacaoDoKapaService>();
+        services.AddScoped<IJornadasDeMarketingService, JornadasDeMarketingService>();
+        services.AddScoped<EmailsDeMarketing>();
+        services.AddSingleton<LinkDeDescadastro>();
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IAdminService, AdminService>();
         services.AddScoped<IEmailService, EmailService>();

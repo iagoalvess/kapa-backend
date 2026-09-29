@@ -210,6 +210,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     ["Aplicacao:UrlDoFrontend"] = "https://kapa.testes",
                     ["Armazenamento:Provedor"] = "Local",
                     ["Armazenamento:CaminhoLocal"] = _diretorioDeArquivos,
+                    ["ComunicacaoDoKapa:EnvioLigado"] = "true",
                 }
             )
             .Build();

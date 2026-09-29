@@ -13,7 +13,11 @@ public sealed record ContaNoMercadoPago(long Id, string Nome, bool Teste);
 /// <param name="RefreshToken">Token de renovação.</param>
 /// <param name="IdDoUsuario">A conta que autorizou.</param>
 /// <param name="ExpiraEm">Validade do token de acesso, em UTC.</param>
-public sealed record TokensDoMercadoPago(string AccessToken, string RefreshToken, long IdDoUsuario, DateTime ExpiraEm);
+/// <param name="ChavePublica">
+/// A <c>public_key</c> da conta que autorizou: o formulário de cartão do navegador tokeniza com ela, e o token só
+/// vale para cobrar nessa conta (Sprint 39). Não é segredo.
+/// </param>
+public sealed record TokensDoMercadoPago(string AccessToken, string RefreshToken, long IdDoUsuario, DateTime ExpiraEm, string? ChavePublica = null);
 
 /// <summary>Quem paga. O Mercado Pago exige o e-mail em todo pedido; o nome ajuda a turma a reconhecer o comprador.</summary>
 /// <param name="Email">E-mail.</param>
@@ -60,6 +64,12 @@ public enum SituacaoDoPedido
 
     /// <summary>Venceu, foi cancelado ou recusado: não vai mais ser pago.</summary>
     Encerrado,
+
+    /// <summary>Foi pago e devolvido por inteiro ao pagador — pela turma, no painel do Mercado Pago (Sprint 39).</summary>
+    Devolvido,
+
+    /// <summary>Foi pago e o pagador contestou no cartão (chargeback): o dinheiro saiu da conta da turma (Sprint 39, P4).</summary>
+    Contestado,
 }
 
 /// <summary>Um pedido consultado no Mercado Pago — a única fonte do valor pago (decisão 12 da Sprint 25).</summary>
@@ -148,14 +158,23 @@ public enum SituacaoDoPagamento
 /// <param name="ValorEmCentavos">O valor da transação.</param>
 /// <param name="AprovadoEm">Quando foi aprovado, em UTC.</param>
 /// <param name="DaRecorrencia">Se foi gerado por uma recorrência (<c>recurring_payment</c>) — esse chega também pelo aviso do débito.</param>
+/// <param name="LiquidoEmCentavos">
+/// O que cai na conta depois da tarifa (<c>net_received_amount</c>); nulo quando o Mercado Pago não informa. A
+/// diferença para <see cref="ValorEmCentavos"/> é a tarifa que o caixa lança (Sprint 39, P6).
+/// </param>
 public sealed record PagamentoNoMercadoPago(
     string Id,
     string? Referencia,
     SituacaoDoPagamento Situacao,
     long ValorEmCentavos,
     DateTime? AprovadoEm,
-    bool DaRecorrencia
-);
+    bool DaRecorrencia,
+    long? LiquidoEmCentavos = null
+)
+{
+    /// <summary>A tarifa do Mercado Pago — o valor menos o líquido; zero quando o líquido não veio.</summary>
+    public long TarifaEmCentavos => LiquidoEmCentavos is { } liquido ? Math.Max(0, ValorEmCentavos - liquido) : 0;
+}
 
 /// <summary>Um débito de uma recorrência (<c>authorized_payments</c>): a fatura de um ciclo e o pagamento dela.</summary>
 /// <param name="Id">Id do débito.</param>

@@ -52,6 +52,7 @@ public static class DependenciasWorker
         builder.Services.AddHostedService<CobrancasDoMercadoPagoJob>();
         builder.Services.AddHostedService<ExpiracaoDeComprasJob>();
         builder.Services.AddHostedService<RetencaoDeFormaturasJob>();
+        builder.Services.AddHostedService<JornadasDeMarketingJob>();
 
         return builder;
     }

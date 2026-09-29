@@ -5,6 +5,7 @@ using Backend.Business.Cobrancas.Models;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Loja.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Backend.Business.Festa.Services;
@@ -93,20 +94,30 @@ public sealed class EmissaoDeConvites(
     }
 
     /// <summary>
-    /// Emite os convites 1 a N de uma compra paga na loja — de novo não cria nada (Sprint 26, decisão 9).
+    /// Emite os convites 1 a N de uma compra paga na loja — de novo não cria nada (Sprint 26, decisão 9) — com o
+    /// titular que o comprador informou para cada posição.
     /// </summary>
-    /// <param name="compraId">A compra.</param>
-    /// <param name="quantidade">Quantos convites ela pagou.</param>
+    /// <remarks>
+    /// O insert é SQL cru, e o documento é cifrado pelo contexto: o titular entra depois, pelas entidades travadas, e só
+    /// no convite ainda sem nome — emitir de novo não desfaz uma troca feita pelo link.
+    /// </remarks>
+    /// <param name="compra">A compra paga.</param>
     /// <returns>Quantos convites da compra valem; 409 se a festa não está completa na agenda.</returns>
-    public async Task<Result<int>> EmitirDaCompra(Guid compraId, int quantidade, CancellationToken ct = default)
+    public async Task<Result<int>> EmitirDaCompra(CompraDeConvite compra, CancellationToken ct = default)
     {
         var festa = await Festa(ct);
         if (festa.Falhou)
             return Result.Falha<int>(festa.Erros);
 
-        var validos = await convites.EmitirDaCompra(festa.Valor.Id, compraId, quantidade, await Prefixo(ct), ct);
+        var validos = await convites.EmitirDaCompra(festa.Valor.Id, compra.Id, compra.Quantidade, await Prefixo(ct), ct);
 
-        logger.LogInformation("Compra {CompraId}: {Validos} convites válidos para a festa.", compraId, validos);
+        var titulares = compra.Titulares();
+        if (titulares.Count > 0)
+            foreach (var convite in await convites.TravarDaCompra(compra.Id, ct))
+                if (convite.NomeDoConvidado is null && convite.Sequencial <= titulares.Count)
+                    convite.Aplicar(titulares[convite.Sequencial - 1]);
+
+        logger.LogInformation("Compra {CompraId}: {Validos} convites válidos para a festa.", compra.Id, validos);
 
         return validos;
     }

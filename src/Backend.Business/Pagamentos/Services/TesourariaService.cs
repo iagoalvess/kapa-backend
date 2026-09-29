@@ -33,9 +33,7 @@ namespace Backend.Business.Pagamentos.Services;
 /// <param name="formaturaRepository">Nome da turma, para os e-mails.</param>
 /// <param name="arquivoService">Comprovantes.</param>
 /// <param name="baixaService">A porta única da baixa.</param>
-/// <param name="quitacao">O que o pedido faz quando o pagamento dele é desfeito — o convite morre ali.</param>
 /// <param name="emails">Aviso de recusa e de estorno.</param>
-/// <param name="eventos">Auditoria do estorno.</param>
 /// <param name="baixaValidator">Forma da baixa manual.</param>
 /// <param name="loteValidator">Forma do lote.</param>
 /// <param name="recusaValidator">Forma da recusa.</param>
@@ -50,9 +48,7 @@ public sealed class TesourariaService(
     IFormaturaRepository formaturaRepository,
     IArquivoService arquivoService,
     BaixaService baixaService,
-    IQuitacaoDePedidos quitacao,
     EmailsDePagamento emails,
-    IEventoRepository eventos,
     IValidator<BaixaManual> baixaValidator,
     IValidator<ConfirmarInformes> loteValidator,
     IValidator<RecusarInforme> recusaValidator,
@@ -62,7 +58,7 @@ public sealed class TesourariaService(
 ) : ITesourariaService
 {
     /// <summary>Evento do estorno, com a justificativa — a segunda linha da auditoria, ao lado da baixa.</summary>
-    public const string EventoDeEstorno = "pagamento.estornado";
+    public const string EventoDeEstorno = BaixaService.EventoDeEstorno;
 
     private static readonly Erro InformeNaoEncontrado = Erro.NaoEncontrado("pagamento.informe_nao_encontrado", "Aviso de pagamento não encontrado.");
 
@@ -382,41 +378,20 @@ public sealed class TesourariaService(
                     return Result.Falha(ErrosDePagamento.ParcelaNaoEncontrada);
 
                 var recebimento = await recebimentoRepository.ObterAtivoParaEdicao(parcelaId, token);
-
-                if (recebimento is null || parcela.Estornar(recebimento.ValorEmCentavos).Falhou)
+                if (recebimento is null)
                     return Result.Falha(Erro.Conflito("pagamento.parcela_nao_paga", "Esta parcela não tem baixa para estornar."));
-
-                recebimento.Estornar(usuarioId, dados.Justificativa, DateTime.UtcNow);
-                await quitacao.AposEstorno(parcela, token);
-
-                await eventos.Auditar(
-                    EventoDeEstorno,
-                    usuarioId,
-                    new
-                    {
-                        formaturaId,
-                        parcelaId,
-                        recebimentoId = recebimento.Id,
-                        valorEmCentavos = recebimento.ValorEmCentavos,
-                        justificativa = recebimento.JustificativaDoEstorno,
-                        enderecoIp,
-                    },
-                    token
-                );
 
                 var enderecos = await vinculoRepository.ListarEmailsDosVinculos([parcela.VinculoId], token);
 
-                if (enderecos.TryGetValue(parcela.VinculoId, out var email))
-                    await emails.Estornado(
-                        email,
-                        nomeDaTurma,
-                        parcela.Vencimento,
-                        recebimento.ValorEmCentavos,
-                        recebimento.JustificativaDoEstorno!,
-                        token
-                    );
-
-                return Result.Ok();
+                return await baixaService.Estornar(
+                    parcela,
+                    recebimento,
+                    usuarioId,
+                    dados.Justificativa,
+                    enderecoIp,
+                    new ContextoDaBaixa(formaturaId, nomeDaTurma, RegrasDeAtraso.Nenhuma, enderecos.GetValueOrDefault(parcela.VinculoId)),
+                    token
+                );
             },
             ct
         );

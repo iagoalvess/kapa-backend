@@ -257,6 +257,18 @@ public interface IConviteDoEventoRepository
     /// <param name="pedidoId">Pedido.</param>
     Task<IReadOnlyList<ConviteDoEvento>> TravarDoPedido(Guid pedidoId, CancellationToken ct = default);
 
+    /// <summary>Os convites válidos de uma compra da loja, travados até o fim da transação (Sprint 38).</summary>
+    /// <param name="compraId">A compra.</param>
+    Task<IReadOnlyList<ConviteDoEvento>> TravarDaCompra(Guid compraId, CancellationToken ct = default);
+
+    /// <summary>Os convites válidos de um evento, travados até o fim da transação — o que o evento cancelado revoga (Sprint 38, P10).</summary>
+    /// <param name="eventoId">Evento.</param>
+    Task<IReadOnlyList<ConviteDoEvento>> TravarValidosDoEvento(Guid eventoId, CancellationToken ct = default);
+
+    /// <summary>Quais destes convites têm entrada ativa na portaria — convite usado não se cancela (Sprint 38, P3).</summary>
+    /// <param name="conviteIds">Convites.</param>
+    Task<IReadOnlySet<Guid>> ListarComEntrada(IReadOnlyCollection<Guid> conviteIds, CancellationToken ct = default);
+
     /// <summary>Um convite travado até o fim da transação; nulo se não existir aqui.</summary>
     /// <param name="conviteId">Convite.</param>
     Task<ConviteDoEvento?> Travar(Guid conviteId, CancellationToken ct = default);

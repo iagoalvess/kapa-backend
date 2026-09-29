@@ -209,6 +209,32 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
             .ToListAsync(ct);
 
     /// <inheritdoc />
+    /// <remarks>Em ordem de id, como a do pedido.</remarks>
+    public async Task<IReadOnlyList<ConviteDoEvento>> TravarDaCompra(Guid compraId, CancellationToken ct = default) =>
+        await db
+            .ConvitesDoEvento.FromSql($"SELECT * FROM convites_do_evento WHERE compra_id = {compraId} AND revogado_em IS NULL ORDER BY id FOR UPDATE")
+            .ToListAsync(ct);
+
+    /// <inheritdoc />
+    /// <remarks>Em ordem de id, como a do pedido.</remarks>
+    public async Task<IReadOnlyList<ConviteDoEvento>> TravarValidosDoEvento(Guid eventoId, CancellationToken ct = default) =>
+        await db
+            .ConvitesDoEvento.FromSql($"SELECT * FROM convites_do_evento WHERE evento_id = {eventoId} AND revogado_em IS NULL ORDER BY id FOR UPDATE")
+            .ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlySet<Guid>> ListarComEntrada(IReadOnlyCollection<Guid> conviteIds, CancellationToken ct = default) =>
+        conviteIds.Count == 0
+            ? new HashSet<Guid>()
+            : (
+                await db
+                    .CheckIns.AsNoTracking()
+                    .Where(k => conviteIds.Contains(k.ConviteId) && k.DesfeitoEm == null)
+                    .Select(k => k.ConviteId)
+                    .ToListAsync(ct)
+            ).ToHashSet();
+
+    /// <inheritdoc />
     public Task<ConviteDoEvento?> Travar(Guid conviteId, CancellationToken ct = default) =>
         db.ConvitesDoEvento.FromSql($"SELECT * FROM convites_do_evento WHERE id = {conviteId} FOR UPDATE").FirstOrDefaultAsync(ct);
 
