@@ -73,8 +73,6 @@ public sealed class DespesaMapping : IEntityTypeConfiguration<Despesa>
         builder.Property(d => d.Categoria).HasConversion<string>().HasMaxLength(20);
         builder.Property(d => d.Status).HasConversion<string>().HasMaxLength(20);
 
-        builder.Ignore(d => d.EmAberto);
-
         builder
             .HasIndex(
                 d => new

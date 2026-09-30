@@ -32,27 +32,24 @@ public sealed class CapturaDeEventosTests(ApiFactory fabrica)
     {
         var clienteAlvo = fabrica.CreateClient();
         var alvo = await clienteAlvo.RegistrarUsuarioComum(Ct);
-        var usuarioAlvo = await clienteAlvo.ComToken(alvo.AccessToken).GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Json, Ct);
+        var usuarioAlvoId = FormaturaDeTeste.IdDoUsuario(alvo.AccessToken);
 
         var clienteAdmin = fabrica.CreateClient();
         var admin = await clienteAdmin.AutenticarComoAdministrador(Ct);
-        var administrador = await clienteAdmin.ComToken(admin.AccessToken).GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Json, Ct);
+        var administradorId = FormaturaDeTeste.IdDoUsuario(admin.AccessToken);
 
-        var resposta = await clienteAdmin.PutAsJsonAsync(
-            $"/api/v1/usuarios/{usuarioAlvo!.Id}/perfis",
-            new AlterarPerfisRequestDTO(["Administrador", "Usuario"]),
-            Json,
-            Ct
-        );
+        var resposta = await clienteAdmin
+            .ComToken(admin.AccessToken)
+            .PutAsJsonAsync($"/api/v1/usuarios/{usuarioAlvoId}/perfis", new AlterarPerfisRequestDTO(["Administrador", "Usuario"]), Json, Ct);
         resposta.EnsureSuccessStatusCode();
 
         var evento = await EsperarEvento("usuario.perfis_alterados", Ct);
 
         evento.ShouldNotBeNull();
-        evento.UsuarioId.ShouldBe(administrador!.Id);
+        evento.UsuarioId.ShouldBe(administradorId);
         evento.Rota.ShouldBe("PUT /api/v{version:apiVersion}/usuarios/{id:guid}/perfis");
         evento.Dados.ShouldNotBeNull();
-        evento.Dados!.ShouldContain(usuarioAlvo.Id.ToString());
+        evento.Dados!.ShouldContain(usuarioAlvoId.ToString());
     }
 
     /// <summary>
@@ -64,11 +61,12 @@ public sealed class CapturaDeEventosTests(ApiFactory fabrica)
     {
         var cliente = fabrica.CreateClient();
         var admin = await cliente.AutenticarComoAdministrador(Ct);
-        var eu = await cliente.ComToken(admin.AccessToken).GetFromJsonAsync<UsuarioDetalheDTO>("/api/v1/usuarios/eu", Json, Ct);
+        var eu = FormaturaDeTeste.IdDoUsuario(admin.AccessToken);
+        cliente.ComToken(admin.AccessToken);
 
         var antes = await ContarEventos("usuario.ativacao_alterada", Ct);
 
-        var resposta = await cliente.PutAsJsonAsync($"/api/v1/usuarios/{eu!.Id}/ativacao", new AlterarAtivacaoRequestDTO(false), Json, Ct);
+        var resposta = await cliente.PutAsJsonAsync($"/api/v1/usuarios/{eu}/ativacao", new AlterarAtivacaoRequestDTO(false), Json, Ct);
         resposta.IsSuccessStatusCode.ShouldBeFalse();
 
         await Task.Delay(TimeSpan.FromSeconds(1), Ct);

@@ -53,16 +53,12 @@ public sealed record AlterarPapelRequestDTO(string Papel);
 /// O atraso é um recorte do que está <b>em aberto</b>, e não uma parcela a mais: somar as duas
 /// linhas contaria a mesma parcela vencida duas vezes.
 /// </remarks>
-/// <param name="Nome">Nome de quem sairia.</param>
-/// <param name="TemAdesao">Se aderiu ao termo. <c>false</c> quer dizer que a ação certa é Remover.</param>
 /// <param name="JaPagoEmCentavos">Quanto já entrou na conta da turma por ele.</param>
 /// <param name="ParcelasEmAberto">Quantas parcelas ainda são devidas, vencidas incluídas.</param>
 /// <param name="EmAbertoEmCentavos">Quanto elas somam, pelo valor original.</param>
 /// <param name="ParcelasEmAtraso">Quantas das em aberto já venceram.</param>
 /// <param name="EmAtrasoEmCentavos">Quanto elas somam, pelo valor original.</param>
 public sealed record ResumoDaSaidaDTO(
-    string Nome,
-    bool TemAdesao,
     long JaPagoEmCentavos,
     int ParcelasEmAberto,
     long EmAbertoEmCentavos,

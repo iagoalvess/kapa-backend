@@ -267,9 +267,8 @@ public sealed class AdesaoService(
     public async Task<Result<ResumoDeAdesoes>> Resumir(Guid formaturaId, CancellationToken ct = default)
     {
         var (membros, aderiram) = await adesaoRepository.Contar(formaturaId, ct);
-        var termo = await adesaoRepository.ObterTermoVigente(ct);
 
-        return new ResumoDeAdesoes(membros, aderiram, termo?.Versao);
+        return new ResumoDeAdesoes(membros, aderiram);
     }
 
     /// <inheritdoc />

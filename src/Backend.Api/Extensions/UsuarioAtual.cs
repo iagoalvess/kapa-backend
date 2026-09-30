@@ -28,9 +28,6 @@ public interface IUsuarioAtual
     /// <summary>Perfis presentes no token.</summary>
     IReadOnlyList<string> Perfis { get; }
 
-    /// <summary>Indica se o usuário é administrador.</summary>
-    bool EhAdministrador { get; }
-
     /// <summary>
     /// IP do cliente.
     /// </summary>
@@ -66,9 +63,6 @@ public sealed class UsuarioAtual(IHttpContextAccessor accessor) : IUsuarioAtual
 
     /// <inheritdoc />
     public IReadOnlyList<string> Perfis => Principal?.FindAll(TokenService.ClaimDePerfil).Select(claim => claim.Value).ToArray() ?? [];
-
-    /// <inheritdoc />
-    public bool EhAdministrador => Perfis.Contains(PerfisPadrao.Administrador, StringComparer.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public string? EnderecoIp => accessor.HttpContext?.Connection.RemoteIpAddress?.ToString();

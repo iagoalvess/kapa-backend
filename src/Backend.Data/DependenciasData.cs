@@ -29,7 +29,6 @@ using Backend.Business.Relatorios.Interfaces;
 using Backend.Business.Usuarios.Interfaces;
 using Backend.Data.Context;
 using Backend.Data.Criptografia;
-using Backend.Data.Provedores;
 using Backend.Data.Repositories;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -171,6 +170,7 @@ public static class DependenciasData
         services.AddScoped<IInformeRepository, InformeRepository>();
         services.AddScoped<IProvedorDaTurmaRepository, ProvedorDaTurmaRepository>();
         services.AddScoped<IRecebimentoRepository, RecebimentoRepository>();
+        services.AddScoped<IValorADevolverRepository, ValorADevolverRepository>();
         services.AddScoped<IItemDaFestaRepository, ItemDaFestaRepository>();
         services.AddScoped<IEventoDaTurmaRepository, EventoDaTurmaRepository>();
         services.AddScoped<IPropostaRepository, PropostaRepository>();

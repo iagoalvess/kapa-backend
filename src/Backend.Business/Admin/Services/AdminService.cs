@@ -78,52 +78,76 @@ public sealed class AdminService(
     /// <summary>A janela da desistência com reembolso integral: 7 dias do pagamento (Termos, seção 7; art. 49 do CDC).</summary>
     private const int DiasDeDesistencia = 7;
 
-    /// <summary>
-    /// Piso do termo de busca.
-    /// </summary>
-    /// <remarks>
-    /// Duas letras varreriam as duas maiores tabelas do banco a cada tecla digitada e devolveriam a
-    /// lista inteira — que não ajuda quem procura e é um vazamento com outro nome.
-    /// </remarks>
-    private const int MinimoDoTermo = 3;
+    /// <summary>O período do analytics quando a tela não diz qual: os últimos 30 dias, hoje inclusive.</summary>
+    private const int DiasDoPeriodoPadrao = 30;
 
-    /// <summary>Teto de cada lista da busca.</summary>
+    /// <summary>Teto do período do analytics.</summary>
     /// <remarks>
-    /// <c>ponytail:</c> sem paginação. Quem atende refina o termo; lista de vinte é para ler, não
-    /// para percorrer. Paginar quando o suporte passar a procurar por sobrenome comum.
+    /// Um trimestre. O ranking de uso conta pessoas e turmas distintas na maior tabela do banco, e o custo cresce com
+    /// o período: num clone com 3 milhões de eventos, 30 dias levam ~300 ms e um ano, 3,4 s (Sprint 44, critério 6).
+    /// As pílulas da tela vão até 31 dias; prazo mais longo é pergunta para a série mensal.
     /// </remarks>
-    private const int LimiteDaBusca = 20;
+    private const int MaximoDeDiasDoPeriodo = 92;
+
+    /// <summary>Teto da série mensal.</summary>
+    private const int MaximoDeMeses = 24;
 
     private static readonly Erro TurmaNaoEncontrada = Erro.NaoEncontrado("suporte.turma_nao_encontrada", "Turma não encontrada.");
 
     private static readonly Erro ContaNaoEncontrada = Erro.NaoEncontrado("suporte.conta_nao_encontrada", "Conta não encontrada.");
 
-    /// <summary>A janela de "cadastros recentes" do painel.</summary>
-    private const int DiasDeCadastroRecente = 30;
-
     /// <inheritdoc />
-    public async Task<Result<ResumoAdmin>> ObterResumo(CancellationToken ct = default)
+    public async Task<Result<AnalyticsDaPlataforma>> ObterAnalytics(DateOnly? de, DateOnly? ate, CancellationToken ct = default)
     {
-        var agora = DateTime.UtcNow;
+        var fim = ate ?? DataUtils.Hoje();
+        var inicio = de ?? fim.AddDays(1 - DiasDoPeriodoPadrao);
 
-        return Result.Ok(await adminRepository.ObterResumo(agora, agora.AddDays(-DiasDeCadastroRecente), ct));
+        if (inicio > fim)
+            return Erro.Validacao("analytics.periodo_invertido", "O início do período precisa vir antes do fim.", campo: "de");
+
+        if (fim.DayNumber - inicio.DayNumber >= MaximoDeDiasDoPeriodo)
+            return Erro.Validacao(
+                "analytics.periodo_longo",
+                "Escolha um período de até 92 dias. Para prazos mais longos, use a série mensal.",
+                campo: "de"
+            );
+
+        return await adminRepository.ObterAnalyticsDeTodasAsFormaturas(inicio, fim, DateTime.UtcNow, ct);
     }
 
     /// <inheritdoc />
-    public async Task<Result<ResultadoDaBusca>> Buscar(string? termo, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<MesDaPlataforma>>> ObterSerieMensal(int meses, CancellationToken ct = default)
     {
-        var limpo = termo?.Trim() ?? string.Empty;
+        if (meses is < 1 or > MaximoDeMeses)
+            return Erro.Validacao("analytics.meses_invalidos", $"Peça de 1 a {MaximoDeMeses} meses.", campo: "meses");
 
-        if (limpo.Length < MinimoDoTermo)
-            return Result.Ok(new ResultadoDaBusca([], []));
+        var hoje = DataUtils.Hoje();
 
         return Result.Ok(
-            new ResultadoDaBusca(
-                await adminRepository.BuscarTurmasDeTodasAsFormaturas(limpo, LimiteDaBusca, ct),
-                await adminRepository.BuscarUsuariosDeTodasAsFormaturas(limpo, LimiteDaBusca, ct)
-            )
+            await adminRepository.ObterSerieMensalDeTodasAsFormaturas(new DateOnly(hoje.Year, hoje.Month, 1).AddMonths(1 - meses), meses, ct)
         );
     }
+
+    /// <inheritdoc />
+    public async Task<Result<PaginaDe<TurmaNoPainel>>> ListarTurmas(
+        PaginacaoRequest paginacao,
+        FiltroDeTurmasNoPainel filtro,
+        CancellationToken ct = default
+    ) => await adminRepository.ListarTurmasDeTodasAsFormaturas(paginacao.Normalizar(), filtro, ct);
+
+    /// <inheritdoc />
+    public async Task<Result<PaginaDe<ContaNoPainel>>> ListarContas(
+        PaginacaoRequest paginacao,
+        FiltroDeContasNoPainel filtro,
+        CancellationToken ct = default
+    ) => await adminRepository.ListarContasDeTodasAsFormaturas(paginacao.Normalizar(), filtro, DateTime.UtcNow, ct);
+
+    /// <inheritdoc />
+    public async Task<Result<PaginaDe<MembroNoSuporte>>> ListarMembros(
+        Guid formaturaId,
+        PaginacaoRequest paginacao,
+        CancellationToken ct = default
+    ) => await adminRepository.ListarMembrosDeTodasAsFormaturas(formaturaId, paginacao.Normalizar(), ct);
 
     /// <inheritdoc />
     public async Task<Result<TurmaNoSuporte>> ObterTurma(Guid formaturaId, CancellationToken ct = default) =>

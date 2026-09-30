@@ -4,9 +4,6 @@ using Backend.Api.Configuration;
 using Backend.Api.DTOs.Privacidade;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
-using Backend.Business.Legal.Interfaces;
-using Backend.Business.Marketing.Interfaces;
-using Backend.Business.Marketing.Models;
 using Backend.Business.Privacidade.Interfaces;
 using Backend.Business.Privacidade.Models;
 using Mapster;
@@ -18,7 +15,8 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Backend.Api.Controllers.V1.Privacidade;
 
 /// <summary>
-/// O portal do titular: ver o que a Kapa guarda, exportar, revogar consentimento e pedir eliminação.
+/// O portal do titular: ver o que a Kapa guarda, exportar e pedir eliminação. A revogação de consentimento mora
+/// no <c>LegalController</c>, junto do aceite.
 /// </summary>
 /// <remarks>
 /// Tudo aqui é <c>Autenticado</c> e nada aqui é da formatura selecionada — nem a política, nem o
@@ -31,19 +29,12 @@ namespace Backend.Api.Controllers.V1.Privacidade;
 /// </para>
 /// </remarks>
 /// <param name="privacidadeService">O portal.</param>
-/// <param name="legalService">Consentimento, de onde sai a revogação.</param>
-/// <param name="comunicacaoDoKapa">A preferência de marketing do Kapa e o descadastro de um clique.</param>
 /// <param name="usuarioAtual">Quem está fazendo a requisição — é o titular, sempre.</param>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/privacidade")]
 [Authorize(Policy = Politicas.Autenticado)]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class PrivacidadeController(
-    IPrivacidadeService privacidadeService,
-    ILegalService legalService,
-    IComunicacaoDoKapaService comunicacaoDoKapa,
-    IUsuarioAtual usuarioAtual
-) : MainController
+public sealed class PrivacidadeController(IPrivacidadeService privacidadeService, IUsuarioAtual usuarioAtual) : MainController
 {
     /// <summary>Tudo o que a Kapa guarda sobre você, por seção.</summary>
     /// <remarks>
@@ -58,20 +49,6 @@ public sealed class PrivacidadeController(
         Responder((await privacidadeService.MeusDados(usuarioAtual.Id, ct)).Map(dados => dados.Adapt<MeusDadosDTO>()));
 
     /// <summary>
-    /// Pede o pacote com tudo o que a Kapa guarda sobre você, em JSON e CSV.
-    /// </summary>
-    /// <remarks>
-    /// Sempre assíncrono: volta na hora com a solicitação, e o worker gera. Um <c>GET</c> que
-    /// juntasse conta, cadastro, parcelas, adesão e consentimentos de todas as turmas numa
-    /// requisição seria a consulta mais cara da API e a mais fácil de disparar em série.
-    /// <para>Pedido igual já pendente devolve o mesmo, e não um segundo pacote.</para>
-    /// </remarks>
-    [HttpPost("exportacao")]
-    [RegistrarEvento("privacidade.exportacao_solicitada")]
-    [ProducesResponseType(typeof(SolicitacaoDePrivacidadeDTO), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Exportar(CancellationToken ct) => await Solicitar(TipoDeSolicitacao.Exportacao, senha: null, ct);
-
-    /// <summary>
     /// Abre uma solicitação — exportação ou eliminação.
     /// </summary>
     /// <remarks>
@@ -84,7 +61,11 @@ public sealed class PrivacidadeController(
     [RegistrarEvento("privacidade.solicitacao_aberta")]
     [ProducesResponseType(typeof(SolicitacaoDePrivacidadeDTO), StatusCodes.Status200OK)]
     public async Task<IActionResult> Solicitar([FromBody] SolicitarPrivacidadeDTO? requisicao, CancellationToken ct) =>
-        await Solicitar(requisicao?.Tipo ?? TipoDeSolicitacao.Exportacao, requisicao?.Senha, ct);
+        Responder(
+            (await privacidadeService.Solicitar(requisicao?.Tipo ?? TipoDeSolicitacao.Exportacao, usuarioAtual.Id, requisicao?.Senha, ct)).Map(s =>
+                s.Adapt<SolicitacaoDePrivacidadeDTO>()
+            )
+        );
 
     /// <summary>As suas solicitações, da mais recente.</summary>
     [HttpGet("solicitacoes")]
@@ -142,23 +123,6 @@ public sealed class PrivacidadeController(
     }
 
     /// <summary>
-    /// Revoga um consentimento registrado (LGPD, art. 18, IX).
-    /// </summary>
-    /// <remarks>
-    /// Grava uma linha nova; o aceite original fica intacto, porque o banco recusa alterá-lo. Revogar
-    /// o que é obrigatório devolve aquela versão para as pendências, e o aplicativo pede o aceite de
-    /// novo na entrada seguinte — a tela avisa disso antes.
-    /// </remarks>
-    /// <param name="id">Registro de aceite a revogar.</param>
-    [HttpPost("consentimentos/{id:guid}/revogar")]
-    [RegistrarEvento("privacidade.consentimento_revogado", CamposDaRota = ["id"])]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Revogar(Guid id, CancellationToken ct) =>
-        Responder(await legalService.Revogar(usuarioAtual.Id, id, usuarioAtual.Origem, ct));
-
-    /// <summary>
     /// Com quem a Kapa compartilha dado pessoal, e para quê.
     /// </summary>
     /// <remarks>
@@ -170,50 +134,4 @@ public sealed class PrivacidadeController(
     [EnableCors(ApiConfig.Vitrine)]
     [ProducesResponseType(typeof(IReadOnlyList<OperadorDTO>), StatusCodes.Status200OK)]
     public IActionResult Operadores() => Ok(OperadoresDaKapa.Todos.Adapt<IReadOnlyList<OperadorDTO>>());
-
-    /// <summary>
-    /// Liga ou desliga "Receber novidades do Kapa" (Sprint 40).
-    /// </summary>
-    /// <remarks>
-    /// Por conta, e não por turma. Grava uma linha no histórico só quando o valor muda — pedir o que já vale
-    /// responde 204 e não registra nada.
-    /// </remarks>
-    /// <param name="requisicao">O valor novo.</param>
-    [HttpPut("comunicacao-do-kapa")]
-    [RegistrarEvento("privacidade.comunicacao_do_kapa_alterada")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> DefinirComunicacaoDoKapa([FromBody] ComunicacaoDoKapaRequestDTO requisicao, CancellationToken ct) =>
-        Responder(
-            await comunicacaoDoKapa.DefinirPreferencia(
-                usuarioAtual.Id,
-                requisicao.Receber,
-                OrigemDoConsentimentoDeMarketing.MinhaPrivacidade,
-                usuarioAtual.Origem,
-                ct
-            )
-        );
-
-    /// <summary>
-    /// O descadastro de um clique do e-mail de marketing — sem login.
-    /// </summary>
-    /// <remarks>
-    /// Atende os dois caminhos: o <c>POST</c> que o cliente de e-mail faz sozinho pelo <c>List-Unsubscribe-Post</c>
-    /// (RFC 8058, corpo <c>List-Unsubscribe=One-Click</c>, ignorado) e o botão da página do app. O token vem na
-    /// query nos dois.
-    /// <para>
-    /// Responde 204 para token válido, vencido ou adulterado: endpoint anônimo não confirma existência de conta.
-    /// <c>POST</c> e nunca <c>GET</c> — antivírus de e-mail visitam os links, e sair não pode depender de ninguém
-    /// ter aberto a mensagem.
-    /// </para>
-    /// </remarks>
-    /// <param name="token">O token do link.</param>
-    [HttpPost("descadastro")]
-    [AllowAnonymous]
-    [EnableRateLimiting(RateLimitConfig.Webhook)]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> Descadastrar([FromQuery] string? token, CancellationToken ct) =>
-        Responder(await comunicacaoDoKapa.Descadastrar(token, usuarioAtual.Origem, ct));
-
-    private async Task<IActionResult> Solicitar(TipoDeSolicitacao tipo, string? senha, CancellationToken ct) =>
-        Responder((await privacidadeService.Solicitar(tipo, usuarioAtual.Id, senha, ct)).Map(s => s.Adapt<SolicitacaoDePrivacidadeDTO>()));
 }

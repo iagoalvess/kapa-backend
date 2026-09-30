@@ -2,7 +2,6 @@ using System.Text.Json;
 using Backend.Api.Extensions;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 

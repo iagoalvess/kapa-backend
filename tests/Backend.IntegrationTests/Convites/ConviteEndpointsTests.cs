@@ -156,7 +156,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
 
         await using var contexto = fabrica.ContextoDe(null);
         var hash = await contexto.Convites.IgnoreQueryFilters().Where(c => c.Id == criado.Id).Select(c => c.TokenHash).SingleAsync(Ct);
-        hash.ShouldBe(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))));
+        hash.ShouldBe(Hash(token));
         (await contexto.Convites.IgnoreQueryFilters().AnyAsync(c => c.TokenHash == token || c.Token == token, Ct)).ShouldBeFalse();
         (await contexto.EmailsFila.AnyAsync(e => e.Para == "fulano@testes.local" && e.CorpoHtml.Contains(token), Ct)).ShouldBeTrue();
     }
@@ -383,15 +383,27 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
         (await presidente.Cliente.GetFromJsonAsync<List<ConviteResumoDTO>>(Gestao, Json, Ct))!.ShouldBeEmpty();
     }
 
-    private static async Task<ConviteCriadoDTO> Criar(MembroDeTeste membro, CriarConviteRequestDTO pedido)
+    /// <summary>Cria pela API e acha o id pelo hash do token: a resposta da criação só traz o link.</summary>
+    private async Task<CriadoNaApi> Criar(MembroDeTeste membro, CriarConviteRequestDTO pedido)
     {
         var resposta = await membro.Cliente.PostAsJsonAsync(Gestao, pedido, Json, Ct);
         resposta.EnsureSuccessStatusCode();
 
-        return (await resposta.Content.ReadFromJsonAsync<ConviteCriadoDTO>(Json, Ct))!;
+        var link = (await resposta.Content.ReadFromJsonAsync<ConviteCriadoDTO>(Json, Ct))!.Link;
+        var hash = Hash(link.Split('/').Last());
+
+        await using var contexto = fabrica.ContextoDe(null);
+        var id = await contexto.Convites.IgnoreQueryFilters().Where(c => c.TokenHash == hash).Select(c => c.Id).SingleAsync(Ct);
+
+        return new CriadoNaApi(id, link);
     }
 
-    private static string TokenDo(ConviteCriadoDTO criado) => criado.Link.Split('/').Last();
+    private static string TokenDo(CriadoNaApi criado) => criado.Link.Split('/').Last();
+
+    private static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+    /// <summary>O convite criado, com o id que a resposta não traz.</summary>
+    private sealed record CriadoNaApi(Guid Id, string Link);
 
     private static Task<HttpResponseMessage> Aceitar(HttpClient cliente, string token) =>
         cliente.PostAsync($"{Publico}/{token}/aceitar", new StringContent("{}", Encoding.UTF8, "application/json"), Ct);

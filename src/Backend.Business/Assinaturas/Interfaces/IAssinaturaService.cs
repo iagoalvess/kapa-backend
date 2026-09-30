@@ -16,6 +16,10 @@ public interface IAssinaturaService
     /// <summary>Planos contratáveis.</summary>
     Task<Result<IReadOnlyList<PlanoResumo>>> ListarPlanos(CancellationToken ct = default);
 
+    /// <summary>O plano que vale para a turma agora — o gratuito, se ela não tem plano pago em vigor.</summary>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    Task<Result<PlanoDaTurma>> ObterPlanoDaTurma(Guid formaturaId, CancellationToken ct = default);
+
     /// <summary>A assinatura mais recente da formatura da sessão.</summary>
     Task<Result<AssinaturaDetalhe>> ObterAtual(CancellationToken ct = default);
 

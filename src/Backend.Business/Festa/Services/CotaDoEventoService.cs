@@ -6,7 +6,6 @@ using Backend.Business.Eventos.Models;
 using Backend.Business.Eventos.Services;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
-using Backend.Business.Formaturas.Interfaces;
 using FluentValidation;
 
 namespace Backend.Business.Festa.Services;

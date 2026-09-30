@@ -67,7 +67,8 @@ public sealed class PendenciasDaTurmaRepository(AppDbContext db) : IPendenciasDa
                 db.PedidosDeCancelamento.Count(p => p.Status == StatusDoPedidoDeCancelamento.Aberto),
                 db.CobrancasBancarias.Count(c =>
                     c.Status == StatusDaCobrancaBancaria.Emitindo || (c.Status == StatusDaCobrancaBancaria.Emitida && c.ExpiraEm > agora)
-                )
+                ),
+                db.ValoresADevolver.Count(v => v.Status == StatusDoValorADevolver.ADevolver)
             ))
             .FirstAsync(ct);
 }

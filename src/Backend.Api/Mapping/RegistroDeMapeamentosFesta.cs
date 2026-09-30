@@ -28,8 +28,7 @@ public sealed class RegistroDeMapeamentosFesta : IRegister
                 evento.Local,
                 evento.Completo,
                 evento.FechamentoEmUtc,
-                evento.JanelaAbreEmUtc,
-                evento.JanelaFechaEmUtc
+                evento.JanelaAbreEmUtc
             ));
         config.NewConfig<ConvitePublico, ConvitePublicoDTO>();
         config.NewConfig<MeuConvite, MeuConviteDTO>();

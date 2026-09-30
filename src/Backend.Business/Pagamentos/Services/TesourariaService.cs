@@ -7,10 +7,12 @@ using Backend.Business.Cobrancas.Models;
 using Backend.Business.Cobrancas.Services;
 using Backend.Business.Common.Datas;
 using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Eventos.Models;
 using Backend.Business.Eventos.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Pagamentos.Interfaces;
 using Backend.Business.Pagamentos.Models;
+using Backend.Business.Recebimentos.Interfaces;
 using Backend.Business.Recebimentos.Models;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
@@ -18,8 +20,8 @@ using Microsoft.Extensions.Logging;
 namespace Backend.Business.Pagamentos.Services;
 
 /// <summary>
-/// O lado da tesouraria no caminho do dinheiro: conferência em lote, recusa, baixa manual, estorno e
-/// divergências.
+/// O lado da tesouraria no caminho do dinheiro: conferência em lote, recusa, baixa manual, estorno,
+/// cancelamento avulso e divergências.
 /// </summary>
 /// <remarks>
 /// Toda baixa passa por <see cref="BaixaService"/>, dentro de uma transação que trava a parcela antes de
@@ -38,6 +40,11 @@ namespace Backend.Business.Pagamentos.Services;
 /// <param name="loteValidator">Forma do lote.</param>
 /// <param name="recusaValidator">Forma da recusa.</param>
 /// <param name="estornoValidator">Forma do estorno.</param>
+/// <param name="cancelamentoValidator">Forma do cancelamento avulso.</param>
+/// <param name="provedor">A cobrança do Mercado Pago da baixa estornada à mão.</param>
+/// <param name="estornoDaCobranca">O acréscimo e a cobrança, desfeitos com a última baixa dela (Sprint 42, decisão 4).</param>
+/// <param name="valoresADevolver">O parcial da parcela cancelada (Sprint 42, decisão 3).</param>
+/// <param name="eventos">Auditoria do cancelamento.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class TesourariaService(
@@ -53,13 +60,15 @@ public sealed class TesourariaService(
     IValidator<ConfirmarInformes> loteValidator,
     IValidator<RecusarInforme> recusaValidator,
     IValidator<EstornarBaixa> estornoValidator,
+    IValidator<CancelarParcela> cancelamentoValidator,
+    IProvedorDaTurmaRepository provedor,
+    EstornoDaCobranca estornoDaCobranca,
+    ValoresADevolver valoresADevolver,
+    IEventoRepository eventos,
     IUnitOfWork unitOfWork,
     ILogger<TesourariaService> logger
 ) : ITesourariaService
 {
-    /// <summary>Evento do estorno, com a justificativa — a segunda linha da auditoria, ao lado da baixa.</summary>
-    public const string EventoDeEstorno = BaixaService.EventoDeEstorno;
-
     private static readonly Erro InformeNaoEncontrado = Erro.NaoEncontrado("pagamento.informe_nao_encontrado", "Aviso de pagamento não encontrado.");
 
     /// <inheritdoc />
@@ -354,6 +363,13 @@ public sealed class TesourariaService(
     /// O formando é avisado por e-mail, com a justificativa: a parcela dele volta a ser devida, e
     /// descobrir isso sozinho no extrato é o que vira ligação para a comissão.
     /// </para>
+    /// <para>
+    /// Baixa do Mercado Pago também estorna (Sprint 42, decisão 4): é o fluxo manual de quando a comissão devolveu pelo
+    /// painel dele. O Kapa não devolve dinheiro — só desfaz o registro. Sem outra baixa ativa da mesma cobrança, ela
+    /// passa a <c>Estornada</c> e o acréscimo do cartão sai do caixa, como no estorno que o aviso do Mercado Pago faz;
+    /// o aviso que chegar depois não acha o que desfazer. A cobrança é travada <b>antes</b> da parcela, na mesma ordem
+    /// do aviso, para os dois não se esperarem em círculo.
+    /// </para>
     /// </remarks>
     public async Task<Result<ParcelaResumo>> Estornar(
         Guid formaturaId,
@@ -369,10 +385,13 @@ public sealed class TesourariaService(
             return Result.Falha<ParcelaResumo>(validacao.Erros);
 
         var nomeDaTurma = await NomeDaTurma(formaturaId, ct);
+        var cobrancaId = await recebimentoRepository.ObterCobrancaDaBaixaAtiva(parcelaId, ct);
 
         var estorno = await unitOfWork.EmTransacaoAsync(
             async token =>
             {
+                var cobranca = cobrancaId is { } id ? await provedor.TravarCobranca(id, token) : null;
+
                 var parcela = (await parcelaRepository.TravarParaBaixa([parcelaId], token)).SingleOrDefault();
                 if (parcela is null)
                     return Result.Falha(ErrosDePagamento.ParcelaNaoEncontrada);
@@ -383,7 +402,7 @@ public sealed class TesourariaService(
 
                 var enderecos = await vinculoRepository.ListarEmailsDosVinculos([parcela.VinculoId], token);
 
-                return await baixaService.Estornar(
+                var estornado = await baixaService.Estornar(
                     parcela,
                     recebimento,
                     usuarioId,
@@ -392,6 +411,16 @@ public sealed class TesourariaService(
                     new ContextoDaBaixa(formaturaId, nomeDaTurma, RegrasDeAtraso.Nenhuma, enderecos.GetValueOrDefault(parcela.VinculoId)),
                     token
                 );
+
+                if (
+                    estornado.Sucesso
+                    && cobranca is { Status: StatusDaCobrancaBancaria.Paga }
+                    && recebimento.CobrancaId == cobranca.Id
+                    && !await recebimentoRepository.ExisteOutroAtivoDaCobranca(cobranca.Id, recebimento.Id, token)
+                )
+                    await estornoDaCobranca.Desfazer(cobranca, MotivoDoEstornoAMao, token);
+
+                return estornado;
             },
             ct
         );
@@ -400,6 +429,84 @@ public sealed class TesourariaService(
             return Result.Falha<ParcelaResumo>(estorno.Erros);
 
         logger.LogWarning("Baixa da parcela {ParcelaId} estornada por {UsuarioId}.", parcelaId, usuarioId);
+
+        return await Reler(parcelaId, ct);
+    }
+
+    /// <summary>O motivo que vai na descrição do estorno do acréscimo quando o Presidente desfaz a baixa do Mercado Pago.</summary>
+    public const string MotivoDoEstornoAMao = "estornado à mão";
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Aberta ou vencida cancela; paga não — o dinheiro entrou, e o caminho é estornar a baixa antes. Aviso pendente
+    /// também barra, como na baixa manual: cancelar deixaria na fila um aviso sobre uma parcela que não se deve mais.
+    /// O que já tinha entrado nela vai para a lista "a devolver" (decisão 3), na mesma transação.
+    /// <para>
+    /// Renegociar é cancelar e lançar outra avulsa (decisão 8): o status <c>Renegociada</c> continua sem uso.
+    /// </para>
+    /// </remarks>
+    public async Task<Result<ParcelaResumo>> Cancelar(
+        Guid formaturaId,
+        Guid usuarioId,
+        Guid parcelaId,
+        CancelarParcela dados,
+        CancellationToken ct = default
+    )
+    {
+        var validacao = cancelamentoValidator.Validar(dados);
+        if (validacao.Falhou)
+            return Result.Falha<ParcelaResumo>(validacao.Erros);
+
+        var cancelada = await unitOfWork.EmTransacaoAsync(
+            async token =>
+            {
+                var parcela = (await parcelaRepository.TravarParaBaixa([parcelaId], token)).SingleOrDefault();
+                if (parcela is null)
+                    return Result.Falha(ErrosDePagamento.ParcelaNaoEncontrada);
+
+                if (parcela.Status == StatusDaParcela.Paga)
+                    return Result.Falha(Erro.Conflito("pagamento.parcela_paga", "Esta parcela já está paga. Estorne a baixa antes de cancelar."));
+
+                if (await informeRepository.ExistePendente([parcelaId], token))
+                    return Result.Falha(
+                        Erro.Conflito(
+                            "pagamento.informe_pendente",
+                            "O formando já avisou o pagamento desta parcela. Confirme ou recuse o aviso na Conferência."
+                        )
+                    );
+
+                if (!parcela.Cancelar(DataUtils.Hoje(), incluirVencidas: true))
+                    return Result.Falha(ErrosDePagamento.ParcelaNaoAberta);
+
+                var aDevolver = await valoresADevolver.RegistrarParciais([parcela], token);
+
+                await eventos.Auditar(
+                    NomesDeAuditoria.ParcelaCancelada,
+                    usuarioId,
+                    new
+                    {
+                        formaturaId,
+                        parcelaId,
+                        parcela.VinculoId,
+                        parcela.ItemDeCobrancaId,
+                        parcela.Numero,
+                        parcela.Vencimento,
+                        valorOriginalEmCentavos = parcela.ValorOriginalEmCentavos,
+                        aDevolverEmCentavos = aDevolver,
+                        justificativa = dados.Justificativa.Trim(),
+                    },
+                    token
+                );
+
+                return Result.Ok();
+            },
+            ct
+        );
+
+        if (cancelada.Falhou)
+            return Result.Falha<ParcelaResumo>(cancelada.Erros);
+
+        logger.LogWarning("Parcela {ParcelaId} cancelada à mão por {UsuarioId}.", parcelaId, usuarioId);
 
         return await Reler(parcelaId, ct);
     }

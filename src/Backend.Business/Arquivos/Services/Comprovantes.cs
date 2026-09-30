@@ -54,7 +54,7 @@ public static class Comprovantes
         Guid arquivoId,
         Guid enviadoPorUsuarioId,
         CancellationToken ct = default
-    ) => arquivoService.Baixar(arquivoId, new SolicitanteDeArquivo(enviadoPorUsuarioId, EhAdministrador: false), ct);
+    ) => arquivoService.Baixar(arquivoId, new SolicitanteDeArquivo(enviadoPorUsuarioId, PeloSistema: false), ct);
 
     /// <summary>Apaga o comprovante já gravado quando a operação que ele sustentava não aconteceu.</summary>
     /// <remarks>
@@ -73,6 +73,6 @@ public static class Comprovantes
     )
     {
         if (arquivoId is { } id)
-            await arquivoService.Remover(id, new SolicitanteDeArquivo(enviadoPorUsuarioId, EhAdministrador: false), ct);
+            await arquivoService.Remover(id, new SolicitanteDeArquivo(enviadoPorUsuarioId, PeloSistema: false), ct);
     }
 }

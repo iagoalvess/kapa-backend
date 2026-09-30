@@ -1,4 +1,3 @@
-using System.Globalization;
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Models;
@@ -33,7 +32,6 @@ namespace Backend.Business.Pagamentos.Services;
 /// </remarks>
 /// <param name="parcelaRepository">Parcelas e regras aceitas.</param>
 /// <param name="informeRepository">Avisos de pagamento.</param>
-/// <param name="recebimentoRepository">Baixas, de onde sai o recibo.</param>
 /// <param name="contaRepository">Os meios de recebimento da comissão.</param>
 /// <param name="perfilRepository">Quem pede, e com que papel.</param>
 /// <param name="arquivoService">Comprovantes.</param>
@@ -46,7 +44,6 @@ namespace Backend.Business.Pagamentos.Services;
 public sealed class PagamentoService(
     IParcelaRepository parcelaRepository,
     IInformeRepository informeRepository,
-    IRecebimentoRepository recebimentoRepository,
     IContaDeRecebimentoRepository contaRepository,
     IPerfilRepository perfilRepository,
     IArquivoService arquivoService,
@@ -459,43 +456,6 @@ public sealed class PagamentoService(
         logger.LogInformation("{Quantidade} parcelas informadas de uma vez pelo vínculo {VinculoId}.", parcelas.Count, parcelas[0].VinculoId);
 
         return gravados;
-    }
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// O titular é o da conta como estava no dia do pagamento, lido da trilha de auditoria (P2 da
-    /// Sprint 22): a conta de hoje pode ser outra, e o recibo não muda com uma troca de chave. O
-    /// instante é o fim do dia do pagamento, ou a baixa se veio antes — a troca feita depois de o
-    /// dinheiro entrar não é a conta que o recebeu. Sem evento até lá (conta anterior à auditoria, ou
-    /// além da retenção), vale a conta atual.
-    /// </remarks>
-    public async Task<Result<ArquivoParaDownload>> ObterRecibo(Guid formaturaId, Guid usuarioId, Guid recebimentoId, CancellationToken ct = default)
-    {
-        var recibo = await recebimentoRepository.ObterParaRecibo(recebimentoId, DataUtils.Hoje(), ct);
-        var titular = await perfilRepository.ObterTitular(formaturaId, usuarioId, ct);
-
-        if (recibo is null || titular is null)
-            return ErrosDePagamento.RecebimentoNaoEncontrado;
-
-        var proprio = recibo.Parcela.VinculoId == titular.VinculoId;
-
-        if (
-            !proprio
-            && !(await perfilRepository.ObterMembro(formaturaId, usuarioId, ct) is { } membro && PapelNaFormatura.Gestao.Contains(membro.Papel))
-        )
-            return ErrosDePagamento.RecebimentoNaoEncontrado;
-
-        if (recibo.Estornado)
-            return ErrosDePagamento.RecebimentoEstornado;
-
-        var instante = new[] { recibo.BaixadoEm, DataUtils.FimDoDiaEmUtc(recibo.PagoEm) }.Min();
-        var meios = await contaRepository.ObterMeiosVigentesEm(formaturaId, instante, ct) ?? (await contaRepository.ObterDetalhe(ct))?.Meios;
-
-        return new ArquivoParaDownload(
-            new MemoryStream(ReciboEmPdf.Gerar(recibo, meios, mascararCpf: !proprio)),
-            $"recibo-{recibo.PagoEm.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.pdf",
-            "application/pdf"
-        );
     }
 
     /// <summary>

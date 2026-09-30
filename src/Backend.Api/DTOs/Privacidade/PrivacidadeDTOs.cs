@@ -149,10 +149,6 @@ public sealed record RegistroDaComunicacaoDoKapaDTO(bool Aceito, string Origem, 
 /// <param name="EnviadoEm">Quando, em UTC.</param>
 public sealed record EnvioDoKapaDTO(string Jornada, string Formatura, DateTime EnviadoEm);
 
-/// <summary>Liga ou desliga "Receber novidades do Kapa".</summary>
-/// <param name="Receber">O valor novo.</param>
-public sealed record ComunicacaoDoKapaRequestDTO(bool Receber);
-
 /// <summary>Uma preferência de notificação.</summary>
 /// <param name="FormaturaId">Turma.</param>
 /// <param name="Tipo">Tipo de notificação.</param>
@@ -185,8 +181,8 @@ public sealed record SolicitacaoDePrivacidadeDTO(
 
 /// <summary>Corpo do pedido de solicitação.</summary>
 /// <remarks>
-/// Anulável porque o corpo inteiro pode não vir: <c>POST /privacidade/exportacao</c> não tem nada a
-/// dizer, e obrigar um <c>{}</c> ali seria burocracia de contrato.
+/// Anulável porque o corpo inteiro pode não vir: sem corpo, a solicitação é de exportação, que não tem
+/// nada a dizer, e obrigar um <c>{}</c> ali seria burocracia de contrato.
 /// </remarks>
 /// <param name="Tipo">O que pedir. Ausente, exportação.</param>
 /// <param name="Senha">

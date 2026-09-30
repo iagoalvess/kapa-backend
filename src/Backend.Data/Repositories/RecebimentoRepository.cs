@@ -21,6 +21,41 @@ public sealed class RecebimentoRepository(AppDbContext db) : IRecebimentoReposit
             .FirstOrDefaultAsync(ct);
 
     /// <inheritdoc />
+    public async Task<Recebimento?> ObterAtivoDaCobrancaParaEdicao(
+        Guid parcelaId,
+        Guid cobrancaId,
+        FormaDePagamento forma,
+        CancellationToken ct = default
+    )
+    {
+        if (await db.Recebimentos.AnyAsync(r => r.CobrancaId == cobrancaId, ct))
+            return await db.Recebimentos.FirstOrDefaultAsync(
+                r => r.ParcelaId == parcelaId && r.CobrancaId == cobrancaId && r.EstornadoEm == null,
+                ct
+            );
+
+        return await db
+            .Recebimentos.Where(r => r.ParcelaId == parcelaId && r.CobrancaId == null && r.Forma == forma && r.EstornadoEm == null)
+            .OrderByDescending(r => r.BaixadoEm)
+            .ThenByDescending(r => r.Id)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ExisteOutroAtivoDaCobranca(Guid cobrancaId, Guid recebimentoId, CancellationToken ct = default) =>
+        db.Recebimentos.AnyAsync(r => r.CobrancaId == cobrancaId && r.Id != recebimentoId && r.EstornadoEm == null, ct);
+
+    /// <inheritdoc />
+    public Task<Guid?> ObterCobrancaDaBaixaAtiva(Guid parcelaId, CancellationToken ct = default) =>
+        db
+            .Recebimentos.AsNoTracking()
+            .Where(r => r.ParcelaId == parcelaId && r.EstornadoEm == null)
+            .OrderByDescending(r => r.BaixadoEm)
+            .ThenByDescending(r => r.Id)
+            .Select(r => r.CobrancaId)
+            .FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
     /// <remarks>
     /// Das baixas mais recentes; o nome de quem baixou é o da conta — é a comissão, não o formando.
     /// <para>

@@ -543,7 +543,7 @@ public sealed class ConviteServiceTests
     /// <param name="status">Status da turma.</param>
     /// <param name="jaContratou">Se a turma já contratou algum plano.</param>
     private static FormaturaDetalhe Formatura(StatusDaFormatura status, bool jaContratou = true) =>
-        new(FormaturaId, "Medicina 2027.1", "UFPR", "Medicina", 2027, 1, null, null, status, DateTime.UtcNow, null, null, jaContratou);
+        new(FormaturaId, "Medicina 2027.1", "UFPR", "Medicina", 2027, 1, null, null, status, null, jaContratou);
 
     private static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }

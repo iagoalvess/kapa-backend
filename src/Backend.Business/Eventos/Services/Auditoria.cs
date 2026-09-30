@@ -56,9 +56,9 @@ public static class Auditoria
     /// </remarks>
     /// <param name="eventos">Repositório de eventos.</param>
     /// <param name="nome">Nome estável, <c>recurso.acao</c>. Use uma constante de <see cref="NomesDeAuditoria"/>.</param>
-    /// <param name="usuarioId">Autor.</param>
+    /// <param name="usuarioId">Autor; nulo quando foi o sistema — a retenção que encerra a turma abandonada.</param>
     /// <param name="dados">O que aconteceu — com a <c>formaturaId</c>, quando houver turma.</param>
-    public static Task Auditar(this IEventoRepository eventos, string nome, Guid usuarioId, object dados, CancellationToken ct = default)
+    public static Task Auditar(this IEventoRepository eventos, string nome, Guid? usuarioId, object dados, CancellationToken ct = default)
     {
         var corpo = JsonSerializer.SerializeToElement(dados, Json);
 

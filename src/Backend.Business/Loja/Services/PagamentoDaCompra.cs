@@ -124,7 +124,7 @@ public sealed class PagamentoDaCompra(
     /// de novo (decisão 7).
     /// </summary>
     /// <remarks>
-    /// Quem chama consulta o Mercado Pago <b>antes</b> (decisão 9): a compra paga cujo aviso se perdeu é
+    /// Quem chama — a <see cref="ExpiracaoDaCompra"/> — consulta o Mercado Pago <b>antes</b> (decisão 9): a compra paga cujo aviso se perdeu é
     /// confirmada pela conciliação, e aqui chega já paga — o <c>UPDATE</c> não a acha pendente.
     /// </remarks>
     /// <param name="compraId">A compra.</param>

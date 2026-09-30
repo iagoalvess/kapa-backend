@@ -3,6 +3,7 @@ using Backend.Api.Configuration;
 using Backend.Api.DTOs.Festa;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Mapster;
@@ -22,6 +23,7 @@ namespace Backend.Api.Controllers.V1.Festa;
 /// <param name="cota">Regras da cota.</param>
 /// <param name="usuarioAtual">Quem abre, para a auditoria.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Festa)]
 [Route("api/v{version:apiVersion}/festa/colacao/cota")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 [Authorize(Policy = Politicas.Gestao)]

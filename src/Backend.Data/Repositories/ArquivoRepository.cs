@@ -1,4 +1,3 @@
-using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Models;
 using Backend.Data.Context;

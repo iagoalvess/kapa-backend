@@ -3,11 +3,12 @@ using Backend.Business.Abstractions;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.MercadoPago.Interfaces;
 using Backend.Business.MercadoPago.Settings;
+using Backend.Business.Pagamentos.Services;
 using Backend.Business.Recebimentos.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Backend.Business.Pagamentos.Services;
+namespace Backend.Business.MercadoPago.Services;
 
 /// <summary>
 /// O recebedor único dos avisos do Mercado Pago (webhook): confere a assinatura e encaminha — o que é da conta
@@ -45,15 +46,9 @@ public sealed class AvisoDoMercadoPago(
     IAvisosDaContaDoKapa contaDoKapa,
     IOptions<MercadoPagoSettings> options,
     ILogger<AvisoDoMercadoPago> logger
-)
+) : IAvisoDoMercadoPago
 {
-    /// <summary>Recebe um aviso.</summary>
-    /// <param name="assinatura">Cabeçalho <c>x-signature</c>.</param>
-    /// <param name="idDaRequisicao">Cabeçalho <c>x-request-id</c>.</param>
-    /// <param name="idDoRecurso">Parâmetro <c>data.id</c> — o id do pedido.</param>
-    /// <param name="tipo">Parâmetro <c>type</c>; da turma, só <c>order</c> interessa.</param>
-    /// <param name="corpo">O corpo cru, de onde sai o <c>user_id</c>.</param>
-    /// <param name="ct">Token de cancelamento.</param>
+    /// <inheritdoc />
     public async Task<Result> Receber(
         string? assinatura,
         string? idDaRequisicao,

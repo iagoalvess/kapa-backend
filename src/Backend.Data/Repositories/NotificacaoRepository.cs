@@ -194,7 +194,8 @@ public sealed class NotificacaoRepository(AppDbContext db) : INotificacaoReposit
             linha.Email,
             linha.Parcela.Vencimento,
             linha.Parcela.ValorOriginalEmCentavos,
-            linha.Descricao
+            linha.Descricao,
+            linha.Parcela.ValorPagoEmCentavos ?? 0
         ));
 
     /// <summary>A notificação com o degrau de origem e o nome de quem recebeu.</summary>

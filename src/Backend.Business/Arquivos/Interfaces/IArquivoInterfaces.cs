@@ -82,11 +82,6 @@ public interface IArquivoService
     /// <param name="objeto">O que veio na query string.</param>
     Task<Result<ArquivoParaDownload>> AbrirPorUrlTemporaria(ObjetoTemporario objeto, CancellationToken ct = default);
 
-    /// <summary>Obtém os metadados de um arquivo.</summary>
-    /// <param name="id">Identificador do arquivo.</param>
-    /// <param name="solicitante">Quem está pedindo.</param>
-    Task<Result<ArquivoResumo>> ObterPorId(Guid id, SolicitanteDeArquivo solicitante, CancellationToken ct = default);
-
     /// <summary>Remove um arquivo e o objeto correspondente no provedor.</summary>
     /// <param name="id">Identificador do arquivo.</param>
     /// <param name="solicitante">Quem está pedindo.</param>
@@ -97,13 +92,19 @@ public interface IArquivoService
 /// Quem está pedindo a operação.
 /// </summary>
 /// <remarks>
-/// A regra padrão é simples de propósito: **cada um enxerga os próprios arquivos, e o
-/// administrador enxerga todos.** Regra além disso — anexo visível para toda a equipe do pedido,
-/// documento restrito por filial — depende do domínio e entra no service do projeto.
+/// A regra padrão é simples de propósito: **cada um enxerga os próprios arquivos.** Regra além disso —
+/// anexo visível para toda a equipe do pedido, documento restrito por filial — depende do domínio e entra
+/// no service do projeto.
+/// <para>
+/// Nenhum perfil vê o arquivo de outra pessoa pela API: até a Sprint 44 o administrador via, e deixou de
+/// ver com a D4 — ele é perfil de plataforma, e foto e comprovante são dado pessoal que o painel não usa.
+/// Quem age sobre arquivo alheio é só o próprio sistema, fora de uma requisição de usuário: a anonimização
+/// e o processamento dos pedidos da LGPD.
+/// </para>
 /// </remarks>
-/// <param name="Id">Identificador do usuário autenticado.</param>
-/// <param name="EhAdministrador">Se o usuário tem o perfil de administrador.</param>
-public readonly record struct SolicitanteDeArquivo(Guid Id, bool EhAdministrador);
+/// <param name="Id">Identificador de quem pede, ou do titular em nome de quem o sistema age.</param>
+/// <param name="PeloSistema">Operação interna do sistema, que alcança arquivo de qualquer titular. Nunca vem de uma requisição HTTP.</param>
+public readonly record struct SolicitanteDeArquivo(Guid Id, bool PeloSistema);
 
 /// <summary>
 /// Acesso aos metadados dos arquivos.

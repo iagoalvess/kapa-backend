@@ -67,6 +67,8 @@ namespace Backend.Business.Pagamentos.Services;
 /// <param name="despesas">A tarifa do Mercado Pago no caixa (P6).</param>
 /// <param name="receitas">A taxa do cartão repassada a quem pagou (P2).</param>
 /// <param name="avisos">O aviso da devolução à comissão (P4).</param>
+/// <param name="valoresADevolver">O pago sem parcela, que vira pendência da tesouraria (Sprint 42, decisão 9).</param>
+/// <param name="estornoDaCobranca">O acréscimo e a cobrança, desfeitos junto com as baixas.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class BaixaAutomatica(
@@ -83,11 +85,16 @@ public sealed class BaixaAutomatica(
     IDespesaRepository despesas,
     IOutraReceitaRepository receitas,
     EmailsDePagamento avisos,
+    ValoresADevolver valoresADevolver,
+    EstornoDaCobranca estornoDaCobranca,
     IUnitOfWork unitOfWork,
     ILogger<BaixaAutomatica> logger
 )
 {
-    /// <summary>Pagamento que o Mercado Pago confirmou e não achou parcela aberta para baixar — pendência da tesouraria.</summary>
+    /// <summary>
+    /// Pagamento que o Mercado Pago confirmou e não achou parcela aberta para baixar, no todo ou em parte — vai para a
+    /// lista "a devolver" da tesouraria (Sprint 42, decisão 9), e o evento fica como trilha.
+    /// </summary>
     public const string EventoDePagoSemParcela = "pagamento.pago_sem_parcela";
 
     /// <summary>A cobrança paga voltou ao pagador e o Kapa desfez o que ela pagou (Sprint 39, P4).</summary>
@@ -197,7 +204,7 @@ public sealed class BaixaAutomatica(
     /// </summary>
     private async Task LancarNoCaixa(CobrancaBancaria cobranca, long tarifaEmCentavos, DateOnly pagoEm, CancellationToken ct)
     {
-        var referencia = Referencia(cobranca);
+        var referencia = cobranca.Referencia;
 
         if (tarifaEmCentavos > 0)
             await despesas.Adicionar([Despesa.TarifaDoMercadoPago($"Tarifas do Mercado Pago — {referencia}", tarifaEmCentavos, pagoEm)], ct);
@@ -220,19 +227,13 @@ public sealed class BaixaAutomatica(
     }
 
     /// <summary>
-    /// Como o caixa nomeia a cobrança nos lançamentos dela: o meio e o fim do id. As descrições são únicas por turma e
-    /// dia, e é o id que separa dois pagamentos no mesmo dia.
-    /// </summary>
-    private static string Referencia(CobrancaBancaria cobranca) =>
-        $"{MeiosDePagamento.Rotulo(cobranca.Meio)} {cobranca.Id.ToString("N")[^8..].ToUpperInvariant()}";
-
-    /// <summary>
     /// A cobrança paga voltou ao pagador (P4): desfaz o que ela pagou, sob a trava da cobrança — aviso e
     /// conciliação juntos desfazem uma vez —, e avisa a comissão.
     /// </summary>
     /// <remarks>
-    /// Nas parcelas, estorna a baixa ativa de cada uma que ainda está com a forma desta cobrança — a baixa manual
-    /// que a tesouraria fez depois não é desta cobrança, e fica. Na loja, cancela a compra pelo caminho da Sprint 38,
+    /// Nas parcelas, estorna a baixa que esta cobrança fez em cada uma (Sprint 42, F3) — a baixa manual que a
+    /// tesouraria fez depois não é desta cobrança, e fica; o pago sem parcela dela sai da lista da tesouraria, porque o
+    /// dinheiro já voltou. Na loja, cancela a compra pelo caminho da Sprint 38,
     /// sem lista a devolver: o dinheiro já voltou. O acréscimo repassado volta junto — o pagador recebeu tudo —, e a
     /// tarifa lançada fica: o Mercado Pago não a devolve na contestação.
     /// </remarks>
@@ -256,19 +257,8 @@ public sealed class BaixaAutomatica(
                 if (desfeito.Falhou)
                     return Result.Falha<bool>(desfeito.Erros);
 
-                if (cobranca.ReceitaDoAcrescimoId is { } receitaDoAcrescimo)
-                    await receitas.Adicionar(
-                        OutraReceita.Estorno(
-                            receitaDoAcrescimo,
-                            $"Estorno da taxa do cartão — {Referencia(cobranca)} ({motivo})",
-                            cobranca.AcrescimoEmCentavos,
-                            DataUtils.Hoje(),
-                            CategoriaDeOutraReceita.Outros
-                        ),
-                        token
-                    );
-
-                cobranca.Estornada();
+                await valoresADevolver.FecharDaCobranca(cobranca.Id, motivo, token);
+                await estornoDaCobranca.Desfazer(cobranca, motivo, token);
 
                 foreach (var email in await vinculoRepository.ListarEmailsDaComissao(cobranca.FormaturaId, token))
                     await avisos.DevolvidoNoMercadoPago(email, nomeDaTurma, motivo, cobranca.ValorEmCentavos, desfeito.Valor, token);
@@ -314,7 +304,7 @@ public sealed class BaixaAutomatica(
 
         foreach (var parcela in parcelas)
         {
-            if (await recebimentoRepository.ObterAtivoParaEdicao(parcela.Id, ct) is not { } recebimento || recebimento.Forma != forma)
+            if (await recebimentoRepository.ObterAtivoDaCobrancaParaEdicao(parcela.Id, cobranca.Id, forma, ct) is not { } recebimento)
                 continue;
 
             var estorno = await baixaService.Estornar(
@@ -409,6 +399,8 @@ public sealed class BaixaAutomatica(
 
                 var forma = FormasDePagamento.Da(cobranca.Meio);
                 var aDistribuir = pedido.ValorPagoEmCentavos;
+                var semParcela = 0L;
+                Parcela? primeiraSemBaixa = null;
                 var baixadas = 0;
 
                 foreach (var (parcela, ultima) in parcelas.Select((p, i) => (p, i == parcelas.Count - 1)))
@@ -419,7 +411,7 @@ public sealed class BaixaAutomatica(
 
                     var baixou = await baixaService.Baixar(
                         parcela,
-                        new DadosDaBaixa(forma, pagoEm, cabe, null, usuarioId, null, DateTime.UtcNow),
+                        new DadosDaBaixa(forma, pagoEm, cabe, null, usuarioId, null, DateTime.UtcNow, cobranca.Id),
                         informes.FirstOrDefault(informe => informe.ParcelaId == parcela.Id),
                         new ContextoDaBaixa(formaturaId, nomeDaTurma, regrasDoFormando, emails.GetValueOrDefault(parcela.VinculoId)),
                         token
@@ -428,15 +420,26 @@ public sealed class BaixaAutomatica(
                     if (baixou.Falhou)
                         return Result.Falha<bool>(baixou.Erros);
 
-                    baixadas += baixou.Valor ? 1 : 0;
+                    if (baixou.Valor)
+                    {
+                        baixadas++;
+                        continue;
+                    }
+
+                    semParcela += cabe;
+                    primeiraSemBaixa ??= parcela;
                 }
 
                 cobranca.Paga();
                 await LancarNoCaixa(cobranca, tarifaEmCentavos, pagoEm, token);
 
-                if (baixadas == 0)
+                if (semParcela > 0 || parcelas.Count == 0)
                 {
-                    logger.LogError("Cobrança {CobrancaId} paga sem parcela aberta para baixar; fica para a tesouraria.", cobrancaId);
+                    logger.LogError("Cobrança {CobrancaId} paga com parte sem parcela aberta para baixar; fica para a tesouraria.", cobrancaId);
+
+                    if (primeiraSemBaixa is not null)
+                        await valoresADevolver.RegistrarPagoSemParcela(primeiraSemBaixa, cobranca.Id, semParcela, token);
+
                     await eventos.Auditar(
                         EventoDePagoSemParcela,
                         usuarioId,
@@ -444,7 +447,7 @@ public sealed class BaixaAutomatica(
                         {
                             formaturaId,
                             cobrancaId,
-                            valorEmCentavos = pedido.ValorPagoEmCentavos,
+                            valorEmCentavos = parcelas.Count == 0 ? pedido.ValorPagoEmCentavos : semParcela,
                             pagoEm,
                         },
                         token

@@ -2,11 +2,6 @@ using Backend.Business.Recebimentos.Models;
 
 namespace Backend.Business.Recebimentos.Interfaces;
 
-/// <summary>Uma cobrança que a conciliação precisa consultar, e de qual turma ela é.</summary>
-/// <param name="CobrancaId">Cobrança.</param>
-/// <param name="FormaturaId">Turma, para o job apontar o escopo.</param>
-public sealed record CobrancaAConciliar(Guid CobrancaId, Guid FormaturaId);
-
 /// <summary>
 /// O Mercado Pago da turma: a autorização (credencial) e as cobranças emitidas com ela.
 /// </summary>

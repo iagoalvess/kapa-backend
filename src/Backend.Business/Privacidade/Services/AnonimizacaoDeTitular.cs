@@ -1,6 +1,5 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Interfaces;
-using Backend.Business.Arquivos.Models;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
 using Backend.Business.Eventos.Services;
@@ -136,7 +135,7 @@ public sealed class AnonimizacaoDeTitular(
             if (perfil.Anonimizar() is not { } foto)
                 continue;
 
-            var remocao = await arquivoService.Remover(foto, new SolicitanteDeArquivo(usuarioId, EhAdministrador: true), ct);
+            var remocao = await arquivoService.Remover(foto, new SolicitanteDeArquivo(usuarioId, PeloSistema: true), ct);
 
             if (remocao.Falhou)
                 logger.LogWarning("Foto {ArquivoId} do titular {UsuarioId} não foi apagada: {Codigo}.", foto, usuarioId, remocao.PrimeiroErro.Codigo);

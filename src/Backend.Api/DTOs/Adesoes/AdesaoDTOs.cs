@@ -121,5 +121,4 @@ public sealed record SituacaoDeAdesaoDTO(Guid UsuarioId, string Nome, string Ema
 /// <summary>Quantos aderiram, de quantos.</summary>
 /// <param name="Membros">Membros ativos.</param>
 /// <param name="Aderiram">Membros ativos com adesão.</param>
-/// <param name="VersaoVigente">Versão vigente do termo, se publicada.</param>
-public sealed record ResumoDeAdesoesDTO(int Membros, int Aderiram, int? VersaoVigente);
+public sealed record ResumoDeAdesoesDTO(int Membros, int Aderiram);

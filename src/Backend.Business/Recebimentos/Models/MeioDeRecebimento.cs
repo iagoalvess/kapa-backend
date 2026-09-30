@@ -38,18 +38,3 @@ public enum MeioDeRecebimento
     /// <summary>Um meio que a turma não habilitou. Só no aviso do formando.</summary>
     Outro,
 }
-
-/// <summary>Nome de cada meio para gente ler, em e-mail e em log.</summary>
-public static class MeiosDeRecebimento
-{
-    /// <summary>Rótulo do meio.</summary>
-    /// <param name="meio">Meio de recebimento.</param>
-    public static string Rotulo(MeioDeRecebimento meio) =>
-        meio switch
-        {
-            MeioDeRecebimento.Pix => "PIX",
-            MeioDeRecebimento.Transferencia => "Transferência",
-            MeioDeRecebimento.Dinheiro => "Dinheiro",
-            _ => "Outro meio",
-        };
-}

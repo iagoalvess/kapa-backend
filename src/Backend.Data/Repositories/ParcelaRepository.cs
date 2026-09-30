@@ -243,6 +243,7 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
                 .ThenByDescending(r => r.Id)
                 .Select(r => (Guid?)r.Id)
                 .FirstOrDefault(),
+            PeloMercadoPago = db.Recebimentos.Any(r => r.ParcelaId == devedor.Parcela.Id && r.EstornadoEm == null && r.CobrancaId != null),
             De = db.Parcelas.Count(p => p.VinculoId == devedor.Parcela.VinculoId && p.ItemDeCobrancaId == devedor.Parcela.ItemDeCobrancaId),
         };
 
@@ -309,7 +310,8 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
             linha.Parcela.ValorPagoEmCentavos,
             linha.Parcela.PagoEm,
             null,
-            linha.RecebimentoId
+            linha.RecebimentoId,
+            linha.PeloMercadoPago
         ));
 
     /// <summary>A situação de cada linha no dia, pela mesma regra da entidade.</summary>
@@ -387,6 +389,9 @@ internal sealed class LinhaDeParcela
 
     /// <summary>A última baixa que vale, se houver — o recibo da linha (Sprint 22).</summary>
     public Guid? RecebimentoId { get; init; }
+
+    /// <summary>Alguma baixa que vale veio do Mercado Pago — o estorno à mão avisa que o dinheiro não volta sozinho (Sprint 42).</summary>
+    public bool PeloMercadoPago { get; init; }
 
     /// <summary>Quantas parcelas a pessoa tem do item — o "de" de "3/12".</summary>
     /// <remarks>

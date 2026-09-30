@@ -28,7 +28,6 @@ public sealed record ConsentimentoDoUsuarioDTO(Guid Id, string Tipo, string Vers
 /// <param name="Versao">Versão a aceitar.</param>
 public sealed record AceitePendenteDTO(string Tipo, string Versao);
 
-/// <summary>Histórico e pendências de consentimento do usuário.</summary>
-/// <param name="Historico">Registros, do mais recente para o mais antigo.</param>
+/// <summary>O que o usuário ainda precisa aceitar.</summary>
 /// <param name="Pendencias">Versões vigentes sem aceite. Vazia quando está tudo em dia.</param>
-public sealed record MeusAceitesDTO(IReadOnlyList<ConsentimentoDoUsuarioDTO> Historico, IReadOnlyList<AceitePendenteDTO> Pendencias);
+public sealed record MeusAceitesDTO(IReadOnlyList<AceitePendenteDTO> Pendencias);

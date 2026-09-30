@@ -12,10 +12,8 @@ namespace Backend.Api.DTOs.Convites;
 public sealed record CriarConviteRequestDTO(string? Email, string? Papel);
 
 /// <summary>Convite recém-criado. O link do nominal não volta em nenhum outro endpoint; o da turma volta na listagem enquanto valer.</summary>
-/// <param name="Id">Identificador, usado na revogação.</param>
 /// <param name="Link">Endereço de aceite, com o token.</param>
-/// <param name="ExpiraEm">Validade, em UTC.</param>
-public sealed record ConviteCriadoDTO(Guid Id, string Link, DateTime ExpiraEm);
+public sealed record ConviteCriadoDTO(string Link);
 
 /// <summary>Convite como a comissão o acompanha.</summary>
 /// <param name="Id">Identificador.</param>
@@ -25,7 +23,6 @@ public sealed record ConviteCriadoDTO(Guid Id, string Link, DateTime ExpiraEm);
 /// <param name="UsosMaximos">Limite de entradas; nulo é ilimitado.</param>
 /// <param name="UsosFeitos">Quantas pessoas entraram por ele.</param>
 /// <param name="Status"><c>Pendente</c>, <c>Aceito</c>, <c>Expirado</c> ou <c>Revogado</c>.</param>
-/// <param name="CriadoEm">Criação, em UTC.</param>
 /// <param name="Link">Endereço do link da turma vigente, para copiar de novo. Ausente no nominal e no link que já não vale.</param>
 public sealed record ConviteResumoDTO(
     Guid Id,
@@ -35,7 +32,6 @@ public sealed record ConviteResumoDTO(
     int? UsosMaximos,
     int UsosFeitos,
     StatusDoConvite Status,
-    DateTime CriadoEm,
     string? Link
 );
 

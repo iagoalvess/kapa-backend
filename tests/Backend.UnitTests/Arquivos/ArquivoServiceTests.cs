@@ -63,7 +63,7 @@ public sealed class ArquivoServiceTests
             _ => Encoding.UTF8.GetBytes("conteúdo"),
         };
 
-    private static SolicitanteDeArquivo Dono(Guid id) => new(id, EhAdministrador: false);
+    private static SolicitanteDeArquivo Dono(Guid id) => new(id, PeloSistema: false);
 
     [Fact]
     public async Task Enviar_grava_os_bytes_antes_de_registrar_os_metadados()
@@ -293,13 +293,13 @@ public sealed class ArquivoServiceTests
     }
 
     [Fact]
-    public async Task O_administrador_acessa_arquivo_de_qualquer_usuario()
+    public async Task O_sistema_acessa_arquivo_de_qualquer_titular()
     {
         var arquivo = new Arquivo { EnviadoPorId = Guid.CreateVersion7(), Chave = "anexos/x.pdf" };
         _repositorio.ObterPorId(arquivo.Id, Arg.Any<CancellationToken>()).Returns(arquivo);
         _armazenamento.AbrirLeituraAsync(arquivo.Chave, Arg.Any<CancellationToken>()).Returns(new MemoryStream());
 
-        var resultado = await Criar().Baixar(arquivo.Id, new SolicitanteDeArquivo(Guid.CreateVersion7(), EhAdministrador: true), Ct);
+        var resultado = await Criar().Baixar(arquivo.Id, new SolicitanteDeArquivo(Guid.CreateVersion7(), PeloSistema: true), Ct);
 
         resultado.Sucesso.ShouldBeTrue();
     }

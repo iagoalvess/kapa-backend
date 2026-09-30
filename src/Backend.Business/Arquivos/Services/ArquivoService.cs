@@ -166,14 +166,6 @@ public sealed class ArquivoService(
     }
 
     /// <inheritdoc />
-    public async Task<Result<ArquivoResumo>> ObterPorId(Guid id, SolicitanteDeArquivo solicitante, CancellationToken ct = default)
-    {
-        var arquivo = await arquivoRepository.ObterPorId(id, ct);
-
-        return arquivo is null || !PodeAcessar(arquivo, solicitante) ? NaoEncontrado : Result.Ok(ParaResumo(arquivo));
-    }
-
-    /// <inheritdoc />
     /// <remarks>
     /// Remove o registro primeiro e o objeto depois. Falha ao apagar o objeto vira log, não erro:
     /// o resultado é um órfão no provedor, enquanto a ordem inversa poderia deixar um registro
@@ -338,7 +330,7 @@ public sealed class ArquivoService(
     /// num verificador de identificadores válidos.
     /// </remarks>
     private static bool PodeAcessar(Arquivo arquivo, SolicitanteDeArquivo solicitante) =>
-        solicitante.EhAdministrador || arquivo.EnviadoPorId == solicitante.Id;
+        solicitante.PeloSistema || arquivo.EnviadoPorId == solicitante.Id;
 
     private static ArquivoResumo ParaResumo(Arquivo arquivo) =>
         new(arquivo.Id, arquivo.Nome, arquivo.ContentType, arquivo.Tamanho, arquivo.Categoria, arquivo.EnviadoPorId, arquivo.CriadoEm);

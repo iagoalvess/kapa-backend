@@ -281,8 +281,8 @@ services.AddAuthorizationBuilder()
     .AddPolicy(Politicas.Financeiro, politica => politica.RequireAuthenticatedUser().ExigirPerfil(PerfisPadrao.Financeiro));
 ```
 
-`ExigirPerfil()` sempre deixa o administrador passar, então toda política nova já nasce acessível
-a ele.
+`ExigirPerfil()` aprova só os perfis listados: o administrador não é coringa (Sprint 44, D4). Se a
+política nova precisa dele, liste-o.
 
 ---
 

@@ -23,6 +23,15 @@ public class Recebimento : EntidadeDaFormatura
     /// <summary>Informe confirmado, se a baixa veio da conferência.</summary>
     public Guid? InformeId { get; private set; }
 
+    /// <summary>
+    /// A cobrança do Mercado Pago que pagou, se a baixa foi automática (Sprint 42, F3).
+    /// </summary>
+    /// <remarks>
+    /// É o que faz a devolução no Mercado Pago estornar <b>esta</b> baixa, e não a mais recente da parcela: PIX do
+    /// Mercado Pago e PIX manual gravam a mesma forma, e a baixa manual feita depois era a que sumia.
+    /// </remarks>
+    public Guid? CobrancaId { get; private set; }
+
     /// <summary>Como o dinheiro chegou.</summary>
     public FormaDePagamento Forma { get; private set; }
 
@@ -56,9 +65,6 @@ public class Recebimento : EntidadeDaFormatura
     /// <summary>Por que desfez.</summary>
     public string? JustificativaDoEstorno { get; private set; }
 
-    /// <summary>Se o recebido difere do devido.</summary>
-    public bool Divergente => ValorEmCentavos != DevidoEmCentavos;
-
     /// <summary>A entrada de uma baixa.</summary>
     /// <param name="parcelaId">Parcela baixada.</param>
     /// <param name="informeId">Informe confirmado, se houver.</param>
@@ -69,6 +75,7 @@ public class Recebimento : EntidadeDaFormatura
         {
             ParcelaId = parcelaId,
             InformeId = informeId,
+            CobrancaId = baixa.CobrancaId,
             Forma = baixa.Forma,
             ValorEmCentavos = baixa.ValorEmCentavos,
             DevidoEmCentavos = devidoEmCentavos,

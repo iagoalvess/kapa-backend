@@ -1,6 +1,7 @@
 using System.Globalization;
 using Backend.Business.Common.Datas;
 using Backend.Business.Common.Pdf;
+using Backend.Business.Emails.Models;
 using Backend.Business.Emails.Services;
 using Backend.Business.Festa.Models;
 using QRCoder;

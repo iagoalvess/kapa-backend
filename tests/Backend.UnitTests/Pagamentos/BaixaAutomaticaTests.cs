@@ -47,6 +47,7 @@ public sealed class BaixaAutomaticaTests
     private readonly ICompraDeConviteRepository _compras = Substitute.For<ICompraDeConviteRepository>();
     private readonly IDespesaRepository _despesas = Substitute.For<IDespesaRepository>();
     private readonly IOutraReceitaRepository _receitas = Substitute.For<IOutraReceitaRepository>();
+    private readonly IValorADevolverRepository _valoresADevolver = Substitute.For<IValorADevolverRepository>();
     private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
     private readonly ICancelamentoDaCompraService _cancelamento = Substitute.For<ICancelamentoDaCompraService>();
     private readonly IEmailService _email = Substitute.For<IEmailService>();
@@ -93,7 +94,8 @@ public sealed class BaixaAutomaticaTests
                 _recebimentos,
                 _eventos,
                 new EmailsDePagamento(_email, Options.Create(new AplicacaoSettings())),
-                Substitute.For<IQuitacaoDePedidos>()
+                Substitute.For<IQuitacaoDePedidos>(),
+                new ValoresADevolver(_valoresADevolver)
             ),
             LojaTests.Pagamento(_compras, _receitas, cancelamento: _cancelamento),
             _eventos,
@@ -101,6 +103,8 @@ public sealed class BaixaAutomaticaTests
             _despesas,
             _receitas,
             new EmailsDePagamento(_email, Options.Create(new AplicacaoSettings())),
+            new ValoresADevolver(_valoresADevolver),
+            new EstornoDaCobranca(_receitas),
             _unitOfWork,
             NullLogger<BaixaAutomatica>.Instance
         );
@@ -138,9 +142,41 @@ public sealed class BaixaAutomaticaTests
         await _recebimentos
             .Received(1)
             .Adicionar(
-                Arg.Is<Recebimento>(r => r.ParcelaId == _antiga.Id && r.ValorEmCentavos == 30_000 && r.BaixadoPorUsuarioId == PresidenteId),
+                Arg.Is<Recebimento>(r =>
+                    r.ParcelaId == _antiga.Id && r.ValorEmCentavos == 30_000 && r.BaixadoPorUsuarioId == PresidenteId && r.CobrancaId == _cobranca.Id
+                ),
                 Arg.Any<CancellationToken>()
             );
+        await _valoresADevolver.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+    }
+
+    /// <summary>
+    /// Sprint 42, F7: o Mercado Pago confirma um pagamento de duas parcelas e uma delas já foi cancelada — a outra baixa,
+    /// e o que era dela vai para a lista "a devolver" como pago sem parcela, em vez de só um log.
+    /// </summary>
+    [Fact]
+    public async Task Parte_paga_sem_parcela_aberta_vai_para_a_lista_a_devolver()
+    {
+        // Arrange
+        _nova.Cancelar(_hoje);
+        Pago(60_000);
+        ValorADevolver? registrado = null;
+        _valoresADevolver
+            .When(v => v.Adicionar(Arg.Any<ValorADevolver>(), Arg.Any<CancellationToken>()))
+            .Do(c => registrado = c.Arg<ValorADevolver>());
+
+        // Act
+        var baixou = await Baixa.Conciliar(_cobranca.Id, Ct);
+
+        // Assert
+        baixou.Valor.ShouldBeTrue();
+        _antiga.Status.ShouldBe(StatusDaParcela.Paga);
+        registrado.ShouldNotBeNull();
+        registrado.Origem.ShouldBe(OrigemDoValorADevolver.PagoSemParcela);
+        registrado.ValorEmCentavos.ShouldBe(30_000);
+        registrado.CobrancaId.ShouldBe(_cobranca.Id);
+        registrado.ParcelaId.ShouldBe(_nova.Id);
+        registrado.VinculoId.ShouldBe(VinculoId);
     }
 
     /// <summary>Sprint 26: a cobrança paga de uma compra da loja confirma a compra e não toca em parcela nenhuma.</summary>
@@ -322,8 +358,8 @@ public sealed class BaixaAutomaticaTests
         _recebimentos.When(r => r.Adicionar(Arg.Any<Recebimento>(), Arg.Any<CancellationToken>())).Do(c => baixas.Add(c.Arg<Recebimento>()));
         await Baixa.Conciliar(_cobranca.Id, Ct);
         _recebimentos
-            .ObterAtivoParaEdicao(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(c => baixas.FirstOrDefault(b => b.ParcelaId == c.Arg<Guid>()));
+            .ObterAtivoDaCobrancaParaEdicao(Arg.Any<Guid>(), _cobranca.Id, Arg.Any<FormaDePagamento>(), Arg.Any<CancellationToken>())
+            .Returns(c => baixas.FirstOrDefault(b => b.ParcelaId == c.ArgAt<Guid>(0) && b.CobrancaId == c.ArgAt<Guid>(1)));
         _vinculos.ListarEmailsDaComissao(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(["tesouraria@kapa.dev"]);
         _mercadoPago
             .ConsultarPedido("token", "ORD1", Arg.Any<CancellationToken>())
@@ -365,17 +401,19 @@ public sealed class BaixaAutomaticaTests
         lancadas[1].Categoria.ShouldBe(CategoriaDeOutraReceita.Outros);
     }
 
-    /// <summary>A baixa manual feita depois, por outro meio, não é desta cobrança: a devolução não a toca.</summary>
+    /// <summary>
+    /// Sprint 42, F3: a baixa manual feita depois, mesmo no PIX, não é desta cobrança — a devolução procura a baixa pela
+    /// cobrança, e não a mais recente da parcela.
+    /// </summary>
     [Fact]
-    public async Task Devolucao_nao_estorna_baixa_de_outro_meio()
+    public async Task Devolucao_nao_estorna_a_baixa_manual_feita_depois()
     {
         // Arrange
-        _cobranca = Cobranca(MeioDePagamento.Cartao);
         _cobranca.Paga();
         var manual = Recebimento.Novo(
             _antiga.Id,
             null,
-            new DadosDaBaixa(FormaDePagamento.Dinheiro, _hoje, 30_000, null, PresidenteId, null, DateTime.UtcNow),
+            new DadosDaBaixa(FormaDePagamento.Pix, _hoje, 30_000, null, PresidenteId, null, DateTime.UtcNow),
             30_000
         );
         _recebimentos.ObterAtivoParaEdicao(_antiga.Id, Arg.Any<CancellationToken>()).Returns(manual);

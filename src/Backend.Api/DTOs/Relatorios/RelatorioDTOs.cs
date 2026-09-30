@@ -6,22 +6,15 @@ using Backend.Business.Relatorios.Models;
 namespace Backend.Api.DTOs.Relatorios;
 
 /// <summary>
-/// O painel do formando: quanto a turma tem, no que gastou e quanto dela está em dia.
+/// O painel do formando: quanto da turma está em dia e com quem ela gastou.
 /// </summary>
 /// <remarks>
 /// <b>Nenhum campo deste contrato identifica uma pessoa.</b> É soma, e só soma — quem deve e quanto
-/// se vê na tela de Parcelas, que tem política própria.
+/// se vê na tela de Parcelas, que tem política própria. O caixa em si é <c>GET /financeiro/caixa</c>.
 /// </remarks>
-/// <param name="Caixa">Arrecadado, gasto, saldo, a receber e o quadro por categoria.</param>
 /// <param name="Adimplencia">Quanto do que já venceu entrou.</param>
 /// <param name="PorFornecedor">O que saiu para cada fornecedor, do maior para o menor.</param>
-/// <param name="Meses">O caixa mês a mês, com a projeção até a colação.</param>
-public sealed record DashboardPublicoDTO(
-    CaixaDTO Caixa,
-    AdimplenciaDTO Adimplencia,
-    IReadOnlyList<GastoPorFornecedorDTO> PorFornecedor,
-    IReadOnlyList<MesDoCaixaDTO> Meses
-);
+public sealed record DashboardPublicoDTO(AdimplenciaDTO Adimplencia, IReadOnlyList<GastoPorFornecedorDTO> PorFornecedor);
 
 /// <summary>Quanto do que já venceu entrou.</summary>
 /// <param name="DevidoEmCentavos">O que venceu até hoje, pelo valor original.</param>
@@ -43,8 +36,6 @@ public sealed record GastoPorFornecedorDTO(Guid? FornecedorId, string Nome, int 
 /// <param name="Instituicao">Curso e instituição.</param>
 /// <param name="De">Primeiro dia do período.</param>
 /// <param name="Ate">Último dia do período.</param>
-/// <param name="EmitidoPor">Quem pediu.</param>
-/// <param name="EmitidoEm">Momento da emissão, em UTC.</param>
 /// <param name="Entradas">Recebimentos do período, por tipo de cobrança.</param>
 /// <param name="OutrasReceitas">Receitas que não vêm de formando recebidas no período, por categoria.</param>
 /// <param name="SaidasPorCategoria">Despesas pagas no período, por categoria.</param>
@@ -58,8 +49,6 @@ public sealed record BalanceteDTO(
     string Instituicao,
     DateOnly De,
     DateOnly Ate,
-    string EmitidoPor,
-    DateTime EmitidoEm,
     IReadOnlyList<LinhaDeBalanceteDTO> Entradas,
     IReadOnlyList<LinhaDeBalanceteDTO> OutrasReceitas,
     IReadOnlyList<LinhaDeBalanceteDTO> SaidasPorCategoria,
@@ -171,17 +160,4 @@ public sealed record SolicitarRelatorioDTO : RecorteDoRelatorioDTO
 /// <param name="Ate">Último dia do período.</param>
 /// <param name="Status">Em que pé está.</param>
 /// <param name="Motivo">Por que falhou, quando falhou.</param>
-/// <param name="ExpiraEm">Quando o arquivo deixa de estar disponível, em UTC.</param>
-/// <param name="CriadoEm">Quando foi pedida, em UTC.</param>
-/// <param name="Disponivel">Se o download responde agora — é o que a tela usa para habilitar o botão.</param>
-public sealed record SolicitacaoDTO(
-    Guid Id,
-    TipoDeRelatorio Tipo,
-    DateOnly De,
-    DateOnly Ate,
-    StatusDaSolicitacao Status,
-    string? Motivo,
-    DateTime? ExpiraEm,
-    DateTime CriadoEm,
-    bool Disponivel
-);
+public sealed record SolicitacaoDTO(Guid Id, TipoDeRelatorio Tipo, DateOnly De, DateOnly Ate, StatusDaSolicitacao Status, string? Motivo);

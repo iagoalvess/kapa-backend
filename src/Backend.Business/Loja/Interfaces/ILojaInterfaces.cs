@@ -7,12 +7,13 @@ using Backend.Business.Loja.Models;
 namespace Backend.Business.Loja.Interfaces;
 
 /// <summary>
-/// A loja pública da turma: a vitrine e a compra sem conta, a compra pelo link e a lista da Gestão (Sprint 26).
+/// A loja pública da turma: a vitrine e a compra sem conta, e a compra pelo link (Sprint 26). A lista da Gestão é o
+/// <see cref="IComprasDaLojaService"/>.
 /// </summary>
 /// <remarks>
 /// Os métodos que recebem <c>formaturaId</c> ou <c>token</c> são anônimos: quem prova a turma é a rota da
 /// loja (dado público por definição, P1) ou o link assinado da compra (decisão 10), e o service aponta o
-/// escopo a partir dele. Os da Gestão usam a turma da sessão.
+/// escopo a partir dele.
 /// </remarks>
 public interface ILojaService
 {
@@ -77,7 +78,13 @@ public interface ILojaService
     /// </summary>
     /// <param name="token">O segredo do link — que deixa de abrir.</param>
     Task<Result> ApagarDados(string token, CancellationToken ct = default);
+}
 
+/// <summary>
+/// As compras da loja do lado da Gestão (Sprint 26, P5): a lista da devolução, o resumo e a planilha.
+/// </summary>
+public interface IComprasDaLojaService
+{
     /// <summary>As compras da turma, da mais nova — a lista da devolução (P5).</summary>
     /// <param name="paginacao">Página pedida.</param>
     /// <param name="filtro">Status e busca.</param>

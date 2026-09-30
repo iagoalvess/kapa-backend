@@ -39,7 +39,6 @@ public sealed class ItemDaFestaMapping : IEntityTypeConfiguration<ItemDaFesta>
         builder.Property(i => i.OQueInclui).HasMaxLength(2000);
 
         builder.Ignore(i => i.Cancelado);
-        builder.Ignore(i => i.CustoPrevistoEmCentavos);
 
         builder.HasIndex(i => new { i.FormaturaId, i.Ordem });
 

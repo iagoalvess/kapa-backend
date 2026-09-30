@@ -25,7 +25,7 @@ namespace Backend.Api.Controllers.V1.Loja;
 /// <param name="cancelamento">Regras do cancelamento.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
-[ExigeModulo(Modulo.Cobrancas)]
+[ExigeModulo(Modulo.Festa)]
 [Route("api/v{version:apiVersion}/loja")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class CancelamentoDaLojaController(ICancelamentoDaCompraService cancelamento, IUsuarioAtual usuarioAtual) : MainController

@@ -22,6 +22,7 @@ public sealed record VendasDaFesta(int ComprasDaLoja, int PedidosDeConvite)
 /// <param name="ComprasADevolver">Compras da loja com dinheiro a devolver.</param>
 /// <param name="PedidosDeCancelamento">Pedidos de cancelamento sem resposta.</param>
 /// <param name="CobrancasVivas">Cobranças do Mercado Pago que ainda podem ser pagas.</param>
+/// <param name="ValoresADevolver">Crédito, parcial de parcela cancelada e pago sem parcela esperando a comissão (Sprint 42).</param>
 public sealed record PendenciasDaTurma(
     int ParcelasEmAberto,
     int AvisosDePagamento,
@@ -29,13 +30,22 @@ public sealed record PendenciasDaTurma(
     int ComprasPendentes,
     int ComprasADevolver,
     int PedidosDeCancelamento,
-    int CobrancasVivas
+    int CobrancasVivas,
+    int ValoresADevolver
 )
 {
     /// <summary>Se há alguma. Fora do <c>dados</c> do erro: é conta, não contagem.</summary>
     [JsonIgnore]
     public bool Alguma =>
-        ParcelasEmAberto + AvisosDePagamento + PedidosNaoQuitados + ComprasPendentes + ComprasADevolver + PedidosDeCancelamento + CobrancasVivas > 0;
+        ParcelasEmAberto
+            + AvisosDePagamento
+            + PedidosNaoQuitados
+            + ComprasPendentes
+            + ComprasADevolver
+            + PedidosDeCancelamento
+            + CobrancasVivas
+            + ValoresADevolver
+        > 0;
 
     /// <summary>O que falta, em frases curtas, na ordem em que a turma resolve.</summary>
     public IReadOnlyList<string> Descrever() =>
@@ -47,6 +57,7 @@ public sealed record PendenciasDaTurma(
                 (PedidosNaoQuitados, "1 pedido de formando não quitado", "pedidos de formando não quitados"),
                 (ComprasPendentes, "1 compra da loja aguardando pagamento", "compras da loja aguardando pagamento"),
                 (ComprasADevolver, "1 compra da loja a devolver", "compras da loja a devolver"),
+                (ValoresADevolver, "1 valor a devolver a formando", "valores a devolver a formandos"),
                 (PedidosDeCancelamento, "1 pedido de cancelamento sem resposta", "pedidos de cancelamento sem resposta"),
                 (CobrancasVivas, "1 cobrança do Mercado Pago em aberto", "cobranças do Mercado Pago em aberto"),
             }

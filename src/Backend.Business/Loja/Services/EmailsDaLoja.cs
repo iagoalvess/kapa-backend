@@ -8,7 +8,6 @@ using Backend.Business.Emails.Models;
 using Backend.Business.Emails.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Loja.Models;
-using Backend.Business.Recebimentos.Models;
 using Microsoft.Extensions.Options;
 
 namespace Backend.Business.Loja.Services;
@@ -223,8 +222,3 @@ public sealed class EmailsDaLoja(
 
     private static string Convites(CompraDeConvite compra) => compra.Quantidade == 1 ? "1 convite" : $"{compra.Quantidade} convites";
 }
-
-/// <summary>Quem vende, como o comprador precisa ler (P5).</summary>
-/// <param name="Turma">Nome da turma.</param>
-/// <param name="Contato">E-mail da comissão, se houver.</param>
-public sealed record Vendedor(string Turma, string? Contato);

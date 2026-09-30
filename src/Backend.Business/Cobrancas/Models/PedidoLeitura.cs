@@ -84,12 +84,10 @@ public sealed record DadosDoPedido(Guid ItemDeCobrancaId, int Quantidade, int? P
 /// <param name="Nome">Nome civil do cadastro, ou o da conta.</param>
 /// <param name="Quantidade">Unidades.</param>
 /// <param name="Parcelas">Em quantas vezes o formando escolheu pagar.</param>
-/// <param name="ValorUnitarioEmCentavos">Preço de uma unidade no dia do pedido.</param>
 /// <param name="TotalEmCentavos">Preço vezes quantidade.</param>
 /// <param name="PagoEmCentavos">O que já entrou pelas parcelas deste pedido.</param>
 /// <param name="Status">Confirmado ou cancelado.</param>
 /// <param name="PedidoEm">Quando foi pedido, em UTC.</param>
-/// <param name="CanceladoEm">Quando foi cancelado, se foi.</param>
 public sealed record PedidoResumo(
     Guid Id,
     Guid ItemDeCobrancaId,
@@ -99,12 +97,10 @@ public sealed record PedidoResumo(
     string Nome,
     int Quantidade,
     int Parcelas,
-    long ValorUnitarioEmCentavos,
     long TotalEmCentavos,
     long PagoEmCentavos,
     StatusDoPedido Status,
-    DateTime PedidoEm,
-    DateTime? CanceladoEm
+    DateTime PedidoEm
 )
 {
     /// <summary>Se o pedido já foi quitado — é o que a Sprint 21 vai ler para emitir o convite.</summary>

@@ -131,7 +131,7 @@ public sealed class PerfilService(
         if (perfil?.FotoArquivoId is not { } arquivoId)
             return Erro.NaoEncontrado("perfil.sem_foto", "Este formando ainda não enviou foto.");
 
-        return await arquivoService.Baixar(arquivoId, new SolicitanteDeArquivo(membro.UsuarioId, EhAdministrador: false), ct);
+        return await arquivoService.Baixar(arquivoId, new SolicitanteDeArquivo(membro.UsuarioId, PeloSistema: false), ct);
     }
 
     /// <summary>Validar, achar o membro, aplicar, registrar a correção se houver autor, salvar.</summary>
@@ -193,7 +193,7 @@ public sealed class PerfilService(
     /// <summary>A anterior sai do armazenamento; falhar aqui só deixa um órfão, então vira log.</summary>
     private async Task RemoverFotoAntiga(Guid arquivoId, Guid usuarioId, CancellationToken ct)
     {
-        var remocao = await arquivoService.Remover(arquivoId, new SolicitanteDeArquivo(usuarioId, EhAdministrador: false), ct);
+        var remocao = await arquivoService.Remover(arquivoId, new SolicitanteDeArquivo(usuarioId, PeloSistema: false), ct);
 
         if (remocao.Falhou)
             logger.LogWarning("Foto anterior {ArquivoId} não foi removida: {Codigo}.", arquivoId, remocao.PrimeiroErro.Codigo);

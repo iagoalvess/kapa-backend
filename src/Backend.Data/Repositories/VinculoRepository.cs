@@ -181,14 +181,14 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
     }
 
     /// <inheritdoc />
-    /// <remarks>
-    /// <c>LEFT JOIN</c> do perfil, como em <see cref="ListarMembros"/>: quem nunca abriu o cadastro é
-    /// justamente quem falta, e um <c>INNER JOIN</c> o deixaria de fora da contagem.
-    /// </remarks>
     public Task TravarEntradas(Guid formaturaId, CancellationToken ct = default) =>
         db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({formaturaId.ToString()}, 0))", ct);
 
     /// <inheritdoc />
+    /// <remarks>
+    /// <c>LEFT JOIN</c> do perfil, como em <see cref="ListarMembros"/>: quem nunca abriu o cadastro é
+    /// justamente quem falta, e um <c>INNER JOIN</c> o deixaria de fora da contagem.
+    /// </remarks>
     public async Task<IReadOnlyList<ContagemDeMembros>> ContarMembros(Guid formaturaId, CancellationToken ct = default) =>
         await (
             from vinculo in db.Vinculos.AsNoTracking()

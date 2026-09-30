@@ -13,7 +13,7 @@ public sealed class GradeDeParcelasTests
     public void Vinte_e_quatro_parcelas_de_8400_fecham_exatamente()
     {
         // Act
-        var grade = Item(840_000, 24).Grade();
+        var grade = GradeDeParcelas.Calcular(Item(840_000, 24));
 
         // Assert
         grade.Count.ShouldBe(24);
@@ -25,7 +25,7 @@ public sealed class GradeDeParcelasTests
     public void Resto_da_divisao_vai_para_a_primeira_parcela()
     {
         // Act
-        var grade = Item(100_000, 3).Grade();
+        var grade = GradeDeParcelas.Calcular(Item(100_000, 3));
 
         // Assert
         grade.Select(parcela => parcela.ValorEmCentavos).ShouldBe([33_334, 33_333, 33_333]);
@@ -37,7 +37,7 @@ public sealed class GradeDeParcelasTests
     public void Valor_negativo_tambem_fecha_no_centavo()
     {
         // Act
-        var grade = Item(-100_000, 3).Grade();
+        var grade = GradeDeParcelas.Calcular(Item(-100_000, 3));
 
         // Assert
         grade.Select(parcela => parcela.ValorEmCentavos).ShouldBe([-33_334, -33_333, -33_333]);
@@ -47,7 +47,7 @@ public sealed class GradeDeParcelasTests
     public void Vencimentos_sao_mensais_a_partir_do_primeiro_mes_e_atravessam_o_ano()
     {
         // Act
-        var grade = Item(40_000, 4, dia: 10, primeiroMes: new DateOnly(2026, 11, 20)).Grade();
+        var grade = GradeDeParcelas.Calcular(Item(40_000, 4, dia: 10, primeiroMes: new DateOnly(2026, 11, 20)));
 
         // Assert
         grade.Select(parcela => parcela.Vencimento).ShouldBe([new(2026, 11, 10), new(2026, 12, 10), new(2027, 1, 10), new(2027, 2, 10)]);
@@ -58,7 +58,7 @@ public sealed class GradeDeParcelasTests
     public void Dia_31_vira_o_ultimo_dia_do_mes_inclusive_em_fevereiro_bissexto()
     {
         // Act
-        var grade = Item(50_000, 5, dia: 31, primeiroMes: new DateOnly(2028, 1, 1)).Grade();
+        var grade = GradeDeParcelas.Calcular(Item(50_000, 5, dia: 31, primeiroMes: new DateOnly(2028, 1, 1)));
 
         // Assert
         grade
@@ -88,7 +88,7 @@ public sealed class GradeDeParcelasTests
         var grade = GradeDeParcelas.DeQuemAdereEm(item, new DateOnly(2027, 2, 20));
 
         // Assert
-        grade.ShouldBe(item.Grade());
+        grade.ShouldBe(GradeDeParcelas.Calcular(item));
     }
 
     /// <summary>

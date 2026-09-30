@@ -161,16 +161,21 @@ public class Parcela : EntidadeDaFormatura
     /// <remarks>
     /// Recebe o valor porque a parcela pode ter várias baixas — o estorno é de <b>uma</b> delas. Uma
     /// parcela em aberto com pagamento parcial também estorna: não estava paga, mas o dinheiro entrou.
+    /// <para>
+    /// A cancelada com pagamento parcial também (Sprint 42, F2): o Mercado Pago pode devolver o que
+    /// entrou nela, e recusar derrubava a transação inteira da devolução. Ela continua cancelada — só
+    /// o pago diminui, e quem chama abate o mesmo valor do que a comissão tinha a devolver.
+    /// </para>
     /// </remarks>
     /// <param name="valorEmCentavos">O valor da baixa estornada.</param>
     public Result Estornar(long valorEmCentavos)
     {
-        if (Status is not (StatusDaParcela.Paga or StatusDaParcela.Aberta) || ValorPagoEmCentavos is null)
+        if (Status is not (StatusDaParcela.Paga or StatusDaParcela.Aberta or StatusDaParcela.Cancelada) || ValorPagoEmCentavos is null)
             return Result.Falha(Erro.Conflito("pagamento.parcela_nao_paga", "Esta parcela não tem pagamento a estornar."));
 
         var restante = ValorPagoEmCentavos.Value - valorEmCentavos;
 
-        Status = StatusDaParcela.Aberta;
+        Status = Status == StatusDaParcela.Cancelada ? StatusDaParcela.Cancelada : StatusDaParcela.Aberta;
         ValorPagoEmCentavos = restante > 0 ? restante : null;
         PagoEm = null;
 

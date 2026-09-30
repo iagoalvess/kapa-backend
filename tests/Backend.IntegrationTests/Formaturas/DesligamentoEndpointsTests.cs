@@ -134,19 +134,21 @@ public sealed class DesligamentoEndpointsTests(ApiFactory fabrica)
         await Vencer(turma, [ana.Parcelas[0]], DateOnly.FromDateTime(DentroDaJanela).AddDays(-10));
 
         var antes = await Painel(turma);
+        var caixaAntes = await Caixa(turma);
         antes.Adimplencia.DevidoEmCentavos.ShouldBe(Mensalidade);
-        antes.Caixa.AReceberEmCentavos.ShouldBe(5 * Mensalidade);
-        antes.Caixa.EmAtrasoEmCentavos.ShouldBe(Mensalidade);
+        caixaAntes.AReceberEmCentavos.ShouldBe(5 * Mensalidade);
+        caixaAntes.EmAtrasoEmCentavos.ShouldBe(Mensalidade);
 
         await Desligar(turma, ana, Pedido(cancelarAtraso: true));
 
         var depois = await Painel(turma);
+        var caixaDepois = await Caixa(turma);
 
         // Caíram as três de Ana: duas a vencer e a vencida que a comissão mandou cancelar.
-        depois.Caixa.AReceberEmCentavos.ShouldBe(3 * Mensalidade);
-        depois.Caixa.EmAtrasoEmCentavos.ShouldBe(0);
+        caixaDepois.AReceberEmCentavos.ShouldBe(3 * Mensalidade);
+        caixaDepois.EmAtrasoEmCentavos.ShouldBe(0);
         // O que entrou não muda — ninguém pagou nada aqui, e continua zero dos dois lados.
-        depois.Caixa.ArrecadadoEmCentavos.ShouldBe(antes.Caixa.ArrecadadoEmCentavos);
+        caixaDepois.ArrecadadoEmCentavos.ShouldBe(caixaAntes.ArrecadadoEmCentavos);
         // Sem vencido de vínculo ativo, o denominador zera e o índice volta a 100%.
         depois.Adimplencia.DevidoEmCentavos.ShouldBe(0);
         depois.Adimplencia.PercentualBaseDezMil.ShouldBe(10_000);
@@ -212,9 +214,6 @@ public sealed class DesligamentoEndpointsTests(ApiFactory fabrica)
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await resposta.Codigo(Ct)).ShouldBe("formatura.membro_sem_adesao");
-
-        var resumo = await Ler<ResumoDaSaidaDTO>(await turma.Presidente.Cliente.GetAsync($"{Membros}/{convidado.UsuarioId}/resumo-da-saida", Ct));
-        resumo.TemAdesao.ShouldBeFalse();
     }
 
     /// <summary>Critério de aceite: desligar o último presidente é recusado, como remover já é.</summary>
@@ -346,6 +345,9 @@ public sealed class DesligamentoEndpointsTests(ApiFactory fabrica)
 
     private static async Task<DashboardPublicoDTO> Painel(Turma turma) =>
         await Ler<DashboardPublicoDTO>(await turma.Presidente.Cliente.GetAsync("/api/v1/dashboard/publico", Ct));
+
+    private static async Task<CaixaDTO> Caixa(Turma turma) =>
+        await Ler<CaixaDTO>(await turma.Presidente.Cliente.GetAsync("/api/v1/financeiro/caixa", Ct));
 
     /// <summary>O e-mail da conta do formando, que <c>MembroDeTeste</c> não carrega.</summary>
     private async Task<string> EmailDe(Formando formando)

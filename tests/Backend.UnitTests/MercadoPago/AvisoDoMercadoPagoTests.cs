@@ -1,7 +1,7 @@
-using Backend.Business.Pagamentos.Services;
+using Backend.Business.MercadoPago.Services;
 using Shouldly;
 
-namespace Backend.UnitTests.Pagamentos;
+namespace Backend.UnitTests.MercadoPago;
 
 /// <summary>
 /// Sprint 35: o <c>user_id</c> do corpo é o que separa o aviso da conta do Kapa do de uma turma. O Mercado Pago

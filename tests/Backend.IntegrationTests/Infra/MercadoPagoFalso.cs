@@ -58,6 +58,20 @@ public sealed class MercadoPagoFalso : IMercadoPago
     /// <summary>Marca o pedido como pago — o que o formando faria no app do banco.</summary>
     public void Pagar(string idExterno) => _pagos[idExterno] = true;
 
+    private readonly ConcurrentDictionary<string, long> _pagosEmParte = new();
+
+    /// <summary>
+    /// Marca o pedido como pago por um valor diferente do cobrado — a baixa parcial pelo Mercado Pago, que deixa a parcela
+    /// aberta (Sprint 42, F2 e F3).
+    /// </summary>
+    /// <param name="idExterno">O pedido.</param>
+    /// <param name="valorEmCentavos">O que o Mercado Pago diz que entrou.</param>
+    public void Pagar(string idExterno, long valorEmCentavos)
+    {
+        _pagosEmParte[idExterno] = valorEmCentavos;
+        Pagar(idExterno);
+    }
+
     /// <summary>Uma fábrica com o Mercado Pago ligado e este falso no lugar da rede.</summary>
     public WebApplicationFactory<Program> Na(ApiFactory fabrica) =>
         fabrica.WithWebHostBuilder(host =>
@@ -292,7 +306,7 @@ public sealed class MercadoPagoFalso : IMercadoPago
                     idExterno,
                     referencia.ToString("N"),
                     pago ? SituacaoDoPedido.Pago : SituacaoDoPedido.Aberto,
-                    pago ? valor : 0,
+                    pago ? _pagosEmParte.GetValueOrDefault(idExterno, valor) : 0,
                     pago ? DateTime.UtcNow : null
                 )
             )

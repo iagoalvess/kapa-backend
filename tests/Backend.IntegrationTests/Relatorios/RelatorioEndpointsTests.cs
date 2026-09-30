@@ -92,23 +92,23 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
     }
 
     /// <summary>
-    /// Dashboard e balancete do mesmo dia mostram o mesmo saldo.
+    /// Caixa e balancete do mesmo dia mostram o mesmo saldo.
     /// </summary>
     /// <remarks>
     /// É o teste que a decisão 4 existe para permitir: os dois números saem do mesmo
     /// <c>ICaixaService</c>. No dia em que alguém recalcular um dos dois, este teste cai.
     /// </remarks>
     [Fact]
-    public async Task O_saldo_do_dashboard_e_o_do_balancete_sao_o_mesmo_numero()
+    public async Task O_saldo_do_caixa_e_o_do_balancete_sao_o_mesmo_numero()
     {
         var tesoureiro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
 
         await Lancar(tesoureiro, "Buffet da comparação", Ct);
 
-        var painel = (await tesoureiro.Cliente.GetFromJsonAsync<DashboardPublicoDTO>($"{Dashboard}/publico", Json, Ct))!;
+        var caixa = (await tesoureiro.Cliente.GetFromJsonAsync<CaixaDTO>("/api/v1/financeiro/caixa", Json, Ct))!;
         var balancete = (await tesoureiro.Cliente.GetFromJsonAsync<BalanceteDTO>($"{Relatorios}/balancete", Json, Ct))!;
 
-        balancete.SaldoAcumuladoEmCentavos.ShouldBe(painel.Caixa.SaldoEmCentavos);
+        balancete.SaldoAcumuladoEmCentavos.ShouldBe(caixa.SaldoEmCentavos);
     }
 
     /// <summary>
@@ -188,7 +188,6 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
         var segunda = await Solicitar(tesoureiro, periodo);
 
         primeira.Status.ShouldBe(StatusDaSolicitacao.NaFila);
-        primeira.Disponivel.ShouldBeFalse();
         segunda.Id.ShouldBe(primeira.Id);
 
         var lista = (await tesoureiro.Cliente.GetFromJsonAsync<List<SolicitacaoDTO>>($"{Relatorios}/solicitacoes", Json, Ct))!;
@@ -251,9 +250,6 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
         return (await resposta.Content.ReadFromJsonAsync<SolicitacaoDTO>(Json, Ct))!;
     }
 
-    /// <summary>Uma despesa paga de R$ 1.000, com comprovante — a saída que o balancete soma.</summary>
-    /// <param name="membro">Quem lança.</param>
-    /// <param name="descricao">Descrição da despesa.</param>
     /// <summary>
     /// A série mensal fecha com o total do período, e a comparação olha para o intervalo de antes.
     /// </summary>
@@ -317,6 +313,9 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
         opcoes.Itens.ShouldNotBeNull();
     }
 
+    /// <summary>Uma despesa paga de R$ 1.000, com comprovante — a saída que o balancete soma.</summary>
+    /// <param name="membro">Quem lança.</param>
+    /// <param name="descricao">Descrição da despesa.</param>
     private static async Task Lancar(MembroDeTeste membro, string descricao, CancellationToken ct)
     {
         var dia = Hoje.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);

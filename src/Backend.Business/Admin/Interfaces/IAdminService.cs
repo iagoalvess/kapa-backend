@@ -9,15 +9,32 @@ namespace Backend.Business.Admin.Interfaces;
 /// </summary>
 public interface IAdminService
 {
-    /// <summary>Apura os números do painel.</summary>
-    Task<Result<ResumoAdmin>> ObterResumo(CancellationToken ct = default);
+    /// <summary>Contas, turmas, dinheiro e uso da plataforma no período.</summary>
+    /// <remarks>Sem período, os últimos 30 dias até hoje.</remarks>
+    /// <param name="de">Primeiro dia, no fuso de exibição.</param>
+    /// <param name="ate">Último dia, inclusive.</param>
+    Task<Result<AnalyticsDaPlataforma>> ObterAnalytics(DateOnly? de, DateOnly? ate, CancellationToken ct = default);
 
-    /// <summary>Procura turmas e contas pelo mesmo termo.</summary>
-    /// <remarks>Termo curto demais devolve as duas listas vazias — não é erro, é "continue digitando".</remarks>
-    /// <param name="termo">Trecho digitado.</param>
-    Task<Result<ResultadoDaBusca>> Buscar(string? termo, CancellationToken ct = default);
+    /// <summary>A série mensal do painel, terminando no mês corrente.</summary>
+    /// <param name="meses">Quantos meses, de 1 a 24.</param>
+    Task<Result<IReadOnlyList<MesDaPlataforma>>> ObterSerieMensal(int meses, CancellationToken ct = default);
 
-    /// <summary>A turma: situação, licença, membros e as contagens de parcela e adesão.</summary>
+    /// <summary>Uma página das turmas, com a licença de cada uma.</summary>
+    /// <param name="paginacao">Página, tamanho e ordenação.</param>
+    /// <param name="filtro">Termo e licença.</param>
+    Task<Result<PaginaDe<TurmaNoPainel>>> ListarTurmas(PaginacaoRequest paginacao, FiltroDeTurmasNoPainel filtro, CancellationToken ct = default);
+
+    /// <summary>Uma página das contas.</summary>
+    /// <param name="paginacao">Página, tamanho e ordenação.</param>
+    /// <param name="filtro">Termo e situação.</param>
+    Task<Result<PaginaDe<ContaNoPainel>>> ListarContas(PaginacaoRequest paginacao, FiltroDeContasNoPainel filtro, CancellationToken ct = default);
+
+    /// <summary>Uma página dos membros da turma, ativos primeiro. O CPF sai mascarado.</summary>
+    /// <param name="formaturaId">Formatura.</param>
+    /// <param name="paginacao">Página e tamanho.</param>
+    Task<Result<PaginaDe<MembroNoSuporte>>> ListarMembros(Guid formaturaId, PaginacaoRequest paginacao, CancellationToken ct = default);
+
+    /// <summary>A turma: situação, licença e as contagens de membro, parcela e adesão.</summary>
     /// <param name="formaturaId">Formatura.</param>
     Task<Result<TurmaNoSuporte>> ObterTurma(Guid formaturaId, CancellationToken ct = default);
 

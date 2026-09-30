@@ -7,6 +7,8 @@ using Backend.Business.Common.Datas;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Pagamentos.Interfaces;
+using Backend.Business.Pagamentos.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -53,6 +55,7 @@ public sealed class PlanoDeCobrancaServiceTests
             new RateioExtraordinarioValidator(),
             new SimularPlanoValidator(),
             _eventos,
+            new ValoresADevolver(Substitute.For<IValorADevolverRepository>()),
             _unitOfWork,
             NullLogger<PlanoDeCobrancaService>.Instance
         );

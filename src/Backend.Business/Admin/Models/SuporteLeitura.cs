@@ -5,35 +5,6 @@ using Backend.Business.Pagamentos.Models;
 namespace Backend.Business.Admin.Models;
 
 /// <summary>
-/// O que a busca do painel de suporte encontrou.
-/// </summary>
-/// <remarks>
-/// Uma caixa só, dois tipos de resultado: quem atende recebe "paguei e a turma não ativou" e tem
-/// na mão ou o nome da turma, ou o e-mail da pessoa — nunca os dois, e nunca um id. Duas caixas de
-/// busca separadas obrigariam a adivinhar antes de procurar.
-/// </remarks>
-/// <param name="Turmas">Formaturas cujo nome, instituição ou curso bate com o termo.</param>
-/// <param name="Usuarios">Contas cujo nome ou e-mail bate com o termo.</param>
-public sealed record ResultadoDaBusca(IReadOnlyList<TurmaEncontrada> Turmas, IReadOnlyList<UsuarioEncontrado> Usuarios);
-
-/// <summary>Uma turma na lista de resultados.</summary>
-/// <param name="Id">Formatura.</param>
-/// <param name="Nome">Nome da turma.</param>
-/// <param name="Instituicao">Instituição.</param>
-/// <param name="Curso">Curso.</param>
-/// <param name="Status">Situação da formatura.</param>
-/// <param name="Membros">Quantos vínculos ativos ela tem.</param>
-public sealed record TurmaEncontrada(Guid Id, string Nome, string Instituicao, string Curso, string Status, int Membros);
-
-/// <summary>Uma conta na lista de resultados.</summary>
-/// <param name="Id">Usuário.</param>
-/// <param name="Nome">Nome de exibição.</param>
-/// <param name="Email">E-mail da conta.</param>
-/// <param name="Ativo">Se pode autenticar.</param>
-/// <param name="Turmas">Em quantas turmas a pessoa tem vínculo ativo.</param>
-public sealed record UsuarioEncontrado(Guid Id, string Nome, string Email, bool Ativo, int Turmas);
-
-/// <summary>
 /// A turma como o suporte a vê: situação, licença e quem está dentro.
 /// </summary>
 /// <param name="Id">Formatura.</param>
@@ -46,7 +17,7 @@ public sealed record UsuarioEncontrado(Guid Id, string Nome, string Email, bool 
 /// <param name="CriadaEm">Quando a turma nasceu, em UTC.</param>
 /// <param name="AtivadaEm">Primeira ativação, em UTC, ou nulo.</param>
 /// <param name="Assinatura">A licença mais recente, ou nulo se a turma nunca contratou.</param>
-/// <param name="Membros">Vínculos da turma, ativos primeiro.</param>
+/// <param name="MembrosAtivos">Vínculos ativos — a lista, paginada, vem de <c>ListarMembros</c>.</param>
 /// <param name="Parcelas">Quantas parcelas a turma tem geradas.</param>
 /// <param name="ParcelasPagas">Quantas já foram baixadas.</param>
 /// <param name="Adesoes">Quantos membros assinaram o termo.</param>
@@ -62,7 +33,7 @@ public sealed record TurmaNoSuporte(
     DateTime CriadaEm,
     DateTime? AtivadaEm,
     AssinaturaNoSuporte? Assinatura,
-    IReadOnlyList<MembroNoSuporte> Membros,
+    int MembrosAtivos,
     int Parcelas,
     int ParcelasPagas,
     int Adesoes,

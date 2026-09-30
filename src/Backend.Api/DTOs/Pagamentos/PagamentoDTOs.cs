@@ -1,5 +1,6 @@
 using Backend.Api.DTOs.Cobrancas;
 using Backend.Api.DTOs.Recebimentos;
+using Backend.Business.Cobrancas.Models;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Recebimentos.Models;
 
@@ -125,6 +126,46 @@ public sealed record RecusarInformeRequestDTO(string? Motivo);
 /// <summary>Corpo do estorno.</summary>
 /// <param name="Justificativa">Por que — fica na auditoria.</param>
 public sealed record EstornarBaixaRequestDTO(string? Justificativa);
+
+/// <summary>Corpo do cancelamento avulso de uma parcela.</summary>
+/// <param name="Justificativa">Por que — fica na auditoria.</param>
+public sealed record CancelarParcelaRequestDTO(string? Justificativa);
+
+/// <summary>Corpo do fechamento do pago sem parcela.</summary>
+/// <param name="Observacao">O que a comissão fez: devolveu no painel do Mercado Pago, lançou como outra receita…</param>
+public sealed record FecharValorADevolverRequestDTO(string? Observacao);
+
+/// <summary>Um item da lista "a devolver" da tesouraria (Sprint 42).</summary>
+/// <param name="Id">Identificador.</param>
+/// <param name="UsuarioId">Formando.</param>
+/// <param name="Nome">Nome civil do cadastro, ou o da conta.</param>
+/// <param name="Origem"><c>CreditoDePedido</c>, <c>ParcelaCancelada</c> ou <c>PagoSemParcela</c>.</param>
+/// <param name="Status"><c>ADevolver</c>, <c>Devolvido</c> ou <c>Fechado</c>.</param>
+/// <param name="ValorEmCentavos">Quanto falta devolver, em centavos.</param>
+/// <param name="Tipo">Tipo do item da parcela ou do pedido.</param>
+/// <param name="Descricao">Descrição do item, se houver.</param>
+/// <param name="NumeroDaParcela">A parcela de origem; nulo no crédito de pedido.</param>
+/// <param name="Vencimento">Vencimento dela.</param>
+/// <param name="CriadoEm">Quando entrou na lista.</param>
+/// <param name="ResolvidoEm">Quando saiu da lista.</param>
+/// <param name="Observacao">O que foi feito com o pago sem parcela, ou por que fechou sozinho.</param>
+/// <param name="TemComprovante">Se a devolução tem comprovante.</param>
+public sealed record ValorADevolverDTO(
+    Guid Id,
+    Guid UsuarioId,
+    string Nome,
+    OrigemDoValorADevolver Origem,
+    StatusDoValorADevolver Status,
+    long ValorEmCentavos,
+    TipoDeCobranca Tipo,
+    string? Descricao,
+    int? NumeroDaParcela,
+    DateOnly? Vencimento,
+    DateTime CriadoEm,
+    DateTime? ResolvidoEm,
+    string? Observacao,
+    bool TemComprovante
+);
 
 /// <summary>Uma baixa com valor recebido diferente do devido.</summary>
 /// <param name="RecebimentoId">Recebimento.</param>

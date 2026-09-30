@@ -41,9 +41,6 @@ public class NotificacaoEnviada : EntidadeDaFormatura
     /// <summary>Dia (em Brasília) em que a régua rodou. É a terceira parte da chave.</summary>
     public DateOnly DataDeReferencia { get; private set; }
 
-    /// <summary>Por onde saiu — hoje, sempre o e-mail.</summary>
-    public CanalDeNotificacao Canal { get; private set; } = CanalDeNotificacao.Email;
-
     /// <summary>Para quem — o endereço, que é o que a tesouraria mostra quando alguém diz que não foi avisado.</summary>
     public string Destinatario { get; private set; } = string.Empty;
 

@@ -33,6 +33,14 @@ public sealed record RecusarInforme(string Motivo);
 /// <param name="Justificativa">Por que — fica na auditoria.</param>
 public sealed record EstornarBaixa(string Justificativa);
 
+/// <summary>Cancelamento avulso de uma parcela pela tesouraria (Sprint 42, decisão 8).</summary>
+/// <param name="Justificativa">Por que — fica na auditoria.</param>
+public sealed record CancelarParcela(string Justificativa);
+
+/// <summary>O fechamento do pago sem parcela (Sprint 42, decisão 9).</summary>
+/// <param name="Observacao">O que a comissão fez: devolveu no painel do Mercado Pago, lançou como outra receita…</param>
+public sealed record FecharValorADevolver(string Observacao);
+
 /// <summary>Tudo o que a baixa grava, venha de onde vier.</summary>
 /// <param name="Forma">Como o dinheiro chegou.</param>
 /// <param name="PagoEm">Dia em que entrou.</param>
@@ -41,6 +49,7 @@ public sealed record EstornarBaixa(string Justificativa);
 /// <param name="UsuarioId">Quem baixou.</param>
 /// <param name="EnderecoIp">De onde baixou.</param>
 /// <param name="AgoraUtc">Quando baixou.</param>
+/// <param name="CobrancaId">A cobrança do Mercado Pago que pagou, na baixa automática (Sprint 42, F3).</param>
 public sealed record DadosDaBaixa(
     FormaDePagamento Forma,
     DateOnly PagoEm,
@@ -48,7 +57,8 @@ public sealed record DadosDaBaixa(
     Guid? ComprovanteArquivoId,
     Guid UsuarioId,
     string? EnderecoIp,
-    DateTime AgoraUtc
+    DateTime AgoraUtc,
+    Guid? CobrancaId = null
 );
 
 /// <summary>O que a baixa precisa saber da turma e do formando para gravar o devido e avisar.</summary>
@@ -240,3 +250,40 @@ public sealed record FiltroDeInformes(
     DateOnly? Ate = null,
     string? Busca = null
 );
+
+/// <summary>Um item da lista "a devolver" da tesouraria (Sprint 42).</summary>
+/// <param name="Id">Identificador.</param>
+/// <param name="UsuarioId">Formando.</param>
+/// <param name="Nome">Nome do formando — o civil do cadastro, se houver.</param>
+/// <param name="Origem">De onde veio.</param>
+/// <param name="Status">Situação.</param>
+/// <param name="ValorEmCentavos">Quanto falta devolver.</param>
+/// <param name="Tipo">Tipo do item da parcela ou do pedido.</param>
+/// <param name="Descricao">Descrição do item; nula no item sem descrição.</param>
+/// <param name="NumeroDaParcela">A parcela cancelada ou paga sem baixa; nulo no crédito.</param>
+/// <param name="Vencimento">Vencimento dela.</param>
+/// <param name="CriadoEm">Quando entrou na lista, em UTC.</param>
+/// <param name="ResolvidoEm">Quando saiu, em UTC.</param>
+/// <param name="Observacao">O que a comissão fez com o pago sem parcela, ou o motivo do fechamento automático.</param>
+/// <param name="TemComprovante">Se a devolução tem comprovante.</param>
+public sealed record ValorADevolverNaLista(
+    Guid Id,
+    Guid UsuarioId,
+    string Nome,
+    OrigemDoValorADevolver Origem,
+    StatusDoValorADevolver Status,
+    long ValorEmCentavos,
+    TipoDeCobranca Tipo,
+    string? Descricao,
+    int? NumeroDaParcela,
+    DateOnly? Vencimento,
+    DateTime CriadoEm,
+    DateTime? ResolvidoEm,
+    string? Observacao,
+    bool TemComprovante
+);
+
+/// <summary>Filtros da lista "a devolver".</summary>
+/// <param name="Resolvidos">Os que já saíram da lista — devolvidos ou fechados —, em vez dos que esperam.</param>
+/// <param name="Busca">Trecho do nome do formando.</param>
+public sealed record FiltroDeValoresADevolver(bool Resolvidos = false, string? Busca = null);

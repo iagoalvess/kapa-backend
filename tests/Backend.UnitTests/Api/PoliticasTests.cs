@@ -24,7 +24,8 @@ public sealed class PoliticasTests
 {
     /// <summary>Serviço de autorização cuja formatura, qualquer que seja, está no status informado.</summary>
     /// <param name="status">Status gravado, ou nulo para formatura inexistente.</param>
-    private static IAuthorizationService ServicoComStatus(StatusDaFormatura? status)
+    /// <param name="politicaDeUsuario">Registra, com este nome, uma política que exige o perfil <c>Usuario</c>.</param>
+    private static IAuthorizationService ServicoComStatus(StatusDaFormatura? status, string? politicaDeUsuario = null)
     {
         var formaturas = Substitute.For<IFormaturaRepository>();
         formaturas.ObterStatus(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(status);
@@ -36,6 +37,9 @@ public sealed class PoliticasTests
         services.AddSingleton(formaturas);
         services.AddSingleton(Substitute.For<IAssinaturaRepository>());
         services.AddPoliticas();
+
+        if (politicaDeUsuario is not null)
+            services.AddAuthorizationBuilder().AddPolicy(politicaDeUsuario, politica => politica.RequireAuthenticatedUser().ExigirPerfil("Usuario"));
 
         return services.BuildServiceProvider().CreateScope().ServiceProvider.GetRequiredService<IAuthorizationService>();
     }
@@ -81,4 +85,25 @@ public sealed class PoliticasTests
 
         resultado.Succeeded.ShouldBeFalse();
     }
+
+    /// <summary>
+    /// D4 da Sprint 44: o administrador não é coringa. Política de perfil aprova só quem consta dela — o painel,
+    /// que o lista, continua aberto a ele.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador", Politicas.SomenteAdministrador, true)]
+    [InlineData("Usuario", Politicas.SomenteAdministrador, false)]
+    [InlineData("Administrador", PoliticaDeUsuario, false)]
+    [InlineData("Usuario", PoliticaDeUsuario, true)]
+    public async Task Politica_de_perfil_aprova_so_os_perfis_listados(string perfil, string politica, bool passa)
+    {
+        var usuario = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, perfil)], "Bearer"));
+
+        var resultado = await ServicoComStatus(StatusDaFormatura.Ativa, PoliticaDeUsuario).AuthorizeAsync(usuario, resource: null, politica);
+
+        resultado.Succeeded.ShouldBe(passa);
+    }
+
+    /// <summary>Uma política de perfil qualquer, só para o teste, com o perfil de conta comum.</summary>
+    private const string PoliticaDeUsuario = nameof(PoliticaDeUsuario);
 }

@@ -6,14 +6,9 @@ using Backend.Business.Festa.Models;
 namespace Backend.Business.Festa.Interfaces;
 
 /// <summary>
-/// O convite da festa do lado de quem o tem: ver, nomear o convidado, abrir e imprimir — e o que a
-/// Gestão emite à mão.
+/// O convite da festa do lado de quem o tem: ver, nomear o convidado, abrir e imprimir. O que a Gestão emite
+/// à mão é o <see cref="IGestaoDeConvitesService"/>.
 /// </summary>
-/// <remarks>
-/// A emissão comum não passa por aqui: ela nasce da quitação do pedido, em <c>PedidoService</c>, na
-/// transação da baixa (P2). O que está aqui são as exceções — a liberação manual e a cortesia —, que
-/// exigem motivo e ficam na auditoria com o autor.
-/// </remarks>
 public interface IConviteDoEventoService
 {
     /// <summary>Os convites do próprio formando para a festa ou a colação, e as unidades pagas que ainda faltam.</summary>
@@ -61,7 +56,18 @@ public interface IConviteDoEventoService
     /// <param name="compraId">A compra do link; convite de outra compra responde 404.</param>
     /// <param name="dados">Nome, documento e e-mail.</param>
     Task<Result<MeuConvite>> NomearDaCompra(Guid conviteId, Guid compraId, DadosDoConvidado dados, CancellationToken ct = default);
+}
 
+/// <summary>
+/// O convite da festa do lado da Gestão: reemitir, liberar, a cortesia, emitir os pendentes e o resumo.
+/// </summary>
+/// <remarks>
+/// A emissão comum não passa por aqui: ela nasce da quitação do pedido, em <c>PedidoService</c>, na
+/// transação da baixa (P2). O que está aqui são as exceções — a liberação manual e a cortesia —, que
+/// exigem motivo e ficam na auditoria com o autor.
+/// </remarks>
+public interface IGestaoDeConvitesService
+{
     /// <summary>Revoga o código e emite outro para o mesmo convidado — o "perdi o convite" (P5).</summary>
     /// <param name="conviteId">Convite.</param>
     /// <param name="usuarioId">Quem reemite, da Gestão.</param>

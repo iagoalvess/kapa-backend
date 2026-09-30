@@ -3,6 +3,9 @@ using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
 using Backend.Business.Auth.Settings;
 using Backend.Business.Common.Texto;
+using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Eventos.Models;
+using Backend.Business.Eventos.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Legal.Interfaces;
 using Backend.Business.Legal.Models;
@@ -30,6 +33,7 @@ namespace Backend.Business.Auth.Services;
 /// <param name="credenciaisValidator">Validador das credenciais de login.</param>
 /// <param name="contaOptions">Regras do ciclo de vida da conta.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
+/// <param name="eventos">Trilha de auditoria — o bloqueio por tentativas fica nela.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class AuthService(
     UserManager<Usuario> userManager,
@@ -43,6 +47,7 @@ public sealed class AuthService(
     IValidator<Credenciais> credenciaisValidator,
     IOptions<ContaSettings> contaOptions,
     IUnitOfWork unitOfWork,
+    IEventoRepository eventos,
     TentativasDeSenha tentativas,
     ILogger<AuthService> logger
 ) : IAuthService
@@ -121,8 +126,14 @@ public sealed class AuthService(
 
         if (!await userManager.CheckPasswordAsync(usuario, credenciais.Senha))
         {
-            tentativas.RegistrarFalha(credenciais.Email, ipDeOrigem);
             logger.LogInformation("Login recusado para {Email}: senha incorreta.", emailMascarado);
+
+            if (tentativas.RegistrarFalha(credenciais.Email, ipDeOrigem))
+            {
+                await eventos.Auditar(NomesDeAuditoria.BloqueioPorTentativas, usuario.Id, new { email = emailMascarado, origem = ipDeOrigem }, ct);
+                await unitOfWork.SalvarAsync(ct);
+            }
+
             return CredenciaisInvalidas;
         }
 

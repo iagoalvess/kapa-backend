@@ -92,7 +92,6 @@ public sealed class UsuarioRepository(AppDbContext db) : IUsuarioRepository
     public Task<int> ContarAdministradoresAtivos(CancellationToken ct = default) => AdministradoresAtivos(db).CountAsync(ct);
 
     /// <summary>As contas ativas com o perfil de administrador da plataforma.</summary>
-    /// <remarks>Também é a contagem do painel administrativo (<c>AdminRepository.ObterResumo</c>).</remarks>
     /// <param name="db">Contexto de dados da requisição.</param>
     internal static IQueryable<Usuario> AdministradoresAtivos(AppDbContext db) =>
         from usuario in db.Users.AsNoTracking()

@@ -1,5 +1,4 @@
 using Backend.Business.Auth.Settings;
-using Microsoft.Extensions.Options;
 
 namespace Backend.Api.Configuration;
 

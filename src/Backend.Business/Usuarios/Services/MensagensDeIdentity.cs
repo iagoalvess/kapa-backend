@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 
-namespace Backend.Business.Usuarios;
+namespace Backend.Business.Usuarios.Services;
 
 /// <summary>
 /// Mensagens do ASP.NET Identity em português.

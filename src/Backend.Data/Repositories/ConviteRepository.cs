@@ -30,7 +30,6 @@ public sealed class ConviteRepository(AppDbContext db) : IConviteRepository
                 c.UsosMaximos,
                 c.UsosFeitos,
                 Convite.Situacao(c.RevogadoEm, c.UsosMaximos, c.UsosFeitos, c.ExpiraEm, agoraUtc),
-                c.CriadoEm,
                 c.Token
             ))
             .ToListAsync(ct);

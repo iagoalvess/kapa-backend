@@ -32,22 +32,48 @@ public sealed class RetencaoDeFormaturasJob(IServiceScopeFactory scopeFactory, L
     /// <inheritdoc />
     protected override async Task ExecutarPassada(int passada, CancellationToken ct)
     {
+        IReadOnlyList<Guid> abandonadas;
         IReadOnlyList<Guid> vencidas;
 
         using (var escopo = scopeFactory.CreateScope())
         {
             var retencao = escopo.ServiceProvider.GetRequiredService<IRetencaoDeFormaturasService>();
 
-            var encerradas = await retencao.EncerrarSuspensasAbandonadas(ct);
-
-            if (encerradas > 0)
-                Logger.LogInformation("Retenção encerrou {Encerradas} turmas suspensas há mais de 12 meses.", encerradas);
-
+            abandonadas = await retencao.ListarSuspensasAbandonadas(ct);
             vencidas = await retencao.ListarParaEliminar(ct);
         }
 
+        var encerradas = 0;
+
+        foreach (var formaturaId in abandonadas)
+            encerradas += await Encerrar(formaturaId, ct) ? 1 : 0;
+
+        if (encerradas > 0)
+            Logger.LogInformation("Retenção encerrou {Encerradas} turmas suspensas há mais de 12 meses.", encerradas);
+
         foreach (var formaturaId in vencidas)
             await Eliminar(formaturaId, ct);
+    }
+
+    /// <summary>
+    /// Encerra uma turma abandonada no escopo dela: as pendências que a auditoria registra (Sprint 42, decisão 7) são
+    /// contadas pelo filtro global, e um escopo por turma é a regra do <see cref="FormaturaDoProcessamento"/>.
+    /// </summary>
+    private async Task<bool> Encerrar(Guid formaturaId, CancellationToken ct)
+    {
+        try
+        {
+            using var escopo = scopeFactory.CreateScope();
+
+            escopo.ServiceProvider.GetRequiredService<FormaturaDoProcessamento>().Apontar(formaturaId);
+
+            return await escopo.ServiceProvider.GetRequiredService<IRetencaoDeFormaturasService>().EncerrarAbandonada(formaturaId, ct);
+        }
+        catch (Exception excecao) when (excecao is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            Logger.LogError(excecao, "Falha ao encerrar a formatura abandonada {FormaturaId}. Ela volta na próxima execução.", formaturaId);
+            return false;
+        }
     }
 
     private async Task Eliminar(Guid formaturaId, CancellationToken ct)

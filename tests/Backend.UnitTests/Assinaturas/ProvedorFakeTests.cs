@@ -1,6 +1,6 @@
 using Backend.Business.Assinaturas.Models;
+using Backend.Business.Assinaturas.Services;
 using Backend.Business.Assinaturas.Settings;
-using Backend.Data.Provedores;
 using Microsoft.Extensions.Options;
 using Shouldly;
 

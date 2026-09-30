@@ -184,7 +184,6 @@ public sealed record CompraCriadaDTO(string Token, CompraDTO Compra);
 /// <param name="PagadorDiferente">O CPF de quem pagou não é o da compra (P6).</param>
 /// <param name="ConvitesCancelados">Quantos convites deixaram de valer (Sprint 38).</param>
 /// <param name="ValorADevolverEmCentavos">O que a comissão ainda devolve.</param>
-/// <param name="DevolvidaEm">Quando a comissão marcou a devolução.</param>
 /// <param name="PedidoDeCancelamentoAberto">Se o comprador pediu cancelamento e ninguém respondeu.</param>
 public sealed record CompraNaGestaoDTO(
     Guid Id,
@@ -203,7 +202,6 @@ public sealed record CompraNaGestaoDTO(
     bool PagadorDiferente,
     int ConvitesCancelados,
     long ValorADevolverEmCentavos,
-    DateTime? DevolvidaEm,
     bool PedidoDeCancelamentoAberto
 );
 

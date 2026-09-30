@@ -14,6 +14,8 @@ using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Pagamentos.Interfaces;
+using Backend.Business.Pagamentos.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -87,6 +89,7 @@ public sealed class PedidoServiceTests
             Substitute.For<IEventoRepository>(),
             Emissao(),
             new DonosDeMesa(_mesas, NullLogger<DonosDeMesa>.Instance),
+            new ValoresADevolver(Substitute.For<IValorADevolverRepository>()),
             _unitOfWork,
             NullLogger<PedidoService>.Instance
         );
@@ -137,12 +140,10 @@ public sealed class PedidoServiceTests
                 "Ana Souza",
                 pedido?.Quantidade ?? 1,
                 pedido?.Parcelas ?? 1,
-                item.ValorEmCentavos,
                 0,
                 0,
                 StatusDoPedido.Confirmado,
-                DateTime.UtcNow,
-                null
+                DateTime.UtcNow
             ));
     }
 

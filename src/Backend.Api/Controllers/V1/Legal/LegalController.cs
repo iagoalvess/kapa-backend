@@ -88,4 +88,26 @@ public sealed class LegalController(ILegalService legalService, IUsuarioAtual us
 
         return Responder(resultado.Map(aceites => aceites.Adapt<MeusAceitesDTO>()));
     }
+
+    /// <summary>
+    /// Revoga um consentimento registrado (LGPD, art. 18, IX).
+    /// </summary>
+    /// <remarks>
+    /// Grava uma linha nova; o aceite original fica intacto, porque o banco recusa alterá-lo. Revogar
+    /// o que é obrigatório devolve aquela versão para as pendências, e o aplicativo pede o aceite de
+    /// novo na entrada seguinte — a tela avisa disso antes.
+    /// <para>
+    /// A rota é a do portal do titular (<c>/privacidade</c>), onde a tela mostra o histórico; o assunto é o
+    /// consentimento, por isso o endpoint mora aqui.
+    /// </para>
+    /// </remarks>
+    /// <param name="id">Registro de aceite a revogar.</param>
+    [HttpPost("/api/v{version:apiVersion}/privacidade/consentimentos/{id:guid}/revogar")]
+    [Authorize(Policy = Politicas.Autenticado)]
+    [RegistrarEvento("privacidade.consentimento_revogado", CamposDaRota = ["id"])]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Revogar(Guid id, CancellationToken ct) =>
+        Responder(await legalService.Revogar(usuarioAtual.Id, id, usuarioAtual.Origem, ct));
 }

@@ -152,12 +152,45 @@ public sealed class NotificacaoServiceTests
     [Fact]
     public async Task Cobrar_uma_parcela_que_a_regua_nao_pode_cobrar_devolve_409()
     {
+        var parcelaId = Guid.CreateVersion7();
         _notificacoes.ObterParaCobranca(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((ParcelaParaCobranca?)null);
+        _parcelas
+            .Obter(parcelaId, Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+            .Returns(
+                new ParcelaResumo(
+                    parcelaId,
+                    VinculoId,
+                    Guid.CreateVersion7(),
+                    "Júlia",
+                    Guid.CreateVersion7(),
+                    TipoDeCobranca.Mensalidade,
+                    null,
+                    1,
+                    3,
+                    new DateOnly(2026, 9, 1),
+                    35_000,
+                    StatusDaParcela.Paga,
+                    ValorPagoEmCentavos: 35_000
+                )
+            );
+
+        var resultado = await Servico.Cobrar(FormaturaId, parcelaId, Ct);
+
+        resultado.Falhou.ShouldBeTrue();
+        resultado.PrimeiroErro.Codigo.ShouldBe("notificacao.parcela_nao_cobravel");
+    }
+
+    /// <summary>Parcela de outra turma é a mesma coisa que parcela que não existe: 404, sem dizer qual dos dois.</summary>
+    [Fact]
+    public async Task Cobrar_uma_parcela_que_nao_e_da_turma_devolve_404()
+    {
+        _notificacoes.ObterParaCobranca(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((ParcelaParaCobranca?)null);
+        _parcelas.Obter(Arg.Any<Guid>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns((ParcelaResumo?)null);
 
         var resultado = await Servico.Cobrar(FormaturaId, Guid.CreateVersion7(), Ct);
 
         resultado.Falhou.ShouldBeTrue();
-        resultado.PrimeiroErro.Codigo.ShouldBe("notificacao.parcela_nao_cobravel");
+        resultado.PrimeiroErro.Codigo.ShouldBe("pagamento.parcela_nao_encontrada");
     }
 
     [Fact]

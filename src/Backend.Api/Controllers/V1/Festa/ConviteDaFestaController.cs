@@ -4,6 +4,7 @@ using Backend.Api.DTOs.Festa;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Agenda.Models;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Mapster;
@@ -21,13 +22,21 @@ namespace Backend.Api.Controllers.V1.Festa;
 /// <see cref="RateLimitConfig.Ingresso"/>: código curto sem limite é código enumerável. O resto exige
 /// sessão. "Convite da festa" em tela, <c>Festa/ConviteDoEvento</c> no código — o <c>/convites</c> da
 /// raiz é o convite de entrada na turma (decisão 2).
+/// <para>
+/// O módulo <c>festa</c> vale para as rotas com sessão (Sprint 45, P1). A página e o PDF, com
+/// <c>[AllowAnonymous]</c>, ficam fora dele de propósito: o convite já emitido é do convidado, e ele
+/// continua entrando na festa mesmo que a turma deixe de pagar.
+/// </para>
 /// </remarks>
 /// <param name="convites">Regras do convite.</param>
+/// <param name="gestao">O que a Gestão faz com os convites.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Festa)]
 [Route("api/v{version:apiVersion}/festa/convites")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class ConviteDaFestaController(IConviteDoEventoService convites, IUsuarioAtual usuarioAtual) : MainController
+public sealed class ConviteDaFestaController(IConviteDoEventoService convites, IGestaoDeConvitesService gestao, IUsuarioAtual usuarioAtual)
+    : MainController
 {
     /// <summary>Os convites do próprio formando para a festa ou para a colação.</summary>
     /// <param name="tipo">Festa (o padrão) ou colação.</param>
@@ -44,7 +53,7 @@ public sealed class ConviteDaFestaController(IConviteDoEventoService convites, I
     [ProducesResponseType(typeof(ResumoDosConvitesDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Resumir(CancellationToken ct) =>
-        Responder((await convites.Resumir(ct)).Map(resumo => resumo.Adapt<ResumoDosConvitesDTO>()));
+        Responder((await gestao.Resumir(ct)).Map(resumo => resumo.Adapt<ResumoDosConvitesDTO>()));
 
     /// <summary>A página do convite, sem sessão.</summary>
     /// <remarks>
@@ -102,7 +111,7 @@ public sealed class ConviteDaFestaController(IConviteDoEventoService convites, I
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Reemitir(Guid id, CancellationToken ct) =>
-        Responder((await convites.Reemitir(id, usuarioAtual.Id, ct)).Map(convite => convite.Adapt<ConviteNaPortariaDTO>()));
+        Responder((await gestao.Reemitir(id, usuarioAtual.Id, ct)).Map(convite => convite.Adapt<ConviteNaPortariaDTO>()));
 
     /// <summary>Emite os convites de um pedido ainda em aberto — "paga o resto na porta" (P2).</summary>
     /// <param name="requisicao">Pedido e motivo.</param>
@@ -116,7 +125,7 @@ public sealed class ConviteDaFestaController(IConviteDoEventoService convites, I
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Liberar([FromBody] LiberacaoRequestDTO requisicao, CancellationToken ct) =>
         Responder(
-            (await convites.Liberar(usuarioAtual.Id, new LiberacaoDeConvites(requisicao.PedidoId, requisicao.Motivo ?? string.Empty), ct)).Map(
+            (await gestao.Liberar(usuarioAtual.Id, new LiberacaoDeConvites(requisicao.PedidoId, requisicao.Motivo ?? string.Empty), ct)).Map(
                 quantidade => new EmissaoDTO(quantidade)
             )
         );
@@ -139,7 +148,7 @@ public sealed class ConviteDaFestaController(IConviteDoEventoService convites, I
             requisicao.EventoId
         );
 
-        return Responder((await convites.EmitirCortesia(usuarioAtual.Id, dados, ct)).Map(convite => convite.Adapt<ConviteNaPortariaDTO>()));
+        return Responder((await gestao.EmitirCortesia(usuarioAtual.Id, dados, ct)).Map(convite => convite.Adapt<ConviteNaPortariaDTO>()));
     }
 
     /// <summary>Emite os convites dos pedidos já quitados que ainda não os têm — depois de a festa ficar completa na agenda.</summary>
@@ -150,7 +159,7 @@ public sealed class ConviteDaFestaController(IConviteDoEventoService convites, I
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> EmitirPendentes(CancellationToken ct) =>
-        Responder((await convites.EmitirPendentes(ct)).Map(pedidos => new EmissaoDTO(pedidos)));
+        Responder((await gestao.EmitirPendentes(ct)).Map(pedidos => new EmissaoDTO(pedidos)));
 
     private static DadosDoConvidado ParaModelo(ConvidadoRequestDTO requisicao) =>
         new(requisicao.Nome ?? string.Empty, requisicao.TipoDoDocumento, requisicao.NumeroDoDocumento, requisicao.Email);

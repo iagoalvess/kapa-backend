@@ -4,7 +4,6 @@ using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Models;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
-using Backend.Business.Common.Texto;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Models;
 using Backend.Business.Formaturas.Interfaces;
@@ -215,7 +214,7 @@ public sealed class RelatorioService(
 
         return await arquivoService.Baixar(
             solicitacao.ArquivoId!.Value,
-            new SolicitanteDeArquivo(solicitacao.SolicitadaPorUsuarioId, EhAdministrador: false),
+            new SolicitanteDeArquivo(solicitacao.SolicitadaPorUsuarioId, PeloSistema: false),
             ct
         );
     }

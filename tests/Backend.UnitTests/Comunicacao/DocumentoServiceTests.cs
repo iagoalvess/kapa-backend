@@ -31,7 +31,6 @@ public sealed class DocumentoServiceTests
     private static readonly Guid NovoArquivoId = Guid.CreateVersion7();
 
     private static readonly byte[] Pdf = "%PDF-1.7\n%âãÏÓ\n1 0 obj"u8.ToArray();
-    private static readonly byte[] Executavel = [0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00];
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

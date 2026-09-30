@@ -52,12 +52,18 @@ public sealed class NovoInformeValidator : AbstractValidator<NovoInforme>
 }
 
 /// <summary>Forma da baixa manual.</summary>
+/// <remarks>
+/// <see cref="FormaDePagamento.Cartao"/> é só da baixa automática (Sprint 42, F10): o cartão passa pelo Mercado Pago da
+/// turma, e a tesouraria que registra "cartão" à mão cria uma entrada que nenhum extrato do Mercado Pago confirma.
+/// </remarks>
 public sealed class BaixaManualValidator : AbstractValidator<BaixaManual>
 {
     /// <summary>Registra as regras de validação.</summary>
     public BaixaManualValidator()
     {
-        RuleFor(x => x.Forma).IsInEnum().WithMessage("Forma de pagamento inválida. Use Pix, Dinheiro, Transferencia ou Outro.");
+        RuleFor(x => x.Forma)
+            .Must(forma => Enum.IsDefined(forma) && forma != FormaDePagamento.Cartao)
+            .WithMessage("Forma de pagamento inválida. Use Pix, Dinheiro, Transferencia ou Outro.");
         RuleFor(x => x.PagoEm).DiaDoPagamento();
         RuleFor(x => x.ValorEmCentavos).ValorDoPagamento();
     }
@@ -108,6 +114,30 @@ public sealed class EstornarBaixaValidator : AbstractValidator<EstornarBaixa>
             .WithMessage("Explique por que a baixa está sendo desfeita.")
             .MaximumLength(LimitesDoPagamento.TextoMaximo)
             .WithMessage($"A justificativa deve ter no máximo {LimitesDoPagamento.TextoMaximo} caracteres.");
+}
+
+/// <summary>Forma do cancelamento avulso: a justificativa é obrigatória, porque fica na auditoria.</summary>
+public sealed class CancelarParcelaValidator : AbstractValidator<CancelarParcela>
+{
+    /// <summary>Registra as regras de validação.</summary>
+    public CancelarParcelaValidator() =>
+        RuleFor(x => x.Justificativa)
+            .Must(justificativa => !string.IsNullOrWhiteSpace(justificativa))
+            .WithMessage("Explique por que a parcela está sendo cancelada.")
+            .MaximumLength(LimitesDoPagamento.TextoMaximo)
+            .WithMessage($"A justificativa deve ter no máximo {LimitesDoPagamento.TextoMaximo} caracteres.");
+}
+
+/// <summary>Forma do fechamento do pago sem parcela: o que a comissão fez fica registrado.</summary>
+public sealed class FecharValorADevolverValidator : AbstractValidator<FecharValorADevolver>
+{
+    /// <summary>Registra as regras de validação.</summary>
+    public FecharValorADevolverValidator() =>
+        RuleFor(x => x.Observacao)
+            .Must(observacao => !string.IsNullOrWhiteSpace(observacao))
+            .WithMessage("Diga o que foi feito com este pagamento.")
+            .MaximumLength(LimitesDoPagamento.TextoMaximo)
+            .WithMessage($"A observação deve ter no máximo {LimitesDoPagamento.TextoMaximo} caracteres.");
 }
 
 /// <summary>

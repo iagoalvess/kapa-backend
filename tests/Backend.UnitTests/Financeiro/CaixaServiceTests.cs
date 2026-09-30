@@ -171,19 +171,5 @@ public sealed class CaixaServiceTests
     }
 
     private static FormaturaDetalhe Formatura(DateOnly? colacao) =>
-        new(
-            FormaturaId,
-            "Medicina 2027",
-            "UFPR",
-            "Medicina",
-            2027,
-            1,
-            colacao,
-            null,
-            StatusDaFormatura.Ativa,
-            DateTime.UtcNow,
-            DateTime.UtcNow,
-            null,
-            false
-        );
+        new(FormaturaId, "Medicina 2027", "UFPR", "Medicina", 2027, 1, colacao, null, StatusDaFormatura.Ativa, null, false);
 }

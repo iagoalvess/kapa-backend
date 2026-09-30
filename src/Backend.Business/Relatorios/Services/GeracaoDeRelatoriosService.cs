@@ -103,7 +103,7 @@ public sealed class GeracaoDeRelatoriosService(
         {
             var remocao = await arquivoService.Remover(
                 solicitacao.ArquivoId!.Value,
-                new SolicitanteDeArquivo(solicitacao.SolicitadaPorUsuarioId, EhAdministrador: false),
+                new SolicitanteDeArquivo(solicitacao.SolicitadaPorUsuarioId, PeloSistema: false),
                 ct
             );
 

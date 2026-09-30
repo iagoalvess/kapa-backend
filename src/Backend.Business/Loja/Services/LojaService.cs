@@ -1,8 +1,8 @@
-using System.Globalization;
 using Backend.Business.Abstractions;
 using Backend.Business.Agenda.Interfaces;
 using Backend.Business.Agenda.Models;
-using Backend.Business.Arquivos.Models;
+using Backend.Business.Assinaturas.Interfaces;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
 using Backend.Business.Common.Texto;
@@ -19,15 +19,14 @@ using Backend.Business.Pagamentos.Services;
 using Backend.Business.Recebimentos.Interfaces;
 using Backend.Business.Recebimentos.Models;
 using Backend.Business.Recebimentos.Services;
-using Backend.Business.Relatorios.Models;
-using Backend.Business.Relatorios.Services;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
 namespace Backend.Business.Loja.Services;
 
 /// <summary>
-/// A loja pública da turma (Sprint 26): a vitrine, a compra sem conta, a compra pelo link e a lista da Gestão.
+/// A loja pública da turma (Sprint 26): a vitrine, a compra sem conta e a compra pelo link. A lista da Gestão é o
+/// <see cref="ComprasDaLojaService"/>.
 /// </summary>
 /// <remarks>
 /// A compra segue a ordem da decisão 8, e a ordem é o desenho: tudo o que pode recusar sem trava — forma, CPF,
@@ -43,6 +42,7 @@ namespace Backend.Business.Loja.Services;
 /// </remarks>
 /// <param name="compras">Compras e a reserva no item.</param>
 /// <param name="formaturas">A turma que vende.</param>
+/// <param name="assinaturas">O plano da turma: sem o módulo da festa, não há loja (Sprint 45, P1).</param>
 /// <param name="agenda">A festa.</param>
 /// <param name="mercadoPago">A autorização da turma e a emissão.</param>
 /// <param name="provedor">A cobrança viva da compra.</param>
@@ -62,6 +62,7 @@ namespace Backend.Business.Loja.Services;
 public sealed class LojaService(
     ICompraDeConviteRepository compras,
     IFormaturaRepository formaturas,
+    IAssinaturaRepository assinaturas,
     IEventoDaTurmaRepository agenda,
     EmissaoNoMercadoPago mercadoPago,
     IProvedorDaTurmaRepository provedor,
@@ -413,77 +414,6 @@ public sealed class LojaService(
         return Result.Ok();
     }
 
-    /// <inheritdoc />
-    public async Task<Result<PaginaDe<CompraNaGestao>>> Listar(PaginacaoRequest paginacao, FiltroDeCompras filtro, CancellationToken ct = default) =>
-        await compras.Listar(paginacao.Normalizar(), filtro, ct);
-
-    /// <inheritdoc />
-    public async Task<Result<ResumoDaLoja>> Resumir(CancellationToken ct = default) =>
-        await compras.Resumir(ct) with
-        {
-            FestaId = (await agenda.ObterDoTipo(TipoDeEvento.Festa, ct))?.Id,
-        };
-
-    /// <inheritdoc />
-    public async Task<Result<ArquivoParaDownload>> Exportar(FiltroDeCompras filtro, CancellationToken ct = default)
-    {
-        var linhas = await compras.ListarTodas(filtro, ct);
-
-        var tabela = new TabelaDoRelatorio(
-            "Compras da loja",
-            $"Gerado em {DataUtils.ParaExibicao(DateTime.UtcNow).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)} — a devolução é da turma",
-            [
-                new("Data", 1.2f),
-                new("Comprador", 2f),
-                new("E-mail", 2.4f),
-                new("CPF", 1.4f),
-                new("Convite", 1.6f),
-                new("Qtd.", 0.6f, Direita: true),
-                new("Valor", 1.2f, Direita: true),
-                new("Meio", 0.9f),
-                new("Situação", 1.2f),
-                new("Pago em", 1.1f, Direita: true),
-                new("Valor pago", 1.2f, Direita: true),
-            ],
-            [
-                .. linhas.Select(linha =>
-                    (IReadOnlyList<Celula>)
-                        [
-                            Celula.Data(DateOnly.FromDateTime(DataUtils.ParaExibicao(linha.CriadaEm))),
-                            Celula.De(linha.Nome ?? "Dados apagados"),
-                            Celula.De(linha.Email),
-                            Celula.De(linha.Cpf),
-                            Celula.De(linha.Item),
-                            Celula.Inteiro(linha.Quantidade),
-                            Celula.Reais(linha.ValorEmCentavos),
-                            Celula.De(MeiosDePagamento.Rotulo(linha.Meio)),
-                            Celula.De(Rotulo(linha.Status)),
-                            Celula.Data(linha.PagaEm is { } paga ? DateOnly.FromDateTime(DataUtils.ParaExibicao(paga)) : null),
-                            Celula.Reais(linha.ValorPagoEmCentavos),
-                        ]
-                ),
-            ]
-        );
-
-        return new ArquivoParaDownload(
-            new MemoryStream(RelatorioEmExcel.Gerar(tabela)),
-            "compras-da-loja.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        );
-    }
-
-    /// <summary>Como a situação aparece na planilha.</summary>
-    /// <param name="status">Situação.</param>
-    public static string Rotulo(StatusDaCompra status) =>
-        status switch
-        {
-            StatusDaCompra.Pendente => "Aguardando pagamento",
-            StatusDaCompra.Paga => "Paga",
-            StatusDaCompra.Expirada => "Expirada",
-            StatusDaCompra.ADevolver => "A devolver",
-            _ => "Devolvida",
-        };
-
     /// <summary>
     /// Até quando a reserva vale e até quando o PIX aceita pagamento (decisão 3; P1 da Sprint 35).
     /// </summary>
@@ -503,11 +433,19 @@ public sealed class LojaService(
     /// Aponta o escopo e devolve a turma, se ela está ativa e a festa não foi cancelada — turma suspensa ou
     /// encerrada não vende, e festa cancelada também não (Sprint 38, P10).
     /// </summary>
+    /// <remarks>
+    /// Nem a turma cujo plano não inclui a festa (Sprint 45, P1): a rota é anônima, então a política de
+    /// módulo não a alcança, e a conferência mora aqui. Responde o mesmo 404 da turma sem loja — para quem
+    /// compra, não há diferença entre as duas, e o plano da turma não é da conta de quem está de fora.
+    /// </remarks>
     private async Task<FormaturaDetalhe?> TurmaVendendo(Guid formaturaId, CancellationToken ct)
     {
         escopo.Apontar(formaturaId);
 
         if (await formaturas.ObterDetalheDeTodasAsFormaturas(formaturaId, ct) is not { Status: StatusDaFormatura.Ativa } turma)
+            return null;
+
+        if (await assinaturas.ObterPlanoVigenteDeTodasAsFormaturas(formaturaId, ct) is not { } plano || !plano.Modulos.Contains(Modulo.Festa))
             return null;
 
         return await agenda.ObterDoTipo(TipoDeEvento.Festa, ct) is { Situacao: SituacaoDoEvento.Cancelado } ? null : turma;

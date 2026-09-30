@@ -1,7 +1,6 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Models;
-using Backend.Business.Arquivos.Services;
 using Backend.Business.Comunicacao.Interfaces;
 using Backend.Business.Comunicacao.Models;
 using Backend.Business.Eventos.Interfaces;
@@ -245,7 +244,7 @@ public sealed class DocumentoService(
 
         return await arquivoService.GerarUrlTemporaria(
             arquivo.ArquivoId,
-            new SolicitanteDeArquivo(arquivo.EnviadoPorId, EhAdministrador: false),
+            new SolicitanteDeArquivo(arquivo.EnviadoPorId, PeloSistema: false),
             ValidadeDaUrl,
             ct
         );
@@ -279,7 +278,7 @@ public sealed class DocumentoService(
     /// <summary>Apaga o arquivo que saiu do acervo. Falhar vira log: sobra um órfão, e o documento já está certo.</summary>
     private async Task Apagar(ArquivoDoDocumento arquivo, CancellationToken ct)
     {
-        var remocao = await arquivoService.Remover(arquivo.ArquivoId, new SolicitanteDeArquivo(arquivo.EnviadoPorId, EhAdministrador: false), ct);
+        var remocao = await arquivoService.Remover(arquivo.ArquivoId, new SolicitanteDeArquivo(arquivo.EnviadoPorId, PeloSistema: false), ct);
 
         if (remocao.Falhou)
             logger.LogWarning("Arquivo {ArquivoId} saiu do acervo mas não foi apagado: {Codigo}.", arquivo.ArquivoId, remocao.PrimeiroErro.Codigo);

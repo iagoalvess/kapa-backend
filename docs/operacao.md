@@ -131,7 +131,7 @@ redirecionamento é o `fetch` do front, com o bearer na ida à API e sem ele no 
   do front, o bucket precisa de **CORS** liberando a origem do app, com credenciais:
 
   ```json
-  [{ "AllowedOrigins": ["https://app.kapa.com.br"], "AllowedMethods": ["GET"], "AllowedHeaders": ["*"], "MaxAgeSeconds": 600 }]
+  [{ "AllowedOrigins": ["https://app.kapaformaturas.com.br"], "AllowedMethods": ["GET"], "AllowedHeaders": ["*"], "MaxAgeSeconds": 600 }]
   ```
 
   Sem isso, o download falha no navegador com erro de CORS, e a API mostra 302 normalmente no log.

@@ -1,6 +1,7 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Pagamentos.Services;
 using Backend.Business.Recebimentos.Interfaces;
+using Backend.Business.Recebimentos.Models;
 using Backend.Worker.Configuration;
 
 namespace Backend.Worker.Jobs;

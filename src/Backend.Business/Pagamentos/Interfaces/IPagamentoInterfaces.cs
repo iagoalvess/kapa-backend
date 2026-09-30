@@ -2,7 +2,6 @@ using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Models;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Pagamentos.Models;
-using Backend.Business.Recebimentos.Models;
 
 namespace Backend.Business.Pagamentos.Interfaces;
 
@@ -98,7 +97,13 @@ public interface IPagamentoService
         NovoArquivo? comprovante,
         CancellationToken ct = default
     );
+}
 
+/// <summary>
+/// O recibo de cada baixa (Sprint 22): a prova do que entrou, remontada a cada pedido a partir do que a baixa gravou.
+/// </summary>
+public interface IReciboService
+{
     /// <summary>
     /// O recibo de um recebimento em PDF, gerado na hora (Sprint 22). O próprio formando, ou a gestão.
     /// </summary>
@@ -109,7 +114,7 @@ public interface IPagamentoService
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Quem pede.</param>
     /// <param name="recebimentoId">Recebimento.</param>
-    Task<Result<ArquivoParaDownload>> ObterRecibo(Guid formaturaId, Guid usuarioId, Guid recebimentoId, CancellationToken ct = default);
+    Task<Result<ArquivoParaDownload>> Obter(Guid formaturaId, Guid usuarioId, Guid recebimentoId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -183,6 +188,20 @@ public interface ITesourariaService
         CancellationToken ct = default
     );
 
+    /// <summary>
+    /// Cancela uma parcela específica, com justificativa e auditoria (Sprint 42, decisão 8); o que já tinha entrado nela
+    /// vai para a lista "a devolver".
+    /// </summary>
+    /// <remarks>
+    /// 409 <c>pagamento.parcela_paga</c> se está paga (estorne antes), <c>pagamento.informe_pendente</c> com aviso do
+    /// formando, <c>pagamento.parcela_nao_aberta</c> se já foi cancelada.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Quem cancela.</param>
+    /// <param name="parcelaId">Parcela.</param>
+    /// <param name="dados">Justificativa.</param>
+    Task<Result<ParcelaResumo>> Cancelar(Guid formaturaId, Guid usuarioId, Guid parcelaId, CancelarParcela dados, CancellationToken ct = default);
+
     /// <summary>As baixas com valor recebido diferente do devido, das mais recentes.</summary>
     /// <param name="paginacao">Página pedida.</param>
     /// <param name="busca">Trecho do nome do formando.</param>
@@ -251,6 +270,32 @@ public interface IRecebimentoRepository
     /// <param name="parcelaId">Parcela.</param>
     Task<Recebimento?> ObterAtivoParaEdicao(Guid parcelaId, CancellationToken ct = default);
 
+    /// <summary>
+    /// A baixa ativa que a cobrança do Mercado Pago fez na parcela, rastreada (Sprint 42, F3); nula se não há.
+    /// </summary>
+    /// <remarks>
+    /// Baixa de antes do vínculo com a cobrança não tem <c>CobrancaId</c>. Só quando <b>nenhuma</b> baixa aponta para a
+    /// cobrança — nem a já estornada — ela é dessas, e a resposta é a de antes: a última ativa da parcela com a forma
+    /// dela e sem cobrança. Com o vínculo gravado, a ausência quer dizer que a baixa já foi desfeita, e a manual feita
+    /// depois fica.
+    /// </remarks>
+    /// <param name="parcelaId">Parcela.</param>
+    /// <param name="cobrancaId">Cobrança.</param>
+    /// <param name="forma">A forma que a cobrança grava, para a baixa sem vínculo.</param>
+    Task<Recebimento?> ObterAtivoDaCobrancaParaEdicao(Guid parcelaId, Guid cobrancaId, FormaDePagamento forma, CancellationToken ct = default);
+
+    /// <summary>
+    /// Se a cobrança ainda tem outra baixa ativa além desta — o estorno à mão só encerra a cobrança quando desfaz a última.
+    /// </summary>
+    /// <param name="cobrancaId">Cobrança.</param>
+    /// <param name="recebimentoId">A baixa que está sendo estornada, ainda ativa no banco.</param>
+    Task<bool> ExisteOutroAtivoDaCobranca(Guid cobrancaId, Guid recebimentoId, CancellationToken ct = default);
+
+    /// <summary>A cobrança do Mercado Pago da última baixa ativa da parcela, sem rastrear; nula na baixa manual.</summary>
+    /// <remarks>Lida antes da transação: quem estorna trava a cobrança antes da parcela, na ordem do aviso do Mercado Pago.</remarks>
+    /// <param name="parcelaId">Parcela.</param>
+    Task<Guid?> ObterCobrancaDaBaixaAtiva(Guid parcelaId, CancellationToken ct = default);
+
     /// <summary>Uma página das baixas ativas com recebido diferente do devido, das mais recentes.</summary>
     /// <param name="paginacao">Página pedida, já normalizada.</param>
     /// <param name="hoje">Dia que separa aberta de vencida.</param>
@@ -266,4 +311,62 @@ public interface IRecebimentoRepository
     /// <summary>Marca um recebimento novo para inclusão.</summary>
     /// <param name="recebimento">Recebimento.</param>
     Task Adicionar(Recebimento recebimento, CancellationToken ct = default);
+}
+
+/// <summary>
+/// A lista "a devolver" da tesouraria (Sprint 42): crédito de pedido, parcial de parcela cancelada e pago sem parcela.
+/// </summary>
+/// <remarks>O Kapa não devolve dinheiro: a comissão devolve fora e registra aqui (decisão 1).</remarks>
+public interface IValoresADevolverService
+{
+    /// <summary>Uma página da lista, dos mais antigos — é a ordem de quem está esperando.</summary>
+    /// <param name="paginacao">Página pedida.</param>
+    /// <param name="filtro">Situação e busca.</param>
+    Task<Result<PaginaDe<ValorADevolverNaLista>>> Listar(PaginacaoRequest paginacao, FiltroDeValoresADevolver filtro, CancellationToken ct = default);
+
+    /// <summary>
+    /// A comissão fez o PIX de volta: com o comprovante, o valor sai da lista e a saída entra no caixa como despesa paga.
+    /// </summary>
+    /// <remarks>Sem comprovante, 400 <c>pagamento.comprovante_obrigatorio</c>; fora da lista, 409 <c>pagamento.valor_nao_a_devolver</c>.</remarks>
+    /// <param name="usuarioId">Quem registra.</param>
+    /// <param name="id">Valor a devolver.</param>
+    /// <param name="comprovante">Comprovante do PIX.</param>
+    Task<Result<ValorADevolverNaLista>> Devolver(Guid usuarioId, Guid id, NovoArquivo? comprovante, CancellationToken ct = default);
+
+    /// <summary>A comissão resolveu o pago sem parcela — devolveu no painel do Mercado Pago ou lançou como outra receita.</summary>
+    /// <remarks>Crédito e parcial não fecham assim: voltam por PIX, com comprovante (409 <c>pagamento.devolucao_exige_comprovante</c>).</remarks>
+    /// <param name="usuarioId">Quem fecha.</param>
+    /// <param name="id">Valor a devolver.</param>
+    /// <param name="dados">O que foi feito.</param>
+    Task<Result<ValorADevolverNaLista>> Fechar(Guid usuarioId, Guid id, FecharValorADevolver dados, CancellationToken ct = default);
+}
+
+/// <summary>Os valores a devolver da formatura selecionada.</summary>
+/// <remarks>Isolados pelo filtro global.</remarks>
+public interface IValorADevolverRepository
+{
+    /// <summary>Trava a linha até o fim da transação: dois cliques em "devolvido" lançam uma saída só.</summary>
+    /// <param name="id">Valor a devolver.</param>
+    Task<ValorADevolver?> Travar(Guid id, CancellationToken ct = default);
+
+    /// <summary>Os que ainda esperam a comissão numa parcela, rastreados.</summary>
+    /// <param name="parcelaId">Parcela cancelada.</param>
+    Task<IReadOnlyList<ValorADevolver>> ListarAbertosDaParcelaParaEdicao(Guid parcelaId, CancellationToken ct = default);
+
+    /// <summary>Os que ainda esperam a comissão de uma cobrança do Mercado Pago, rastreados.</summary>
+    /// <param name="cobrancaId">Cobrança.</param>
+    Task<IReadOnlyList<ValorADevolver>> ListarAbertosDaCobrancaParaEdicao(Guid cobrancaId, CancellationToken ct = default);
+
+    /// <summary>Uma página da lista.</summary>
+    /// <param name="paginacao">Página pedida, já normalizada.</param>
+    /// <param name="filtro">Situação e busca.</param>
+    Task<PaginaDe<ValorADevolverNaLista>> Listar(PaginacaoRequest paginacao, FiltroDeValoresADevolver filtro, CancellationToken ct = default);
+
+    /// <summary>Um item como a lista o mostra; nulo se não é desta turma.</summary>
+    /// <param name="id">Valor a devolver.</param>
+    Task<ValorADevolverNaLista?> Obter(Guid id, CancellationToken ct = default);
+
+    /// <summary>Marca um valor novo para inclusão.</summary>
+    /// <param name="valor">Valor a devolver.</param>
+    Task Adicionar(ValorADevolver valor, CancellationToken ct = default);
 }

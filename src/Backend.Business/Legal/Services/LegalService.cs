@@ -101,7 +101,7 @@ public sealed class LegalService(ILegalRepository legalRepository, IValidator<Re
             .Select(vigente => new AceitePendente(vigente.Tipo, vigente.Versao))
             .ToList();
 
-        return new MeusAceites(historico, pendencias);
+        return new MeusAceites(pendencias);
     }
 
     /// <inheritdoc />

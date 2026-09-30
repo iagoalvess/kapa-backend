@@ -67,9 +67,11 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="adesao.ja_aderiu"></a>`adesao.ja_aderiu` | 409 | Você já aderiu a esta versão do termo. |
 | <a id="adesao.menor_de_idade"></a>`adesao.menor_de_idade` | 409 | Quem tem menos de 18 anos adere com a comissão, junto com o responsável legal, e não pela plataforma. |
 | <a id="adesao.nao_encontrada"></a>`adesao.nao_encontrada` | 404 | Adesão não encontrada. |
+| <a id="adesao.resumo_descartado"></a>`adesao.resumo_descartado` | 400 | O modelo *{modelo}* devolveu *{n}* caracteres. Só no job do worker que gera o resumo do termo por IA; não chega à API. |
 | <a id="adesao.sem_plano_vigente"></a>`adesao.sem_plano_vigente` | 409 | A turma ainda não tem plano de cobrança em vigor. |
 | <a id="adesao.sem_termo_publicado"></a>`adesao.sem_termo_publicado` | 409 | A comissão ainda não publicou o termo de adesão da turma. |
 | <a id="adesao.termo_desatualizado"></a>`adesao.termo_desatualizado` | 409 | O termo ou o plano mudou enquanto você lia. Confira a versão atual antes de aceitar. |
+| <a id="adesao.termo_nao_encontrado"></a>`adesao.termo_nao_encontrado` | 404 | Versão do termo não encontrada. |
 | <a id="adesao.termo_sem_mudanca"></a>`adesao.termo_sem_mudanca` | 409 | Este texto é igual ao da versão vigente. |
 
 ### agenda
@@ -78,6 +80,15 @@ nossa, e o `trace_id` é o que o resolve.
 | --- | --- | --- |
 | <a id="agenda.evento_com_vendas"></a>`agenda.evento_com_vendas` | 409 | A festa tem compra da loja de pé ou pedido de convite de formando confirmado: não se marca "Cancelado" nem se exclui. A mensagem diz o caminho, e <code>dados</code> traz <code>compras_da_loja</code> e <code>pedidos_de_convite</code> (Sprint 38, P10). |
 | <a id="agenda.evento_nao_encontrado"></a>`agenda.evento_nao_encontrado` | 404 | Evento não encontrado na agenda. |
+| <a id="agenda.tipo_unico"></a>`agenda.tipo_unico` | 409 | Esta turma já tem uma colação (ou uma festa) na agenda. Altere a data da que existe. |
+
+### analytics
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| <a id="analytics.meses_invalidos"></a>`analytics.meses_invalidos` | 400 | Peça de 1 a 24 meses. |
+| <a id="analytics.periodo_invertido"></a>`analytics.periodo_invertido` | 400 | O início do período precisa vir antes do fim. |
+| <a id="analytics.periodo_longo"></a>`analytics.periodo_longo` | 400 | Escolha um período de até 92 dias. Para prazos mais longos, use a série mensal. |
 
 ### arquivo
 
@@ -94,21 +105,29 @@ nossa, e o `trace_id` é o que o resolve.
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
+| <a id="assinatura.cobranca_ja_paga"></a>`assinatura.cobranca_ja_paga` | 409 | Esta cobrança já foi paga. |
 | <a id="assinatura.ja_ativa"></a>`assinatura.ja_ativa` | 409 | Esta formatura já tem uma assinatura ativa. |
+| <a id="assinatura.mesmo_meio"></a>`assinatura.mesmo_meio` | 409 | A assinatura já é paga por este meio. |
 | <a id="assinatura.nao_ativa"></a>`assinatura.nao_ativa` | 409 | Só uma assinatura ativa pode ser cancelada. |
 | <a id="assinatura.nao_encontrada"></a>`assinatura.nao_encontrada` | 404 | Esta formatura ainda não contratou um plano. |
 | <a id="assinatura.plano_invalido"></a>`assinatura.plano_invalido` | 400 | Plano não encontrado. |
 | <a id="assinatura.plano_menor_que_a_turma"></a>`assinatura.plano_menor_que_a_turma` | 409 | A turma já tem … pessoas e o plano … comporta …. Escolha um plano maior. |
+| <a id="assinatura.recorrencia_antiga"></a>`assinatura.recorrencia_antiga` | 409 | O aviso é de uma recorrência que a assinatura não usa mais. |
+| <a id="assinatura.renovacao_ainda_nao_aberta"></a>`assinatura.renovacao_ainda_nao_aberta` | 409 | O PIX da renovação fica disponível a partir de *{dd/mm/aaaa}*, sete dias antes do vencimento. |
+| <a id="assinatura.renovacao_automatica"></a>`assinatura.renovacao_automatica` | 409 | A renovação no cartão é automática: não há PIX a pagar. |
 | <a id="assinatura.transicao_invalida"></a>`assinatura.transicao_invalida` | 409 | Uma assinatura … não pode passar para …. |
+| <a id="assinatura.troca_de_ciclo"></a>`assinatura.troca_de_ciclo` | 409 | A troca de plano é no mesmo ciclo. Para mudar entre mensal e anual, cancele a renovação e contrate o outro ciclo quando a vigência acabar. |
 
 ### auth
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
-| <a id="auth.conta_bloqueada"></a>`auth.conta_bloqueada` | 403 | Conta temporariamente bloqueada por excesso de tentativas. Tente mais tarde. |
+| <a id="auth.conta_bloqueada"></a>`auth.conta_bloqueada` | 403 | Conta temporariamente bloqueada por excesso de tentativas. Tente mais tarde. Só na troca de senha, depois de errar a senha atual vezes demais; no login, o bloqueio responde `auth.credenciais_invalidas`, igual à senha errada, de propósito. |
 | <a id="auth.conta_desativada"></a>`auth.conta_desativada` | 403 | Esta conta está desativada. Procure um administrador. |
 | <a id="auth.credenciais_invalidas"></a>`auth.credenciais_invalidas` | 401 | E-mail ou senha incorretos. |
 | <a id="auth.email_nao_confirmado"></a>`auth.email_nao_confirmado` | 403 | Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada. |
+| <a id="auth.nao_autenticado"></a>`auth.nao_autenticado` | 401 | Autenticação necessária. Sem token, ou token vencido ou inválido. |
+| <a id="auth.sem_permissao"></a>`auth.sem_permissao` | 403 | Você não tem permissão para esta operação. |
 | <a id="auth.sessao_invalida"></a>`auth.sessao_invalida` | 401 | Sessão expirada. Faça login novamente. |
 
 ### cobranca
@@ -126,6 +145,7 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="cobranca.grade_depois_da_festa"></a>`cobranca.grade_depois_da_festa` | 400 | A última parcela do convite extra venceria depois do fechamento da lista de convidados, 24 h antes da festa (Sprint 21, P2.1). |
 | <a id="cobranca.item_com_pedido"></a>`cobranca.item_com_pedido` | 409 | Este item já foi pedido por alguém e não pode ser excluído. Encerre-o: ele para de aceitar pedidos e o que já foi pedido fica. |
 | <a id="cobranca.item_da_festa_invalido"></a>`cobranca.item_da_festa_invalido` | 400 | Escolha um item da festa que exista, esteja de pé e seja rateado por formando. |
+| <a id="cobranca.item_da_loja"></a>`cobranca.item_da_loja` | 409 | Este item é vendido pela loja da turma. Compre pelo link da loja (Sprint 26, P8). |
 | <a id="cobranca.item_em_uso"></a>`cobranca.item_em_uso` | 409 | Este item já gerou parcelas: só o preço e a descrição podem mudar. Para mudar o resto, encerre-o e cadastre outro. |
 | <a id="cobranca.item_encerrado"></a>`cobranca.item_encerrado` | 409 | Este item não está mais à venda. |
 | <a id="cobranca.item_nao_e_opcional"></a>`cobranca.item_nao_e_opcional` | 400 | Este item é do plano da turma e não se pede — ele já está no seu extrato. |
@@ -146,7 +166,6 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="cobranca.sem_plano_vigente"></a>`cobranca.sem_plano_vigente` | 409 | A turma ainda não tem plano de cobrança em vigor. |
 | <a id="cobranca.tipo_invalido"></a>`cobranca.tipo_invalido` | 400 | Este tipo de cobrança não cabe aqui. |
 | <a id="cobranca.valor_invalido"></a>`cobranca.valor_invalido` | 400 | Informe um valor maior que zero. |
-| <a id="cobranca.item_da_loja"></a>`cobranca.item_da_loja` | 409 | Este item é vendido pela loja da turma. Compre pelo link da loja (Sprint 26, P8). |
 | <a id="cobranca.venda_nao_aberta"></a>`cobranca.venda_nao_aberta` | 409 | As vendas deste item ainda não abriram. |
 
 ### comunicacao
@@ -173,7 +192,7 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="convite.email_divergente"></a>`convite.email_divergente` | 403 | Este convite é pessoal e foi enviado para …. Entre com a conta desse e-mail para aceitar. |
 | <a id="convite.email_nao_confirmado"></a>`convite.email_nao_confirmado` | 403 | Confirme seu e-mail para aceitar este convite pessoal. O link de confirmação foi enviado para …. |
 | <a id="convite.esgotado"></a>`convite.esgotado` | 409 | Este convite acabou de atingir o limite de entradas. Peça um novo à comissão. |
-| <a id="convite.formatura_nao_contratada"></a>`convite.formatura_nao_contratada` | 403 | Contrate um plano para convidar formandos. Antes disso, dá para convidar a comissão. |
+| <a id="convite.formatura_nao_contratada"></a>`convite.formatura_nao_contratada` | 403 | Formandos entram só com um plano contratado em dia. Antes disso, dá para montar a comissão. |
 | <a id="convite.invalido"></a>`convite.invalido` | 404 | Este convite não está mais disponível. Peça um novo à comissão. |
 | <a id="convite.ja_vinculado"></a>`convite.ja_vinculado` | 409 | Você já participa desta formatura. |
 | <a id="convite.link_so_para_formando"></a>`convite.link_so_para_formando` | 400 | O link da turma só convida formandos. Para a comissão, envie o convite por e-mail. |
@@ -183,6 +202,22 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="convite.papel_restrito"></a>`convite.papel_restrito` | 403 | Só o Presidente convida para a comissão e a tesouraria. |
 | <a id="convite.vinculo_removido"></a>`convite.vinculo_removido` | 403 | Você foi removido desta formatura. Para voltar, peça à comissão um convite pessoal. |
 
+### erro
+
+Não vem do domínio: é o `GlobalExceptionHandler`, a rede de segurança para exceção não tratada. O status sai da exceção.
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| <a id="erro.inesperado"></a>`erro.inesperado` | 500 / 400 / 409 / 413 / 502 / 503 | Ocorreu um erro inesperado. Também cobre a corrida que o banco recusa (409 "Já existe um registro com estes dados.", 409 de concorrência), corpo ilegível (400), requisição grande demais (413), serviço externo fora do esperado (502) e banco fora do ar (503). O `trace_id` é o que resolve. |
+
+### estorno
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| <a id="estorno.cobranca_nao_paga"></a>`estorno.cobranca_nao_paga` | 409 | Só um pagamento confirmado, e ainda não estornado, pode ser estornado. |
+| <a id="estorno.fora_do_prazo"></a>`estorno.fora_do_prazo` | 409 | O reembolso integral vale até 7 dias depois do pagamento. Depois disso, só o proporcional, nos casos dos Termos. |
+| <a id="estorno.nada_a_devolver"></a>`estorno.nada_a_devolver` | 409 | A vigência deste pagamento já acabou: não há o que devolver pelo proporcional. |
+
 ### festa
 
 | Código | Status | Quando acontece |
@@ -190,6 +225,8 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="festa.convite_nao_encontrado"></a>`festa.convite_nao_encontrado` | 404 | Convite não encontrado. Genérico de propósito: código inexistente, assinatura adulterada, convite revogado, convite ainda "a definir" (sem convidado, não há ingresso) e convite de outra turma respondem igual na página pública. |
 | <a id="festa.convite_revogado"></a>`festa.convite_revogado` | 409 | O convite foi revogado (estorno, cancelamento, transferência ou reemissão); a mensagem traz o motivo. |
 | <a id="festa.convite_sem_titular"></a>`festa.convite_sem_titular` | 409 | O convite ainda não tem nome e documento do convidado — não entra como anônimo (P5). |
+| <a id="festa.cota_ja_aberta"></a>`festa.cota_ja_aberta` | 409 | Os convites já foram emitidos com *{n}* por formando. Depois de aberta, a cota só aumenta. |
+| <a id="festa.cota_nao_configurada"></a>`festa.cota_nao_configurada` | 409 | Defina quantos convites cada formando recebe antes de abrir a cota. |
 | <a id="festa.disputa_encerrada"></a>`festa.disputa_encerrada` | 409 | Este item já foi contratado ou cancelado: a escolha da turma já aconteceu. |
 | <a id="festa.documento_nao_encontrado"></a>`festa.documento_nao_encontrado` | 400 | Documento não encontrado no acervo, ou visível apenas para a comissão. |
 | <a id="festa.documento_obrigatorio"></a>`festa.documento_obrigatorio` | 400 | Depois do fechamento da lista, o convite precisa de nome e documento. |
@@ -227,7 +264,7 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="financeiro.despesa_nao_prevista"></a>`financeiro.despesa_nao_prevista` | 409 | Esta despesa não está prevista para pagamento. |
 | <a id="financeiro.documento_nao_encontrado"></a>`financeiro.documento_nao_encontrado` | 400 | Documento não encontrado no acervo, ou visível apenas para a comissão. |
 | <a id="financeiro.fornecedor_em_uso"></a>`financeiro.fornecedor_em_uso` | 409 | Este fornecedor já tem despesa lançada. Desative o cadastro em vez de excluí-lo. |
-| <a id="financeiro.fornecedor_nao_encontrado"></a>`financeiro.fornecedor_nao_encontrado` | 400 | Fornecedor não encontrado. |
+| <a id="financeiro.fornecedor_nao_encontrado"></a>`financeiro.fornecedor_nao_encontrado` | 400 / 404 | Fornecedor não encontrado. 404 ao abrir o fornecedor; 400, no campo `fornecedor_id`, ao lançar ou alterar uma despesa. |
 | <a id="financeiro.fornecedor_nome_em_uso"></a>`financeiro.fornecedor_nome_em_uso` | 409 | A turma já tem um fornecedor com este nome. |
 | <a id="financeiro.item_da_festa_nao_encontrado"></a>`financeiro.item_da_festa_nao_encontrado` | 400 | Item da festa não encontrado. |
 | <a id="financeiro.outra_receita_cancelada"></a>`financeiro.outra_receita_cancelada` | 409 | Esta receita foi cancelada. Lance uma nova. |
@@ -256,16 +293,40 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="formatura.membro_ja_desligado"></a>`formatura.membro_ja_desligado` | 409 | Esta pessoa já foi desligada da turma. |
 | <a id="formatura.membro_sem_adesao"></a>`formatura.membro_sem_adesao` | 409 | Esta pessoa ainda não aderiu ao termo e não deve nada à turma. Use Remover. |
 | <a id="formatura.nao_encontrada"></a>`formatura.nao_encontrada` | 404 | Formatura não encontrada. |
+| <a id="formatura.nao_selecionada"></a>`formatura.nao_selecionada` | 403 | Nenhuma formatura selecionada. |
 | <a id="formatura.pendencias_em_aberto"></a>`formatura.pendencias_em_aberto` | 409 | Há dinheiro pendente na turma — parcela, aviso de pagamento, pedido não quitado, compra da loja pendente ou a devolver, pedido de cancelamento ou cobrança viva. A mensagem lista o que falta, e <code>dados</code> traz as contagens (Sprint 38, P11). |
 | <a id="formatura.sem_vinculo"></a>`formatura.sem_vinculo` | 403 | Você não participa desta formatura. |
 | <a id="formatura.transicao_invalida"></a>`formatura.transicao_invalida` | 409 | Uma formatura … não pode passar para …. |
 | <a id="formatura.ultimo_presidente"></a>`formatura.ultimo_presidente` | 409 | A formatura precisa de ao menos um presidente ativo. Promova outra pessoa antes. |
 | <a id="formatura.vinculo_nao_encontrado"></a>`formatura.vinculo_nao_encontrado` | 404 | Você não é membro ativo desta turma. |
 
+### ia
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| <a id="ia.desligada"></a>`ia.desligada` | 503 | A IA não está configurada. Só nos jobs do worker que chamam a IA; não chega à API. |
+| <a id="ia.indisponivel"></a>`ia.indisponivel` | 503 | Nenhum modelo devolveu resposta. Só nos jobs do worker que chamam a IA; a próxima rodada tenta de novo. |
+
+### identity
+
+Erros do ASP.NET Identity no cadastro, na troca e na redefinição de senha. O código é o prefixo `identity.` seguido do código do Identity em snake_case (`PasswordTooShort` → `identity.password_too_short`), e a mensagem é a de `MensagensDeIdentity`. Todos saem como 400 de validação, no campo `senha` (cadastro), `nova_senha` ou `senha_atual` (troca e redefinição). A redefinição com token vencido responde `conta.link_invalido`, não `identity.invalid_token`.
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| <a id="identity.duplicate_email"></a>`identity.duplicate_email` | 400 | Já existe uma conta com este e-mail. |
+| <a id="identity.duplicate_user_name"></a>`identity.duplicate_user_name` | 400 | Já existe uma conta com este e-mail. |
+| <a id="identity.invalid_email"></a>`identity.invalid_email` | 400 | O e-mail informado não é válido. |
+| <a id="identity.password_mismatch"></a>`identity.password_mismatch` | 400 | A senha atual está incorreta. Na troca de senha; conta para o bloqueio `auth.conta_bloqueada`. |
+| <a id="identity.password_requires_digit"></a>`identity.password_requires_digit` | 400 | A senha deve conter ao menos um número. |
+| <a id="identity.password_requires_lower"></a>`identity.password_requires_lower` | 400 | A senha deve conter ao menos uma letra minúscula. |
+| <a id="identity.password_requires_upper"></a>`identity.password_requires_upper` | 400 | A senha deve conter ao menos uma letra maiúscula. |
+| <a id="identity.password_too_short"></a>`identity.password_too_short` | 400 | A senha deve ter no mínimo *{n}* caracteres (hoje, 8). |
+
 ### legal
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
+| <a id="legal.aceite_obrigatorio"></a>`legal.aceite_obrigatorio` | 400 | É preciso aceitar os Termos de Uso e a Política de Privacidade para criar a conta. |
 | <a id="legal.consentimento_ja_revogado"></a>`legal.consentimento_ja_revogado` | 409 | Este consentimento já foi revogado. |
 | <a id="legal.consentimento_nao_encontrado"></a>`legal.consentimento_nao_encontrado` | 404 | Registro de consentimento não encontrado. |
 | <a id="legal.documento_nao_encontrado"></a>`legal.documento_nao_encontrado` | 404 | Documento não encontrado. |
@@ -281,6 +342,7 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | <a id="loja.compra_nao_a_devolver"></a>`loja.compra_nao_a_devolver` | 409 | A compra não está na lista a devolver. |
 | <a id="loja.compra_nao_encontrada"></a>`loja.compra_nao_encontrada` | 404 | Não encontramos esta compra — o link é antigo, errado ou foi substituído por um reenvio. |
 | <a id="loja.compra_nao_paga"></a>`loja.compra_nao_paga` | 409 | Compra pendente não se cancela: ela expira sozinha se o PIX não for pago (Sprint 38, P8). |
+| <a id="loja.compra_nao_pendente"></a>`loja.compra_nao_pendente` | 409 | Esta compra não está esperando pagamento no cartão. Se a reserva venceu, faça uma compra nova. |
 | <a id="loja.comprovante_invalido"></a>`loja.comprovante_invalido` | 400 | O comprovante da devolução precisa ser PDF ou imagem (PNG, JPG ou WebP). |
 | <a id="loja.comprovante_obrigatorio"></a>`loja.comprovante_obrigatorio` | 400 | Marcar a compra devolvida exige o comprovante do PIX de volta (Sprint 38, decisão 2). |
 | <a id="loja.convite_ja_validado"></a>`loja.convite_ja_validado` | 409 | O convite já entrou na festa, e convite usado não se cancela; a Gestão desfaz a entrada antes, se for o caso (Sprint 38, P3). |
@@ -291,7 +353,7 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | <a id="loja.fila_cheia"></a>`loja.fila_cheia` | 429 | Muita gente comprando na mesma turma. Tente de novo depois do <code>Retry-After</code>, com a mesma chave de idempotência. |
 | <a id="loja.item_nao_encontrado"></a>`loja.item_nao_encontrado` | 404 | Este convite não está à venda nesta loja. |
 | <a id="loja.limite_por_pessoa"></a>`loja.limite_por_pessoa` | 409 | O CPF já tem o máximo de convites deste tipo (P3). |
-| <a id="loja.nao_encontrada"></a>`loja.nao_encontrada` | 404 | A turma não existe, não está ativa ou não vende nada pela loja. |
+| <a id="loja.nao_encontrada"></a>`loja.nao_encontrada` | 404 | A turma não existe, não está ativa, não vende nada pela loja ou o plano dela não inclui a festa. |
 | <a id="loja.pedido_ja_respondido"></a>`loja.pedido_ja_respondido` | 409 | O pedido de cancelamento já foi aprovado ou recusado. |
 | <a id="loja.pedido_nao_encontrado"></a>`loja.pedido_nao_encontrado` | 404 | Pedido de cancelamento não encontrado nesta turma. |
 | <a id="loja.reserva_no_fim"></a>`loja.reserva_no_fim` | 409 | Não dá mais para gerar o pagamento desta reserva. Faça uma compra nova. |
@@ -324,12 +386,18 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | Código | Status | Quando acontece |
 | --- | --- | --- |
 | <a id="pagamento.aviso_desligado"></a>`pagamento.aviso_desligado` | 409 | A turma cobra pelo Mercado Pago (29/09/2026): não há aviso de pagamento, e quem pagou por fora fala com a tesouraria. |
+| <a id="pagamento.aviso_nao_autentico"></a>`pagamento.aviso_nao_autentico` | 401 | Assinatura inválida. O aviso (webhook) do Mercado Pago não passou na conferência da assinatura. |
+| <a id="pagamento.cartao_desligado"></a>`pagamento.cartao_desligado` | 409 | A turma não está aceitando cartão agora. Faça a compra pelo PIX. |
 | <a id="pagamento.cartao_recusado"></a>`pagamento.cartao_recusado` | 409 | O cartão foi recusado pelo emissor ou pelo Mercado Pago. Confira os dados, tente outro cartão ou pague pelo PIX (Sprint 35; a tela chega na 37). |
+| <a id="pagamento.cobranca_em_emissao"></a>`pagamento.cobranca_em_emissao` | 409 | Este pagamento está sendo gerado em outra tela. Aguarde um instante e tente de novo. |
 | <a id="pagamento.comprovante_invalido"></a>`pagamento.comprovante_invalido` | 400 | Envie o comprovante em PDF ou imagem (PNG, JPG ou WebP). |
+| <a id="pagamento.comprovante_obrigatorio"></a>`pagamento.comprovante_obrigatorio` | 400 | Anexe o comprovante do PIX de volta. |
+| <a id="pagamento.devolucao_exige_comprovante"></a>`pagamento.devolucao_exige_comprovante` | 409 | Este valor voltou ao formando por PIX: registre a devolução com o comprovante. |
 | <a id="pagamento.informe_ja_conferido"></a>`pagamento.informe_ja_conferido` | 409 | Este aviso de pagamento já foi conferido. |
 | <a id="pagamento.informe_nao_encontrado"></a>`pagamento.informe_nao_encontrado` | 404 | Aviso de pagamento não encontrado. |
 | <a id="pagamento.informe_pendente"></a>`pagamento.informe_pendente` | 409 | Você já avisou o pagamento de uma dessas parcelas. A tesouraria vai conferir, e você recebe um e-mail quando for confirmado. |
 | <a id="pagamento.mercado_pago_indisponivel"></a>`pagamento.mercado_pago_indisponivel` | 503 | Na cobrança automática, o Mercado Pago não respondeu ao gerar o PIX. Tente de novo em alguns minutos. |
+| <a id="pagamento.pago_sem_parcela_nao_devolve"></a>`pagamento.pago_sem_parcela_nao_devolve` | 409 | Este dinheiro está na conta do Mercado Pago, não no caixa: devolva pelo painel dele ou lance como outra receita, e feche o aviso. |
 | <a id="pagamento.parcela_nao_aberta"></a>`pagamento.parcela_nao_aberta` | 409 | Esta parcela não está em aberto. |
 | <a id="pagamento.parcela_nao_encontrada"></a>`pagamento.parcela_nao_encontrada` | 404 | Parcela não encontrada. |
 | <a id="pagamento.parcela_nao_paga"></a>`pagamento.parcela_nao_paga` | 409 | Esta parcela não tem pagamento a estornar. |
@@ -339,6 +407,9 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | <a id="pagamento.recebimento_nao_encontrado"></a>`pagamento.recebimento_nao_encontrado` | 404 | Recebimento não encontrado. |
 | <a id="pagamento.sem_comprovante"></a>`pagamento.sem_comprovante` | 404 | Este aviso de pagamento não tem comprovante. |
 | <a id="pagamento.sem_conta"></a>`pagamento.sem_conta` | 409 | A comissão ainda está configurando a conta de recebimento da turma. Tente de novo em alguns dias. |
+| <a id="pagamento.valor_mudou"></a>`pagamento.valor_mudou` | 409 | O valor mudou para *{R$ novo valor}*. Confira e pague de novo — o cartão não foi cobrado. |
+| <a id="pagamento.valor_nao_a_devolver"></a>`pagamento.valor_nao_a_devolver` | 409 | Este valor não está mais na lista a devolver. |
+| <a id="pagamento.valor_nao_encontrado"></a>`pagamento.valor_nao_encontrado` | 404 | Valor a devolver não encontrado. |
 
 ### perfil
 
@@ -360,6 +431,8 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | Código | Status | Quando acontece |
 | --- | --- | --- |
 | <a id="plano.limite_de_formandos"></a>`plano.limite_de_formandos` | 409 | O plano … comporta … pessoas e a turma já tem …. Troque de plano para incluir mais gente. |
+| <a id="plano.modulo_nao_incluido"></a>`plano.modulo_nao_incluido` | 403 | Esta área não está incluída no plano da turma. |
+| <a id="plano.nao_encontrado"></a>`plano.nao_encontrado` | 404 | O catálogo não tem o plano desta turma. |
 
 ### privacidade
 
@@ -373,21 +446,35 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | <a id="privacidade.solicitacao_nao_encontrada"></a>`privacidade.solicitacao_nao_encontrada` | 404 | Solicitação não encontrada. |
 | <a id="privacidade.titular_nao_encontrado"></a>`privacidade.titular_nao_encontrado` | 404 | Titular não encontrado. |
 
+### rate_limit
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| <a id="rate_limit.excedido"></a>`rate_limit.excedido` | 429 | Muitas requisições. Tente novamente em instantes. Vem com `Retry-After`, em segundos. |
+
 ### recebimento
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
+| <a id="recebimento.autorizacao_recusada"></a>`recebimento.autorizacao_recusada` | 409 | O Mercado Pago recusou a autorização. Conecte a conta da turma de novo. |
 | <a id="recebimento.avisos_pendentes"></a>`recebimento.avisos_pendentes` | 409 | Trocar para a cobrança automática com avisos de pagamento esperando conferência. |
 | <a id="recebimento.chave_pix_obrigatoria"></a>`recebimento.chave_pix_obrigatoria` | 409 | Com o Mercado Pago conectado, a chave PIX continua na conta: é por ela que o formando paga quando o Mercado Pago não responde. |
 | <a id="recebimento.cobranca_automatica_ligada"></a>`recebimento.cobranca_automatica_ligada` | 409 | Desconectar o Mercado Pago com a turma na cobrança automática: volte ao manual antes. |
+| <a id="recebimento.conta_fora_do_brasil"></a>`recebimento.conta_fora_do_brasil` | 409 | Esta conta do Mercado Pago não é do Brasil. Conecte a conta brasileira da turma. |
 | <a id="recebimento.conta_ja_conferida"></a>`recebimento.conta_ja_conferida` | 409 | Esta chave já foi conferida. |
 | <a id="recebimento.conta_sem_mudanca"></a>`recebimento.conta_sem_mudanca` | 409 | Estes dados são os mesmos da conta atual. |
-| <a id="recebimento.pix_em_aberto"></a>`recebimento.pix_em_aberto` | 409 | Voltar à cobrança manual com PIX de parcela do Mercado Pago ainda pagável (vale até a meia-noite). |
 | <a id="recebimento.loja_aberta"></a>`recebimento.loja_aberta` | 409 | Desconectar o Mercado Pago com item à venda na loja pública: ela só vende por ele. Encerre as vendas antes. |
+| <a id="recebimento.pix_em_aberto"></a>`recebimento.pix_em_aberto` | 409 | Voltar à cobrança manual com PIX de parcela do Mercado Pago ainda pagável (vale até a meia-noite). |
+| <a id="recebimento.provedor_desligado"></a>`recebimento.provedor_desligado` | 409 | A conexão com o Mercado Pago ainda não está disponível. |
+| <a id="recebimento.provedor_indisponivel"></a>`recebimento.provedor_indisponivel` | 503 | O Mercado Pago não respondeu agora. Tente de novo em alguns minutos. |
+| <a id="recebimento.provedor_nao_conectado"></a>`recebimento.provedor_nao_conectado` | 404 | A turma não tem o Mercado Pago conectado. |
 | <a id="recebimento.provedor_recusou"></a>`recebimento.provedor_recusou` | 409 | O Mercado Pago recusou este pagamento. Tente outro meio ou fale com a comissão. |
+| <a id="recebimento.reconectar_para_cartao"></a>`recebimento.reconectar_para_cartao` | 409 | Esta conexão é anterior ao cartão. Clique em Trocar de conta e autorize a mesma conta de novo para ligar o cartão. |
+| <a id="recebimento.retorno_invalido"></a>`recebimento.retorno_invalido` | 400 | Este link de autorização venceu ou não é válido. Volte ao Kapa e clique em Conectar de novo. |
 | <a id="recebimento.sem_chave_pix"></a>`recebimento.sem_chave_pix` | 409 | Esta turma não aceita PIX. |
 | <a id="recebimento.sem_conta"></a>`recebimento.sem_conta` | 404 | A turma ainda não cadastrou a conta de recebimento. |
 | <a id="recebimento.sem_meio"></a>`recebimento.sem_meio` | 400 | Escolha ao menos um meio de recebimento para a turma. |
+| <a id="recebimento.somente_presidente"></a>`recebimento.somente_presidente` | 403 | Só o Presidente conecta o Mercado Pago da turma. |
 
 ### relatorio
 
@@ -401,6 +488,8 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | --- | --- | --- |
 | <a id="suporte.assinatura_inexistente"></a>`suporte.assinatura_inexistente` | 409 | Esta turma nunca contratou um plano. Peça à comissão que escolha um na tela de planos. |
 | <a id="suporte.conta_nao_encontrada"></a>`suporte.conta_nao_encontrada` | 404 | Conta não encontrada. |
+| <a id="suporte.mes_invalido"></a>`suporte.mes_invalido` | 400 | Escolha um mês válido. |
+| <a id="suporte.pagamento_nao_encontrado"></a>`suporte.pagamento_nao_encontrado` | 404 | Pagamento não encontrado nesta turma. |
 | <a id="suporte.turma_nao_encontrada"></a>`suporte.turma_nao_encontrada` | 404 | Turma não encontrada. |
 
 ### usuario
@@ -411,8 +500,14 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | <a id="usuario.autorrebaixamento"></a>`usuario.autorrebaixamento` | 409 | Você não pode remover o próprio perfil de administrador. |
 | <a id="usuario.email_em_uso"></a>`usuario.email_em_uso` | 409 | Já existe uma conta com este e-mail. |
 | <a id="usuario.nao_encontrado"></a>`usuario.nao_encontrado` | 404 | Usuário não encontrado. |
-| <a id="usuario.perfil_desconhecido"></a>`usuario.perfil_desconhecido` | 400 | Perfil não reconhecido: {string.Join( |
+| <a id="usuario.perfil_desconhecido"></a>`usuario.perfil_desconhecido` | 400 | Perfil não reconhecido: *{perfis enviados que não existem, separados por vírgula}*. |
 | <a id="usuario.ultimo_administrador"></a>`usuario.ultimo_administrador` | 409 | Este é o único administrador ativo. Promova outro usuário antes de remover o acesso deste. |
+
+### validacao
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| <a id="validacao.invalido"></a>`validacao.invalido` | 400 | O corpo não passou na validação de forma. Cada regra sem código próprio sai com este; as mensagens vêm por campo em `errors`. |
 
 ### webhook
 
@@ -423,6 +518,7 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 
 ---
 
-Esta tabela é gerada a partir das chamadas a `Erro.*` no código-fonte. Código novo entra aqui na
-mesma alteração que o cria — um `codigo` sem linha nesta tabela é um `type` apontando para uma
-âncora que não existe.
+Esta tabela é escrita à mão. Código novo entra aqui na mesma alteração que o cria — um `codigo`
+sem linha nesta tabela é um `type` apontando para uma âncora que não existe. O teste
+`CatalogoDeErrosTests` (em `tests/Backend.UnitTests/Documentacao`) varre `src/` e falha quando um
+código emitido não tem âncora aqui, ou quando uma âncora aponta para um código que nada mais emite.

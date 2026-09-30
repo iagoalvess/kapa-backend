@@ -1432,12 +1432,14 @@ namespace Backend.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_eventos");
 
+                    b.HasIndex("OcorridoEm")
+                        .HasDatabaseName("ix_eventos_ocorrido_em");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("OcorridoEm"), new[] { "Nome", "FormaturaId", "UsuarioId" });
+
                     b.HasIndex("FormaturaId", "OcorridoEm")
                         .HasDatabaseName("ix_eventos_trilha_da_formatura")
                         .HasFilter("formatura_id is not null");
-
-                    b.HasIndex("OcorridoEm", "Nome")
-                        .HasDatabaseName("ix_eventos_ocorrido_em_nome");
 
                     b.HasIndex("UsuarioId", "OcorridoEm")
                         .HasDatabaseName("ix_eventos_usuario_id_ocorrido_em");
@@ -2950,12 +2952,6 @@ namespace Backend.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("atualizado_em");
 
-                    b.Property<string>("Canal")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("canal");
-
                     b.Property<DateTime>("CriadoEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("criado_em");
@@ -3091,12 +3087,6 @@ namespace Backend.Data.Migrations
                     b.Property<DateTime>("AtualizadoEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("atualizado_em");
-
-                    b.Property<string>("Canal")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("canal");
 
                     b.Property<DateTime>("CriadoEm")
                         .HasColumnType("timestamp with time zone")
@@ -3237,6 +3227,10 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("baixado_por_usuario_id");
 
+                    b.Property<Guid?>("CobrancaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cobranca_id");
+
                     b.Property<Guid?>("ComprovanteArquivoId")
                         .HasColumnType("uuid")
                         .HasColumnName("comprovante_arquivo_id");
@@ -3300,6 +3294,9 @@ namespace Backend.Data.Migrations
                     b.HasIndex("BaixadoPorUsuarioId")
                         .HasDatabaseName("ix_recebimentos_baixado_por_usuario_id");
 
+                    b.HasIndex("CobrancaId")
+                        .HasDatabaseName("ix_recebimentos_cobranca_id");
+
                     b.HasIndex("ComprovanteArquivoId")
                         .HasDatabaseName("ix_recebimentos_comprovante_arquivo_id");
 
@@ -3316,6 +3313,119 @@ namespace Backend.Data.Migrations
                         .HasDatabaseName("ix_recebimentos_parcela_id");
 
                     b.ToTable("recebimentos", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Pagamentos.Models.ValorADevolver", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid?>("CobrancaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cobranca_id");
+
+                    b.Property<Guid?>("ComprovanteArquivoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("comprovante_arquivo_id");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("DespesaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("despesa_id");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<Guid>("ItemDeCobrancaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_de_cobranca_id");
+
+                    b.Property<string>("Observacao")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("observacao");
+
+                    b.Property<string>("Origem")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("origem");
+
+                    b.Property<Guid?>("ParcelaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parcela_id");
+
+                    b.Property<Guid?>("PedidoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pedido_id");
+
+                    b.Property<DateTime?>("ResolvidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolvido_em");
+
+                    b.Property<Guid?>("ResolvidoPorUsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resolvido_por_usuario_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<long>("ValorEmCentavos")
+                        .HasColumnType("bigint")
+                        .HasColumnName("valor_em_centavos");
+
+                    b.Property<Guid>("VinculoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vinculo_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_valores_a_devolver");
+
+                    b.HasIndex("CobrancaId")
+                        .HasDatabaseName("ix_valores_a_devolver_cobranca_id");
+
+                    b.HasIndex("ComprovanteArquivoId")
+                        .HasDatabaseName("ix_valores_a_devolver_comprovante_arquivo_id");
+
+                    b.HasIndex("CriadoEm")
+                        .HasDatabaseName("ix_valores_a_devolver_criado_em")
+                        .HasFilter("status = 'ADevolver'");
+
+                    b.HasIndex("DespesaId")
+                        .HasDatabaseName("ix_valores_a_devolver_despesa_id");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_valores_a_devolver_formatura_id");
+
+                    b.HasIndex("ItemDeCobrancaId")
+                        .HasDatabaseName("ix_valores_a_devolver_item_de_cobranca_id");
+
+                    b.HasIndex("ParcelaId")
+                        .HasDatabaseName("ix_valores_a_devolver_parcela_id");
+
+                    b.HasIndex("PedidoId")
+                        .HasDatabaseName("ix_valores_a_devolver_pedido_id");
+
+                    b.HasIndex("ResolvidoPorUsuarioId")
+                        .HasDatabaseName("ix_valores_a_devolver_resolvido_por_usuario_id");
+
+                    b.HasIndex("VinculoId")
+                        .HasDatabaseName("ix_valores_a_devolver_vinculo_id");
+
+                    b.ToTable("valores_a_devolver", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Business.Privacidade.Models.SolicitacaoDePrivacidade", b =>
@@ -4885,6 +4995,12 @@ namespace Backend.Data.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_recebimentos_asp_net_users_baixado_por_usuario_id");
 
+                    b.HasOne("Backend.Business.Recebimentos.Models.CobrancaBancaria", null)
+                        .WithMany()
+                        .HasForeignKey("CobrancaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_recebimentos_cobrancas_bancarias_cobranca_id");
+
                     b.HasOne("Backend.Business.Arquivos.Models.Arquivo", null)
                         .WithMany()
                         .HasForeignKey("ComprovanteArquivoId")
@@ -4916,6 +5032,66 @@ namespace Backend.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_recebimentos_parcelas_parcela_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Pagamentos.Models.ValorADevolver", b =>
+                {
+                    b.HasOne("Backend.Business.Recebimentos.Models.CobrancaBancaria", null)
+                        .WithMany()
+                        .HasForeignKey("CobrancaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_valores_a_devolver_cobrancas_bancarias_cobranca_id");
+
+                    b.HasOne("Backend.Business.Arquivos.Models.Arquivo", null)
+                        .WithMany()
+                        .HasForeignKey("ComprovanteArquivoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_valores_a_devolver_arquivos_comprovante_arquivo_id");
+
+                    b.HasOne("Backend.Business.Financeiro.Models.Despesa", null)
+                        .WithMany()
+                        .HasForeignKey("DespesaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_valores_a_devolver_despesas_despesa_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_valores_a_devolver_formaturas_formatura_id");
+
+                    b.HasOne("Backend.Business.Cobrancas.Models.ItemDeCobranca", null)
+                        .WithMany()
+                        .HasForeignKey("ItemDeCobrancaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_valores_a_devolver_itens_de_cobranca_item_de_cobranca_id");
+
+                    b.HasOne("Backend.Business.Cobrancas.Models.Parcela", null)
+                        .WithMany()
+                        .HasForeignKey("ParcelaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_valores_a_devolver_parcelas_parcela_id");
+
+                    b.HasOne("Backend.Business.Cobrancas.Models.Pedido", null)
+                        .WithMany()
+                        .HasForeignKey("PedidoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_valores_a_devolver_pedidos_pedido_id");
+
+                    b.HasOne("Backend.Business.Usuarios.Models.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("ResolvidoPorUsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_valores_a_devolver_usuarios_resolvido_por_usuario_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.VinculoDeFormatura", null)
+                        .WithMany()
+                        .HasForeignKey("VinculoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_valores_a_devolver_vinculos_vinculo_id");
                 });
 
             modelBuilder.Entity("Backend.Business.Privacidade.Models.SolicitacaoDePrivacidade", b =>

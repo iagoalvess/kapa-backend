@@ -4,8 +4,8 @@ using Backend.Business.Cobrancas.Models;
 namespace Backend.Business.Cobrancas.Interfaces;
 
 /// <summary>
-/// O plano financeiro da turma: a tesouraria monta e simula, o Presidente põe em vigor, a gestão
-/// consulta as parcelas.
+/// O plano financeiro da turma: a tesouraria monta e simula, o Presidente põe em vigor. As parcelas, a gestão
+/// consulta pelo <see cref="IConsultaDeParcelasService"/>.
 /// </summary>
 /// <remarks>
 /// A formatura vem da sessão, pelo filtro global. Só <see cref="Simular"/> a recebe, para contar
@@ -69,13 +69,4 @@ public interface ICobrancaService
     /// <param name="planoId">Plano.</param>
     /// <param name="autorId">Quem pôs em vigor.</param>
     Task<Result<PlanoDeCobrancaDetalhe>> Vigorar(Guid planoId, Guid autorId, CancellationToken ct = default);
-
-    /// <summary>Uma página das parcelas da turma.</summary>
-    /// <param name="paginacao">Página pedida.</param>
-    /// <param name="filtro">Formando, situação e período.</param>
-    Task<Result<PaginaDe<ParcelaResumo>>> ListarParcelas(PaginacaoRequest paginacao, FiltroDeParcelas filtro, CancellationToken ct = default);
-
-    /// <summary>Quantas parcelas e quanto somam por situação — a faixa da tela Parcelas.</summary>
-    /// <param name="filtro">Formando, período e busca; a situação é ignorada.</param>
-    Task<Result<ResumoDeParcelas>> ResumirParcelas(FiltroDeParcelas filtro, CancellationToken ct = default);
 }

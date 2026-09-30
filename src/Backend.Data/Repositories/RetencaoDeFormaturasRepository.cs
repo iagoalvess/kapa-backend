@@ -41,11 +41,12 @@ public sealed class RetencaoDeFormaturasRepository(AppDbContext db) : IRetencaoD
         typeof(PropostaDoItem),
         typeof(CheckIn),
         typeof(ConviteDoEvento),
+        typeof(ValorADevolver),
+        typeof(Recebimento),
         typeof(CobrancaBancaria),
         typeof(PedidoDeCancelamento),
         typeof(CompraDeConvite),
         typeof(NotificacaoEnviada),
-        typeof(Recebimento),
         typeof(InformeDePagamento),
         typeof(Parcela),
         typeof(Pedido),
@@ -81,10 +82,12 @@ public sealed class RetencaoDeFormaturasRepository(AppDbContext db) : IRetencaoD
     )!;
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<Formatura>> ListarSuspensasAnterioresA(DateTime suspensasAte, int limite, CancellationToken ct = default) =>
+    public async Task<IReadOnlyList<Guid>> ListarSuspensasAnterioresA(DateTime suspensasAte, int limite, CancellationToken ct = default) =>
         await db
-            .Formaturas.Where(f => f.Status == StatusDaFormatura.Suspensa && f.StatusDesde < suspensasAte)
+            .Formaturas.AsNoTracking()
+            .Where(f => f.Status == StatusDaFormatura.Suspensa && f.StatusDesde < suspensasAte)
             .OrderBy(f => f.StatusDesde)
+            .Select(f => f.Id)
             .Take(limite)
             .ToListAsync(ct);
 

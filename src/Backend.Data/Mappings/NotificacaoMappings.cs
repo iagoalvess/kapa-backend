@@ -23,7 +23,6 @@ public sealed class RegraDeNotificacaoMapping : IEntityTypeConfiguration<RegraDe
         builder.HasKey(r => r.Id);
 
         builder.Property(r => r.Gatilho).HasConversion<string>().HasMaxLength(20);
-        builder.Property(r => r.Canal).HasConversion<string>().HasMaxLength(20);
 
         builder
             .HasIndex(r => new
@@ -63,7 +62,6 @@ public sealed class NotificacaoEnviadaMapping : IEntityTypeConfiguration<Notific
 
         builder.HasKey(n => n.Id);
 
-        builder.Property(n => n.Canal).HasConversion<string>().HasMaxLength(20);
         builder.Property(n => n.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(n => n.Destinatario).IsRequired().HasMaxLength(256);
         builder.Property(n => n.Assunto).IsRequired().HasMaxLength(300);

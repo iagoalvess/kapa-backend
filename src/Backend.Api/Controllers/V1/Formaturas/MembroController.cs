@@ -1,5 +1,4 @@
 using Asp.Versioning;
-using Backend.Api.Analytics;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Comum;
 using Backend.Api.DTOs.Formaturas;

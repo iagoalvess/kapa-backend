@@ -31,11 +31,7 @@ public sealed record DadosDoItem(
     int NumeroDeParcelas,
     int DiaDeVencimento,
     DateOnly PrimeiroMes
-)
-{
-    /// <summary>A grade deste item.</summary>
-    public IReadOnlyList<ParcelaPrevista> Grade() => GradeDeParcelas.Calcular(this);
-}
+);
 
 /// <summary>
 /// A marca que faz um item novo alcançar também quem já aderiu — o rateio extraordinário.
@@ -219,6 +215,10 @@ public sealed record FiltroDeParcelas(
 /// A última baixa que vale — o recibo que a linha abre (Sprint 22). Nula sem baixa ativa; na parcela
 /// quitada em partes, as anteriores chegam pelo e-mail de confirmação de cada uma.
 /// </param>
+/// <param name="PeloMercadoPago">
+/// Alguma baixa que vale veio do Mercado Pago (Sprint 42, decisão 4): o estorno à mão avisa que o Kapa só desfaz o
+/// registro, e que a devolução no painel é da comissão.
+/// </param>
 public sealed record ParcelaResumo(
     Guid Id,
     Guid VinculoId,
@@ -236,7 +236,8 @@ public sealed record ParcelaResumo(
     long? ValorPagoEmCentavos = null,
     DateOnly? PagoEm = null,
     ValorDoDia? ValorDoDia = null,
-    Guid? RecebimentoId = null
+    Guid? RecebimentoId = null,
+    bool PeloMercadoPago = false
 )
 {
     /// <summary>Se ainda se deve: aberta ou vencida.</summary>

@@ -1,4 +1,3 @@
-using System.Text;
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Models;
@@ -120,7 +119,6 @@ public sealed class PagamentoServiceTests
         new(
             _parcelas,
             _informes,
-            _recebimentos,
             _contas,
             _perfis,
             _arquivos,
@@ -142,7 +140,8 @@ public sealed class PagamentoServiceTests
                     _recebimentos,
                     _eventos,
                     new EmailsDePagamento(_email, Options.Create(new AplicacaoSettings())),
-                    Substitute.For<IQuitacaoDePedidos>()
+                    Substitute.For<IQuitacaoDePedidos>(),
+                    new ValoresADevolver(Substitute.For<IValorADevolverRepository>())
                 ),
                 LojaTests.Pagamento(),
                 _eventos,
@@ -150,6 +149,8 @@ public sealed class PagamentoServiceTests
                 Substitute.For<IDespesaRepository>(),
                 Substitute.For<IOutraReceitaRepository>(),
                 new EmailsDePagamento(_email, Options.Create(new AplicacaoSettings())),
+                new ValoresADevolver(Substitute.For<IValorADevolverRepository>()),
+                new EstornoDaCobranca(Substitute.For<IOutraReceitaRepository>()),
                 _unitOfWork,
                 NullLogger<BaixaAutomatica>.Instance
             ),
@@ -172,12 +173,23 @@ public sealed class PagamentoServiceTests
                 _vinculos,
                 _formaturas,
                 _arquivos,
-                new BaixaService(_recebimentos, _eventos, emails, Substitute.For<IQuitacaoDePedidos>()),
+                new BaixaService(
+                    _recebimentos,
+                    _eventos,
+                    emails,
+                    Substitute.For<IQuitacaoDePedidos>(),
+                    new ValoresADevolver(Substitute.For<IValorADevolverRepository>())
+                ),
                 emails,
                 new BaixaManualValidator(),
                 new ConfirmarInformesValidator(),
                 new RecusarInformeValidator(),
                 new EstornarBaixaValidator(),
+                new CancelarParcelaValidator(),
+                _provedor,
+                new EstornoDaCobranca(Substitute.For<IOutraReceitaRepository>()),
+                new ValoresADevolver(Substitute.For<IValorADevolverRepository>()),
+                _eventos,
                 _unitOfWork,
                 NullLogger<TesourariaService>.Instance
             );
@@ -713,7 +725,6 @@ public sealed class PagamentoServiceTests
                     && r.InformeId == informe.Id
                     && r.ValorEmCentavos == 350_000
                     && r.DevidoEmCentavos == 360_500
-                    && r.Divergente
                     && r.BaixadoPorUsuarioId == Tesoureira.UsuarioId
                     && r.EnderecoIp == "203.0.113.7"
                 ),
@@ -804,7 +815,7 @@ public sealed class PagamentoServiceTests
                 ),
                 Arg.Any<CancellationToken>()
             );
-        await _eventos.Received(1).Adicionar(Arg.Is<Evento>(e => e.Nome == TesourariaService.EventoDeEstorno), Arg.Any<CancellationToken>());
+        await _eventos.Received(1).Adicionar(Arg.Is<Evento>(e => e.Nome == BaixaService.EventoDeEstorno), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -835,34 +846,6 @@ public sealed class PagamentoServiceTests
         _informes.ListarParaEdicao(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns([informe]);
     }
 
-    /// <summary>Um recebimento da Ana, como a leitura do recibo o devolve.</summary>
-    private DadosDoRecibo ReciboDaAna(long recebido = 350_000, bool estornado = false)
-    {
-        var parcela = DaAna(_hoje.AddDays(-3), StatusDaParcela.Paga);
-        var recibo = new DadosDoRecibo(
-            Guid.CreateVersion7(),
-            FormaturaId,
-            "Medicina 2027",
-            "UFPR",
-            parcela,
-            "52998224725",
-            FormaDePagamento.Pix,
-            recebido,
-            350_000,
-            _hoje.AddDays(-3),
-            "Tesa",
-            new DateTime(2026, 9, 15, 13, 0, 0, DateTimeKind.Utc),
-            estornado
-        );
-        _recebimentos.ObterParaRecibo(recibo.RecebimentoId, Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns(recibo);
-        foreach (var membro in new[] { Ana, Bruno, Tesoureira })
-            _perfis.ObterTitular(FormaturaId, membro.UsuarioId, Arg.Any<CancellationToken>()).Returns(membro);
-
-        return recibo;
-    }
-
-    private static string TextoDoPdf(ArquivoParaDownload arquivo) => Encoding.ASCII.GetString(((MemoryStream)arquivo.Conteudo).ToArray());
-
     [Fact]
     public async Task Cobranca_leva_documento_do_titular_e_a_conferencia()
     {
@@ -878,75 +861,6 @@ public sealed class PagamentoServiceTests
         var pix = cobranca.Valor.Meios.ShouldHaveSingleItem().Pix!;
         pix.DocumentoDoTitular.ShouldBe("CPF ***.982.247-**");
         pix.ConferidaEm.ShouldBe(conferidaEm);
-    }
-
-    [Fact]
-    public async Task Recibo_do_proprio_traz_cpf_inteiro_e_o_da_gestao_mascarado()
-    {
-        // Arrange
-        var recibo = ReciboDaAna();
-        _contas.ObterMeiosVigentesEm(FormaturaId, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(SoPix);
-
-        // Act
-        var proprio = await Servico.ObterRecibo(FormaturaId, Ana.UsuarioId, recibo.RecebimentoId, Ct);
-        var daGestao = await Servico.ObterRecibo(FormaturaId, Tesoureira.UsuarioId, recibo.RecebimentoId, Ct);
-
-        // Assert
-        proprio.Valor.ContentType.ShouldBe("application/pdf");
-        TextoDoPdf(proprio.Valor).ShouldContain("529.982.247-25");
-        TextoDoPdf(daGestao.Valor).ShouldContain("***.982.247-**");
-        TextoDoPdf(daGestao.Valor).ShouldNotContain("529.982.247-25");
-    }
-
-    [Fact]
-    public async Task Recibo_de_outro_formando_e_404_e_o_estornado_e_409()
-    {
-        // Arrange
-        var daAna = ReciboDaAna();
-        var estornado = ReciboDaAna(estornado: true);
-
-        // Act
-        var deOutro = await Servico.ObterRecibo(FormaturaId, Bruno.UsuarioId, daAna.RecebimentoId, Ct);
-        var inexistente = await Servico.ObterRecibo(FormaturaId, Ana.UsuarioId, Guid.CreateVersion7(), Ct);
-        var desfeito = await Servico.ObterRecibo(FormaturaId, Ana.UsuarioId, estornado.RecebimentoId, Ct);
-
-        // Assert
-        deOutro.PrimeiroErro.Tipo.ShouldBe(ETipoErro.NaoEncontrado);
-        inexistente.PrimeiroErro.Codigo.ShouldBe(deOutro.PrimeiroErro.Codigo);
-        desfeito.PrimeiroErro.Codigo.ShouldBe("pagamento.recebimento_estornado");
-        desfeito.PrimeiroErro.Tipo.ShouldBe(ETipoErro.Conflito);
-    }
-
-    [Fact]
-    public async Task Recibo_nomeia_o_titular_do_dia_do_pagamento_e_nao_o_de_hoje()
-    {
-        // Arrange
-        var recibo = ReciboDaAna();
-        var chaveNova = new ChavePixDaConta(TipoDeChavePix.Email, "novo@turma.dev", "Fulano Trocado", "Curitiba");
-        _contas.ObterMeiosVigentesEm(FormaturaId, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(SoPix);
-        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: false, new MeiosDaConta(chaveNova, null, null)));
-
-        // Act
-        var texto = TextoDoPdf((await Servico.ObterRecibo(FormaturaId, Ana.UsuarioId, recibo.RecebimentoId, Ct)).Valor);
-
-        // Assert
-        texto.ShouldContain(@"Comiss\343o Medicina");
-        texto.ShouldNotContain("Fulano Trocado");
-        await _contas.Received(1).ObterMeiosVigentesEm(FormaturaId, recibo.BaixadoEm, Ct);
-    }
-
-    [Fact]
-    public async Task Recibo_sem_trilha_cai_na_conta_atual()
-    {
-        // Arrange
-        var recibo = ReciboDaAna();
-        _contas.ObterDetalhe(Arg.Any<CancellationToken>()).Returns(Conta(conferida: true));
-
-        // Act
-        var texto = TextoDoPdf((await Servico.ObterRecibo(FormaturaId, Ana.UsuarioId, recibo.RecebimentoId, Ct)).Valor);
-
-        // Assert
-        texto.ShouldContain(@"Comiss\343o Medicina");
     }
 
     /// <summary>

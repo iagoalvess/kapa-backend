@@ -6,7 +6,6 @@ using Backend.Api.DTOs.Notificacoes;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Assinaturas.Models;
-using Backend.Business.Auth.Services;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
 using Mapster;

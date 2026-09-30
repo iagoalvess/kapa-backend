@@ -8,7 +8,7 @@ using Backend.Business.Assinaturas.Models;
 using Backend.Business.Assinaturas.Settings;
 using Microsoft.Extensions.Options;
 
-namespace Backend.Data.Provedores;
+namespace Backend.Business.Assinaturas.Services;
 
 /// <summary>
 /// PSP simulado: checkout, webhook assinado por HMAC e consulta, sem rede e sem credencial.

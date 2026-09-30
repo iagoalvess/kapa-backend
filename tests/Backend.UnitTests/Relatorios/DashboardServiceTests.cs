@@ -1,5 +1,3 @@
-using Backend.Business.Financeiro.Interfaces;
-using Backend.Business.Financeiro.Models;
 using Backend.Business.Relatorios.Interfaces;
 using Backend.Business.Relatorios.Models;
 using Backend.Business.Relatorios.Services;
@@ -9,32 +7,30 @@ using Shouldly;
 namespace Backend.UnitTests.Relatorios;
 
 /// <summary>
-/// Os números do painel são os mesmos do caixa — nenhum é recalculado aqui (decisão 4 da Sprint 12).
+/// O painel do formando: adimplência e gasto por fornecedor, como o repositório os devolve.
 /// </summary>
 public sealed class DashboardServiceTests
 {
-    private static readonly Guid FormaturaId = Guid.CreateVersion7();
-
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private readonly ICaixaService _caixa = Substitute.For<ICaixaService>();
     private readonly IRelatorioRepository _relatorios = Substitute.For<IRelatorioRepository>();
 
-    private DashboardService Servico => new(_caixa, _relatorios);
+    private DashboardService Servico => new(_relatorios);
 
     [Fact]
-    public async Task Os_numeros_do_painel_sao_os_do_caixa_sem_recalculo()
+    public async Task O_painel_repassa_adimplencia_e_fornecedores_sem_recalculo()
     {
         // Arrange
-        Consolidado(arrecadado: 184_500_00L, gasto: 96_200_00L);
+        var adimplencia = new Adimplencia(1_000_00L, 985_00L);
+        _relatorios.Adimplencia(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns(adimplencia);
+        _relatorios.PorFornecedor(Arg.Any<PeriodoDoRelatorio?>(), Arg.Any<CancellationToken>()).Returns([]);
 
         // Act
-        var painel = (await Servico.Publico(FormaturaId, Ct)).Valor;
+        var painel = (await Servico.Publico(Ct)).Valor;
 
         // Assert
-        painel.Caixa.ArrecadadoEmCentavos.ShouldBe(184_500_00L);
-        painel.Caixa.GastoEmCentavos.ShouldBe(96_200_00L);
-        painel.Caixa.SaldoEmCentavos.ShouldBe(88_300_00L);
+        painel.Adimplencia.ShouldBe(adimplencia);
+        painel.PorFornecedor.ShouldBeEmpty();
     }
 
     /// <summary>
@@ -51,15 +47,4 @@ public sealed class DashboardServiceTests
     [InlineData(1_000_00L, 0L, 0)]
     public void A_adimplencia_e_recebido_sobre_devido_em_base_dez_mil(long devido, long recebido, int esperado) =>
         new Adimplencia(devido, recebido).PercentualBaseDezMil.ShouldBe(esperado);
-
-    /// <summary>O caixa devolvendo os valores pedidos, com o resto zerado.</summary>
-    /// <param name="arrecadado">O que entrou.</param>
-    /// <param name="gasto">O que saiu.</param>
-    private void Consolidado(long arrecadado = 0, long gasto = 0)
-    {
-        _caixa.Consolidado(Arg.Any<CancellationToken>()).Returns(new CaixaConsolidado(arrecadado, gasto, 0, 0, 0, [], [], []));
-        _caixa.Projecao(FormaturaId, Arg.Any<CancellationToken>()).Returns(new ProjecaoDoCaixa([], arrecadado - gasto, 0));
-        _relatorios.Adimplencia(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns(Adimplencia.Integral);
-        _relatorios.PorFornecedor(Arg.Any<PeriodoDoRelatorio?>(), Arg.Any<CancellationToken>()).Returns([]);
-    }
 }

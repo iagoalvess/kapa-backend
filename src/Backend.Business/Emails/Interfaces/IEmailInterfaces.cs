@@ -104,3 +104,14 @@ public interface IProcessamentoDaFilaDeEmail
 /// <param name="Presos">Presos em envio dados por falhos.</param>
 /// <param name="Removidos">Concluídos antigos apagados.</param>
 public readonly record struct LimpezaDaFilaDeEmail(int Presos, int Removidos);
+
+/// <summary>
+/// Enfileira uma amostra de cada e-mail do produto, com dados de exemplo — ferramenta de desenvolvimento.
+/// </summary>
+public interface IAmostraDeEmails
+{
+    /// <summary>Enfileira a amostra inteira para um endereço e salva a fila.</summary>
+    /// <param name="para">Quem recebe. Vazio responde 400 <c>validacao.invalido</c> no campo <c>para</c>.</param>
+    /// <returns>O instante em que a amostra começou a entrar na fila.</returns>
+    Task<Result<DateTime>> Enfileirar(string? para, CancellationToken ct = default);
+}

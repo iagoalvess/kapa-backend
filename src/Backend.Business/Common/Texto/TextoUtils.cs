@@ -36,12 +36,6 @@ public static class TextoUtils
     }
 
     /// <summary>
-    /// Remove acentuação e baixa a caixa, para comparação e busca insensíveis a acento.
-    /// </summary>
-    /// <param name="texto">Texto de origem.</param>
-    public static string Normalizar(string? texto) => SemAcento(texto).ToLowerInvariant();
-
-    /// <summary>
     /// Remove a acentuação e as pontas em branco, mantendo a caixa: <c>" São João "</c> vira <c>"Sao Joao"</c>.
     /// </summary>
     /// <param name="texto">Texto de origem.</param>

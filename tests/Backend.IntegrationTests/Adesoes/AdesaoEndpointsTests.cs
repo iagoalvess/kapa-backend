@@ -369,7 +369,7 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
         var lembreteDeQuemAderiu = await turma.Presidente.Cliente.PostAsync($"{Rota}/{ana.UsuarioId}/lembrete", null, Ct);
         var semAcento = await turma.Presidente.Cliente.GetFromJsonAsync<PaginaDTO<SituacaoDeAdesaoDTO>>($"{Rota}?busca=sonia", Json, Ct);
 
-        resumo.ShouldBe(new ResumoDeAdesoesDTO(3, 1, 1));
+        resumo.ShouldBe(new ResumoDeAdesoesDTO(3, 1));
         faltam!.Itens.Select(s => s.UsuarioId).ShouldBe([turma.Presidente.UsuarioId, bruno.UsuarioId], ignoreOrder: true);
         aderiram!.Itens.ShouldHaveSingleItem().Nome.ShouldBe("Ana Sônia Souza");
         semAcento!.Itens.ShouldHaveSingleItem().UsuarioId.ShouldBe(ana.UsuarioId);

@@ -1,13 +1,9 @@
 using Asp.Versioning;
-using Backend.Api.Analytics;
 using Backend.Api.Configuration;
-using Backend.Api.DTOs.Arquivos;
-using Backend.Api.DTOs.Comum;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Models;
-using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -15,7 +11,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Backend.Api.Controllers.V1.Arquivos;
 
 /// <summary>
-/// Download de arquivo: metadados, conteúdo e o objeto de uma URL temporária.
+/// Download de arquivo: o conteúdo e o objeto de uma URL temporária.
 /// </summary>
 /// <remarks>
 /// Regra de acesso: cada usuário enxerga os próprios arquivos, e o administrador enxerga todos.
@@ -36,19 +32,7 @@ namespace Backend.Api.Controllers.V1.Arquivos;
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class ArquivoController(IArquivoService arquivoService, IUsuarioAtual usuarioAtual) : MainController
 {
-    private SolicitanteDeArquivo Solicitante => new(usuarioAtual.Id, usuarioAtual.EhAdministrador);
-
-    /// <summary>Obtém os metadados de um arquivo.</summary>
-    /// <param name="id">Identificador do arquivo.</param>
-    [HttpGet("{id:guid}")]
-    [ProducesResponseType(typeof(ArquivoResumoDTO), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ObterPorId(Guid id, CancellationToken ct)
-    {
-        var resultado = await arquivoService.ObterPorId(id, Solicitante, ct);
-
-        return Responder(resultado.Map(a => a.Adapt<ArquivoResumoDTO>()));
-    }
+    private SolicitanteDeArquivo Solicitante => new(usuarioAtual.Id, PeloSistema: false);
 
     /// <summary>Baixa o conteúdo de um arquivo.</summary>
     /// <param name="id">Identificador do arquivo.</param>

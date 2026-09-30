@@ -43,9 +43,6 @@ public enum StatusDaCompra
 /// </remarks>
 public class CompraDeConvite : EntidadeDaFormatura
 {
-    /// <summary>Quanto tempo a reserva do PIX dinâmico dura: os 30 minutos que o Mercado Pago exige de mínimo (decisão 3).</summary>
-    public static readonly TimeSpan ReservaDoPix = TimeSpan.FromMinutes(30);
-
     /// <summary>O item vendido.</summary>
     public Guid ItemDeCobrancaId { get; private set; }
 

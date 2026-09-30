@@ -127,7 +127,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
         var cliente = fabrica.CreateClient();
         var tokens = await cliente.RegistrarUsuarioComum(Ct);
 
-        var resposta = await cliente.ComToken(tokens.AccessToken).GetAsync("/api/v1/admin/resumo", Ct);
+        var resposta = await cliente.ComToken(tokens.AccessToken).GetAsync("/api/v1/admin/analytics", Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await Codigo(resposta)).ShouldBe("auth.sem_permissao");
@@ -193,7 +193,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
 
         var novos = await Selecionar(cliente.ComToken(tokens.AccessToken), formaturaId);
 
-        var resposta = await cliente.ComToken(novos.AccessToken).GetAsync("/api/v1/admin/resumo", Ct);
+        var resposta = await cliente.ComToken(novos.AccessToken).GetAsync("/api/v1/admin/analytics", Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await Codigo(resposta)).ShouldBe("auth.sem_permissao");

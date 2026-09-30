@@ -1,3 +1,4 @@
+using Backend.Business.Abstractions;
 using Backend.Business.Admin.Models;
 
 namespace Backend.Business.Admin.Interfaces;
@@ -7,28 +8,46 @@ namespace Backend.Business.Admin.Interfaces;
 /// </summary>
 public interface IAdminRepository
 {
-    /// <summary>Apura os números do painel em uma única ida ao banco.</summary>
-    /// <param name="agoraUtc">Momento da apuração — o corte das sessões ativas.</param>
-    /// <param name="cadastradosDesde">Início da janela dos cadastros recentes.</param>
-    Task<ResumoAdmin> ObterResumo(DateTime agoraUtc, DateTime cadastradosDesde, CancellationToken ct = default);
-
-    /// <summary>
-    /// Turmas cujo nome, instituição ou curso batem com o termo.
-    /// </summary>
+    /// <summary>Contas, turmas, dinheiro e uso da plataforma no período (Sprint 44).</summary>
     /// <remarks>
-    /// Atravessa todas as formaturas: quem atende é perfil de plataforma e não tem turma na sessão.
-    /// O filtro global do <c>AppDbContext</c> não alcança <c>Formatura</c>, que é a raiz — mas
-    /// alcança tudo o que pende dela, e por isso as consultas daqui que passam por vínculo,
-    /// parcela ou adesão precisam ignorá-lo explicitamente.
+    /// Atravessa todas as formaturas: quem chama é perfil de plataforma e não tem turma na sessão. O filtro global
+    /// do <c>AppDbContext</c> não alcança <c>Formatura</c>, que é a raiz — mas alcança tudo o que pende dela, e por
+    /// isso vínculo, assinatura e parcela são lidos ignorando-o.
     /// </remarks>
-    /// <param name="termo">Trecho digitado.</param>
-    /// <param name="limite">Máximo de linhas.</param>
-    Task<IReadOnlyList<TurmaEncontrada>> BuscarTurmasDeTodasAsFormaturas(string termo, int limite, CancellationToken ct = default);
+    /// <param name="de">Primeiro dia do período, no fuso de exibição.</param>
+    /// <param name="ate">Último dia do período, inclusive.</param>
+    /// <param name="agoraUtc">Momento da apuração: o corte do "a vencer".</param>
+    Task<AnalyticsDaPlataforma> ObterAnalyticsDeTodasAsFormaturas(DateOnly de, DateOnly ate, DateTime agoraUtc, CancellationToken ct = default);
 
-    /// <summary>Contas cujo nome ou e-mail batem com o termo, com em quantas turmas cada uma está.</summary>
-    /// <param name="termo">Trecho digitado.</param>
-    /// <param name="limite">Máximo de linhas.</param>
-    Task<IReadOnlyList<UsuarioEncontrado>> BuscarUsuariosDeTodasAsFormaturas(string termo, int limite, CancellationToken ct = default);
+    /// <summary>Cadastros, turmas novas e recebido do Kapa, mês a mês no fuso de exibição.</summary>
+    /// <param name="primeiroMes">Primeiro dia do primeiro mês, no fuso de exibição.</param>
+    /// <param name="meses">Quantos meses, do primeiro em diante.</param>
+    Task<IReadOnlyList<MesDaPlataforma>> ObterSerieMensalDeTodasAsFormaturas(DateOnly primeiroMes, int meses, CancellationToken ct = default);
+
+    /// <summary>Uma página das turmas, com a licença de cada uma.</summary>
+    /// <param name="paginacao">Página, tamanho e ordenação — <c>nome</c> ou <c>criada_em</c>; o padrão é a mais nova.</param>
+    /// <param name="filtro">Termo e licença.</param>
+    Task<PaginaDe<TurmaNoPainel>> ListarTurmasDeTodasAsFormaturas(
+        PaginacaoRequest paginacao,
+        FiltroDeTurmasNoPainel filtro,
+        CancellationToken ct = default
+    );
+
+    /// <summary>Uma página das contas, com em quantas turmas cada uma está.</summary>
+    /// <param name="paginacao">Página, tamanho e ordenação — <c>nome</c>, <c>email</c> ou <c>criado_em</c>; o padrão é o nome.</param>
+    /// <param name="filtro">Termo e situação.</param>
+    /// <param name="agoraUtc">O corte do bloqueio por tentativas.</param>
+    Task<PaginaDe<ContaNoPainel>> ListarContasDeTodasAsFormaturas(
+        PaginacaoRequest paginacao,
+        FiltroDeContasNoPainel filtro,
+        DateTime agoraUtc,
+        CancellationToken ct = default
+    );
+
+    /// <summary>Uma página dos membros da turma, ativos primeiro. O CPF sai mascarado.</summary>
+    /// <param name="formaturaId">Formatura.</param>
+    /// <param name="paginacao">Página e tamanho.</param>
+    Task<PaginaDe<MembroNoSuporte>> ListarMembrosDeTodasAsFormaturas(Guid formaturaId, PaginacaoRequest paginacao, CancellationToken ct = default);
 
     /// <summary>A turma inteira como o suporte a vê, ou nulo se não existir.</summary>
     /// <param name="formaturaId">Formatura.</param>

@@ -31,10 +31,9 @@ public sealed record ConsentimentoDoUsuario(Guid Id, string Tipo, string Versao,
 /// <param name="Versao">Versão vigente, que é a que precisa ser aceita.</param>
 public sealed record AceitePendente(string Tipo, string Versao);
 
-/// <summary>Histórico de consentimento e o que falta aceitar.</summary>
-/// <param name="Historico">Registros do usuário, do mais recente para o mais antigo.</param>
+/// <summary>O que falta aceitar.</summary>
 /// <param name="Pendencias">Versões vigentes sem aceite válido.</param>
-public sealed record MeusAceites(IReadOnlyList<ConsentimentoDoUsuario> Historico, IReadOnlyList<AceitePendente> Pendencias);
+public sealed record MeusAceites(IReadOnlyList<AceitePendente> Pendencias);
 
 /// <summary>Pedido de aceite feito por quem já tem conta.</summary>
 /// <param name="Aceites">Versões aceitas.</param>

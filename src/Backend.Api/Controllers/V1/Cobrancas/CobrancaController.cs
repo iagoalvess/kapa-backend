@@ -27,11 +27,13 @@ namespace Backend.Api.Controllers.V1.Cobrancas;
 /// </para>
 /// </remarks>
 /// <param name="cobrancaService">Regras do plano.</param>
+/// <param name="parcelas">A consulta das parcelas da turma.</param>
 [ApiVersion("1.0")]
 [ExigeModulo(Modulo.Cobrancas)]
 [Route("api/v{version:apiVersion}/cobrancas")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class CobrancaController(ICobrancaService cobrancaService, IUsuarioAtual usuarioAtual) : MainController
+public sealed class CobrancaController(ICobrancaService cobrancaService, IConsultaDeParcelasService parcelas, IUsuarioAtual usuarioAtual)
+    : MainController
 {
     /// <summary>Nome da rota do detalhe do plano, para o <c>Location</c> da criação.</summary>
     public const string RotaDoPlano = "PlanoDeCobrancaPorId";
@@ -204,7 +206,7 @@ public sealed class CobrancaController(ICobrancaService cobrancaService, IUsuari
         CancellationToken ct
     )
     {
-        var resultado = await cobrancaService.ListarParcelas(paginacao.ParaModelo(), new FiltroDeParcelas(usuarioId, status, de, ate, busca), ct);
+        var resultado = await parcelas.Listar(paginacao.ParaModelo(), new FiltroDeParcelas(usuarioId, status, de, ate, busca), ct);
 
         return Responder(resultado.Map(pagina => pagina.ParaDTO(parcela => parcela.Adapt<ParcelaDTO>())));
     }
@@ -227,7 +229,7 @@ public sealed class CobrancaController(ICobrancaService cobrancaService, IUsuari
         CancellationToken ct
     )
     {
-        var resultado = await cobrancaService.ResumirParcelas(new FiltroDeParcelas(usuarioId, null, de, ate, busca), ct);
+        var resultado = await parcelas.Resumir(new FiltroDeParcelas(usuarioId, null, de, ate, busca), ct);
 
         return Responder(resultado.Map(resumo => resumo.Adapt<ResumoDeParcelasDTO>()));
     }

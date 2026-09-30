@@ -51,6 +51,13 @@ public sealed class AssinaturaService(
         Result.Ok(await assinaturaRepository.ListarPlanosAtivos(ct));
 
     /// <inheritdoc />
+    /// <remarks>Sem nem o gratuito no catálogo, o banco está mal semeado: 404, e não uma turma sem plano nenhum.</remarks>
+    public async Task<Result<PlanoDaTurma>> ObterPlanoDaTurma(Guid formaturaId, CancellationToken ct = default) =>
+        await assinaturaRepository.ObterPlanoVigenteDeTodasAsFormaturas(formaturaId, ct) is { } plano
+            ? new PlanoDaTurma(plano.Codigo, plano.Nome, plano.Modulos, plano.Pago)
+            : Erro.NaoEncontrado("plano.nao_encontrado", "O catálogo não tem o plano desta turma.");
+
+    /// <inheritdoc />
     public async Task<Result<AssinaturaDetalhe>> ObterAtual(CancellationToken ct = default) =>
         await assinaturaRepository.ObterDetalheDaMaisRecente(ct) is { } detalhe ? detalhe : NaoEncontrada;
 
@@ -65,10 +72,11 @@ public sealed class AssinaturaService(
     /// linha. O índice único parcial em <c>AssinaturaMapping</c> fecha a corrida do clique duplo.
     /// </para>
     /// <para>
-    /// <b>Trocar de plano invalida a sessão anterior no provedor.</b> Como o pagamento de qualquer
-    /// sessão confirma a mesma linha, pagar a sessão antiga do Essencial depois de pedir o Ampliado
-    /// ativaria o Ampliado pelo preço do Essencial. Mesmo plano não precisa: qualquer sessão cobra o
-    /// mesmo valor.
+    /// <b>Toda sessão nova invalida a anterior no provedor.</b> Como o pagamento de qualquer sessão
+    /// confirma a mesma linha, pagar a sessão antiga do Essencial depois de pedir o Premium ativaria o
+    /// Premium pelo preço do Essencial. Até 30/09/2026 o mesmo plano não cancelava ("qualquer sessão
+    /// cobra o mesmo valor"): duas sessões do Essencial seguidas de uma do Premium deixavam a primeira
+    /// viva — só a última é a <c>IdExterno</c> —, e pagar duas sessões cobrava a turma em dobro.
     /// </para>
     /// <para>
     /// Formatura suspensa contrata sem sair de <c>Suspensa</c>: ela continua em modo leitura até o
@@ -121,7 +129,7 @@ public sealed class AssinaturaService(
         var pendente = maisRecente is { Status: StatusDaAssinatura.Pendente } atual ? atual : null;
         var meio = dados.Meio ?? MeioDePagamento.Cartao;
 
-        if (pendente is { IdExterno: { } sessaoAnterior } && (pendente.PlanoId != plano.Id || meio == MeioDePagamento.Pix))
+        if (pendente is { IdExterno: { } sessaoAnterior })
         {
             var invalidada = await provedor.Cancelar(sessaoAnterior, ct);
             if (invalidada.Falhou)
@@ -251,7 +259,7 @@ public sealed class AssinaturaService(
         await assinaturaRepository.AdicionarCobranca(cobranca, ct);
         await unitOfWork.SalvarAsync(ct);
 
-        return await Troca(sessao.Valor.Url, ct);
+        return new ResultadoDaTroca(sessao.Valor.Url);
     }
 
     /// <inheritdoc />
@@ -317,7 +325,7 @@ public sealed class AssinaturaService(
 
         await unitOfWork.SalvarAsync(ct);
 
-        return await Troca(url, ct);
+        return new ResultadoDaTroca(url);
     }
 
     /// <inheritdoc />
@@ -410,11 +418,8 @@ public sealed class AssinaturaService(
 
         await unitOfWork.SalvarAsync(ct);
 
-        return await Troca(null, ct);
+        return new ResultadoDaTroca(null);
     }
-
-    private async Task<Result<ResultadoDaTroca>> Troca(string? url, CancellationToken ct) =>
-        await assinaturaRepository.ObterDetalheDaMaisRecente(ct) is { } detalhe ? new ResultadoDaTroca(url, detalhe) : NaoEncontrada;
 
     /// <inheritdoc />
     /// <remarks>

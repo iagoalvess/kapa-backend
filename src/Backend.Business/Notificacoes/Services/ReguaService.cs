@@ -174,7 +174,7 @@ public sealed class ReguaService(
             var itens = pessoa
                 .Select(a => new ParcelaNaMensagem(
                     a.Parcela,
-                    ValorDoDia.Calcular(a.Parcela.ValorOriginalEmCentavos, a.Parcela.Vencimento, hoje, atraso)
+                    ValorDoDia.Calcular(a.Parcela.ValorOriginalEmCentavos, a.Parcela.Vencimento, hoje, atraso, a.Parcela.JaPagoEmCentavos)
                 ))
                 .ToList();
 

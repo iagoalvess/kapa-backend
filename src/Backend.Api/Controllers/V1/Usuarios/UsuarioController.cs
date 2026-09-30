@@ -15,12 +15,11 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Backend.Api.Controllers.V1.Usuarios;
 
 /// <summary>
-/// Consulta e gestão de usuários.
+/// Consulta e gestão de usuários, só para o administrador.
 /// </summary>
 /// <remarks>
-/// Duas faixas de acesso no mesmo controller: <c>/eu</c> é do próprio usuário autenticado e
-/// nunca aceita um id vindo do cliente; o resto exige o perfil de administrador. Deixar o
-/// usuário informar o próprio id é como alguém edita o cadastro do vizinho trocando um número.
+/// O próprio cadastro do membro é lido e alterado por <c>/formandos/eu</c>, que nunca aceita um id
+/// vindo do cliente.
 /// </remarks>
 /// <param name="usuarioService">Regras de gestão de usuários.</param>
 /// <param name="usuarioAtual">Identidade da requisição.</param>
@@ -29,31 +28,6 @@ namespace Backend.Api.Controllers.V1.Usuarios;
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class UsuarioController(IUsuarioService usuarioService, IUsuarioAtual usuarioAtual) : MainController
 {
-    /// <summary>Nome da rota de detalhe, usado para montar o cabeçalho <c>Location</c>.</summary>
-    public const string RotaDeDetalhe = "UsuarioPorId";
-
-    /// <summary>Devolve os dados do usuário autenticado.</summary>
-    [HttpGet("eu")]
-    [ProducesResponseType(typeof(UsuarioDetalheDTO), StatusCodes.Status200OK)]
-    public async Task<IActionResult> ObterMeuPerfil(CancellationToken ct)
-    {
-        var resultado = await usuarioService.ObterPorId(usuarioAtual.Id, ct);
-
-        return Responder(resultado.Map(usuario => usuario.Adapt<UsuarioDetalheDTO>()));
-    }
-
-    /// <summary>Altera os dados do usuário autenticado.</summary>
-    /// <param name="requisicao">Novos valores.</param>
-    [HttpPut("eu")]
-    [ProducesResponseType(typeof(UsuarioDetalheDTO), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> AtualizarMeuPerfil([FromBody] AtualizarUsuarioRequestDTO requisicao, CancellationToken ct)
-    {
-        var resultado = await usuarioService.Atualizar(usuarioAtual.Id, new AtualizarUsuario(requisicao.Nome), ct);
-
-        return Responder(resultado.Map(usuario => usuario.Adapt<UsuarioDetalheDTO>()));
-    }
-
     /// <summary>Lista usuários paginados.</summary>
     /// <param name="paginacao">Página e tamanho.</param>
     /// <param name="busca">Termo livre aplicado a nome e e-mail.</param>
@@ -69,7 +43,7 @@ public sealed class UsuarioController(IUsuarioService usuarioService, IUsuarioAt
 
     /// <summary>Obtém um usuário pelo identificador.</summary>
     /// <param name="id">Identificador do usuário.</param>
-    [HttpGet("{id:guid}", Name = RotaDeDetalhe)]
+    [HttpGet("{id:guid}")]
     [Authorize(Policy = Politicas.SomenteAdministrador)]
     [ProducesResponseType(typeof(UsuarioDetalheDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

@@ -272,12 +272,10 @@ public sealed class PedidoRepository(AppDbContext db) : IPedidoRepository
             linha.Nome,
             linha.Pedido.Quantidade,
             linha.Pedido.Parcelas,
-            linha.Item.ValorEmCentavos,
             linha.Item.ValorEmCentavos * linha.Pedido.Quantidade,
             linha.PagoEmCentavos,
             linha.Pedido.Status,
-            linha.Pedido.PedidoEm,
-            linha.Pedido.CanceladoEm
+            linha.Pedido.PedidoEm
         ));
 }
 

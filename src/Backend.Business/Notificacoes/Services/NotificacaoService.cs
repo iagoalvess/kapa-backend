@@ -2,9 +2,11 @@ using Backend.Business.Abstractions;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common;
+using Backend.Business.Common.Datas;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
+using Backend.Business.Pagamentos.Models;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -15,7 +17,7 @@ namespace Backend.Business.Notificacoes.Services;
 /// A régua como a comissão a governa: os degraus, o histórico, as preferências e o disparo avulso.
 /// </summary>
 /// <param name="notificacoes">Régua, histórico e seleção de parcelas.</param>
-/// <param name="parcelas">Regras de atraso aceitas na adesão.</param>
+/// <param name="parcelas">Regras de atraso aceitas na adesão, e se a parcela existe na turma.</param>
 /// <param name="vinculos">Vínculo de quem chama.</param>
 /// <param name="formaturas">Nome da turma, que vai na variável <c>{formatura}</c>.</param>
 /// <param name="canal">Por onde a mensagem sai.</param>
@@ -126,7 +128,9 @@ public sealed class NotificacaoService(
     public async Task<Result> Cobrar(Guid formaturaId, Guid parcelaId, CancellationToken ct = default)
     {
         if (await notificacoes.ObterParaCobranca(parcelaId, ct) is not { } parcela)
-            return Result.Falha(ParcelaNaoCobravel);
+            return await parcelas.Obter(parcelaId, DataUtils.Hoje(), ct) is null
+                ? Result.Falha(ErrosDePagamento.ParcelaNaoEncontrada)
+                : Result.Falha(ParcelaNaoCobravel);
 
         var regras = await ReguaDaTurma.Garantir(notificacoes, unitOfWork, ct);
         var hoje = JanelaDeEnvio.Hoje(DateTime.UtcNow);
@@ -139,7 +143,7 @@ public sealed class NotificacaoService(
             return Result.Falha(Erro.Conflito("notificacao.ja_cobrada_hoje", "Esta parcela já foi cobrada hoje."));
 
         var atraso = (await parcelas.ObterRegrasDeAtraso([parcela.VinculoId], ct)).GetValueOrDefault(parcela.VinculoId, RegrasDeAtraso.Nenhuma);
-        var valor = ValorDoDia.Calcular(parcela.ValorOriginalEmCentavos, parcela.Vencimento, hoje, atraso);
+        var valor = ValorDoDia.Calcular(parcela.ValorOriginalEmCentavos, parcela.Vencimento, hoje, atraso, parcela.JaPagoEmCentavos);
 
         var mensagem = MontagemDaMensagem.Cobranca(
             regra,

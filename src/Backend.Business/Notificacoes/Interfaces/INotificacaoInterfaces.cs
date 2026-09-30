@@ -11,16 +11,9 @@ namespace Backend.Business.Notificacoes.Interfaces;
 /// Só existe o e-mail (decisão 6), e a interface fica pelo que ela já paga hoje: é por ela que o
 /// teste troca o envio real por um dublê. O canal não conhece régua, parcela nem formatura — recebe
 /// <see cref="MensagemDeNotificacao"/> e devolve o que precisa para o histórico.
-/// <para>
-/// <c>Canal</c> é o enum, e não um nome em texto: a regra guarda o canal escolhido, e casar regra com
-/// implementação por <c>string</c> transformaria um erro de digitação em mensagem que nunca sai.
-/// </para>
 /// </remarks>
 public interface ICanalDeNotificacao
 {
-    /// <summary>Qual canal esta implementação atende.</summary>
-    CanalDeNotificacao Canal { get; }
-
     /// <summary>
     /// Entrega a mensagem ao canal.
     /// </summary>
@@ -106,7 +99,8 @@ public interface INotificacaoService
     /// </summary>
     /// <remarks>
     /// Passa pelas mesmas barreiras da régua automática: parcela paga, cancelada ou com informe
-    /// pendente não é cobrada, e o teto de uma mensagem por pessoa por dia continua valendo.
+    /// pendente não é cobrada (409), e o teto de uma mensagem por pessoa por dia continua valendo.
+    /// Parcela que não é da turma responde 404, como a inexistente.
     /// </remarks>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="parcelaId">Parcela a cobrar.</param>
@@ -187,14 +181,3 @@ public interface INotificacaoRepository
     /// <param name="preferencias">Preferências.</param>
     Task AdicionarPreferencias(IReadOnlyList<PreferenciaDeNotificacao> preferencias, CancellationToken ct = default);
 }
-
-/// <summary>A identidade de um disparo no dia: o que o índice único protege.</summary>
-/// <param name="RegraId">Degrau.</param>
-/// <param name="ParcelaId">Parcela, ou nulo no resumo à tesouraria.</param>
-public sealed record ChaveDeEnvio(Guid RegraId, Guid? ParcelaId);
-
-/// <summary>Uma notificação enfileirada e o desfecho do e-mail dela na fila.</summary>
-/// <param name="Notificacao">Registro rastreado.</param>
-/// <param name="Status">Situação do e-mail na fila.</param>
-/// <param name="Erro">Última falha do e-mail, se houve.</param>
-public sealed record EntregaAConferir(NotificacaoEnviada Notificacao, EEmailStatus Status, string? Erro);

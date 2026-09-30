@@ -39,7 +39,8 @@ public sealed class CaixaRepository(AppDbContext db) : ICaixaRepository
 
     /// <inheritdoc />
     /// <remarks>
-    /// Pelo valor original, sem multa nem juros: o que cada formando vai pagar a mais depende do dia em
+    /// Pelo valor original, menos o que já entrou em pagamento parcial (esse já está no arrecadado), sem
+    /// multa nem juros: o que cada formando vai pagar a mais depende do dia em
     /// que ele pagar, e projeção não adivinha atraso. Uma consulta, dois grupos.
     /// </remarks>
     public async Task<(long AVencer, long EmAtraso)> ParcelasEmAberto(DateOnly hoje, CancellationToken ct = default)
@@ -48,7 +49,7 @@ public sealed class CaixaRepository(AppDbContext db) : ICaixaRepository
             .Parcelas.AsNoTracking()
             .Where(p => p.Status == StatusDaParcela.Aberta)
             .GroupBy(p => p.Vencimento < hoje)
-            .Select(grupo => new { Atrasada = grupo.Key, Valor = grupo.Sum(p => p.ValorOriginalEmCentavos) })
+            .Select(grupo => new { Atrasada = grupo.Key, Valor = grupo.Sum(p => p.ValorOriginalEmCentavos - (p.ValorPagoEmCentavos ?? 0)) })
             .ToListAsync(ct);
 
         return (grupos.Where(grupo => !grupo.Atrasada).Sum(grupo => grupo.Valor), grupos.Where(grupo => grupo.Atrasada).Sum(grupo => grupo.Valor));
@@ -181,7 +182,7 @@ public sealed class CaixaRepository(AppDbContext db) : ICaixaRepository
         var previstas = db
             .Parcelas.AsNoTracking()
             .Where(p => p.Status == StatusDaParcela.Aberta && p.Vencimento >= hoje)
-            .Select(p => new EntradaDeDinheiro { Data = p.Vencimento, Valor = p.ValorOriginalEmCentavos });
+            .Select(p => new EntradaDeDinheiro { Data = p.Vencimento, Valor = p.ValorOriginalEmCentavos - (p.ValorPagoEmCentavos ?? 0) });
 
         if (comOutrasReceitasPrevistas)
             previstas = previstas.Concat(

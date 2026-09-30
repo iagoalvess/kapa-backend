@@ -4,28 +4,6 @@ using Backend.Business.Admin.Models;
 
 namespace Backend.Api.DTOs.Admin;
 
-/// <summary>O que a busca do painel de suporte encontrou.</summary>
-/// <param name="Turmas">Formaturas que batem com o termo.</param>
-/// <param name="Usuarios">Contas que batem com o termo.</param>
-public sealed record ResultadoDaBuscaDTO(IReadOnlyList<TurmaEncontradaDTO> Turmas, IReadOnlyList<UsuarioEncontradoDTO> Usuarios);
-
-/// <summary>Uma turma na lista de resultados.</summary>
-/// <param name="Id">Formatura.</param>
-/// <param name="Nome">Nome da turma.</param>
-/// <param name="Instituicao">Instituição.</param>
-/// <param name="Curso">Curso.</param>
-/// <param name="Status">Situação da formatura.</param>
-/// <param name="Membros">Vínculos ativos.</param>
-public sealed record TurmaEncontradaDTO(Guid Id, string Nome, string Instituicao, string Curso, string Status, int Membros);
-
-/// <summary>Uma conta na lista de resultados.</summary>
-/// <param name="Id">Usuário.</param>
-/// <param name="Nome">Nome de exibição.</param>
-/// <param name="Email">E-mail da conta.</param>
-/// <param name="Ativo">Se pode autenticar.</param>
-/// <param name="Turmas">Em quantas turmas a pessoa está.</param>
-public sealed record UsuarioEncontradoDTO(Guid Id, string Nome, string Email, bool Ativo, int Turmas);
-
 /// <summary>A turma como o suporte a vê.</summary>
 /// <param name="Id">Formatura.</param>
 /// <param name="Nome">Nome da turma.</param>
@@ -37,7 +15,7 @@ public sealed record UsuarioEncontradoDTO(Guid Id, string Nome, string Email, bo
 /// <param name="CriadaEm">Nascimento da turma, em UTC (ISO 8601).</param>
 /// <param name="AtivadaEm">Primeira ativação, em UTC, ou nulo.</param>
 /// <param name="Assinatura">A licença mais recente, ou nulo.</param>
-/// <param name="Membros">Vínculos da turma, ativos primeiro.</param>
+/// <param name="MembrosAtivos">Vínculos ativos. A lista vem paginada de <c>/membros</c>.</param>
 /// <param name="Parcelas">Parcelas geradas, sem as canceladas.</param>
 /// <param name="ParcelasPagas">Parcelas já baixadas.</param>
 /// <param name="Adesoes">Termos assinados.</param>
@@ -53,7 +31,7 @@ public sealed record TurmaNoSuporteDTO(
     DateTime CriadaEm,
     DateTime? AtivadaEm,
     AssinaturaNoSuporteDTO? Assinatura,
-    IReadOnlyList<MembroNoSuporteDTO> Membros,
+    int MembrosAtivos,
     int Parcelas,
     int ParcelasPagas,
     int Adesoes,

@@ -23,9 +23,6 @@ public sealed class CanalDeEmail(IEmailService emailService, IOptions<AplicacaoS
     private readonly AplicacaoSettings _aplicacao = aplicacao.Value;
 
     /// <inheritdoc />
-    public CanalDeNotificacao Canal => CanalDeNotificacao.Email;
-
-    /// <inheritdoc />
     public async Task<Result<EntregaDaMensagem>> Enviar(MensagemDeNotificacao mensagem, CancellationToken ct = default)
     {
         var corpo = ModeloDeEmail.Montar(_aplicacao, mensagem.Assunto, mensagem.CorpoHtml, mensagem.TextoDoLink, mensagem.Link, Mascote.Cofrinho);

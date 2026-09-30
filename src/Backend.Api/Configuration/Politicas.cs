@@ -14,14 +14,15 @@ namespace Backend.Api.Configuration;
 /// espalhado pelos controllers: erro de digitação em string de papel não é erro de compilação,
 /// vira 403 em produção — ou, pior, um endpoint que deveria ser restrito e não é.
 /// <para>
-/// <b>O administrador é coringa.</b> <see cref="ExigirPerfil"/> deixa passar quem tem o perfil
-/// pedido <i>ou</i> o de administrador, então toda política nova já nasce acessível ao admin
-/// sem ninguém precisar lembrar de incluí-lo na lista.
+/// <b>O administrador não é coringa</b> (Sprint 44, D4). Ele é perfil de plataforma e entra nas turmas só pelo
+/// painel: <see cref="ExigirPerfil"/> aprova só os perfis listados, e política que o administrador precisa o lista
+/// explicitamente — hoje, só <see cref="SomenteAdministrador"/>. Até 29/09/2026 ele passava em toda política de
+/// perfil sem constar dela, o que fazia cada checagem dizer menos do que dizia.
 /// </para>
 /// <para>
 /// Quando um projeto precisar de permissão granular (módulo × ação), o ponto de extensão é
-/// aqui: troque a asserção por um <c>IAuthorizationHandler</c> que consulte as permissões,
-/// mantendo o atalho do administrador. Nada nos controllers muda.
+/// aqui: troque a asserção por um <c>IAuthorizationHandler</c> que consulte as permissões.
+/// Nada nos controllers muda.
 /// </para>
 /// </remarks>
 public static class Politicas
@@ -126,12 +127,12 @@ public static class Politicas
     public const string ExigeFormaturaRecebendo = nameof(ExigeFormaturaRecebendo);
 
     /// <summary>
-    /// Aceita qualquer um dos perfis informados, e sempre o administrador.
+    /// Aceita qualquer um dos perfis informados — e só eles: o administrador não passa sem constar da lista (D4).
     /// </summary>
     /// <param name="builder">Construtor da política.</param>
-    /// <param name="perfis">Perfis que também têm acesso.</param>
+    /// <param name="perfis">Perfis que têm acesso.</param>
     public static AuthorizationPolicyBuilder ExigirPerfil(this AuthorizationPolicyBuilder builder, params string[] perfis) =>
-        builder.RequireAssertion(contexto => contexto.User.IsInRole(PerfisPadrao.Administrador) || Array.Exists(perfis, contexto.User.IsInRole));
+        builder.RequireAssertion(contexto => Array.Exists(perfis, contexto.User.IsInRole));
 
     /// <summary>
     /// Exige um dos papéis informados na formatura selecionada. Presidente sempre passa.
@@ -151,7 +152,7 @@ public static class Politicas
     /// <see cref="RespostaDeAutorizacao"/>).
     /// </para>
     /// <para>
-    /// <b>O Presidente é coringa dentro da formatura</b>, como o administrador é na plataforma:
+    /// <b>O Presidente é coringa dentro da formatura</b>:
     /// toda política nova nasce acessível a ele sem ninguém lembrar de incluí-lo.
     /// </para>
     /// </remarks>
@@ -172,7 +173,7 @@ public static class Politicas
         services
             .AddAuthorizationBuilder()
             .AddPolicy(Autenticado, politica => politica.RequireAuthenticatedUser())
-            .AddPolicy(SomenteAdministrador, politica => politica.RequireAuthenticatedUser().ExigirPerfil())
+            .AddPolicy(SomenteAdministrador, politica => politica.RequireAuthenticatedUser().ExigirPerfil(PerfisPadrao.Administrador))
             .AddPolicy(SomentePresidente, politica => politica.RequireAuthenticatedUser().ExigirPapel())
             .AddPolicy(Tesouraria, politica => politica.RequireAuthenticatedUser().ExigirPapel(PapelNaFormatura.Tesoureiro))
             .AddPolicy(Gestao, politica => politica.RequireAuthenticatedUser().ExigirPapel(PapelNaFormatura.Tesoureiro, PapelNaFormatura.Comissao))

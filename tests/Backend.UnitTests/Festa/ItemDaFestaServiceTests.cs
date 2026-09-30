@@ -256,7 +256,6 @@ public sealed class ItemDaFestaServiceTests
 
         // Assert
         item.QuantidadeEstimada.ShouldBe(1);
-        item.CustoPrevistoEmCentavos.ShouldBe(60_000_00);
     }
 
     [Fact]

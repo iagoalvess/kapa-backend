@@ -121,6 +121,28 @@ public sealed partial class LojaEndpointsTests(ApiFactory fabrica)
         }
     }
 
+    /// <summary>
+    /// Sprint 45, P1: a loja é do módulo da festa. A turma que volta ao gratuito deixa de vender, com o mesmo 404
+    /// da turma sem loja — quem compra não fica sabendo do plano de ninguém.
+    /// </summary>
+    [Fact]
+    public async Task Turma_que_volta_ao_gratuito_fecha_a_loja()
+    {
+        // Arrange
+        await using var loja = await Montar(estoque: 3, comFesta: true);
+        (await loja.Anonimo.GetAsync($"/api/v1/loja/{loja.Turma.FormaturaId}", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // Act
+        await fabrica.VencerAssinatura(loja.Turma.FormaturaId, Ct);
+        var vitrine = await loja.Anonimo.GetAsync($"/api/v1/loja/{loja.Turma.FormaturaId}", Ct);
+        var compra = await Comprar(loja, Pedido(1, $"ana-{Guid.NewGuid():N}@teste.dev", "529.982.247-25"));
+
+        // Assert
+        vitrine.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await vitrine.Codigo(Ct)).ShouldBe("loja.nao_encontrada");
+        compra.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
     /// <summary>P3 e decisão 1: o CPF segura o limite, o estoque é um só, e esgotado diz esgotado.</summary>
     [Fact]
     public async Task Limite_por_cpf_estoque_unico_e_esgotado_com_o_codigo_certo()

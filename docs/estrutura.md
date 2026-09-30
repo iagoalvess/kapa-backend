@@ -76,6 +76,10 @@ public class UsuarioController : MainController
 ```
 
 - Pasta = `Controllers/V1/<Feature>/`, namespace = `Backend.Api.Controllers.V1.<Feature>`.
+- A pasta segue o **assunto** (o service que o controller chama), não o prefixo da rota. Dois controllers
+  podem dividir o prefixo — `recebimentos` tem a conta da turma em `Recebimentos/` e o recibo em
+  `Pagamentos/` —, e o endpoint cuja rota foge ao prefixo do controller usa rota absoluta
+  (`[HttpPost("/api/v{version:apiVersion}/...")]`).
 - **V2 só nasce quando existe quebra de contrato.** Campo novo opcional, correção de bug e
   campo novo na resposta continuam na V1 — versionar por comodidade dobra a superfície de teste.
 - Ao criar a V2 de um recurso, copie **só aquele controller** para `Controllers/V2/<Feature>/`.

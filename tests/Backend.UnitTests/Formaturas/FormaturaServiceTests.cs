@@ -30,7 +30,7 @@ public sealed class FormaturaServiceTests
 
     public FormaturaServiceTests()
     {
-        _pendencias.ContarParaEncerrar(Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(new PendenciasDaTurma(0, 0, 0, 0, 0, 0, 0));
+        _pendencias.ContarParaEncerrar(Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(new PendenciasDaTurma(0, 0, 0, 0, 0, 0, 0, 0));
         _unitOfWork
             .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<ParDeTokens>>>>(), Arg.Any<CancellationToken>())
             .Returns(chamada => chamada.Arg<Func<CancellationToken, Task<Result<ParDeTokens>>>>()(CancellationToken.None));
@@ -193,7 +193,7 @@ public sealed class FormaturaServiceTests
     {
         var formatura = Em(StatusDaFormatura.Ativa);
         _formaturas.ObterParaEdicao(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(formatura);
-        var pendencias = new PendenciasDaTurma(3, 0, 0, 0, 1, 0, 0);
+        var pendencias = new PendenciasDaTurma(3, 0, 0, 0, 1, 0, 0, 0);
         _pendencias.ContarParaEncerrar(Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(pendencias);
 
         var resultado = await Servico.Encerrar(Guid.CreateVersion7(), Ct);
@@ -215,18 +215,7 @@ public sealed class FormaturaServiceTests
         _assinaturas
             .ObterDetalheDaMaisRecente(Arg.Any<CancellationToken>())
             .Returns(
-                new AssinaturaDetalhe(
-                    Guid.CreateVersion7(),
-                    StatusDaAssinatura.Ativa,
-                    null!,
-                    null,
-                    null,
-                    null,
-                    DateTime.UtcNow,
-                    MeioDePagamento.Cartao,
-                    null,
-                    false
-                )
+                new AssinaturaDetalhe(Guid.CreateVersion7(), StatusDaAssinatura.Ativa, null!, null, null, null, MeioDePagamento.Cartao, null, false)
             );
 
         var resultado = await Servico.Encerrar(Guid.CreateVersion7(), Ct);

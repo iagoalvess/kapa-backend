@@ -100,11 +100,8 @@ public sealed class ConviteService(
         if (formatura is null)
             return ErrosDeFormatura.FormaturaNaoEncontrada;
 
-        if (papel == PapelNaFormatura.Formando && !formatura.JaContratou)
-            return Erro.Proibido(
-                "convite.formatura_nao_contratada",
-                "Contrate um plano para convidar formandos. Antes disso, dá para convidar a comissão."
-            );
+        if (await vagas.ConferirPapel(formaturaId, papel, ct) is { } semPlanoPago)
+            return semPlanoPago;
 
         if (await vagas.ConferirEntrada(formaturaId, ct) is { } lotada)
             return lotada;
@@ -143,7 +140,7 @@ public sealed class ConviteService(
 
         await unitOfWork.SalvarAsync(ct);
 
-        return new ConviteCriado(convite.Id, link, convite.ExpiraEm);
+        return new ConviteCriado(link);
     }
 
     /// <inheritdoc />
@@ -328,10 +325,10 @@ public sealed class ConviteService(
 
         var formatura = await formaturaRepository.ObterDetalheDeTodasAsFormaturas(convite.FormaturaId, ct);
 
-        return formatura is not null && AceitaEntrada(formatura.Status, convite.Papel) ? (convite, formatura) : null;
+        return formatura is not null && AceitaEntrada(formatura.Status) ? (convite, formatura) : null;
     }
 
-    /// <summary>Se a turma, neste status, recebe alguém com este papel.</summary>
+    /// <summary>Se a turma, neste status, recebe alguém.</summary>
     /// <remarks>
     /// Só turma ativa recebe gente, de qualquer papel. Até 18/09/2026 havia uma exceção para a
     /// comissão entrar antes de contratar — ela sumiu junto com <c>Rascunho</c>: a turma já nasce
@@ -339,8 +336,7 @@ public sealed class ConviteService(
     /// em <see cref="VagasDoPlano"/>.
     /// </remarks>
     /// <param name="status">Status da formatura.</param>
-    /// <param name="papel">Papel do convite.</param>
-    private static bool AceitaEntrada(StatusDaFormatura status, string papel) => status == StatusDaFormatura.Ativa;
+    private static bool AceitaEntrada(StatusDaFormatura status) => status == StatusDaFormatura.Ativa;
 
     /// <summary>
     /// Confere que a conta é dona do e-mail do convite pessoal: o mesmo endereço, já confirmado.

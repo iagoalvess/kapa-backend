@@ -1,6 +1,9 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Interfaces;
 using Backend.Business.Arquivos.Services;
+using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Eventos.Models;
+using Backend.Business.Eventos.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Microsoft.Extensions.Logging;
@@ -13,12 +16,16 @@ namespace Backend.Business.Formaturas.Services;
 /// <param name="retencaoRepository">Consultas e remoção em massa.</param>
 /// <param name="formaturaRepository">A turma, rastreada.</param>
 /// <param name="armazenamento">Provedor dos arquivos.</param>
+/// <param name="pendencias">O que ficou aberto na turma encerrada por abandono (Sprint 42, decisão 7).</param>
+/// <param name="eventos">Auditoria do encerramento por abandono.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class RetencaoDeFormaturasService(
     IRetencaoDeFormaturasRepository retencaoRepository,
     IFormaturaRepository formaturaRepository,
     IArmazenamentoDeArquivos armazenamento,
+    IPendenciasDaTurmaRepository pendencias,
+    IEventoRepository eventos,
     IUnitOfWork unitOfWork,
     ILogger<RetencaoDeFormaturasService> logger
 ) : IRetencaoDeFormaturasService
@@ -36,17 +43,46 @@ public sealed class RetencaoDeFormaturasService(
     private const int Lote = 50;
 
     /// <inheritdoc />
-    public async Task<int> EncerrarSuspensasAbandonadas(CancellationToken ct = default)
+    public Task<IReadOnlyList<Guid>> ListarSuspensasAbandonadas(CancellationToken ct = default) =>
+        retencaoRepository.ListarSuspensasAnterioresA(DateTime.UtcNow - SuspensaAteEncerrar, Lote, ct);
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Encerra mesmo com parcela aberta, aviso pendente ou compra a devolver: um ano suspensa é uma turma que ninguém
+    /// vai voltar a administrar. O que muda é o registro — sem ele, quem aparecer depois perguntando pelo dinheiro não
+    /// tem resposta. O evento não tem autor: foi a retenção.
+    /// </remarks>
+    public async Task<bool> EncerrarAbandonada(Guid formaturaId, CancellationToken ct = default)
     {
-        var abandonadas = await retencaoRepository.ListarSuspensasAnterioresA(DateTime.UtcNow - SuspensaAteEncerrar, Lote, ct);
+        var formatura = await formaturaRepository.ObterParaEdicao(formaturaId, ct);
+        var agora = DateTime.UtcNow;
 
-        foreach (var formatura in abandonadas)
-            formatura.Transicionar(StatusDaFormatura.Encerrada);
+        if (formatura is not { Status: StatusDaFormatura.Suspensa } || formatura.StatusDesde >= agora - SuspensaAteEncerrar)
+            return false;
 
-        if (abandonadas.Count > 0)
-            await unitOfWork.SalvarAsync(ct);
+        var emAberto = await pendencias.ContarParaEncerrar(agora, ct);
 
-        return abandonadas.Count;
+        formatura.Transicionar(StatusDaFormatura.Encerrada);
+
+        await eventos.Auditar(
+            NomesDeAuditoria.EncerradaPorAbandono,
+            null,
+            new
+            {
+                formaturaId,
+                suspensaDesde = formatura.StatusDesde,
+                pendencias = emAberto,
+                emAberto = emAberto.Descrever(),
+            },
+            ct
+        );
+
+        await unitOfWork.SalvarAsync(ct);
+
+        if (emAberto.Alguma)
+            logger.LogWarning("Formatura {FormaturaId} encerrada por abandono com pendências: {Pendencias}.", formaturaId, emAberto.Descrever());
+
+        return true;
     }
 
     /// <inheritdoc />

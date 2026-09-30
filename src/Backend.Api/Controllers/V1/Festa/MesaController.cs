@@ -4,6 +4,7 @@ using Backend.Api.Configuration;
 using Backend.Api.DTOs.Festa;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Mapster;
@@ -17,13 +18,18 @@ namespace Backend.Api.Controllers.V1.Festa;
 /// As mesas do jantar (Sprint 27) e o mapa do salão (28/09/2026).
 /// </summary>
 /// <remarks>
+/// Módulo próprio, <c>mesas</c>, só no Premium (decisão de 29/09/2026, Sprint 45): a porta das mesas é a
+/// tela da festa, que é Premium.
+/// <para>
 /// A comissão cadastra, atribui e desenha o salão (P1); o formando só lê o mapa, sem o nome dos donos. Toda escrita vira evento de negócio —
 /// é a auditoria que a P4 pede para o ajuste depois do fechamento da lista, e ela vale para qualquer
 /// hora, sem janela a conferir.
+/// </para>
 /// </remarks>
 /// <param name="mesas">Regras das mesas.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Mesas)]
 [Route("api/v{version:apiVersion}/festa/mesas")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class MesaController(IMesaService mesas, IUsuarioAtual usuarioAtual) : MainController

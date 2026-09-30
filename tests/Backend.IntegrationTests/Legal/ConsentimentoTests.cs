@@ -173,7 +173,8 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
     public async Task Aceitar_a_versao_nova_resolve_a_pendencia_e_soma_ao_historico()
     {
         var cliente = fabrica.CreateClient();
-        var tokens = await cliente.RegistrarUsuarioComum(Ct);
+        var email = NovoEmail();
+        var tokens = await cliente.RegistrarComEmail(email, Ct);
         cliente.ComToken(tokens.AccessToken);
         var versaoNova = await PublicarNovaVersaoDosTermos();
 
@@ -187,8 +188,9 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
         resposta.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var aceites = await MeusAceites(cliente);
         aceites.Pendencias.ShouldBeEmpty();
-        aceites.Historico.Count.ShouldBe(3);
-        aceites.Historico[0].Versao.ShouldBe(versaoNova);
+        var historico = await ConsentimentosDe(email);
+        historico.Count.ShouldBe(3);
+        historico[^1].Versao.ShouldBe(versaoNova);
     }
 
     [Fact]

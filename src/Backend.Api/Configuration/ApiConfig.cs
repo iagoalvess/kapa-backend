@@ -9,7 +9,6 @@ using Backend.Business.Arquivos.Settings;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Festa.Settings;
 using Mapster;
-using MapsterMapper;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -291,9 +290,6 @@ public static class ApiConfig
         var configuracao = TypeAdapterConfig.GlobalSettings;
         configuracao.Default.RequireDestinationMemberSource(true);
         configuracao.Scan(typeof(ApiConfig).Assembly);
-
-        services.AddSingleton(configuracao);
-        services.AddScoped<IMapper, ServiceMapper>();
 
         return services;
     }

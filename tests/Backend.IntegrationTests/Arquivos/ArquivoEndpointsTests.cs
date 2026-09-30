@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Backend.Api.DTOs.Arquivos;
 using Backend.Api.DTOs.Formandos;
 using Backend.Business.Formaturas.Models;
 using Backend.IntegrationTests.Infra;
@@ -12,7 +11,7 @@ using SkiaSharp;
 namespace Backend.IntegrationTests.Arquivos;
 
 /// <summary>
-/// As fronteiras de acesso do módulo de arquivos contra a API real: metadados e download só para
+/// As fronteiras de acesso do módulo de arquivos contra a API real: download só para
 /// o dono e para o administrador, e 404 — nunca 403 — para o arquivo de terceiro.
 /// </summary>
 /// <remarks>
@@ -52,20 +51,15 @@ public sealed class ArquivoEndpointsTests(ApiFactory fabrica)
     }
 
     [Fact]
-    public async Task O_dono_le_os_metadados_e_baixa_o_conteudo()
+    public async Task O_dono_baixa_o_conteudo()
     {
         var (cliente, arquivoId) = await FormandoComFoto();
 
-        var metadados = await cliente.GetFromJsonAsync<ArquivoResumoDTO>($"/api/v1/arquivos/{arquivoId}", Json, Ct);
         var download = await cliente.GetAsync($"/api/v1/arquivos/{arquivoId}/conteudo", Ct);
-
-        metadados.ShouldNotBeNull();
-        metadados.Id.ShouldBe(arquivoId);
-        metadados.Tamanho.ShouldBeGreaterThan(0);
 
         download.EnsureSuccessStatusCode();
         download.Content.Headers.ContentType?.MediaType.ShouldBe("image/jpeg");
-        (await download.Content.ReadAsByteArrayAsync(Ct)).Length.ShouldBe((int)metadados.Tamanho);
+        (await download.Content.ReadAsByteArrayAsync(Ct)).Length.ShouldBeGreaterThan(0);
     }
 
     /// <summary>
@@ -80,15 +74,17 @@ public sealed class ArquivoEndpointsTests(ApiFactory fabrica)
         var tokens = await intruso.RegistrarUsuarioComum(Ct);
         intruso.ComToken(tokens.AccessToken);
 
-        var metadados = await intruso.GetAsync($"/api/v1/arquivos/{arquivoId}", Ct);
         var download = await intruso.GetAsync($"/api/v1/arquivos/{arquivoId}/conteudo", Ct);
 
-        metadados.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         download.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    /// <summary>
+    /// D4 da Sprint 44: o administrador não tem passe livre nos arquivos. A foto do formando é dado pessoal que o
+    /// painel não usa, e ele recebe o mesmo 404 de qualquer terceiro — nem a existência do arquivo se confirma.
+    /// </summary>
     [Fact]
-    public async Task O_administrador_baixa_arquivo_de_qualquer_usuario()
+    public async Task O_administrador_nao_baixa_arquivo_de_outro_usuario()
     {
         var (_, arquivoId) = await FormandoComFoto();
 
@@ -97,8 +93,7 @@ public sealed class ArquivoEndpointsTests(ApiFactory fabrica)
 
         var resposta = await admin.ComToken(tokens.AccessToken).GetAsync($"/api/v1/arquivos/{arquivoId}/conteudo", Ct);
 
-        resposta.EnsureSuccessStatusCode();
-        (await resposta.Content.ReadAsByteArrayAsync(Ct)).Length.ShouldBeGreaterThan(0);
+        resposta.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -106,7 +101,7 @@ public sealed class ArquivoEndpointsTests(ApiFactory fabrica)
     {
         var (_, arquivoId) = await FormandoComFoto();
 
-        var resposta = await fabrica.CreateClient().GetAsync($"/api/v1/arquivos/{arquivoId}", Ct);
+        var resposta = await fabrica.CreateClient().GetAsync($"/api/v1/arquivos/{arquivoId}/conteudo", Ct);
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -136,15 +131,20 @@ public sealed class ArquivoEndpointsTests(ApiFactory fabrica)
         listagem.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
-    /// <summary>Remover arquivo é do endpoint de domínio: o módulo de arquivos não expõe DELETE.</summary>
+    /// <summary>
+    /// Metadados e remoção são do endpoint de domínio: o módulo de arquivos só serve o conteúdo, e a
+    /// rota <c>/arquivos/{id}</c> não existe em método nenhum.
+    /// </summary>
     [Fact]
-    public async Task Nao_existe_remocao_avulsa_de_arquivo()
+    public async Task Nao_existe_metadado_nem_remocao_avulsa_de_arquivo()
     {
         var (cliente, arquivoId) = await FormandoComFoto();
 
-        var resposta = await cliente.DeleteAsync($"/api/v1/arquivos/{arquivoId}", Ct);
+        var metadados = await cliente.GetAsync($"/api/v1/arquivos/{arquivoId}", Ct);
+        var remocao = await cliente.DeleteAsync($"/api/v1/arquivos/{arquivoId}", Ct);
 
-        resposta.StatusCode.ShouldBe(HttpStatusCode.MethodNotAllowed);
+        metadados.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        remocao.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     private static byte[] Png(int largura, int altura)

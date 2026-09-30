@@ -37,8 +37,24 @@ public static class Modulo
     /// <summary>Caixa, dashboard e relatórios.</summary>
     public const string Caixa = "caixa";
 
-    /// <summary>Mural, acervo de documentos e a festa.</summary>
+    /// <summary>Mural, acervo de documentos e o orçamento da festa (itens, meta e propostas).</summary>
     public const string Mural = "mural";
+
+    /// <summary>A festa em si: convites, loja pública, portaria e cota da colação.</summary>
+    /// <remarks>
+    /// Nasceu em 29/09/2026 (Sprint 45, P1). Até ali essas áreas não pediam módulo nenhum, e a turma
+    /// gratuita vendia convite a terceiros pela loja sem nunca contratar. Vender é operar dinheiro, como
+    /// cobrança e PIX: está no Essencial, e o grátis fica de fora. As mesas têm módulo próprio, <see cref="Mesas"/>.
+    /// </remarks>
+    public const string Festa = "festa";
+
+    /// <summary>As mesas do jantar e o mapa do salão.</summary>
+    /// <remarks>
+    /// Módulo próprio, e não parte de <see cref="Festa"/> (decisão de 29/09/2026, Sprint 45): as mesas são
+    /// diferencial do Premium, e a porta delas é a tela da festa, que é Premium. Separadas, mudar de plano o
+    /// que as mesas pedem é editar a linha do catálogo — sem arrastar junto a loja e a portaria.
+    /// </remarks>
+    public const string Mesas = "mesas";
 
     /// <summary>Avisos, notificações e a régua de cobrança.</summary>
     public const string Avisos = "avisos";
@@ -50,5 +66,19 @@ public static class Modulo
     public const string Auditoria = "auditoria";
 
     /// <summary>Todos os códigos. É sobre esta lista que as políticas são registradas.</summary>
-    public static readonly IReadOnlyList<string> Todos = [Membros, Termo, Cobrancas, Pix, Despesas, Caixa, Mural, Avisos, Relatorios, Auditoria];
+    public static readonly IReadOnlyList<string> Todos =
+    [
+        Membros,
+        Termo,
+        Cobrancas,
+        Pix,
+        Despesas,
+        Caixa,
+        Festa,
+        Mesas,
+        Mural,
+        Avisos,
+        Relatorios,
+        Auditoria,
+    ];
 }

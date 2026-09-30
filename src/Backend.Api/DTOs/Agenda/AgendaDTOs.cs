@@ -24,12 +24,11 @@ public sealed record EventoRequestDTO(
 /// O que a Página Inicial mostra da agenda.
 /// </summary>
 /// <remarks>
-/// Cancelado não entra nem na lista nem na contagem: na tela da agenda ele continua visível, com o
-/// selo, mas aqui o espaço é do que vai acontecer.
+/// Cancelado não entra na lista: na tela da agenda ele continua visível, com o selo, mas aqui o
+/// espaço é do que vai acontecer.
 /// </remarks>
 /// <param name="Proximos">Até três datas, da mais perto para a mais longe.</param>
-/// <param name="Total">Quantas datas ainda vêm, contando as que não couberam.</param>
-public sealed record ResumoDaAgendaDTO(IEnumerable<EventoDTO> Proximos, int Total);
+public sealed record ResumoDaAgendaDTO(IEnumerable<EventoDTO> Proximos);
 
 /// <summary>
 /// Um evento da agenda, como a turma o vê.

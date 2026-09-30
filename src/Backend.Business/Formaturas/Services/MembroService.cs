@@ -11,6 +11,7 @@ using Backend.Business.Festa.Services;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Pagamentos.Services;
 using FluentValidation;
 
 namespace Backend.Business.Formaturas.Services;
@@ -25,8 +26,10 @@ namespace Backend.Business.Formaturas.Services;
 /// <param name="formaturaRepository">Formatura, para o nome da turma nos e-mails.</param>
 /// <param name="eventos">Trilha de auditoria, gravada na mesma transação.</param>
 /// <param name="emails">E-mails da saída.</param>
+/// <param name="vagas">Quem pode virar Formando: só a turma com plano pago em vigor (Sprint 45, F2).</param>
 /// <param name="papelValidator">Validador da troca de papel.</param>
 /// <param name="desligamentoValidator">Validador do desligamento.</param>
+/// <param name="valoresADevolver">O parcial das parcelas canceladas no desligamento (Sprint 42, decisão 3).</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 public sealed class MembroService(
     IVinculoRepository vinculoRepository,
@@ -37,8 +40,10 @@ public sealed class MembroService(
     IEventoRepository eventos,
     EmailsDeDesligamento emails,
     EmissaoDeConvites convites,
+    VagasDoPlano vagas,
     IValidator<AlterarPapel> papelValidator,
     IValidator<DesligarFormando> desligamentoValidator,
+    ValoresADevolver valoresADevolver,
     IUnitOfWork unitOfWork
 ) : IMembroService
 {
@@ -72,6 +77,9 @@ public sealed class MembroService(
         var validacao = papelValidator.Validar(dados);
         if (validacao.Falhou)
             return validacao;
+
+        if (await vagas.ConferirPapel(formaturaId, dados.Papel, ct) is { } semPlanoPago)
+            return Result.Falha(semPlanoPago);
 
         return await unitOfWork.EmTransacaoAsync(
             async token =>
@@ -164,13 +172,11 @@ public sealed class MembroService(
         var emAtraso = emAberto.Where(parcela => parcela.Status == StatusDaParcela.Vencida).ToList();
 
         return new ResumoDaSaida(
-            membro.Nome,
-            await adesaoRepository.JaAderiuAlgumaVez(membro.VinculoId, ct),
             parcelas.Sum(parcela => parcela.ValorPagoEmCentavos ?? 0),
             emAberto.Count,
-            emAberto.Sum(parcela => parcela.ValorOriginalEmCentavos),
+            emAberto.Sum(parcela => parcela.ValorOriginalEmCentavos - (parcela.ValorPagoEmCentavos ?? 0)),
             emAtraso.Count,
-            emAtraso.Sum(parcela => parcela.ValorOriginalEmCentavos)
+            emAtraso.Sum(parcela => parcela.ValorOriginalEmCentavos - (parcela.ValorPagoEmCentavos ?? 0))
         );
     }
 
@@ -223,6 +229,7 @@ public sealed class MembroService(
                 var abertas = await parcelaRepository.ListarEmAbertoDoVinculoParaEdicao(vinculo.Id, token);
                 var canceladas = abertas.Where(parcela => parcela.Cancelar(hoje, dados.CancelarAtraso)).ToList();
                 var cancelado = new CancelamentoDaSaida(canceladas.Count, canceladas.Sum(parcela => parcela.ValorOriginalEmCentavos));
+                var aDevolver = await valoresADevolver.RegistrarParciais(canceladas, token);
 
                 vinculo.Desligar(dados.Motivo, dados.Detalhe, DateTime.UtcNow);
                 var convitesRevogados = await convites.RevogarDaCota(vinculo.Id, token);
@@ -242,6 +249,7 @@ public sealed class MembroService(
                         parcelasCanceladas = cancelado.Parcelas,
                         canceladoEmCentavos = cancelado.ValorEmCentavos,
                         jaPagoEmCentavos = jaPago,
+                        aDevolverEmCentavos = aDevolver,
                         convitesRevogados,
                     },
                     token

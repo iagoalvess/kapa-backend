@@ -12,9 +12,20 @@ namespace Backend.Business.Formaturas.Interfaces;
 /// </remarks>
 public interface IRetencaoDeFormaturasService
 {
-    /// <summary>Encerra as turmas suspensas há mais de 12 meses. O prazo de 5 anos começa daí.</summary>
-    /// <returns>Quantas foram encerradas.</returns>
-    Task<int> EncerrarSuspensasAbandonadas(CancellationToken ct = default);
+    /// <summary>As turmas suspensas há mais de 12 meses — cada uma se encerra no seu escopo (<see cref="EncerrarAbandonada"/>).</summary>
+    Task<IReadOnlyList<Guid>> ListarSuspensasAbandonadas(CancellationToken ct = default);
+
+    /// <summary>
+    /// Encerra a turma suspensa há mais de 12 meses, mesmo com pendências, e registra na auditoria quais ficaram
+    /// abertas (Sprint 42, decisão 7). O prazo de 5 anos começa daí.
+    /// </summary>
+    /// <remarks>
+    /// Quem chama aponta o escopo para a turma: as pendências são contadas pelo filtro global, como no encerramento
+    /// pela comissão. Confere o prazo de novo — a turma reativada no meio do caminho fica.
+    /// </remarks>
+    /// <param name="formaturaId">Turma.</param>
+    /// <returns>Se foi encerrada agora.</returns>
+    Task<bool> EncerrarAbandonada(Guid formaturaId, CancellationToken ct = default);
 
     /// <summary>As turmas cujo prazo de guarda venceu e que ainda não foram eliminadas.</summary>
     Task<IReadOnlyList<Guid>> ListarParaEliminar(CancellationToken ct = default);
@@ -37,10 +48,10 @@ public interface IRetencaoDeFormaturasService
 /// </summary>
 public interface IRetencaoDeFormaturasRepository
 {
-    /// <summary>Turmas suspensas desde antes do limite, rastreadas para a transição.</summary>
+    /// <summary>Turmas suspensas desde antes do limite, das mais antigas.</summary>
     /// <param name="suspensasAte">Suspensas antes deste instante, em UTC.</param>
     /// <param name="limite">Máximo por chamada.</param>
-    Task<IReadOnlyList<Formatura>> ListarSuspensasAnterioresA(DateTime suspensasAte, int limite, CancellationToken ct = default);
+    Task<IReadOnlyList<Guid>> ListarSuspensasAnterioresA(DateTime suspensasAte, int limite, CancellationToken ct = default);
 
     /// <summary>Turmas não eliminadas cujo prazo venceu.</summary>
     /// <param name="encerradasAte">Encerradas antes deste instante, em UTC.</param>

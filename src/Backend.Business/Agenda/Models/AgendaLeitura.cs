@@ -19,20 +19,19 @@ public sealed record DadosDoEvento(
 );
 
 /// <summary>
-/// O que a Página Inicial mostra da agenda: as próximas datas, e quantas ainda vêm.
+/// O que a Página Inicial mostra da agenda: as próximas datas.
 /// </summary>
 /// <remarks>
 /// Endpoint próprio, e não a lista inteira: a home já paga cinco consultas, e o que ela desenha são
 /// três linhas. Sem o recorte, o custo dela cresceria com a agenda da turma — e a lista completa
 /// seria pedida em toda abertura do app para mostrar as três primeiras.
 /// <para>
-/// Cancelado fica de fora dos dois números: na agenda ele continua na lista, com o selo, porque lá
-/// a turma precisa ver que aquilo foi desmarcado; aqui o espaço é do que vai acontecer.
+/// Cancelado fica de fora: na agenda ele continua na lista, com o selo, porque lá a turma precisa ver
+/// que aquilo foi desmarcado; aqui o espaço é do que vai acontecer.
 /// </para>
 /// </remarks>
 /// <param name="Proximos">As próximas datas, da mais perto para a mais longe.</param>
-/// <param name="Total">Quantas datas ainda vêm, contando as que não couberam.</param>
-public sealed record ResumoDaAgenda(IReadOnlyList<EventoResumo> Proximos, int Total);
+public sealed record ResumoDaAgenda(IReadOnlyList<EventoResumo> Proximos);
 
 /// <summary>
 /// Um evento como a turma o vê.

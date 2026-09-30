@@ -39,8 +39,6 @@ public sealed class FormaturaRepository(AppDbContext db) : IFormaturaRepository
                 db.EventosDaTurma.Where(e => e.FormaturaId == f.Id && e.Tipo == TipoDeEvento.Colacao).Select(e => (DateOnly?)e.Data).FirstOrDefault(),
                 db.EventosDaTurma.Where(e => e.FormaturaId == f.Id && e.Tipo == TipoDeEvento.Festa).Select(e => (DateOnly?)e.Data).FirstOrDefault(),
                 f.Status,
-                f.CriadoEm,
-                f.AtivadaEm,
                 f.EncerradaEm,
                 db.Assinaturas.IgnoreQueryFilters().Any(a => a.FormaturaId == f.Id && a.Status != StatusDaAssinatura.Pendente)
             ))

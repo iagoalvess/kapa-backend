@@ -27,6 +27,13 @@ public sealed record PlanoDTO(
     bool Recomendado
 );
 
+/// <summary>O plano que vale para a turma agora (Sprint 45).</summary>
+/// <param name="Codigo">Código do plano, como no catálogo; <c>gratuito</c> sem plano pago em vigor.</param>
+/// <param name="Nome">Nome exibido.</param>
+/// <param name="Modulos">Módulos que o plano libera: o que a tela usa para trancar área.</param>
+/// <param name="Pago">Se é plano contratado em vigor. Falso no gratuito — e a turma vencida volta a ele.</param>
+public sealed record PlanoDaTurmaDTO(string Codigo, string Nome, IReadOnlyList<string> Modulos, bool Pago);
+
 /// <summary>A assinatura mais recente da formatura.</summary>
 /// <param name="Id">Identificador.</param>
 /// <param name="Status"><c>Pendente</c>, <c>Ativa</c>, <c>Vencida</c> ou <c>Cancelada</c>.</param>
@@ -34,7 +41,6 @@ public sealed record PlanoDTO(
 /// <param name="VigenteAte">Fim da vigência paga, em UTC.</param>
 /// <param name="ProximaCobrancaEm">Próxima cobrança automática, em UTC; nulo se não houver.</param>
 /// <param name="CanceladaEm">Quando a renovação foi cancelada, em UTC.</param>
-/// <param name="CriadoEm">Início do checkout, em UTC.</param>
 /// <param name="Meio"><c>Cartao</c> (recorrente) ou <c>Pix</c> (avulso, um por ciclo).</param>
 /// <param name="ProximoPlano">Plano que passa a valer na próxima renovação; nulo sem descida agendada.</param>
 /// <param name="CartaoAguardandoAutorizacao">Se a troca para o cartão espera a autorização na página do provedor.</param>
@@ -45,7 +51,6 @@ public sealed record AssinaturaDTO(
     DateTime? VigenteAte,
     DateTime? ProximaCobrancaEm,
     DateTime? CanceladaEm,
-    DateTime CriadoEm,
     MeioDePagamento Meio,
     PlanoDTO? ProximoPlano,
     bool CartaoAguardandoAutorizacao
@@ -86,9 +91,9 @@ public sealed record TrocarPlanoRequestDTO(string PlanoCodigo);
 public sealed record TrocarMeioRequestDTO(MeioDePagamento Meio);
 
 /// <summary>O que a troca de plano ou de meio deu.</summary>
+/// <remarks>A assinatura depois da troca se lê em <c>GET /formaturas/atual/assinatura</c>.</remarks>
 /// <param name="Url">Página do provedor para pagar a diferença ou autorizar o cartão; nula quando nada precisa ser pago agora.</param>
-/// <param name="Assinatura">A assinatura depois da troca.</param>
-public sealed record TrocaDTO(string? Url, AssinaturaDTO Assinatura);
+public sealed record TrocaDTO(string? Url);
 
 /// <summary>Corpo do checkout.</summary>
 /// <param name="PlanoCodigo">Plano escolhido.</param>

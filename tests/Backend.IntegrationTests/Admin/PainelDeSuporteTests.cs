@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Backend.Api.DTOs.Admin;
+using Backend.Api.DTOs.Comum;
+using Backend.Business.Admin.Models;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Eventos.Models;
 using Backend.Business.Formandos.Models;
@@ -23,11 +25,15 @@ public sealed class PainelDeSuporteTests(ApiFactory fabrica)
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    /// <summary>As três telas e as quatro ações, para o teste de fronteira não esquecer nenhuma.</summary>
+    /// <summary>Toda rota do painel, leitura e ação, para o teste de fronteira não esquecer nenhuma.</summary>
     public static TheoryData<string, string> Rotas =>
         new()
         {
-            { "GET", "/api/v1/admin/suporte/busca?termo=medicina" },
+            { "GET", "/api/v1/admin/analytics" },
+            { "GET", "/api/v1/admin/analytics/serie" },
+            { "GET", "/api/v1/admin/suporte/turmas" },
+            { "GET", "/api/v1/admin/suporte/contas" },
+            { "GET", $"/api/v1/admin/suporte/formaturas/{Guid.Empty}/membros" },
             { "GET", $"/api/v1/admin/suporte/formaturas/{Guid.Empty}" },
             { "GET", $"/api/v1/admin/suporte/usuarios/{Guid.Empty}" },
             { "POST", $"/api/v1/admin/suporte/formaturas/{Guid.Empty}/ativar-assinatura" },
@@ -70,34 +76,66 @@ public sealed class PainelDeSuporteTests(ApiFactory fabrica)
         resposta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
-    /// <summary>A busca acha a turma pelo nome e a conta pelo e-mail, na mesma caixa.</summary>
+    /// <summary>A lista de turmas acha pelo nome, com a licença e os membros ativos.</summary>
     [Fact]
-    public async Task Busca_acha_turma_e_conta_pelo_mesmo_termo()
+    public async Task Lista_de_turmas_acha_pelo_nome_com_licenca_e_membros()
     {
-        var formaturaId = await fabrica.CriarFormatura(Ct);
-        var membro = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct, contratada: false);
+        await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
         var nomeDaTurma = await NomeDaTurma(formaturaId);
         var suporte = await Suporte();
 
-        var resultado = await suporte.GetFromJsonAsync<ResultadoDaBuscaDTO>($"/api/v1/admin/suporte/busca?termo={nomeDaTurma}", Json, Ct);
+        var pagina = await suporte.GetFromJsonAsync<PaginaDTO<TurmaNoPainelDTO>>($"/api/v1/admin/suporte/turmas?termo={nomeDaTurma}", Json, Ct);
 
-        resultado.ShouldNotBeNull();
-        resultado.Turmas.ShouldContain(t => t.Id == formaturaId);
-        resultado.Turmas.First(t => t.Id == formaturaId).Membros.ShouldBe(1);
-        _ = membro;
+        pagina.ShouldNotBeNull();
+        var turma = pagina.Itens.ShouldHaveSingleItem();
+        turma.Id.ShouldBe(formaturaId);
+        turma.Membros.ShouldBe(1);
+        turma.Licenca.ShouldBe(LicencaDaTurma.Gratuita);
     }
 
-    /// <summary>Termo curto não varre o banco: as duas listas voltam vazias.</summary>
+    /// <summary>O chip da licença filtra no servidor: a gratuita não aparece entre as suspensas.</summary>
     [Fact]
-    public async Task Busca_com_menos_de_tres_letras_volta_vazia()
+    public async Task Lista_de_turmas_filtra_pela_licenca()
     {
+        var gratuita = await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct, contratada: false);
+        var suspensa = await fabrica.CriarFormatura(StatusDaFormatura.Suspensa, Ct);
         var suporte = await Suporte();
 
-        var resultado = await suporte.GetFromJsonAsync<ResultadoDaBuscaDTO>("/api/v1/admin/suporte/busca?termo=ab", Json, Ct);
+        var suspensas = await suporte.GetFromJsonAsync<PaginaDTO<TurmaNoPainelDTO>>(
+            "/api/v1/admin/suporte/turmas?licenca=Suspensa&tamanho=100",
+            Json,
+            Ct
+        );
 
-        resultado.ShouldNotBeNull();
-        resultado.Turmas.ShouldBeEmpty();
-        resultado.Usuarios.ShouldBeEmpty();
+        suspensas.ShouldNotBeNull();
+        suspensas.Itens.ShouldContain(t => t.Id == suspensa);
+        suspensas.Itens.ShouldNotContain(t => t.Id == gratuita);
+        suspensas.Itens.ShouldAllBe(t => t.Licenca == "Suspensa");
+    }
+
+    /// <summary>A lista de contas acha pelo e-mail e conta as turmas da pessoa; a desativada não é confirmada.</summary>
+    [Fact]
+    public async Task Lista_de_contas_acha_pelo_email_e_filtra_pela_situacao()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var membro = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Tesoureiro, Ct);
+        var email = await EmailDa(membro.UsuarioId);
+        var suporte = await Suporte();
+
+        var achadas = await suporte.GetFromJsonAsync<PaginaDTO<ContaNoPainelDTO>>($"/api/v1/admin/suporte/contas?termo={email}", Json, Ct);
+        var desativadas = await suporte.GetFromJsonAsync<PaginaDTO<ContaNoPainelDTO>>(
+            $"/api/v1/admin/suporte/contas?termo={email}&situacao=Desativada",
+            Json,
+            Ct
+        );
+
+        achadas.ShouldNotBeNull();
+        var conta = achadas.Itens.ShouldHaveSingleItem();
+        conta.Id.ShouldBe(membro.UsuarioId);
+        conta.Turmas.ShouldBe(1);
+        desativadas.ShouldNotBeNull();
+        desativadas.Itens.ShouldBeEmpty();
     }
 
     /// <summary>
@@ -113,11 +151,15 @@ public sealed class PainelDeSuporteTests(ApiFactory fabrica)
         var suporte = await Suporte();
 
         // Act
-        var turma = await suporte.GetFromJsonAsync<TurmaNoSuporteDTO>($"/api/v1/admin/suporte/formaturas/{formaturaId}", Json, Ct);
+        var membros = await suporte.GetFromJsonAsync<PaginaDTO<MembroNoSuporteDTO>>(
+            $"/api/v1/admin/suporte/formaturas/{formaturaId}/membros",
+            Json,
+            Ct
+        );
 
         // Assert
-        turma.ShouldNotBeNull();
-        var linha = turma.Membros.ShouldHaveSingleItem();
+        membros.ShouldNotBeNull();
+        var linha = membros.Itens.ShouldHaveSingleItem();
         linha.Cpf.ShouldBe("***.982.247-**");
         linha.Cpf!.ShouldNotContain("52998224725");
     }
@@ -294,6 +336,13 @@ public sealed class PainelDeSuporteTests(ApiFactory fabrica)
         await using var contexto = fabrica.ContextoDe(null);
 
         return await contexto.Formaturas.Where(f => f.Id == formaturaId).Select(f => f.Nome).SingleAsync(Ct);
+    }
+
+    private async Task<string> EmailDa(Guid usuarioId)
+    {
+        await using var contexto = fabrica.ContextoDe(null);
+
+        return await contexto.Users.Where(u => u.Id == usuarioId).Select(u => u.Email!).SingleAsync(Ct);
     }
 
     private async Task CriarAssinaturaPendente(Guid formaturaId)

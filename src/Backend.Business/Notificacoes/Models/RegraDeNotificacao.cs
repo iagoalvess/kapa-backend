@@ -28,18 +28,6 @@ public enum GatilhoDaRegua
     InformePendente,
 }
 
-/// <summary>Por onde a mensagem sai.</summary>
-/// <remarks>
-/// O Kapa avisa por e-mail, e só (decisão 6). O enum tem um valor só de propósito: ele e a coluna
-/// existem porque o histórico registra por onde a mensagem saiu, e porque um canal futuro entra
-/// aqui e como outra <c>ICanalDeNotificacao</c>, sem migration de dado.
-/// </remarks>
-public enum CanalDeNotificacao
-{
-    /// <summary>E-mail, pela fila que o worker já esvazia.</summary>
-    Email,
-}
-
 /// <summary>
 /// Um degrau da régua da turma: qual é e se está ligado.
 /// </summary>
@@ -60,14 +48,8 @@ public class RegraDeNotificacao : EntidadeDaFormatura
     /// <summary>Dias de distância do gatilho. Negativo é antes do vencimento.</summary>
     public int DiasDeDeslocamento { get; private set; }
 
-    /// <summary>Por onde sai.</summary>
-    public CanalDeNotificacao Canal { get; private set; } = CanalDeNotificacao.Email;
-
     /// <summary>Se o degrau dispara. Desligado, a régua o pula sem gravar nada.</summary>
     public bool Ativa { get; private set; } = true;
-
-    /// <summary>O tipo da mensagem, para a preferência do titular. Toda régua é cobrança.</summary>
-    public static TipoDeNotificacao Tipo => TipoDeNotificacao.Cobranca;
 
     /// <summary>Um degrau novo, ligado.</summary>
     /// <param name="degrau">Degrau do catálogo.</param>

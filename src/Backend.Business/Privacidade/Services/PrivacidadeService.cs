@@ -101,7 +101,7 @@ public sealed class PrivacidadeService(
         if (solicitacao is null || !solicitacao.Disponivel(DateTime.UtcNow))
             return Result.Falha<ArquivoParaDownload>([NaoEncontrada]);
 
-        return await arquivoService.Baixar(solicitacao.ArquivoId!.Value, new SolicitanteDeArquivo(usuarioId, EhAdministrador: false), ct);
+        return await arquivoService.Baixar(solicitacao.ArquivoId!.Value, new SolicitanteDeArquivo(usuarioId, PeloSistema: false), ct);
     }
 
     /// <summary>

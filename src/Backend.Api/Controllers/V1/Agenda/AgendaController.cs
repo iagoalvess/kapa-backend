@@ -2,7 +2,6 @@ using Asp.Versioning;
 using Backend.Api.Analytics;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Agenda;
-using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Agenda.Interfaces;
 using Backend.Business.Agenda.Models;
@@ -52,9 +51,7 @@ public sealed class AgendaController(IAgendaService agenda) : MainController
     [ProducesResponseType(typeof(ResumoDaAgendaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Resumir(CancellationToken ct) =>
-        Responder(
-            (await agenda.Resumir(ct)).Map(resumo => new ResumoDaAgendaDTO(resumo.Proximos.Select(evento => evento.Adapt<EventoDTO>()), resumo.Total))
-        );
+        Responder((await agenda.Resumir(ct)).Map(resumo => new ResumoDaAgendaDTO(resumo.Proximos.Select(evento => evento.Adapt<EventoDTO>()))));
 
     /// <summary>Um evento da agenda.</summary>
     /// <param name="id">Evento.</param>

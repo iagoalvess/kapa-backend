@@ -84,7 +84,7 @@ public sealed class ProcessamentoDePrivacidadeService(
         {
             var remocao = await arquivoService.Remover(
                 solicitacao.ArquivoId!.Value,
-                new SolicitanteDeArquivo(solicitacao.TitularUsuarioId, EhAdministrador: true),
+                new SolicitanteDeArquivo(solicitacao.TitularUsuarioId, PeloSistema: true),
                 ct
             );
 

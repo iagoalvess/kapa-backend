@@ -152,26 +152,19 @@ public sealed record OpcoesDeFiltro(
 );
 
 /// <summary>
-/// O que o formando lê: quanto a turma tem, no que gastou e quanto da turma está em dia.
+/// O que o formando lê: quanto da turma está em dia e com quem ela gastou.
 /// </summary>
 /// <remarks>
 /// <b>Nenhum campo aqui aponta para uma pessoa.</b> É a regra jurídica da sprint: vergonha pública
 /// por dívida é ilícita. Nada de acrescentar aqui um campo de gestão e filtrá-lo no cliente — se a
 /// lista de quem deve voltar a fazer falta, volta como consulta própria, atrás de política própria.
 /// <para>
-/// Os números vêm todos de <c>ICaixaService</c> (decisão 4). Nada aqui é recalculado.
+/// O caixa em si não entra aqui: é do <c>ICaixaService</c> (decisão 4), e a tela o lê de lá.
 /// </para>
 /// </remarks>
-/// <param name="Caixa">O consolidado de hoje: arrecadado, gasto, saldo, a receber e o quadro por categoria.</param>
 /// <param name="Adimplencia">Quanto do que já venceu entrou.</param>
 /// <param name="PorFornecedor">O que saiu para cada fornecedor, do maior para o menor.</param>
-/// <param name="Meses">O caixa mês a mês, com a projeção até a colação.</param>
-public sealed record IndicadoresPublicos(
-    CaixaConsolidado Caixa,
-    Adimplencia Adimplencia,
-    IReadOnlyList<GastoPorFornecedor> PorFornecedor,
-    IReadOnlyList<MesDoCaixa> Meses
-);
+public sealed record IndicadoresPublicos(Adimplencia Adimplencia, IReadOnlyList<GastoPorFornecedor> PorFornecedor);
 
 /// <summary>
 /// Quanto do que já venceu entrou.
@@ -188,9 +181,6 @@ public sealed record IndicadoresPublicos(
 /// <param name="RecebidoEmCentavos">O que entrou do que venceu.</param>
 public sealed record Adimplencia(long DevidoEmCentavos, long RecebidoEmCentavos)
 {
-    /// <summary>Turma sem nada vencido — 100%, porque não há nada em atraso.</summary>
-    public static readonly Adimplencia Integral = new(0, 0);
-
     /// <summary>O que falta entrar do que já venceu.</summary>
     public long EmAtrasoEmCentavos => DevidoEmCentavos - RecebidoEmCentavos;
 

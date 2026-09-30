@@ -72,6 +72,7 @@ public sealed record PreferenciaEscolhida(TipoDeNotificacao Tipo, bool Ativa);
 /// <param name="Vencimento">Dia do vencimento.</param>
 /// <param name="ValorOriginalEmCentavos">Valor antes de multa e juros.</param>
 /// <param name="Descricao">Descrição do item de origem, se houver.</param>
+/// <param name="JaPagoEmCentavos">O que já entrou por ela em pagamentos parciais: a mensagem cobra só o resto.</param>
 public sealed record ParcelaParaCobranca(
     Guid ParcelaId,
     Guid VinculoId,
@@ -79,7 +80,8 @@ public sealed record ParcelaParaCobranca(
     string Email,
     DateOnly Vencimento,
     long ValorOriginalEmCentavos,
-    string? Descricao
+    string? Descricao,
+    long JaPagoEmCentavos = 0
 );
 
 /// <summary>O que uma rodada da régua fez numa formatura.</summary>
@@ -93,10 +95,6 @@ public sealed record ResumoDaRodada(int Mensagens, int Parcelas, int Conferidas)
 
     /// <summary>Se a rodada não produziu nada digno de log.</summary>
     public bool Vazia => this is { Mensagens: 0, Parcelas: 0, Conferidas: 0 };
-
-    /// <summary>Soma duas rodadas — a do dia e as dos dias represados pelo fim de semana.</summary>
-    /// <param name="outra">Rodada a somar.</param>
-    public ResumoDaRodada Mais(ResumoDaRodada outra) => new(Mensagens + outra.Mensagens, Parcelas + outra.Parcelas, Conferidas + outra.Conferidas);
 }
 
 /// <summary>Uma formatura que a régua deve percorrer.</summary>

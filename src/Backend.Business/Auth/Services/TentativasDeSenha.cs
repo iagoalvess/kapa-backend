@@ -40,17 +40,20 @@ public sealed class TentativasDeSenha
     /// <summary>Conta mais uma senha errada da origem.</summary>
     /// <param name="conta">E-mail (login) ou id do usuário.</param>
     /// <param name="origem">IP de quem tenta.</param>
-    public void RegistrarFalha(string conta, string? origem)
+    /// <returns>Se foi esta falha que bloqueou a origem — o momento de auditar, uma vez por bloqueio.</returns>
+    public bool RegistrarFalha(string conta, string? origem)
     {
         if (_falhas.Count >= TetoDePares)
             Varrer();
 
         var agora = DateTime.UtcNow;
-        _falhas.AddOrUpdate(
+        var registro = _falhas.AddOrUpdate(
             Chave(conta, origem),
             _ => (1, agora),
-            (_, registro) => agora - registro.Desde >= Janela ? (1, agora) : (registro.Falhas + 1, registro.Desde)
+            (_, anterior) => agora - anterior.Desde >= Janela ? (1, agora) : (anterior.Falhas + 1, anterior.Desde)
         );
+
+        return registro.Falhas == Maximo;
     }
 
     /// <summary>Esquece os erros da origem — depois de acertar a senha.</summary>

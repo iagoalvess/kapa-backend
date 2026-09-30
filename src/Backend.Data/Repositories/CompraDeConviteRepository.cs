@@ -5,7 +5,6 @@ using Backend.Business.Common.Texto;
 using Backend.Business.Loja.Interfaces;
 using Backend.Business.Loja.Models;
 using Backend.Business.Pagamentos.Models;
-using Backend.Business.Recebimentos.Models;
 using Backend.Data.Context;
 using Backend.Data.Criptografia;
 using Backend.Data.Mappings;
@@ -383,7 +382,6 @@ public sealed class CompraDeConviteRepository(AppDbContext db, CifraDeCampo cifr
             compra.CpfDoPagador is { } pagador && compra.Cpf is { } comprador && FormatosBrasileiros.SomenteDigitos(pagador) != comprador,
             compra.ConvitesCancelados,
             compra.ValorADevolverEmCentavos,
-            compra.DevolvidaEm,
             linha.PedidoAberto
         );
     }

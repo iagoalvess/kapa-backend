@@ -23,7 +23,7 @@ namespace Backend.Api.Controllers.V1.Pagamentos;
 /// </summary>
 /// <remarks>
 /// Consulta, cobrança e "já paguei" entram pela política de membro: "é o dono, ou a gestão" é regra do
-/// service, e parcela de outro formando responde 404, não 403. Baixar na mão é da Tesouraria;
+/// service, e parcela de outro formando responde 404, não 403. Baixar e cancelar na mão é da Tesouraria;
 /// estornar, só do Presidente. Toda escrita exige a turma ativa.
 /// </remarks>
 /// <param name="pagamentoService">Regras do pagamento.</param>
@@ -270,6 +270,38 @@ public sealed class ParcelaController(IPagamentoService pagamentoService, ITesou
             usuarioAtual.EnderecoIp,
             id,
             new EstornarBaixa(requisicao.Justificativa ?? string.Empty),
+            ct
+        );
+
+        return Responder(resultado.Map(parcela => parcela.Adapt<ParcelaDTO>()));
+    }
+
+    /// <summary>
+    /// Cancela a parcela, com justificativa (Sprint 42, decisão 8). O que já tinha entrado nela vai para a lista "a
+    /// devolver".
+    /// </summary>
+    /// <remarks>
+    /// 409 <c>pagamento.parcela_paga</c> se está paga — estorne antes —, <c>pagamento.informe_pendente</c> com aviso do
+    /// formando esperando a conferência, <c>pagamento.parcela_nao_aberta</c> se já foi cancelada.
+    /// </remarks>
+    /// <param name="id">Parcela.</param>
+    /// <param name="requisicao">Justificativa.</param>
+    [HttpPost("{id:guid}/cancelar")]
+    [Authorize(Policy = Politicas.Tesouraria)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [RegistrarEvento("pagamento.cancelamento_avulso", CamposDaRota = ["id"])]
+    [ProducesResponseType(typeof(ParcelaDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Cancelar(Guid id, [FromBody] CancelarParcelaRequestDTO requisicao, CancellationToken ct)
+    {
+        var resultado = await tesourariaService.Cancelar(
+            FormaturaId,
+            usuarioAtual.Id,
+            id,
+            new CancelarParcela(requisicao.Justificativa ?? string.Empty),
             ct
         );
 

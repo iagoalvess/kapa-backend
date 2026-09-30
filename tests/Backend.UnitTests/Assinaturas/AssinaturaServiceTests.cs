@@ -215,17 +215,23 @@ public sealed class AssinaturaServiceTests
         await _provedor.DidNotReceiveWithAnyArgs().CriarCheckout(default!, Ct);
     }
 
+    /// <summary>
+    /// A sessão anterior do mesmo plano também cai: viva, ela pagaria a turma em dobro — e, depois de uma troca
+    /// de plano, só a última seria cancelada, deixando a primeira ativar o plano novo pelo preço do antigo.
+    /// </summary>
     [Fact]
-    public async Task Mesmo_plano_nao_cancela_a_sessao_anterior()
+    public async Task Mesmo_plano_tambem_cancela_a_sessao_anterior()
     {
         var formatura = FormaturaEm(StatusDaFormatura.Ativa);
         _assinaturas
             .ObterMaisRecenteParaEdicao(Arg.Any<CancellationToken>())
             .Returns(new Assinatura { PlanoId = Premium.Id, IdExterno = "sessao-anterior" });
+        _provedor.Cancelar("sessao-anterior", Arg.Any<CancellationToken>()).Returns(Result.Ok());
 
-        await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
 
-        await _provedor.DidNotReceiveWithAnyArgs().Cancelar(default!, Ct);
+        resultado.Sucesso.ShouldBeTrue();
+        await _provedor.Received(1).Cancelar("sessao-anterior", Ct);
     }
 
     /// <summary>Suspensa contrata, mas continua suspensa até o pagamento confirmar.</summary>
@@ -287,7 +293,7 @@ public sealed class AssinaturaServiceTests
         _assinaturas.ObterPlanoAtivo("essencial", Arg.Any<CancellationToken>()).Returns(Essencial);
         _assinaturas
             .ObterDetalheDaMaisRecente(Arg.Any<CancellationToken>())
-            .Returns(new AssinaturaDetalhe(assinatura.Id, assinatura.Status, null!, null, null, null, DateTime.UtcNow, meio, null, false));
+            .Returns(new AssinaturaDetalhe(assinatura.Id, assinatura.Status, null!, null, null, null, meio, null, false));
         _provedor.Cancelar(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Result.Ok());
         _provedor.AtualizarValor(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(Result.Ok());
 

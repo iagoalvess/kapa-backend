@@ -43,5 +43,5 @@ public sealed class DashboardController(IDashboardService dashboardService) : Ma
     [ProducesResponseType(typeof(DashboardPublicoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Publico(CancellationToken ct) =>
-        Responder((await dashboardService.Publico(FormaturaId, ct)).Map(indicadores => indicadores.Adapt<DashboardPublicoDTO>()));
+        Responder((await dashboardService.Publico(ct)).Map(indicadores => indicadores.Adapt<DashboardPublicoDTO>()));
 }

@@ -177,10 +177,10 @@ Políticas nomeadas em `Politicas.cs`, nunca `[Authorize(Roles = "texto")]` espa
 [Authorize(Policy = Politicas.SomenteAdministrador)]
 ```
 
-**O administrador é coringa.** O helper `ExigirPerfil()` aceita quem tem o perfil pedido *ou* o
-de administrador, então toda política nova já nasce acessível ao admin. Para permissão granular
-(módulo × ação), o ponto de extensão é trocar a asserção por um `IAuthorizationHandler` mantendo
-esse atalho — nada nos controllers muda.
+**O administrador não é coringa** (Sprint 44, D4). `ExigirPerfil()` aprova só os perfis listados;
+política que o administrador precisa o lista explicitamente — hoje, só `SomenteAdministrador`. Ele é
+perfil de plataforma e entra nas turmas pelo painel. Para permissão granular (módulo × ação), o ponto
+de extensão é trocar a asserção por um `IAuthorizationHandler` — nada nos controllers muda.
 
 ### Travas do administrador
 
@@ -302,7 +302,10 @@ os dois erros possíveis, o template escolhe sempre o barato.
 
 ### Acesso
 
-Cada usuário enxerga os próprios arquivos; o administrador enxerga todos. Arquivo de terceiro
+Cada usuário enxerga os próprios arquivos, e nenhum perfil enxerga os dos outros — o administrador
+inclusive, desde a Sprint 44 (D4): foto e comprovante são dado pessoal que o painel não usa. Só o
+próprio sistema age sobre arquivo alheio (`SolicitanteDeArquivo.PeloSistema`), na anonimização e nos
+pedidos da LGPD, nunca a partir de uma requisição. Arquivo de terceiro
 responde **404, e não 403** — devolver 403 confirmaria que o identificador existe, transformando o
 endpoint num verificador.
 
@@ -322,15 +325,12 @@ provedor está ativo.
 Credenciais da AWS vêm da cadeia padrão do SDK — perfil de instância, role do IRSA, variáveis de
 ambiente. Não há campo de chave na configuração da aplicação.
 
-### O download passa pela API
+### O download é por URL assinada curta
 
-Em vez de devolver uma URL assinada do provedor. É mais tráfego, e mantém a autorização em um
-lugar só: URL assinada, uma vez emitida, vale para quem a tiver em mãos, independentemente de o
-usuário ter perdido o acesso no meio do caminho.
-
-O teto disso é conhecido — arquivo grande ocupa a conexão da API pelo tempo da transferência. Se
-virar problema, o ponto de mudança é acrescentar emissão de URL temporária ao
-`IArmazenamentoDeArquivos`, aceitando a troca de autorização.
+A API confere a autorização e responde 302 para uma URL assinada que vale 5 minutos
+(`DocumentoService.ValidadeDaUrl`); os bytes não passam por ela. A troca aceita: a URL, enquanto vale,
+abre para quem a tiver em mãos — por isso a validade é curta. Detalhes por provedor (HMAC no `Local`,
+CORS no bucket) em `operacao.md`, "Download do acervo".
 
 ### O que não está aqui
 

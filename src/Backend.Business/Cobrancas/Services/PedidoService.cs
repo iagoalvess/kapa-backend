@@ -9,6 +9,7 @@ using Backend.Business.Eventos.Services;
 using Backend.Business.Festa.Services;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Pagamentos.Services;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
@@ -36,6 +37,7 @@ namespace Backend.Business.Cobrancas.Services;
 /// <param name="eventos">Trilha de auditoria.</param>
 /// <param name="emissao">Os convites da festa que o pedido de convite extra paga (Sprint 21).</param>
 /// <param name="donosDeMesa">As mesas que o pedido de mesa dá direito a ter (Sprint 27).</param>
+/// <param name="valoresADevolver">O crédito e o parcial das parcelas canceladas, na lista "a devolver" (Sprint 42).</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class PedidoService(
@@ -47,6 +49,7 @@ public sealed class PedidoService(
     IEventoRepository eventos,
     EmissaoDeConvites emissao,
     DonosDeMesa donosDeMesa,
+    ValoresADevolver valoresADevolver,
     IUnitOfWork unitOfWork,
     ILogger<PedidoService> logger
 ) : IPedidoService, IQuitacaoDePedidos
@@ -128,6 +131,10 @@ public sealed class PedidoService(
     /// Com parcela paga (P9), o pedido encolhe para o que o dinheiro já pago cobre, e só o excedente
     /// volta ao estoque. Com crédito, a tesouraria está devolvendo o valor — aí o pedido inteiro cai.
     /// </para>
+    /// <para>
+    /// O crédito vai para a lista "a devolver" (Sprint 42, decisão 2) e cobre tudo o que o pedido devolve. Sem crédito,
+    /// o que já tinha entrado nas parcelas canceladas agora vai para a lista uma a uma (decisão 3).
+    /// </para>
     /// </remarks>
     public async Task<Result<PedidoResumo>> Cancelar(
         Guid pedidoId,
@@ -190,12 +197,15 @@ public sealed class PedidoService(
                 if (reserva.Falhou)
                     return Result.Falha<PedidoResumo>(reserva.Erros);
 
-                var canceladas = parcelas.Count(parcela => parcela.Cancelar(hoje, incluirVencidas: true));
+                var canceladasAgora = parcelas.Where(parcela => parcela.Cancelar(hoje, incluirVencidas: true)).ToList();
+                var canceladas = canceladasAgora.Count;
 
                 await emissao.RevogarDoPedido(pedido.Id, pedido.Confirmado ? pedido.Quantidade : 0, EmissaoDeConvites.MotivoDoCancelamento, token);
 
                 if (dados.CreditoEmCentavos > 0)
-                    await Creditar(pedido, parcelas, dados.CreditoEmCentavos, hoje, token);
+                    await valoresADevolver.RegistrarCredito(pedido, dados.CreditoEmCentavos, token);
+                else
+                    await valoresADevolver.RegistrarParciais(canceladasAgora, token);
 
                 await eventos.Auditar(
                     NomesDeAuditoria.PedidoCancelado,
@@ -417,29 +427,6 @@ public sealed class PedidoService(
                 : GradeDeParcelas.PrimeiroDoMes(hoje).AddMonths(1);
 
         return item.PrimeiroMes > proximo ? item.PrimeiroMes : proximo;
-    }
-
-    /// <summary>
-    /// Lança o crédito do cancelamento como parcela negativa do próprio pedido (P5).
-    /// </summary>
-    /// <remarks>
-    /// Parcela negativa, e não item novo no plano: item de plano alcançaria a turma inteira, que é o
-    /// buraco que esta sprint existe para fechar. O valor negativo já funciona ponta a ponta — a
-    /// grade divide com sinal, o valor do dia trata como abatimento —, então não há código de
-    /// devolução. O dinheiro de volta é uma despesa no caixa, lançada quando o PIX acontece.
-    /// </remarks>
-    /// <param name="pedido">Pedido cancelado.</param>
-    /// <param name="parcelas">Parcelas dele, já carregadas.</param>
-    /// <param name="creditoEmCentavos">Quanto devolver.</param>
-    /// <param name="hoje">Dia do cancelamento.</param>
-    private async Task Creditar(Pedido pedido, IReadOnlyList<Parcela> parcelas, long creditoEmCentavos, DateOnly hoje, CancellationToken ct)
-    {
-        var numero = parcelas.Count == 0 ? 1 : parcelas.Max(parcela => parcela.Numero) + 1;
-
-        await parcelaRepository.Adicionar(
-            [Parcela.Nova(pedido.VinculoId, pedido.ItemDeCobrancaId, new ParcelaPrevista(numero, hoje, -creditoEmCentavos))],
-            ct
-        );
     }
 
     /// <summary>O pedido como as telas o mostram, relido depois da escrita.</summary>

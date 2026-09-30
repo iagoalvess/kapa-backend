@@ -86,7 +86,6 @@ public sealed class OutraReceitaEndpointsTests(ApiFactory fabrica)
         projecao.Meses.Single(m => m.Mes == PrimeiroDoMes(Hoje)).EntradasEmCentavos.ShouldBe(5_120_00);
 
         (await Obter<IReadOnlyList<MesDaArrecadacaoDTO>>(tesoureiro, $"{Caixa}/arrecadacao"))[^2].ArrecadadoEmCentavos.ShouldBe(5_120_00);
-        (await Obter<DashboardPublicoDTO>(tesoureiro, "/api/v1/dashboard/publico")).Caixa.ArrecadadoEmCentavos.ShouldBe(5_120_00);
         (await Obter<MetaDaFestaDTO>(tesoureiro, "/api/v1/festa/meta")).ArrecadadoEmCentavos.ShouldBe(5_120_00);
     }
 

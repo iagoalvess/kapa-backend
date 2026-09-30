@@ -6,13 +6,15 @@ using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
 using Backend.Business.Eventos.Services;
 using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Pagamentos.Services;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
 namespace Backend.Business.Cobrancas.Services;
 
 /// <summary>
-/// O plano financeiro da turma: montar, simular, pôr em vigor e consultar as parcelas.
+/// O plano financeiro da turma: montar, simular e pôr em vigor. A consulta das parcelas é o
+/// <see cref="ConsultaDeParcelasService"/>.
 /// </summary>
 /// <remarks>
 /// "Item em uso" é item que já gerou parcela. Como só a adesão gera parcela (Sprint 7), é o mesmo
@@ -27,6 +29,7 @@ namespace Backend.Business.Cobrancas.Services;
 /// <param name="rateioValidator">Forma do rateio extraordinário.</param>
 /// <param name="simulacaoValidator">Forma da simulação.</param>
 /// <param name="eventos">Trilha de auditoria.</param>
+/// <param name="valoresADevolver">O parcial das parcelas canceladas ao encerrar um item (Sprint 42, decisão 3).</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class PlanoDeCobrancaService(
@@ -39,6 +42,7 @@ public sealed class PlanoDeCobrancaService(
     IValidator<RateioExtraordinario> rateioValidator,
     IValidator<SimularPlano> simulacaoValidator,
     IEventoRepository eventos,
+    ValoresADevolver valoresADevolver,
     IUnitOfWork unitOfWork,
     ILogger<PlanoDeCobrancaService> logger
 ) : ICobrancaService
@@ -289,7 +293,10 @@ public sealed class PlanoDeCobrancaService(
     }
 
     /// <inheritdoc />
-    /// <remarks>Vence hoje ainda é devida e fica; o que vence de amanhã em diante é cancelado.</remarks>
+    /// <remarks>
+    /// Vence hoje ainda é devida e fica; o que vence de amanhã em diante é cancelado. O que alguém já tinha adiantado
+    /// numa parcela cancelada vai para a lista "a devolver" (Sprint 42, decisão 3).
+    /// </remarks>
     public async Task<Result<PlanoDeCobrancaDetalhe>> EncerrarItem(Guid planoId, Guid itemId, Guid autorId, CancellationToken ct = default)
     {
         var plano = await planoRepository.ObterParaEdicao(planoId, ct);
@@ -303,7 +310,11 @@ public sealed class PlanoDeCobrancaService(
         var hoje = DataUtils.Hoje();
         item.Encerrar(hoje);
 
-        var canceladas = (await parcelaRepository.ListarAbertasParaEdicao(item.Id, hoje.AddDays(1), ct)).Count(parcela => parcela.Cancelar(hoje));
+        var canceladasAgora = (await parcelaRepository.ListarAbertasParaEdicao(item.Id, hoje.AddDays(1), ct))
+            .Where(parcela => parcela.Cancelar(hoje))
+            .ToList();
+        var canceladas = canceladasAgora.Count;
+        var aDevolver = await valoresADevolver.RegistrarParciais(canceladasAgora, ct);
 
         await eventos.Auditar(
             NomesDeAuditoria.ItemEncerrado,
@@ -316,6 +327,7 @@ public sealed class PlanoDeCobrancaService(
                 item.Tipo,
                 encerradoEm = hoje,
                 parcelasCanceladas = canceladas,
+                aDevolverEmCentavos = aDevolver,
             },
             ct
         );
@@ -392,62 +404,6 @@ public sealed class PlanoDeCobrancaService(
         logger.LogInformation("Plano de cobrança {PlanoId} em vigor.", plano.Id);
 
         return await Detalhar(plano, ct);
-    }
-
-    /// <inheritdoc />
-    /// <remarks>Aberta e vencida saem com o valor do dia, pelas regras que cada formando aceitou.</remarks>
-    public async Task<Result<PaginaDe<ParcelaResumo>>> ListarParcelas(
-        PaginacaoRequest paginacao,
-        FiltroDeParcelas filtro,
-        CancellationToken ct = default
-    )
-    {
-        var hoje = DataUtils.Hoje();
-        var pagina = await parcelaRepository.Listar(paginacao.Normalizar(), filtro, hoje, ct);
-
-        return pagina with
-        {
-            Itens = await parcelaRepository.ComValorDoDia(pagina.Itens, hoje, ct),
-        };
-    }
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// A contagem é uma consulta agrupada; o vencido atualizado soma o valor do dia de cada vencida,
-    /// pelas regras de cada formando — multa e juros nunca estão gravados, então são somados aqui.
-    /// </remarks>
-    public async Task<Result<ResumoDeParcelas>> ResumirParcelas(FiltroDeParcelas filtro, CancellationToken ct = default)
-    {
-        var hoje = DataUtils.Hoje();
-        var contagem = await parcelaRepository.Contar(filtro, hoje, ct);
-        var emAtraso = await parcelaRepository.ListarEmAtraso(filtro, hoje, ct);
-        IReadOnlyDictionary<Guid, RegrasDeAtraso> regras =
-            emAtraso.Count == 0
-                ? new Dictionary<Guid, RegrasDeAtraso>()
-                : await parcelaRepository.ObterRegrasDeAtraso([.. emAtraso.Select(p => p.VinculoId).Distinct()], ct);
-
-        SomaDeParcelas Somar(StatusDaParcela status, bool peloPago = false) =>
-            contagem.FirstOrDefault(c => c.Status == status) is { } linha
-                ? new SomaDeParcelas(linha.Quantidade, peloPago ? linha.PagoEmCentavos : linha.OriginalEmCentavos)
-                : SomaDeParcelas.Zero;
-
-        return new ResumoDeParcelas(
-            new SomaDeParcelas(contagem.Sum(c => c.Quantidade), contagem.Sum(c => c.OriginalEmCentavos)),
-            Somar(StatusDaParcela.Aberta),
-            Somar(StatusDaParcela.Vencida),
-            Somar(StatusDaParcela.Paga, peloPago: true),
-            Somar(StatusDaParcela.Cancelada),
-            emAtraso.Sum(parcela =>
-                ValorDoDia
-                    .Calcular(
-                        parcela.ValorOriginalEmCentavos,
-                        parcela.Vencimento,
-                        hoje,
-                        regras.GetValueOrDefault(parcela.VinculoId, RegrasDeAtraso.Nenhuma)
-                    )
-                    .TotalEmCentavos
-            )
-        );
     }
 
     /// <summary>Grava a grade do item novo para quem já aderiu — o rateio extraordinário.</summary>

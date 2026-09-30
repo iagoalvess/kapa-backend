@@ -51,15 +51,6 @@ public class ItemDaFesta : EntidadeDaFormatura
     /// <summary>Quantos formandos a comissão espera que comprem. Sempre 1 no item rateado pela turma.</summary>
     public int QuantidadeEstimada { get; private set; } = 1;
 
-    /// <summary>
-    /// O que este item deve custar à turma antes de haver despesa: valor vezes quantidade.
-    /// </summary>
-    /// <remarks>
-    /// O item rateado tem quantidade 1, então a conta é a mesma para os dois tipos — e é por isso
-    /// que não há um <c>if</c> por rateio em lugar nenhum do cálculo do custo da festa.
-    /// </remarks>
-    public long CustoPrevistoEmCentavos => ValorPrevistoEmCentavos * QuantidadeEstimada;
-
     /// <summary>Posição na tela, crescente. A comissão decide o que vem primeiro.</summary>
     public int Ordem { get; private set; }
 

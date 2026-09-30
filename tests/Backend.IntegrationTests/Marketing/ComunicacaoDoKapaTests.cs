@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Backend.Api.DTOs.Auth;
+using Backend.Api.DTOs.Marketing;
 using Backend.Api.DTOs.Privacidade;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Emails.Interfaces;
@@ -15,7 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
-namespace Backend.IntegrationTests.Privacidade;
+namespace Backend.IntegrationTests.Marketing;
 
 /// <summary>
 /// O marketing do Kapa de ponta a ponta (Sprint 40): a caixa do cadastro, "Minha privacidade", o descadastro

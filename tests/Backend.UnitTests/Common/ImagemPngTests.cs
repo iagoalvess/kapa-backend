@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using Backend.Business.Common.Pdf;
+using Backend.Business.Emails.Models;
 using Backend.Business.Emails.Services;
 using Shouldly;
 using SkiaSharp;

@@ -127,13 +127,11 @@ public sealed record CancelarPedidoRequestDTO(long CreditoEmCentavos = 0);
 /// <param name="Nome">Nome civil do cadastro, ou o da conta.</param>
 /// <param name="Quantidade">Unidades.</param>
 /// <param name="Parcelas">Em quantas vezes o formando escolheu pagar.</param>
-/// <param name="ValorUnitarioEmCentavos">Preço de uma unidade.</param>
 /// <param name="TotalEmCentavos">Preço vezes quantidade.</param>
 /// <param name="PagoEmCentavos">O que já entrou pelas parcelas deste pedido.</param>
 /// <param name="Quitado">Se o pago alcançou o total.</param>
 /// <param name="Status"><c>Confirmado</c> ou <c>Cancelado</c>.</param>
 /// <param name="PedidoEm">Quando foi pedido, em UTC.</param>
-/// <param name="CanceladoEm">Quando foi cancelado, se foi.</param>
 public sealed record PedidoDTO(
     Guid Id,
     Guid ItemDeCobrancaId,
@@ -143,13 +141,11 @@ public sealed record PedidoDTO(
     string Nome,
     int Quantidade,
     int Parcelas,
-    long ValorUnitarioEmCentavos,
     long TotalEmCentavos,
     long PagoEmCentavos,
     bool Quitado,
     StatusDoPedido Status,
-    DateTime PedidoEm,
-    DateTime? CanceladoEm
+    DateTime PedidoEm
 );
 
 /// <summary>A conta aberta de um item na faixa da tela de Pedidos.</summary>

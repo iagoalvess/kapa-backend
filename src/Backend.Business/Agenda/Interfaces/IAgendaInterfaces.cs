@@ -62,10 +62,6 @@ public interface IEventoDaTurmaRepository
     /// <param name="limite">Quantas trazer.</param>
     Task<IReadOnlyList<EventoResumo>> Proximos(DateOnly hoje, int limite, CancellationToken ct = default);
 
-    /// <summary>Quantas datas ainda vêm, canceladas de fora.</summary>
-    /// <param name="hoje">Dia de hoje no fuso da turma.</param>
-    Task<int> ContarDaqui(DateOnly hoje, CancellationToken ct = default);
-
     /// <summary>O evento único de um tipo — a festa, a colação —; nulo se a turma ainda não o marcou.</summary>
     /// <remarks>É como o convite da festa acha o que imprimir (Sprint 21, P6).</remarks>
     /// <param name="tipo">Tipo único.</param>

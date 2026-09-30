@@ -95,15 +95,15 @@ inverte a prioridade: perder um ponto do gráfico é aceitável, atrasar a opera
 **Não use para:** cobrança ou auditoria legal. Evento que não pode ser perdido vai na transação
 do domínio.
 
-## 9. Download passa pela API, não por URL assinada
+## 9. Download por URL assinada de 5 minutos
 
-**Por quê:** URL assinada, uma vez emitida, vale para quem a tiver em mãos — mesmo que o usuário
-tenha perdido o acesso no meio do caminho. Passando pela API, a autorização fica em um lugar só.
+**Por quê:** a API confere a autorização e redireciona (302); os bytes vão direto do provedor, sem
+ocupar a conexão da API. Começou passando pela API e mudou com o acervo (Sprint 11).
 
-**Custo aceito:** arquivo grande ocupa a conexão da API pelo tempo da transferência.
+**Custo aceito:** enquanto vale, a URL abre para quem a tiver em mãos, mesmo que o usuário perca o
+acesso nesse meio-tempo. A validade curta é o que limita isso.
 
-**Reabrir se:** o tráfego de download virar gargalo. O ponto de mudança é acrescentar emissão de
-URL temporária ao `IArmazenamentoDeArquivos`.
+**Reabrir se:** algum arquivo precisar de revogação imediata — aí ele volta a passar pela API.
 
 ## 10. Tipo do conteúdo derivado da extensão, nunca do cliente
 

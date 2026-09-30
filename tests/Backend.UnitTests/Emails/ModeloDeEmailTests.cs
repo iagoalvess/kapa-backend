@@ -1,5 +1,6 @@
 using Backend.Business.Common;
 using Backend.Business.Common.Pdf;
+using Backend.Business.Emails.Models;
 using Backend.Business.Emails.Services;
 using Shouldly;
 

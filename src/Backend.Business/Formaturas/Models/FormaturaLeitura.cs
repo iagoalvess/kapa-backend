@@ -60,8 +60,6 @@ public sealed record DadosDaFormatura(string Nome, string Instituicao, string Cu
 /// <param name="PrevisaoDeColacao">Data prevista da colação.</param>
 /// <param name="PrevisaoDaFesta">Data prevista da festa.</param>
 /// <param name="Status">Situação no ciclo de vida.</param>
-/// <param name="CriadoEm">Criação, em UTC.</param>
-/// <param name="AtivadaEm">Primeira ativação, em UTC.</param>
 /// <param name="EncerradaEm">Encerramento, em UTC.</param>
 /// <param name="JaContratou">Se a turma já contratou um plano alguma vez. Falsa é a turma no gratuito.</param>
 public sealed record FormaturaDetalhe(
@@ -74,8 +72,6 @@ public sealed record FormaturaDetalhe(
     DateOnly? PrevisaoDeColacao,
     DateOnly? PrevisaoDaFesta,
     StatusDaFormatura Status,
-    DateTime CriadoEm,
-    DateTime? AtivadaEm,
     DateTime? EncerradaEm,
     bool JaContratou
 );
@@ -170,16 +166,12 @@ public sealed record AlterarPapel(string Papel);
 /// (P1 de 17/09/2026). O atraso é contado <b>dentro</b> do que está em aberto — parcela vencida é
 /// parcela em aberto com o vencimento no passado, e somar as duas colunas contaria duas vezes.
 /// </remarks>
-/// <param name="Nome">Nome de quem sai, como a comissão o conhece.</param>
-/// <param name="TemAdesao">Se a pessoa aderiu ao termo. Sem adesão a ação é Remover, não Desligar.</param>
 /// <param name="JaPagoEmCentavos">Quanto já entrou na conta da turma por ele.</param>
 /// <param name="ParcelasEmAberto">Quantas parcelas ainda são devidas, vencidas incluídas.</param>
 /// <param name="EmAbertoEmCentavos">Quanto elas somam, pelo valor original.</param>
 /// <param name="ParcelasEmAtraso">Quantas das em aberto já venceram.</param>
 /// <param name="EmAtrasoEmCentavos">Quanto elas somam, pelo valor original.</param>
 public sealed record ResumoDaSaida(
-    string Nome,
-    bool TemAdesao,
     long JaPagoEmCentavos,
     int ParcelasEmAberto,
     long EmAbertoEmCentavos,

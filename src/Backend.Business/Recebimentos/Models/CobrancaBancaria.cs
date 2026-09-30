@@ -201,6 +201,12 @@ public class CobrancaBancaria : EntidadeDaFormatura
     /// <summary>O dinheiro voltou ao pagador e as baixas foram desfeitas (Sprint 39, P4).</summary>
     public void Estornada() => Status = StatusDaCobrancaBancaria.Estornada;
 
+    /// <summary>
+    /// Como o caixa nomeia a cobrança nos lançamentos dela: o meio e o fim do id. As descrições são únicas por turma e
+    /// dia, e é o id que separa dois pagamentos no mesmo dia.
+    /// </summary>
+    public string Referencia => $"{MeiosDePagamento.Rotulo(Meio)} {Id.ToString("N")[^8..].ToUpperInvariant()}";
+
     /// <summary>O que de fato paga parcela ou convite: o pago menos a taxa repassada.</summary>
     /// <param name="pagoEmCentavos">O que o Mercado Pago diz que foi pago.</param>
     public long SemAcrescimo(long pagoEmCentavos) => Math.Max(0, pagoEmCentavos - AcrescimoEmCentavos);

@@ -3,6 +3,7 @@ using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
 using Backend.Business.Common.Pdf;
 using Backend.Business.Common.Texto;
+using Backend.Business.Emails.Models;
 using Backend.Business.Emails.Services;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Recebimentos.Models;

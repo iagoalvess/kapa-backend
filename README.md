@@ -1,16 +1,15 @@
-# Backend — template .NET 10
+# Kapa — backend
 
-Base para backends .NET: camadas, autenticação JWT com refresh token rotativo, painel
-administrativo, worker de fundo, observabilidade e testes de integração contra banco real.
-
-Feito para ser **copiado e renomeado**, não referenciado como biblioteca.
+A API (`api.kapaformaturas.com.br`) e o Worker do Kapa em .NET 10: camadas, autenticação JWT com
+refresh token rotativo, jobs de fundo, observabilidade e testes de integração contra banco real.
+O nome `Backend` dos projetos e namespaces vem do template de origem e ficou. Deploy em
+`docs/deploy.md` na raiz do projeto.
 
 ---
 
 ## Começar
 
 ```bash
-git clone <este-repo> meu-projeto && cd meu-projeto
 cp .env.example .env          # preencha JWT_CHAVE_SECRETA e ADMIN_SENHA
 
 docker compose up --build     # banco + migrations + api + worker
@@ -39,34 +38,14 @@ dotnet test tests/Backend.IntegrationTests --no-build # sobe Postgres em contain
 
 ---
 
-## Renomear para o seu projeto
-
-O nome `Backend` aparece em namespaces, nomes de projeto e arquivos de solução.
-
-```bash
-# Linux/macOS/Git Bash — troque MeuProjeto pelo nome desejado
-NOVO=MeuProjeto
-grep -rl "Backend" --include="*.cs" --include="*.csproj" --include="*.sln" \
-     --include="*.json" --include="*.yml" --include="Dockerfile" . \
-  | xargs sed -i "s/Backend/$NOVO/g"
-
-for f in $(find . -name "Backend.*" -not -path "*/obj/*" -not -path "*/bin/*"); do
-  git mv "$f" "$(echo $f | sed "s/Backend/$NOVO/")"
-done
-```
-
-Depois: apague `src/Backend.Data/Migrations/` e gere a migration inicial do seu domínio.
-
----
-
-## O que já vem pronto
+## O que tem por baixo
 
 | | |
 |---|---|
 | **Autenticação** | Registro, login, refresh com rotação e detecção de reúso, logout. Refresh token em cookie `HttpOnly`, fora do alcance do JavaScript. ASP.NET Identity com bloqueio por tentativas e política de senha. |
 | **Ciclo de conta** | Confirmação de e-mail, esqueci a senha, redefinição e troca de senha. Resposta constante contra enumeração, sessões derrubadas na troca e aviso por e-mail. |
-| **Autorização** | Papéis + políticas nomeadas, com o administrador passando por qualquer política. |
-| **Painel administrativo** | `GET /api/v1/admin/resumo` (contagens) e gestão completa de usuários, com travas contra ficar sem administrador. |
+| **Autorização** | Papéis + políticas nomeadas. O administrador é perfil de plataforma e passa só nas políticas que o listam (Sprint 44). |
+| **Painel administrativo** | Analytics da plataforma (`GET /api/v1/admin/analytics`), listas de turmas e contas do suporte e gestão completa de usuários, com travas contra ficar sem administrador. |
 | **Erros** | `Result<T>` para falha prevista, exceção para o resto; tudo sai em `ProblemDetails` (RFC 9457) com `traceId`. |
 | **Persistência** | EF Core + PostgreSQL, `snake_case`, UUIDv7, Unit of Work, mapeamento por `IEntityTypeConfiguration`. |
 | **E-mail** | Fila em tabela + envio pelo worker com retentativa exponencial. SMTP (MailKit), que serve SES, SendGrid, Mailgun, Resend e Gmail sem trocar código. |
@@ -74,40 +53,16 @@ Depois: apague `src/Backend.Data/Migrations/` e gere a migration inicial do seu 
 | **Eventos** | `[RegistrarEvento("nome")]` no controller → fila em memória → gravação em lote → job de retenção. |
 | **Observabilidade** | `ILogger` com console JSON + OpenTelemetry (traces e métricas via OTLP) + health check. |
 | **Borda** | Versionamento por URL, rate limiting nativo, CORS por configuração, OpenAPI + Scalar. |
-| **Worker** | Três jobs prontos: envio de e-mail, limpeza de refresh tokens e retenção de eventos. |
-| **Testes** | 162 testes (101 unitários + 61 de integração): xUnit v3 + Shouldly + NSubstitute; integração com API e Postgres reais via Testcontainers. |
+| **Worker** | Jobs em `src/Backend.Worker/Jobs` (e-mail, régua de cobrança, relatórios, retenção de eventos e de turmas, Mercado Pago, privacidade…), um por réplica via `LiderancaDeJob`. |
+| **Testes** | xUnit v3 + Shouldly + NSubstitute; integração com API e Postgres reais via Testcontainers. |
 | **Infra** | Dockerfile multi-alvo, docker compose, GitHub Actions, CSharpier, Central Package Management. |
 
 ---
 
 ## Endpoints
 
-| Método | Rota | Acesso |
-|---|---|---|
-| `POST` | `/api/v1/auth/registrar` | anônimo |
-| `POST` | `/api/v1/auth/login` | anônimo |
-| `POST` | `/api/v1/auth/refresh` | anônimo |
-| `POST` | `/api/v1/auth/logout` | anônimo |
-| `POST` | `/api/v1/conta/esqueci-senha` | anônimo |
-| `POST` | `/api/v1/conta/redefinir-senha` | anônimo |
-| `POST` | `/api/v1/conta/confirmar-email` | anônimo |
-| `POST` | `/api/v1/conta/reenviar-confirmacao` | anônimo |
-| `POST` | `/api/v1/conta/alterar-senha` | autenticado |
-| `GET` | `/api/v1/usuarios/eu` | autenticado |
-| `PUT` | `/api/v1/usuarios/eu` | autenticado |
-| `GET` | `/api/v1/usuarios` | administrador |
-| `GET` | `/api/v1/usuarios/{id}` | administrador |
-| `PUT` | `/api/v1/usuarios/{id}` | administrador |
-| `PUT` | `/api/v1/usuarios/{id}/ativacao` | administrador |
-| `PUT` | `/api/v1/usuarios/{id}/perfis` | administrador |
-| `POST` | `/api/v1/arquivos` | autenticado (multipart) |
-| `GET` | `/api/v1/arquivos` | autenticado (só os próprios; admin vê todos) |
-| `GET` | `/api/v1/arquivos/{id}` | dono ou administrador |
-| `GET` | `/api/v1/arquivos/{id}/conteudo` | dono ou administrador |
-| `DELETE` | `/api/v1/arquivos/{id}` | dono ou administrador |
-| `GET` | `/api/v1/admin/resumo` | administrador |
-| `GET` | `/api/v1/admin/perfis` | administrador |
-| `GET` | `/health` | anônimo |
+A lista completa, com os esquemas, está no Scalar (`/scalar`, ligado em dev). As convenções que valem
+para toda rota estão em [docs/contrato.md](docs/contrato.md); os erros, em [docs/erros.md](docs/erros.md).
 
 ---
 
@@ -139,7 +94,7 @@ Tudo por variável de ambiente (`Secao__Chave`) ou `appsettings.json`.
 | `Smtp__Porta` | não | `587`; use `465` para SSL implícito |
 | `Smtp__Usuario` / `Smtp__Senha` | não | vazio = envia sem autenticar |
 | `Smtp__RemetenteEmail` / `Smtp__RemetenteNome` | com SMTP | — |
-| `Eventos__DiasDeRetencao` | não | `180` |
+| `Eventos__DiasDeRetencao` / `Eventos__DiasDeRetencaoAuditoria` | não | `180` / `1825` — uso e auditoria; ver `RetencaoDeEventosJob` |
 | `IA__ApiKey` | não (só no worker) | vazio = toda IA desligada, sem chamada e sem erro no log. Chave do OpenRouter |
 | `IA__BaseUrl` | não | `https://openrouter.ai/api/v1/` — qualquer API no formato `chat/completions` da OpenAI |
 | `ResumoDoTermo__Modelos__0` | não | ids em ordem de preferência; o primeiro que responder ganha |
@@ -166,6 +121,8 @@ descobrir isso no boot é melhor que descobrir em produção.
 |---|---|
 | [docs/arquitetura.md](docs/arquitetura.md) | Como o sistema é montado: camadas, erros, autenticação, e-mail, eventos, observabilidade. |
 | [docs/padroes.md](docs/padroes.md) | Como usar cada padrão no código, com exemplos. Referência de consulta enquanto se escreve. |
+| [docs/contrato.md](docs/contrato.md) | Convenções de toda rota: snake_case, nulos, paginação. |
+| [docs/erros.md](docs/erros.md) | Cada `codigo` de erro — é o destino do `type` do `ProblemDetails`. |
 | [docs/estrutura.md](docs/estrutura.md) | Onde colocar cada arquivo. Tem tabela de referência rápida. |
 | [docs/nova-feature.md](docs/nova-feature.md) | Passo a passo para criar uma feature do zero. |
 | [docs/operacao.md](docs/operacao.md) | Migrations, deploy, segredos, observabilidade. |

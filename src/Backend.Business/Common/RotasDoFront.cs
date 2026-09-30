@@ -31,9 +31,6 @@ public static class RotasDoFront
     /// <summary>As parcelas da turma, na gestão — onde a tesouraria vê o estorno do Mercado Pago (Sprint 39).</summary>
     public const string ParcelasDaTurma = "/cobrancas/parcelas";
 
-    /// <summary>Lembretes da régua de cobrança.</summary>
-    public const string Lembretes = "/notificacoes/lembretes";
-
     /// <summary>Portal de privacidade do titular.</summary>
     public const string MinhaPrivacidade = "/minha-privacidade";
 
@@ -51,9 +48,6 @@ public static class RotasDoFront
 
     /// <summary>A página pública do convite da festa, com o token no fim (Sprint 21, decisão 1) — <c>/ingresso/:token</c>.</summary>
     public const string Ingresso = "/ingresso/";
-
-    /// <summary>A loja pública da turma, com o id dela no fim (Sprint 26) — <c>/loja/:formaturaId</c>.</summary>
-    public const string Loja = "/loja/";
 
     /// <summary>A compra da loja pelo link de acesso, com o token no fim (Sprint 26, decisão 10) — <c>/compra/:token</c>.</summary>
     public const string Compra = "/compra/";

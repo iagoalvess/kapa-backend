@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Backend.Business.Emails.Models;
 using Backend.Business.Emails.Services;
 
 namespace Backend.Business.Common.Pdf;

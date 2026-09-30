@@ -21,6 +21,9 @@ using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Formaturas.Services;
 using Backend.Business.Formaturas.Validators;
+using Backend.Business.Pagamentos.Interfaces;
+using Backend.Business.Pagamentos.Models;
+using Backend.Business.Pagamentos.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -50,10 +53,10 @@ public sealed class DesligamentoDeFormandoTests
     private readonly IAdesaoRepository _adesoes = Substitute.For<IAdesaoRepository>();
     private readonly IFormaturaRepository _formaturas = Substitute.For<IFormaturaRepository>();
     private readonly IEventoRepository _eventos = Substitute.For<IEventoRepository>();
-    private readonly IAssinaturaRepository _assinaturas = Substitute.For<IAssinaturaRepository>();
     private readonly IEmailService _emailService = Substitute.For<IEmailService>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IConviteDoEventoRepository _convites = Substitute.For<IConviteDoEventoRepository>();
+    private readonly IValorADevolverRepository _valoresADevolver = Substitute.For<IValorADevolverRepository>();
 
     /// <summary>O vínculo da turma, um por teste — o <c>Id</c> nasce com ele e não se atribui.</summary>
     private readonly VinculoDeFormatura _vinculo = new()
@@ -96,8 +99,10 @@ public sealed class DesligamentoDeFormandoTests
                 Substitute.For<IFormaturaAtual>(),
                 NullLogger<EmissaoDeConvites>.Instance
             ),
+            new VagasDoPlano(Substitute.For<IAssinaturaRepository>(), _vinculos),
             new AlterarPapelValidator(),
             new DesligarFormandoValidator(),
+            new ValoresADevolver(_valoresADevolver),
             _unitOfWork
         );
 
@@ -137,6 +142,36 @@ public sealed class DesligamentoDeFormandoTests
         vinculo.Ativo.ShouldBeFalse();
         vinculo.Desligado.ShouldBeTrue();
         vinculo.MotivoDoDesligamento.ShouldBe(MotivoDeSaida.Trancamento);
+    }
+
+    /// <summary>
+    /// Sprint 42, F2: a parcela cancelada no desligamento que já tinha recebido parte manda o parcial para a lista "a
+    /// devolver" — antes ele ficava no caixa sem registro nenhum do que a comissão tinha de devolver.
+    /// </summary>
+    [Fact]
+    public async Task Desligar_manda_o_pago_em_parte_da_parcela_cancelada_para_a_lista_a_devolver()
+    {
+        // Arrange
+        var parcial = NovaParcela(30);
+        parcial.Pagar(10_000, DataUtils.Hoje(), 45_000).Valor.ShouldBeFalse();
+        var intacta = NovaParcela(60);
+        ComVinculo(_vinculo);
+        ComParcelas(parcial, intacta);
+        var registrados = new List<ValorADevolver>();
+        _valoresADevolver
+            .When(v => v.Adicionar(Arg.Any<ValorADevolver>(), Arg.Any<CancellationToken>()))
+            .Do(c => registrados.Add(c.Arg<ValorADevolver>()));
+
+        // Act
+        var resultado = await Servico.Desligar(FormaturaId, UsuarioId, Pedido(), AutorId, Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        parcial.Status.ShouldBe(StatusDaParcela.Cancelada);
+        var valor = registrados.ShouldHaveSingleItem();
+        valor.Origem.ShouldBe(OrigemDoValorADevolver.ParcelaCancelada);
+        valor.ParcelaId.ShouldBe(parcial.Id);
+        valor.ValorEmCentavos.ShouldBe(10_000);
     }
 
     /// <summary>Com a caixa marcada, o atraso vai junto. Saiu, zerou.</summary>
@@ -329,7 +364,6 @@ public sealed class DesligamentoDeFormandoTests
         var resumo = (await Servico.ResumirSaida(FormaturaId, UsuarioId, Ct)).Valor;
 
         resumo.ShouldNotBeNull();
-        resumo.TemAdesao.ShouldBeTrue();
         resumo.JaPagoEmCentavos.ShouldBe(45_000);
         resumo.ParcelasEmAberto.ShouldBe(2);
         resumo.EmAbertoEmCentavos.ShouldBe(90_000);

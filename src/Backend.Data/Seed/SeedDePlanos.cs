@@ -49,20 +49,22 @@ public static class SeedDePlanos
     private const int DescontoAnualEmPorcento = 20;
 
     /// <summary>
-    /// O que o Essencial libera: o ciclo do dinheiro fechado, da cobrança ao caixa.
+    /// O que o gratuito libera: o ciclo do dinheiro fechado, da cobrança ao caixa, para a comissão conhecer.
     /// </summary>
     /// <remarks>
-    /// Nomeado porque três listas dependem dele — o próprio Essencial, o Premium (que é este mais
-    /// os diferenciais) e o gratuito. Repetir a mão os dez códigos é como o grátis passa a liberar
-    /// um módulo que o pago cobra.
+    /// É a base das três listas — o gratuito, o Essencial (este mais a festa) e o Premium (o Essencial mais
+    /// os diferenciais). Repetir a mão os códigos é como o grátis passa a liberar um módulo que o pago cobra.
     /// </remarks>
-    private static readonly string[] ModulosDoEssencial = [Modulo.Membros, Modulo.Termo, Modulo.Cobrancas, Modulo.Pix, Modulo.Despesas, Modulo.Caixa];
+    private static readonly string[] ModulosDoGratuito = [Modulo.Membros, Modulo.Termo, Modulo.Cobrancas, Modulo.Pix, Modulo.Despesas, Modulo.Caixa];
+
+    /// <summary>O que o Essencial libera: o do gratuito mais a festa, que vende a terceiros (Sprint 45, P1).</summary>
+    private static readonly string[] ModulosDoEssencial = [.. ModulosDoGratuito, Modulo.Festa];
 
     /// <summary>O que o Premium acrescenta: os diferenciais, não o necessário.</summary>
-    private static readonly string[] DiferenciaisDoPremium = [Modulo.Mural, Modulo.Avisos, Modulo.Relatorios, Modulo.Auditoria];
+    private static readonly string[] DiferenciaisDoPremium = [Modulo.Mesas, Modulo.Mural, Modulo.Avisos, Modulo.Relatorios, Modulo.Auditoria];
 
     /// <summary>Código do plano com que toda turma nasce.</summary>
-    public const string CodigoGratuito = "gratuito";
+    public const string CodigoGratuito = Plano.CodigoGratuito;
 
     /// <summary>Quantas pessoas a turma gratuita comporta, Presidente incluso.</summary>
     /// <remarks>Turma que já existe lê a linha do catálogo, que o seed não reescreve: mudar aqui pede migration.</remarks>
@@ -82,8 +84,8 @@ public static class SeedDePlanos
     /// (<c>ObterPlanoAtivo</c> filtra por <c>Ativo</c>). Plano gratuito é atribuído, nunca escolhido.
     /// </para>
     /// <para>
-    /// Os módulos são os do Essencial, pela lista <c>ModulosDoEssencial</c> — mexer nela move os
-    /// dois juntos. O que o grátis libera também pode ser editado na linha do catálogo no banco,
+    /// Os módulos são os de <c>ModulosDoGratuito</c>, a base do Essencial — mexer nela move os dois juntos.
+    /// A festa fica de fora desde 29/09/2026 (Sprint 45, P1): vender convite a terceiros é operar dinheiro. O que o grátis libera também pode ser editado na linha do catálogo no banco,
     /// que o seed não reescreve.
     /// </para>
     /// </remarks>
@@ -96,7 +98,7 @@ public static class SeedDePlanos
             PrecoEmCentavos = 0,
             Ciclo = CicloDeCobranca.Mensal,
             LimiteDeFormandos = LimiteDoGratuito,
-            Modulos = [.. ModulosDoEssencial],
+            Modulos = [.. ModulosDoGratuito],
             Ativo = false,
         };
 
@@ -104,7 +106,7 @@ public static class SeedDePlanos
     /// <remarks>
     /// Dois, e não três: a escada de antes (Essencial, Completo, Turma Grande) obrigava a comissão
     /// a comparar três listas de módulos para descobrir de qual precisava. Agora a pergunta é uma
-    /// só — a turma cabe em 50? —, e o Premium se vende pelos quatro diferenciais, não por um
+    /// só — a turma cabe em 50? —, e o Premium se vende pelos diferenciais (as mesas entraram entre eles em 29/09/2026), não por um
     /// pedaço do necessário que foi retirado do Essencial.
     /// </remarks>
     private static readonly Pacote[] Pacotes =

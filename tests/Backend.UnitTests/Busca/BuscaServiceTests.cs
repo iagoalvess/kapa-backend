@@ -39,7 +39,13 @@ public sealed class BuscaServiceTests
         var resultado = await service.Buscar(Turma, Usuario, termo, TestContext.Current.CancellationToken);
 
         resultado.Sucesso.ShouldBeTrue();
-        resultado.Valor.Vazia.ShouldBeTrue();
+        resultado.Valor.ShouldSatisfyAllConditions(
+            busca => busca.Membros.ShouldBeEmpty(),
+            busca => busca.Despesas.ShouldBeEmpty(),
+            busca => busca.Fornecedores.ShouldBeEmpty(),
+            busca => busca.Avisos.ShouldBeEmpty(),
+            busca => busca.Documentos.ShouldBeEmpty()
+        );
         await _repositorio.DidNotReceiveWithAnyArgs().Buscar(default!, default!, default, TestContext.Current.CancellationToken);
     }
 

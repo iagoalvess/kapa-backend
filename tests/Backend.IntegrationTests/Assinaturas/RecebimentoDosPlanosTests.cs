@@ -142,6 +142,7 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
 
         // Act
         var troca = await Ler<TrocaDTO>(await presidente.PostAsJsonAsync($"{Assinatura}/trocar-meio", new { meio = "Cartao" }, Json, Ct));
+        var aposATroca = await Ler<AssinaturaDTO>(await presidente.GetAsync(Assinatura, Ct));
         var recorrencia = falso.Recorrencias.ShouldHaveSingleItem();
         falso.MudarRecorrencia(recorrencia.Key, SituacaoDaRecorrencia.Autorizada);
         await Avisar(api, "subscription_preapproval", recorrencia.Key);
@@ -149,8 +150,8 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
 
         // Assert
         troca.Url.ShouldNotBeNull();
-        troca.Assinatura.Meio.ShouldBe(MeioDePagamento.Pix);
-        troca.Assinatura.CartaoAguardandoAutorizacao.ShouldBeTrue();
+        aposATroca.Meio.ShouldBe(MeioDePagamento.Pix);
+        aposATroca.CartaoAguardandoAutorizacao.ShouldBeTrue();
         recorrencia.Value.ProximaCobrancaEm!.Value.ShouldBe(antes.VigenteAte!.Value, TimeSpan.FromSeconds(1));
         depois.Meio.ShouldBe(MeioDePagamento.Cartao);
         depois.CartaoAguardandoAutorizacao.ShouldBeFalse();
@@ -193,13 +194,14 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
 
         // Act
         var troca = await Ler<TrocaDTO>(await presidente.PostAsJsonAsync($"{Assinatura}/trocar-plano", new { planoCodigo = "essencial" }, Json, Ct));
+        var aposATroca = await Ler<AssinaturaDTO>(await presidente.GetAsync(Assinatura, Ct));
         await Avisar(api, "subscription_authorized_payment", falso.Debitar(recorrencia, aprovado: true));
         var renovada = await Ler<AssinaturaDTO>(await presidente.GetAsync(Assinatura, Ct));
 
         // Assert
         troca.Url.ShouldBeNull();
-        troca.Assinatura.Plano.Codigo.ShouldBe("premium");
-        troca.Assinatura.ProximoPlano!.Codigo.ShouldBe("essencial");
+        aposATroca.Plano.Codigo.ShouldBe("premium");
+        aposATroca.ProximoPlano!.Codigo.ShouldBe("essencial");
         falso.ValorDaRecorrencia(recorrencia).ShouldBe(2990);
         renovada.Plano.Codigo.ShouldBe("essencial");
         renovada.ProximoPlano.ShouldBeNull();

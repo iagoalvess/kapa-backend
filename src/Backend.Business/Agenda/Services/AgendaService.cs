@@ -54,15 +54,11 @@ public sealed class AgendaService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// Duas consultas, e não uma lista inteira cortada na memória: a home pede isto em toda
-    /// abertura do app, e o que ela desenha são três linhas mais um "e mais N".
+    /// Recortada no banco, e não uma lista inteira cortada na memória: a home pede isto em toda
+    /// abertura do app, e o que ela desenha são três linhas.
     /// </remarks>
-    public async Task<Result<ResumoDaAgenda>> Resumir(CancellationToken ct = default)
-    {
-        var hoje = DataUtils.Hoje();
-
-        return new ResumoDaAgenda(await eventos.Proximos(hoje, ProximosNaHome, ct), await eventos.ContarDaqui(hoje, ct));
-    }
+    public async Task<Result<ResumoDaAgenda>> Resumir(CancellationToken ct = default) =>
+        new ResumoDaAgenda(await eventos.Proximos(DataUtils.Hoje(), ProximosNaHome, ct));
 
     /// <inheritdoc />
     public async Task<Result<EventoResumo>> Criar(DadosDoEvento dados, CancellationToken ct = default)

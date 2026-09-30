@@ -157,6 +157,7 @@ public sealed record SimulacaoDoPlanoDTO(IReadOnlyList<ParcelaSimuladaDTO> Parce
 /// <param name="PagoEm">Dia em que entrou, se paga.</param>
 /// <param name="ValorDoDia">O valor de hoje, com a conta aberta — só na aberta e na vencida.</param>
 /// <param name="RecebimentoId">A última baixa que vale — o recibo abre em <c>/recebimentos/{id}/recibo</c>. Nula sem baixa.</param>
+/// <param name="PeloMercadoPago">Alguma baixa que vale veio do Mercado Pago — o estorno à mão só desfaz o registro (Sprint 42).</param>
 public sealed record ParcelaDTO(
     Guid Id,
     Guid UsuarioId,
@@ -173,7 +174,8 @@ public sealed record ParcelaDTO(
     long? ValorPagoEmCentavos,
     DateOnly? PagoEm,
     ValorDoDiaDTO? ValorDoDia,
-    Guid? RecebimentoId
+    Guid? RecebimentoId,
+    bool PeloMercadoPago
 );
 
 /// <summary>O valor de uma parcela num dia, com a conta aberta — o que o formando vê ao tocar na parcela vencida.</summary>

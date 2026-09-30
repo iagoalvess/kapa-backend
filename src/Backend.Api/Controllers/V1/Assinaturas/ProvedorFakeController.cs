@@ -3,7 +3,7 @@ using System.Net;
 using Asp.Versioning;
 using Backend.Api.Configuration;
 using Backend.Business.Assinaturas.Interfaces;
-using Backend.Data.Provedores;
+using Backend.Business.Assinaturas.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;

@@ -92,8 +92,7 @@ public sealed record FiltroDeAdesoes(bool? Aderiu = null, string? Busca = null);
 /// <summary>O número que a comissão olha toda semana: quantos aderiram, de quantos.</summary>
 /// <param name="Membros">Membros ativos da turma.</param>
 /// <param name="Aderiram">Membros ativos com alguma adesão.</param>
-/// <param name="VersaoVigente">Versão vigente do termo, se já publicado.</param>
-public sealed record ResumoDeAdesoes(int Membros, int Aderiram, int? VersaoVigente);
+public sealed record ResumoDeAdesoes(int Membros, int Aderiram);
 
 /// <summary>O termo assinado, em PDF.</summary>
 /// <param name="Conteudo">Bytes do arquivo.</param>

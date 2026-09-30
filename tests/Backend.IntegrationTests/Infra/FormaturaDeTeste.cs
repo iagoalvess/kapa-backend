@@ -101,12 +101,13 @@ public static class FormaturaDeTeste
     /// </remarks>
     /// <param name="fabrica">API de teste.</param>
     /// <param name="formaturaId">Turma que contrata.</param>
-    public static async Task Contratar(this ApiFactory fabrica, Guid formaturaId, CancellationToken ct)
+    /// <param name="codigo">Um plano do catálogo em particular, para quem testa o que cada um libera.</param>
+    public static async Task Contratar(this ApiFactory fabrica, Guid formaturaId, CancellationToken ct, string? codigo = null)
     {
         await using var contexto = fabrica.ContextoDe(formaturaId);
 
         var plano = await contexto
-            .Planos.Where(p => p.Ativo)
+            .Planos.Where(p => p.Ativo && (codigo == null || p.Codigo == codigo))
             .OrderByDescending(p => p.Modulos.Count)
             .ThenByDescending(p => p.LimiteDeFormandos)
             .FirstAsync(ct);
@@ -114,6 +115,20 @@ public static class FormaturaDeTeste
         assinatura.ConfirmarPagamento(DateTime.UtcNow, plano.Ciclo);
 
         contexto.Assinaturas.Add(assinatura);
+        await contexto.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Vence a assinatura da turma: ela volta ao gratuito, mesmo tendo pago um dia (Sprint 45, P3).</summary>
+    /// <remarks>Só a assinatura. A suspensão da turma, que o worker faria junto, não é o que os testes daqui olham.</remarks>
+    /// <param name="fabrica">API de teste.</param>
+    /// <param name="formaturaId">Turma contratada.</param>
+    public static async Task VencerAssinatura(this ApiFactory fabrica, Guid formaturaId, CancellationToken ct)
+    {
+        await using var contexto = fabrica.ContextoDe(formaturaId);
+
+        var assinatura = await contexto.Assinaturas.SingleAsync(ct);
+        assinatura.Vencer().Sucesso.ShouldBeTrue();
+
         await contexto.SaveChangesAsync(ct);
     }
 

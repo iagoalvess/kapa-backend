@@ -25,7 +25,6 @@ public sealed record ConvitePublico(string Turma, string Instituicao, string Pap
 /// <param name="UsosMaximos">Limite de aceites; nulo é ilimitado.</param>
 /// <param name="UsosFeitos">Quantas pessoas entraram por ele.</param>
 /// <param name="Status">Situação agora.</param>
-/// <param name="CriadoEm">Criação, em UTC.</param>
 /// <param name="Link">Endereço do link da turma vigente, para copiar de novo. Nulo no nominal e no link que já não vale.</param>
 public sealed record ConviteResumo(
     Guid Id,
@@ -35,7 +34,6 @@ public sealed record ConviteResumo(
     int? UsosMaximos,
     int UsosFeitos,
     StatusDoConvite Status,
-    DateTime CriadoEm,
     string? Link
 );
 
@@ -45,7 +43,5 @@ public sealed record ConviteResumo(
 public sealed record CriarConvite(string? Email, string? Papel);
 
 /// <summary>Convite recém-criado, com o link. No nominal, é a única vez que ele aparece.</summary>
-/// <param name="Id">Identificador.</param>
 /// <param name="Link">Endereço de aceite, com o token.</param>
-/// <param name="ExpiraEm">Validade, em UTC.</param>
-public sealed record ConviteCriado(Guid Id, string Link, DateTime ExpiraEm);
+public sealed record ConviteCriado(string Link);

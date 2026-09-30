@@ -55,7 +55,6 @@ public sealed record SincronizacaoRequestDTO(IReadOnlyList<EntradaSemRedeDTO>? E
 /// <param name="Completo">Se hora e local estão definidos (P6).</param>
 /// <param name="FechamentoDaLista">Até quando o formando troca nomes: 24 h antes (P5).</param>
 /// <param name="JanelaAbreEm">Quando a validação na porta abre: 6 h antes (P7).</param>
-/// <param name="JanelaFechaEm">Quando ela fecha: 12 h depois.</param>
 public sealed record EventoDoConviteDTO(
     Guid Id,
     TipoDeEvento Tipo,
@@ -65,8 +64,7 @@ public sealed record EventoDoConviteDTO(
     string? Local,
     bool Completo,
     DateTime FechamentoDaLista,
-    DateTime JanelaAbreEm,
-    DateTime JanelaFechaEm
+    DateTime JanelaAbreEm
 );
 
 /// <summary>A página pública do convite.</summary>

@@ -26,6 +26,17 @@ public sealed record PlanoResumo(
     bool Recomendado
 );
 
+/// <summary>O plano que vale para a turma agora: o que a tela lê para trancar área.</summary>
+/// <remarks>
+/// Diferente de <see cref="AssinaturaDetalhe"/>, que é a assinatura (e não existe no gratuito): aqui sempre há
+/// resposta, porque toda turma tem um plano valendo — o contratado ou o gratuito (Sprint 45).
+/// </remarks>
+/// <param name="Codigo">Código do plano, como no catálogo.</param>
+/// <param name="Nome">Nome exibido.</param>
+/// <param name="Modulos">Módulos que o plano libera, pelos códigos de <see cref="Modulo"/>.</param>
+/// <param name="Pago">Se é um plano contratado em vigor. Falso é o gratuito, e a turma vencida volta a ele.</param>
+public sealed record PlanoDaTurma(string Codigo, string Nome, IReadOnlyList<string> Modulos, bool Pago);
+
 /// <summary>A assinatura mais recente da formatura.</summary>
 /// <param name="Id">Identificador.</param>
 /// <param name="Status">Situação.</param>
@@ -33,7 +44,6 @@ public sealed record PlanoResumo(
 /// <param name="VigenteAte">Fim da vigência paga, em UTC.</param>
 /// <param name="ProximaCobrancaEm">Próxima cobrança automática, em UTC. Nulo se não houver renovação por vir.</param>
 /// <param name="CanceladaEm">Quando a renovação foi cancelada, em UTC.</param>
-/// <param name="CriadoEm">Início do checkout, em UTC.</param>
 /// <param name="Meio">Cartão recorrente ou PIX avulso.</param>
 /// <param name="ProximoPlano">Plano que vale a partir da próxima renovação, quando a turma agendou a descida.</param>
 /// <param name="CartaoAguardandoAutorizacao">Se a troca para o cartão espera a autorização na página do provedor.</param>
@@ -44,7 +54,6 @@ public sealed record AssinaturaDetalhe(
     DateTime? VigenteAte,
     DateTime? ProximaCobrancaEm,
     DateTime? CanceladaEm,
-    DateTime CriadoEm,
     MeioDePagamento Meio,
     PlanoResumo? ProximoPlano,
     bool CartaoAguardandoAutorizacao
@@ -84,8 +93,7 @@ public sealed record IniciarCheckout(string PlanoCodigo, MeioDePagamento? Meio =
 
 /// <summary>O que a troca de plano ou de meio deu.</summary>
 /// <param name="Url">Página do provedor para pagar a diferença ou autorizar o cartão; nula quando nada precisa ser pago agora.</param>
-/// <param name="Assinatura">A assinatura depois da troca.</param>
-public sealed record ResultadoDaTroca(string? Url, AssinaturaDetalhe Assinatura);
+public sealed record ResultadoDaTroca(string? Url);
 
 /// <summary>O que o provedor precisa para montar a página de pagamento.</summary>
 /// <remarks>

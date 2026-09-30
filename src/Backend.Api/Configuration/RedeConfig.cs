@@ -1,7 +1,5 @@
 using System.Net;
 using Microsoft.AspNetCore.HttpOverrides;
-// Os dois namespaces declaram IPNetwork. O do ASP.NET está obsoleto desde o .NET 10;
-// KnownIPNetworks espera o da BCL.
 using IPNetwork = System.Net.IPNetwork;
 
 namespace Backend.Api.Configuration;
@@ -20,6 +18,10 @@ namespace Backend.Api.Configuration;
 /// rate limit passa a ser mandar um valor diferente a cada requisição. Por isso a lista de
 /// proxies é explícita e, <b>vazia, o tratamento não é ligado</b> — o padrão seguro é ignorar o
 /// cabeçalho, não adivinhar.
+/// </para>
+/// <para>
+/// <c>IPNetwork</c> aqui é o da BCL, pelo alias no topo: o ASP.NET declara outro, obsoleto desde o .NET 10, e
+/// <c>KnownIPNetworks</c> espera o da BCL.
 /// </para>
 /// </remarks>
 public static class RedeConfig

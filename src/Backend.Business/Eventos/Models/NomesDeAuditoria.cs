@@ -25,6 +25,18 @@ public static class NomesDeAuditoria
     /// <summary>Estorno de baixa: desfaz um recebimento já registrado.</summary>
     public const string PagamentoEstornado = "pagamento.estornado";
 
+    /// <summary>Parcela cancelada à mão pela tesouraria, com justificativa (Sprint 42, decisão 8).</summary>
+    public const string ParcelaCancelada = "pagamento.parcela_cancelada";
+
+    /// <summary>A comissão devolveu um valor ao formando e anexou o comprovante: a saída entrou no caixa (Sprint 42, decisão 2).</summary>
+    public const string ValorDevolvido = "pagamento.valor_devolvido";
+
+    /// <summary>A comissão resolveu um pagamento do Mercado Pago que não tinha parcela para baixar (Sprint 42, decisão 9).</summary>
+    public const string PagoSemParcelaResolvido = "pagamento.pago_sem_parcela_resolvido";
+
+    /// <summary>Turma suspensa há um ano encerrada pela retenção, com as pendências que ficaram abertas (Sprint 42, decisão 7).</summary>
+    public const string EncerradaPorAbandono = "formatura.encerrada_por_abandono";
+
     /// <summary>Primeira gravação da conta que recebe o dinheiro da turma.</summary>
     public const string ContaCadastrada = "recebimento.conta_cadastrada";
 
@@ -162,6 +174,10 @@ public static class NomesDeAuditoria
     [
         PagamentoBaixado,
         PagamentoEstornado,
+        ParcelaCancelada,
+        ValorDevolvido,
+        PagoSemParcelaResolvido,
+        EncerradaPorAbandono,
         ContaCadastrada,
         ContaAlterada,
         AvisoExcluido,

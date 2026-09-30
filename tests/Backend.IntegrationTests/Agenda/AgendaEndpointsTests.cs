@@ -289,7 +289,6 @@ public sealed class AgendaEndpointsTests(ApiFactory fabrica)
         var resumo = await Resumir(presidente, Ct);
 
         // Quatro ainda vêm (a de hoje conta, a cancelada não), e só três cabem na home.
-        resumo.Total.ShouldBe(4);
         resumo.Proximos.Select(evento => evento.Titulo).ShouldBe(["Hoje mesmo", "Prova da beca", "Colação de grau"]);
     }
 
@@ -300,7 +299,6 @@ public sealed class AgendaEndpointsTests(ApiFactory fabrica)
 
         var resumo = await Resumir(formando, Ct);
 
-        resumo.Total.ShouldBe(0);
         resumo.Proximos.ShouldBeEmpty();
     }
 

@@ -8,13 +8,6 @@ using Backend.Business.Notificacoes.Models;
 namespace Backend.Business.Notificacoes.Services;
 
 /// <summary>
-/// Uma parcela e quanto ela vale hoje — o que entra na mensagem.
-/// </summary>
-/// <param name="Parcela">A parcela alcançada pelo degrau.</param>
-/// <param name="Valor">O valor do dia, pelas regras do snapshot da adesão do dono.</param>
-public sealed record ParcelaNaMensagem(ParcelaParaCobranca Parcela, ValorDoDia Valor);
-
-/// <summary>
 /// Transforma o texto do degrau na mensagem que sai.
 /// </summary>
 /// <remarks>

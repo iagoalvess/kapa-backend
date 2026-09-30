@@ -114,10 +114,10 @@ public sealed class CancelamentoTests
     [Fact]
     public void Pendencias_descrevem_so_o_que_falta_no_singular_e_no_plural()
     {
-        var pendencias = new PendenciasDaTurma(2, 0, 0, 0, 1, 0, 0);
+        var pendencias = new PendenciasDaTurma(2, 0, 0, 0, 1, 0, 0, 2);
 
         pendencias.Alguma.ShouldBeTrue();
-        pendencias.Descrever().ShouldBe(["2 parcelas em aberto", "1 compra da loja a devolver"]);
-        new PendenciasDaTurma(0, 0, 0, 0, 0, 0, 0).Alguma.ShouldBeFalse();
+        pendencias.Descrever().ShouldBe(["2 parcelas em aberto", "1 compra da loja a devolver", "2 valores a devolver a formandos"]);
+        new PendenciasDaTurma(0, 0, 0, 0, 0, 0, 0, 0).Alguma.ShouldBeFalse();
     }
 }

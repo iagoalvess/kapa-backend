@@ -72,7 +72,6 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
                 assinatura.VigenteAte,
                 assinatura.Status == StatusDaAssinatura.Ativa ? assinatura.VigenteAte : null,
                 assinatura.CanceladaEm,
-                assinatura.CriadoEm,
                 assinatura.Meio,
                 proximo == null
                     ? null

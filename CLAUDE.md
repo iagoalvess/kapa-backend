@@ -64,6 +64,13 @@ porquê lá:
 - `ConviteDoEventoRepository.EmitirDaCompra` e `CompraDeConviteRepository.ReservarNoItem`/`Expirar`/`TravarChave`
   — instruções condicionais na transação de quem chama: a garantia contra vender além do estoque e devolver
   em dobro mora no `WHERE` (Sprint 26, decisões 7 e 8). `DescartarDadosDeTodasAsFormaturas` — limpeza do worker.
+- `CompraDeConviteRepository.DevolverAoItem` — `reservados = reservados - q` numa instrução, na transação de quem
+  chama, pela mesma razão do `ReservarNoItem`: é a linha que a abertura de vendas disputa (Sprint 38, decisão 1).
+- `ConviteDoEventoRepository.EmitirDaCota` — `INSERT … SELECT … ON CONFLICT DO NOTHING` para a turma inteira: a
+  garantia contra cota em dobro é o índice único (Sprint 30, P1).
+- `AssinaturaRepository.RegistrarSeNovo` e `ProvedorDaTurmaRepository.ReservarEmissao` — `INSERT … ON CONFLICT DO
+  NOTHING` contra o índice único: a entrega repetida do evento e a segunda aba perdem a corrida sem erro, e a reserva
+  da emissão precisa estar gravada antes da chamada ao Mercado Pago (Sprint 25, decisão 12a).
 - `RetencaoDeFormaturasRepository.ApagarDados` — `ExecuteDeleteAsync` tabela a tabela, na transação
   de quem chama, com o escopo apontado para a turma: eliminar uma turma vencida sem carregá-la inteira.
   Entidade nova da formatura entra em `Apagadas` ou `Mantidas`, e um teste quebra até isso acontecer.

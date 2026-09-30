@@ -4,7 +4,6 @@ using Backend.Business.Usuarios.Models;
 using Backend.Data;
 using Backend.Data.Context;
 using Backend.Worker.Jobs;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Backend.Worker.Configuration;

@@ -26,11 +26,13 @@ namespace Backend.Business.Pagamentos.Services;
 /// <param name="eventos">Auditoria.</param>
 /// <param name="emails">Aviso ao formando.</param>
 /// <param name="quitacao">O que o pedido faz quando a parcela dele é paga — o convite da festa nasce ali.</param>
+/// <param name="valoresADevolver">O que a comissão tinha a devolver da parcela cancelada, abatido no estorno (Sprint 42, F2).</param>
 public sealed class BaixaService(
     IRecebimentoRepository recebimentoRepository,
     IEventoRepository eventos,
     EmailsDePagamento emails,
-    IQuitacaoDePedidos quitacao
+    IQuitacaoDePedidos quitacao,
+    ValoresADevolver valoresADevolver
 )
 {
     /// <summary>Evento da baixa, com autor, IP, valores e origem — lido pela trilha de auditoria (Sprint 14).</summary>
@@ -121,6 +123,11 @@ public sealed class BaixaService(
     /// Dois caminhos passam por aqui: o estorno do Presidente e o do Mercado Pago que devolveu o dinheiro — a
     /// contestação no cartão ou a devolução no painel (Sprint 39, P4). Como <see cref="Baixar"/>, não salva, e quem
     /// chama já travou a parcela.
+    /// <para>
+    /// A parcela cancelada com pagamento também estorna (Sprint 42, F2): continua cancelada, e o que a comissão tinha a
+    /// devolver dela diminui do mesmo valor — o dinheiro voltou por outro caminho. O formando não é avisado de parcela
+    /// que volta a ser devida, porque ela não volta.
+    /// </para>
     /// </remarks>
     /// <param name="parcela">Parcela travada.</param>
     /// <param name="recebimento">A baixa ativa dela, rastreada.</param>
@@ -144,6 +151,7 @@ public sealed class BaixaService(
 
         recebimento.Estornar(usuarioId, justificativa, DateTime.UtcNow);
         await quitacao.AposEstorno(parcela, ct);
+        await valoresADevolver.AposEstorno(parcela, recebimento.ValorEmCentavos, recebimento.JustificativaDoEstorno!, ct);
 
         await eventos.Auditar(
             EventoDeEstorno,
@@ -160,7 +168,7 @@ public sealed class BaixaService(
             ct
         );
 
-        if (contexto.EmailDoFormando is { } email)
+        if (contexto.EmailDoFormando is { } email && parcela.Status != StatusDaParcela.Cancelada)
             await emails.Estornado(
                 email,
                 contexto.NomeDaTurma,

@@ -1,6 +1,5 @@
 using Backend.Api.Configuration;
 using Backend.Business;
-using Backend.Business.Assinaturas.Settings;
 using Backend.Data;
 using Backend.Data.Seed;
 
@@ -23,24 +22,7 @@ app.UseDocumentacao();
 
 app.MapHealthChecks("/health").AllowAnonymous();
 
-// Seed em produção é a conta de administrador com senha de arquivo de configuração — e é assim
-// que um produto estreia com credencial conhecida. A conta inicial de produção é criada uma vez,
-// à mão (checklist da Sprint 16). Recusar na subida, e não ignorar em silêncio, é de propósito:
-// quem deixou a chave ligada precisa descobrir no deploy, não seis meses depois.
-if (app.Environment.IsProduction() && app.Configuration.GetValue<bool>("Seed:AoIniciar"))
-{
-    throw new InvalidOperationException(
-        "'Seed:AoIniciar' não pode ficar ligado em produção: a conta inicial é criada manualmente. Ver docs/operacao.md."
-    );
-}
-
-// O provedor fake ativa qualquer turma sem cobrar nada: em produção ele é um buraco, não um modo de teste (Sprint 37).
-if (app.Environment.IsProduction() && app.Configuration.GetValue("Assinaturas:Provedor", EProvedorDeAssinatura.Fake) == EProvedorDeAssinatura.Fake)
-{
-    throw new InvalidOperationException(
-        "'Assinaturas:Provedor' não pode ser Fake em produção: configure MercadoPago e o token da conta do Kapa. Ver docs/deploy.md."
-    );
-}
+app.RecusarConfiguracaoInseguraDeProducao();
 
 if (app.Configuration.GetValue<bool>("Seed:AoIniciar"))
 {

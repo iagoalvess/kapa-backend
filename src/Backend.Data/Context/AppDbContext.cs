@@ -145,6 +145,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Entradas no caixa: as parcelas baixadas, com o valor e quem baixou.</summary>
     public DbSet<Recebimento> Recebimentos => Set<Recebimento>();
 
+    /// <summary>A lista "a devolver" da tesouraria (Sprint 42).</summary>
+    public DbSet<ValorADevolver> ValoresADevolver => Set<ValorADevolver>();
+
     /// <summary>Fornecedores contratados por cada formatura.</summary>
     public DbSet<Fornecedor> Fornecedores => Set<Fornecedor>();
 

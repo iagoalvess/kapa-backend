@@ -4,6 +4,7 @@ using Backend.Api.DTOs.Festa;
 using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Agenda.Models;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Mapster;
@@ -24,6 +25,7 @@ namespace Backend.Api.Controllers.V1.Festa;
 /// <param name="portaria">Regras da porta.</param>
 /// <param name="usuarioAtual">Quem valida.</param>
 [ApiVersion("1.0")]
+[ExigeModulo(Modulo.Festa)]
 [Route("api/v{version:apiVersion}/festa")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 [Authorize(Policy = Politicas.Gestao)]

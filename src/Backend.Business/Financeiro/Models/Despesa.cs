@@ -73,9 +73,6 @@ public class Despesa : EntidadeDaFormatura
     /// <summary>Comprovante do pagamento. Obrigatório na paga (decisão 3).</summary>
     public Guid? ComprovanteArquivoId { get; private set; }
 
-    /// <summary>Se ainda vai sair dinheiro por esta linha.</summary>
-    public bool EmAberto => Status == StatusDaDespesa.Prevista;
-
     /// <summary>Uma linha da parcelada — ou a despesa inteira, quando é à vista.</summary>
     /// <param name="dados">Dados já validados do lançamento.</param>
     /// <param name="lancamentoId">O lançamento, o mesmo para todas as linhas desta chamada.</param>
@@ -140,6 +137,28 @@ public class Despesa : EntidadeDaFormatura
             Vencimento = pagoEm,
             Status = StatusDaDespesa.Paga,
             PagoEm = pagoEm,
+        };
+
+    /// <summary>
+    /// O PIX de volta a um formando (Sprint 42, decisão 2): já paga, com o comprovante, no dia em que a comissão
+    /// registrou. É a saída que faz o caixa fechar — o recebimento que trouxe o dinheiro continua lá.
+    /// </summary>
+    /// <param name="descricao">A quem e de onde.</param>
+    /// <param name="valorEmCentavos">O devolvido.</param>
+    /// <param name="pagoEm">Dia da devolução.</param>
+    /// <param name="comprovanteArquivoId">Comprovante do PIX.</param>
+    public static Despesa DevolucaoAoFormando(string descricao, long valorEmCentavos, DateOnly pagoEm, Guid comprovanteArquivoId) =>
+        new()
+        {
+            LancamentoId = Guid.CreateVersion7(),
+            Descricao = descricao,
+            Categoria = CategoriaDeDespesa.Outros,
+            ValorEmCentavos = valorEmCentavos,
+            Competencia = PrimeiroDoMes(pagoEm),
+            Vencimento = pagoEm,
+            Status = StatusDaDespesa.Paga,
+            PagoEm = pagoEm,
+            ComprovanteArquivoId = comprovanteArquivoId,
         };
 
     /// <summary>Registra a saída do dinheiro, com o comprovante.</summary>

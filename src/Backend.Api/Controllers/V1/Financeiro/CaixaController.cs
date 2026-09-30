@@ -15,8 +15,10 @@ namespace Backend.Api.Controllers.V1.Financeiro;
 /// Quanto a turma tem, quanto ainda entra e quanto ainda sai.
 /// </summary>
 /// <remarks>
-/// Leitura da gestão inteira — Presidente, Tesoureiro e Comissão —, porque é com este número que a
-/// comissão decide contratar. Só leitura: nada aqui grava, e saldo não é coluna (decisão 1).
+/// O consolidado e a arrecadação são de todo membro — prestação de contas, só somas; a projeção, com o
+/// planejamento das despesas, é da gestão, porque é com ela que a comissão decide contratar. O menu esconde
+/// o Caixa do formando, mas a leitura pela API é dele por direito. Só leitura: nada aqui grava, e saldo não
+/// é coluna (decisão 1).
 /// </remarks>
 /// <param name="caixaService">Agregações do caixa.</param>
 [ApiVersion("1.0")]

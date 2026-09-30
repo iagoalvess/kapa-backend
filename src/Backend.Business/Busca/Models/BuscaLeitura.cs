@@ -58,9 +58,6 @@ public sealed record BuscaNaTurma(
     IReadOnlyList<ResultadoDaBusca> Documentos
 )
 {
-    /// <summary>Nada encontrado em grupo nenhum.</summary>
-    public bool Vazia => Membros.Count + Despesas.Count + Fornecedores.Count + Avisos.Count + Documentos.Count == 0;
-
     /// <summary>O resultado de quem digitou pouco — dois caracteres não recortam nada.</summary>
     public static BuscaNaTurma Nada => new([], [], [], [], []);
 }
