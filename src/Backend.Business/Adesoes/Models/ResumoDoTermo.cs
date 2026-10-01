@@ -21,10 +21,4 @@ public class ResumoDoTermo
 
     /// <summary>O texto como o modelo devolveu, aparado.</summary>
     public string Texto { get; init; } = string.Empty;
-
-    /// <summary>Id do modelo que respondeu — para saber a quem culpar.</summary>
-    public string Modelo { get; init; } = string.Empty;
-
-    /// <summary>Quando foi gerado, em UTC.</summary>
-    public DateTime GeradoEm { get; init; }
 }

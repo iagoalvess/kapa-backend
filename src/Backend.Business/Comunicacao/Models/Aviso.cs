@@ -40,9 +40,6 @@ public class Aviso : EntidadeDaFormatura
     /// <remarks>Diferente de <see cref="Fixado"/>: fixar é posição no mural; destaque é urgência.</remarks>
     public bool Destaque { get; private set; }
 
-    /// <summary>Quando foi publicado, em UTC. Não muda na correção.</summary>
-    public DateTime PublicadoEm { get; private set; }
-
     /// <summary>Quem publicou.</summary>
     public Guid PublicadoPorUsuarioId { get; private set; }
 
@@ -53,7 +50,6 @@ public class Aviso : EntidadeDaFormatura
     {
         var aviso = new Aviso { PublicadoPorUsuarioId = autorId };
 
-        aviso.PublicadoEm = aviso.CriadoEm;
         aviso.Aplicar(dados);
 
         return aviso;
@@ -62,7 +58,7 @@ public class Aviso : EntidadeDaFormatura
     /// <summary>
     /// Corrige o aviso.
     /// </summary>
-    /// <remarks>Autor e data de publicação ficam: a correção aparece em <c>AtualizadoEm</c>.</remarks>
+    /// <remarks>Autor e <c>CriadoEm</c> ficam: a correção aparece em <c>AtualizadoEm</c>.</remarks>
     /// <param name="dados">Dados já validados.</param>
     public void Aplicar(DadosDoAviso dados)
     {

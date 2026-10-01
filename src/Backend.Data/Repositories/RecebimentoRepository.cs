@@ -90,7 +90,7 @@ public sealed class RecebimentoRepository(AppDbContext db) : IRecebimentoReposit
         var desc = paginacao.Descendente;
         var ordenada = paginacao.OrdenarPor switch
         {
-            "pagoEm" => consulta.Por(x => x.recebimento.PagoEm, desc),
+            "pago_em" => consulta.Por(x => x.recebimento.PagoEm, desc),
             "devido" => consulta.Por(x => x.recebimento.DevidoEmCentavos, desc),
             "recebido" => consulta.Por(x => x.recebimento.ValorEmCentavos, desc),
             "baixa" => consulta.Por(x => x.recebimento.BaixadoEm, desc),

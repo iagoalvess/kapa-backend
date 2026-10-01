@@ -141,15 +141,15 @@ public sealed class AvisoServiceTests
     }
 
     [Fact]
-    public void A_correcao_nao_muda_autor_nem_data_de_publicacao()
+    public void A_correcao_nao_muda_autor_nem_data_de_criacao()
     {
         var aviso = Aviso.Novo(Dados(), UsuarioId);
-        var publicadoEm = aviso.PublicadoEm;
+        var criadoEm = aviso.CriadoEm;
 
         aviso.Aplicar(Dados() with { Titulo = "Outro título", Visibilidade = Visibilidade.SomenteComissao });
 
         aviso.PublicadoPorUsuarioId.ShouldBe(UsuarioId);
-        aviso.PublicadoEm.ShouldBe(publicadoEm);
+        aviso.CriadoEm.ShouldBe(criadoEm);
         aviso.Visibilidade.ShouldBe(Visibilidade.SomenteComissao);
     }
 }

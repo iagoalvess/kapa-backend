@@ -104,7 +104,7 @@ public sealed class PerfilService(
             return Result.Falha<PerfilDetalhe>(arquivo.Erros);
 
         var perfil = await ObterOuCriar(membro.VinculoId, ct);
-        var anterior = perfil.TrocarFoto(arquivo.Valor.Id);
+        var anterior = perfil.TrocarFoto(arquivo.Valor);
 
         await unitOfWork.SalvarAsync(ct);
 

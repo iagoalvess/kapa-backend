@@ -28,7 +28,7 @@ public sealed class CapturaDeEventosTests(ApiFactory fabrica)
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task Uma_acao_marcada_grava_o_evento_com_usuario_e_rota()
+    public async Task Uma_acao_marcada_grava_o_evento_com_usuario_e_dados()
     {
         var clienteAlvo = fabrica.CreateClient();
         var alvo = await clienteAlvo.RegistrarUsuarioComum(Ct);
@@ -47,7 +47,6 @@ public sealed class CapturaDeEventosTests(ApiFactory fabrica)
 
         evento.ShouldNotBeNull();
         evento.UsuarioId.ShouldBe(administradorId);
-        evento.Rota.ShouldBe("PUT /api/v{version:apiVersion}/usuarios/{id:guid}/perfis");
         evento.Dados.ShouldNotBeNull();
         evento.Dados!.ShouldContain(usuarioAlvoId.ToString());
     }

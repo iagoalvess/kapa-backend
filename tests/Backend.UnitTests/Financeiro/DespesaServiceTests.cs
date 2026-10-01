@@ -38,21 +38,7 @@ public sealed class DespesaServiceTests
     public DespesaServiceTests()
     {
         _fornecedores.ObterCategoria(FornecedorId, Arg.Any<CancellationToken>()).Returns(CategoriaDeDespesa.Buffet);
-        _arquivos
-            .Enviar(Arg.Any<NovoArquivo>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(
-                Result.Ok(
-                    new ArquivoResumo(
-                        Guid.CreateVersion7(),
-                        "comprovante.pdf",
-                        "application/pdf",
-                        10,
-                        "comprovantes-despesa",
-                        UsuarioId,
-                        DateTime.UtcNow
-                    )
-                )
-            );
+        _arquivos.Enviar(Arg.Any<NovoArquivo>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Result.Ok(Guid.CreateVersion7()));
         _despesas
             .Obter(Arg.Any<Guid>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
             .Returns(chamada => Resumo(chamada.Arg<Guid>(), StatusDaDespesa.Prevista));

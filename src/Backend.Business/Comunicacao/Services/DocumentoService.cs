@@ -272,7 +272,7 @@ public sealed class DocumentoService(
 
         var enviado = await arquivoService.Enviar(arquivo with { Categoria = CategoriaDoArquivo }, usuarioId, ct);
 
-        return enviado.Falhou ? Result.Falha<Guid>(enviado.Erros) : enviado.Valor.Id;
+        return enviado.Falhou ? Result.Falha<Guid>(enviado.Erros) : enviado.Valor;
     }
 
     /// <summary>Apaga o arquivo que saiu do acervo. Falhar vira log: sobra um órfão, e o documento já está certo.</summary>

@@ -45,7 +45,6 @@ public sealed record EstornarPagamentoRequestDTO(ModoDeEstorno Modo);
 /// <summary>A licença da turma.</summary>
 /// <param name="Id">Assinatura.</param>
 /// <param name="PlanoNome">Nome do plano.</param>
-/// <param name="PlanoCodigo">Código do plano.</param>
 /// <param name="LimiteDeFormandos">Quantos formandos o plano comporta.</param>
 /// <param name="Status">Situação da assinatura.</param>
 /// <param name="VigenteAte">Fim da vigência paga, em UTC, ou nulo.</param>
@@ -54,7 +53,6 @@ public sealed record EstornarPagamentoRequestDTO(ModoDeEstorno Modo);
 public sealed record AssinaturaNoSuporteDTO(
     Guid Id,
     string PlanoNome,
-    string PlanoCodigo,
     int LimiteDeFormandos,
     string Status,
     DateTime? VigenteAte,

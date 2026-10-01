@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Arquivos.Models;
 using Backend.Business.Comunicacao.Interfaces;
 using Backend.Business.Comunicacao.Models;
 using Backend.Business.Festa.Interfaces;
@@ -26,14 +27,19 @@ public sealed class ItemDaFestaServiceTests
     private readonly IItemDaFestaRepository _itens = Substitute.For<IItemDaFestaRepository>();
     private readonly IDespesaRepository _despesas = Substitute.For<IDespesaRepository>();
     private readonly IDocumentoRepository _documentos = Substitute.For<IDocumentoRepository>();
+    private readonly IDocumentoService _acervo = Substitute.For<IDocumentoService>();
     private readonly ICaixaRepository _caixa = Substitute.For<ICaixaRepository>();
     private readonly IPropostaRepository _propostas = Substitute.For<IPropostaRepository>();
     private readonly IPerfilRepository _perfis = Substitute.For<IPerfilRepository>();
+    private readonly IFormaturaAtual _formaturaAtual = Substitute.For<IFormaturaAtual>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+
+    private static readonly Guid UsuarioId = Guid.CreateVersion7();
 
     public ItemDaFestaServiceTests()
     {
         _itens.ExisteAlgum(Arg.Any<CancellationToken>()).Returns(true);
+        _formaturaAtual.Id.Returns(Guid.CreateVersion7());
     }
 
     private ItemDaFestaService Servico =>
@@ -41,9 +47,11 @@ public sealed class ItemDaFestaServiceTests
             _itens,
             _despesas,
             _documentos,
+            _acervo,
             _caixa,
             _propostas,
             _perfis,
+            _formaturaAtual,
             new DadosDoItemDaFestaValidator(),
             _unitOfWork,
             NullLogger<ItemDaFestaService>.Instance
@@ -119,7 +127,7 @@ public sealed class ItemDaFestaServiceTests
         _itens.ObterParaEdicao(item.Id, Arg.Any<CancellationToken>()).Returns(item);
 
         // Act
-        var resultado = await Servico.Atualizar(item.Id, Dados(), Ct);
+        var resultado = await Servico.Atualizar(item.Id, Dados(), UsuarioId, null, Ct);
 
         // Assert
         resultado.Falhou.ShouldBeTrue();
@@ -134,7 +142,7 @@ public sealed class ItemDaFestaServiceTests
         _documentos.Obter(documentoDaComissao, PapelNaFormatura.Formando, Arg.Any<CancellationToken>()).Returns((DocumentoResumo?)null);
 
         // Act
-        var resultado = await Servico.Criar(Dados() with { DocumentoId = documentoDaComissao }, Ct);
+        var resultado = await Servico.Criar(Dados() with { DocumentoId = documentoDaComissao }, UsuarioId, null, Ct);
 
         // Assert
         resultado.Falhou.ShouldBeTrue();
@@ -166,11 +174,51 @@ public sealed class ItemDaFestaServiceTests
         _itens.Obter(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Resumo());
 
         // Act
-        var resultado = await Servico.Criar(Dados() with { DocumentoId = contrato }, Ct);
+        var resultado = await Servico.Criar(Dados() with { DocumentoId = contrato }, UsuarioId, null, Ct);
 
         // Assert
         resultado.Sucesso.ShouldBeTrue();
         await _itens.Received(1).Adicionar(Arg.Any<IReadOnlyList<ItemDaFesta>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Contrato_anexado_ao_cadastro_nasce_no_acervo_e_e_ligado_ao_item()
+    {
+        // Arrange
+        var doAcervo = Guid.CreateVersion7();
+        _acervo
+            .Enviar(
+                Arg.Any<Guid>(),
+                Arg.Any<Guid>(),
+                Arg.Is<DadosDoDocumento>(dados => dados.Categoria == CategoriaDeDocumento.Contrato && dados.Visibilidade == Visibilidade.Turma),
+                Arg.Any<NovoArquivo?>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                Result.Ok(
+                    new DocumentoResumo(
+                        doAcervo,
+                        "Buffet",
+                        CategoriaDeDocumento.Contrato,
+                        Visibilidade.Turma,
+                        1,
+                        "contrato.pdf",
+                        "application/pdf",
+                        1024,
+                        DateTime.UtcNow,
+                        null
+                    )
+                )
+            );
+        _itens.Obter(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Resumo());
+
+        // Act
+        var resultado = await Servico.Criar(Dados(), UsuarioId, Contrato("contrato.pdf"), Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        await _itens.Received(1)
+            .Adicionar(Arg.Is<IReadOnlyList<ItemDaFesta>>(lista => lista[0].DocumentoId == doAcervo), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -274,6 +322,8 @@ public sealed class ItemDaFestaServiceTests
     }
 
     private static DadosDoItemDaFesta Dados() => new("Buffet", CategoriaDeDespesa.Buffet, "Open bar de 4 horas", null, TipoDeRateio.Turma, 60_000_00);
+
+    private static NovoArquivo Contrato(string nome) => new(nome, 1024, new MemoryStream([1, 2, 3]), string.Empty);
 
     private static ItemDaFestaResumo Resumo(
         long previsto = 0,

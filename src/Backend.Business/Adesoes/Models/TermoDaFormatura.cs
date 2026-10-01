@@ -24,7 +24,4 @@ public class TermoDaFormatura : EntidadeDaFormatura
 
     /// <summary>A partir de quando vale, em UTC. É o instante da publicação.</summary>
     public DateTime VigenteDesde { get; init; }
-
-    /// <summary>Quem publicou.</summary>
-    public Guid PublicadoPorUsuarioId { get; init; }
 }

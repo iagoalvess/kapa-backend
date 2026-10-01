@@ -67,7 +67,6 @@ public sealed class TermoService(
             Versao = (vigente?.Versao ?? 0) + 1,
             Conteudo = conteudo,
             VigenteDesde = DateTime.UtcNow,
-            PublicadoPorUsuarioId = usuarioId,
         };
 
         await adesaoRepository.AdicionarTermo(termo, ct);

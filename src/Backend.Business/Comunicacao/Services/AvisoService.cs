@@ -187,7 +187,7 @@ public sealed class AvisoService(
                 aviso.Titulo,
                 aviso.Visibilidade,
                 aviso.PublicadoPorUsuarioId,
-                aviso.PublicadoEm,
+                criadoEm = aviso.CriadoEm,
             },
             ct
         );

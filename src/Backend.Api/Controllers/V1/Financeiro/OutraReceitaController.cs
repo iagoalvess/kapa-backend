@@ -23,8 +23,8 @@ namespace Backend.Api.Controllers.V1.Financeiro;
 /// Escrever é da Tesouraria (P1), com a turma ativa; ler é de todo membro, pela mesma razão da
 /// despesa — prestação de contas que só a comissão enxerga não presta contas a ninguém.
 /// <para>
-/// Sem multipart: o comprovante é um documento que já está no acervo, informado por
-/// <c>documento_id</c>, e abre pelo download de lá.
+/// Multipart: o comprovante pode ser enviado junto do lançamento (vira documento do acervo, visível
+/// para a turma) ou escolhido no acervo por <c>documento_id</c>; abre pelo download de lá.
 /// </para>
 /// </remarks>
 /// <param name="outraReceitaService">Regras da receita.</param>
@@ -75,19 +75,23 @@ public sealed class OutraReceitaController(IOutraReceitaService outraReceitaServ
     public async Task<IActionResult> Obter(Guid id, CancellationToken ct) =>
         Responder((await outraReceitaService.ObterPorId(id, ct)).Map(outraReceita => outraReceita.Adapt<OutraReceitaDTO>()));
 
-    /// <summary>Lança a receita, prevista ou já recebida.</summary>
-    /// <remarks>409 <c>financeiro.outra_receita_duplicada</c> no clique repetido.</remarks>
+    /// <summary>Lança a receita, prevista ou já recebida, com o comprovante anexado aqui se houver.</summary>
+    /// <remarks>Multipart: o comprovante vira documento no acervo (visível para a turma) e a receita aponta para ele.</remarks>
     /// <param name="requisicao">Descrição, origem, categoria, valor, data e comprovante.</param>
+    /// <param name="comprovante">Comprovante em PDF ou imagem; opcional.</param>
     [HttpPost]
     [Authorize(Policy = Politicas.Tesouraria)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [Consumes("multipart/form-data")]
     [RegistrarEvento("financeiro.outra_receita_lancada")]
     [ProducesResponseType(typeof(OutraReceitaDTO), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Lancar([FromBody] NovaOutraReceitaRequestDTO requisicao, CancellationToken ct)
+    public async Task<IActionResult> Lancar([FromForm] NovaOutraReceitaRequestDTO requisicao, IFormFile? comprovante, CancellationToken ct)
     {
+        await using var conteudo = comprovante?.OpenReadStream() ?? Stream.Null;
+
         var dados = new NovaOutraReceita(
             requisicao.Descricao ?? string.Empty,
             requisicao.Origem,
@@ -99,26 +103,33 @@ public sealed class OutraReceitaController(IOutraReceitaService outraReceitaServ
         );
 
         return Criado(
-            (await outraReceitaService.Lancar(dados, ct)).Map(outraReceita => outraReceita.Adapt<OutraReceitaDTO>()),
+            (await outraReceitaService.Lancar(dados, usuarioAtual.Id, comprovante.ParaNovoArquivo(conteudo), ct)).Map(outraReceita =>
+                outraReceita.Adapt<OutraReceitaDTO>()
+            ),
             RotaDaOutraReceita,
             dto => dto.Id
         );
     }
 
-    /// <summary>Corrige uma receita lançada — prevista ou recebida.</summary>
+    /// <summary>Corrige uma receita lançada — prevista ou recebida —, com o comprovante anexado aqui se houver.</summary>
+    /// <remarks>Multipart: o comprovante vira documento no acervo (visível para a turma) e a receita aponta para ele.</remarks>
     /// <param name="id">Receita.</param>
     /// <param name="requisicao">Dados novos.</param>
+    /// <param name="comprovante">Comprovante em PDF ou imagem; opcional.</param>
     [HttpPut("{id:guid}")]
     [Authorize(Policy = Politicas.Tesouraria)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [Consumes("multipart/form-data")]
     [RegistrarEvento("financeiro.outra_receita_alterada", CamposDaRota = ["id"])]
     [ProducesResponseType(typeof(OutraReceitaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Atualizar(Guid id, [FromBody] AtualizarOutraReceitaRequestDTO requisicao, CancellationToken ct)
+    public async Task<IActionResult> Atualizar(Guid id, [FromForm] AtualizarOutraReceitaRequestDTO requisicao, IFormFile? comprovante, CancellationToken ct)
     {
+        await using var conteudo = comprovante?.OpenReadStream() ?? Stream.Null;
+
         var dados = new DadosDaOutraReceita(
             requisicao.Descricao ?? string.Empty,
             requisicao.Origem,
@@ -128,7 +139,11 @@ public sealed class OutraReceitaController(IOutraReceitaService outraReceitaServ
             requisicao.DocumentoId
         );
 
-        return Responder((await outraReceitaService.Atualizar(id, dados, ct)).Map(outraReceita => outraReceita.Adapt<OutraReceitaDTO>()));
+        return Responder(
+            (await outraReceitaService.Atualizar(id, dados, usuarioAtual.Id, comprovante.ParaNovoArquivo(conteudo), ct)).Map(outraReceita =>
+                outraReceita.Adapt<OutraReceitaDTO>()
+            )
+        );
     }
 
     /// <summary>Registra a entrada do dinheiro de uma receita prevista.</summary>

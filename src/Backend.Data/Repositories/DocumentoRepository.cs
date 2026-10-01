@@ -21,7 +21,7 @@ public sealed class DocumentoRepository(AppDbContext db) : IDocumentoRepository
     /// <inheritdoc />
     /// <remarks>
     /// Por categoria e título — a tela agrupa por categoria —, ou pelo envio mais recente com
-    /// <c>ordenarPor=enviadoEm</c>, que é o "recentes" do mural. O id desempata.
+    /// <c>ordenar_por=enviado_em</c>, que é o "recentes" do mural. O id desempata.
     /// </remarks>
     public async Task<PaginaDe<DocumentoResumo>> Listar(
         PaginacaoRequest paginacao,
@@ -39,7 +39,7 @@ public sealed class DocumentoRepository(AppDbContext db) : IDocumentoRepository
 
         var ordenada = paginacao.OrdenarPor switch
         {
-            "enviadoEm" => consulta.Por(linha => linha.Arquivo.CriadoEm, paginacao.Descendente),
+            "enviado_em" => consulta.Por(linha => linha.Arquivo.CriadoEm, paginacao.Descendente),
             "titulo" => consulta.Por(linha => linha.Documento.Titulo, paginacao.Descendente),
             _ => consulta.OrderBy(linha => linha.Documento.Categoria).ThenBy(linha => linha.Documento.Titulo),
         };

@@ -81,7 +81,6 @@ public sealed record PagamentoParaNota(
 /// <summary>A licença da turma, como o suporte a vê.</summary>
 /// <param name="Id">Assinatura.</param>
 /// <param name="PlanoNome">Nome do plano contratado.</param>
-/// <param name="PlanoCodigo">Código do plano.</param>
 /// <param name="LimiteDeFormandos">Quantos formandos o plano comporta.</param>
 /// <param name="Status">Situação da assinatura.</param>
 /// <param name="VigenteAte">Até quando a licença paga vale, em UTC, ou nulo.</param>
@@ -90,7 +89,6 @@ public sealed record PagamentoParaNota(
 public sealed record AssinaturaNoSuporte(
     Guid Id,
     string PlanoNome,
-    string PlanoCodigo,
     int LimiteDeFormandos,
     string Status,
     DateTime? VigenteAte,

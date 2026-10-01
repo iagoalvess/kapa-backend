@@ -59,7 +59,7 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         (await membro.Cliente.GetAsync(Itens, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await membro.Cliente.GetAsync(Meta, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        (await membro.Cliente.PostAsJsonAsync(Itens, Novo("Decoração"), Json, Ct)).StatusCode.ShouldBe(escrita);
+        (await membro.Cliente.PostAsync(Itens, ItemMultipart(Novo("Decoração")), Ct)).StatusCode.ShouldBe(escrita);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         var item = await Criar(presidente, Novo("Banda"), Ct);
         var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
 
-        (await formando.Cliente.PutAsJsonAsync($"{Itens}/{item.Id}", Novo("Outra banda"), Json, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await formando.Cliente.PutAsync($"{Itens}/{item.Id}", ItemMultipart(Novo("Outra banda")), Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await formando.Cliente.PostAsync($"{Itens}/{item.Id}/cancelamento", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await formando.Cliente.DeleteAsync($"{Itens}/{item.Id}", Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
@@ -314,7 +314,7 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
 
         (await presidente.Cliente.PostAsync($"{Itens}/{item.Id}/cancelamento", null, Ct)).EnsureSuccessStatusCode();
 
-        var correcao = await presidente.Cliente.PutAsJsonAsync($"{Itens}/{item.Id}", Novo("Banda nova"), Json, Ct);
+        var correcao = await presidente.Cliente.PutAsync($"{Itens}/{item.Id}", ItemMultipart(Novo("Banda nova")), Ct);
         correcao.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await correcao.Content.ReadFromJsonAsync<ProblemDetails>(Json, Ct))!.Extensions["codigo"]!.ToString().ShouldBe("festa.item_cancelado");
 
@@ -347,7 +347,7 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         var daTurma = await EnviarDocumento(presidente, "Contrato do buffet", Visibilidade.Turma, Ct);
         var daComissao = await EnviarDocumento(presidente, "Ata da reunião interna", Visibilidade.SomenteComissao, Ct);
 
-        var recusa = await presidente.Cliente.PostAsJsonAsync(Itens, Novo("Buffet") with { DocumentoId = daComissao }, Json, Ct);
+        var recusa = await presidente.Cliente.PostAsync(Itens, ItemMultipart(Novo("Buffet") with { DocumentoId = daComissao }), Ct);
         recusa.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await recusa.Content.ReadFromJsonAsync<ValidationProblemDetails>(Json, Ct))!.Extensions["codigo"]!
             .ToString()
@@ -361,6 +361,30 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
         var comOFormando = await Obter(formando, item.Id, Ct);
         comOFormando.Documento!.Id.ShouldBe(daTurma);
+    }
+
+    /// <summary>O contrato anexado no item nasce no acervo, visível para a turma, e liga ao item.</summary>
+    [Fact]
+    public async Task Contrato_anexado_no_item_nasce_no_acervo()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+
+        var resposta = await presidente.Cliente.PostAsync(
+            Itens,
+            ItemMultipart(Novo("Buffet"), Encoding.UTF8.GetBytes("%PDF-1.4 contrato de teste")),
+            Ct
+        );
+        resposta.EnsureSuccessStatusCode();
+
+        var item = (await resposta.Content.ReadFromJsonAsync<ItemDaFestaDTO>(Json, Ct))!;
+        item.Documento.ShouldNotBeNull();
+        item.Documento!.Titulo.ShouldBe("Buffet");
+
+        // O formando abre o contrato: nasceu visível para a turma.
+        var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+        (await formando.Cliente.GetAsync($"/api/v1/comunicacao/documentos/{item.Documento.Id}/download", Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -403,10 +427,38 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
 
     private static async Task<ItemDaFestaDTO> Criar(MembroDeTeste membro, ItemDaFestaRequestDTO dados, CancellationToken ct)
     {
-        var resposta = await membro.Cliente.PostAsJsonAsync(Itens, dados, Json, ct);
+        var resposta = await membro.Cliente.PostAsync(Itens, ItemMultipart(dados), ct);
         resposta.EnsureSuccessStatusCode();
 
         return (await resposta.Content.ReadFromJsonAsync<ItemDaFestaDTO>(Json, ct))!;
+    }
+
+    /// <summary>O item como multipart, como a tela o envia; o contrato é opcional e nasce no acervo.</summary>
+    private static MultipartFormDataContent ItemMultipart(ItemDaFestaRequestDTO dados, byte[]? contrato = null)
+    {
+        var conteudo = new MultipartFormDataContent
+        {
+            { new StringContent(dados.Titulo ?? string.Empty), "titulo" },
+            { new StringContent(dados.Categoria.ToString()), "categoria" },
+            { new StringContent((dados.Rateio ?? TipoDeRateio.Turma).ToString()), "rateio" },
+            { new StringContent(dados.ValorPrevistoEmCentavos.ToString(CultureInfo.InvariantCulture)), "valorPrevistoEmCentavos" },
+            { new StringContent((dados.QuantidadeEstimada ?? 1).ToString(CultureInfo.InvariantCulture)), "quantidadeEstimada" },
+        };
+
+        if (dados.OQueInclui is not null)
+            conteudo.Add(new StringContent(dados.OQueInclui), "oQueInclui");
+
+        if (dados.DocumentoId is { } documentoId)
+            conteudo.Add(new StringContent(documentoId.ToString()), "documentoId");
+
+        if (contrato is not null)
+        {
+            var arquivo = new ByteArrayContent(contrato);
+            arquivo.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+            conteudo.Add(arquivo, "contrato", "contrato.pdf");
+        }
+
+        return conteudo;
     }
 
     private static async Task<ItemDaFestaDetalheDTO> ObterDetalhe(MembroDeTeste membro, Guid id, CancellationToken ct) =>

@@ -169,12 +169,10 @@ public enum SituacaoDoCartao
 /// tela não tem seletor — é a mesma tela de sempre (decisão 3).
 /// </remarks>
 /// <param name="ValorEmCentavos">O valor do dia, somado quando são várias parcelas.</param>
-/// <param name="Identificador">O identificador da parcela no PIX.</param>
 /// <param name="PeloMercadoPago">Os meios do Mercado Pago da turma, de <see cref="MeiosDePagamento.Ligados"/>; vazio sem conexão.</param>
 /// <param name="Meios">Os meios que a comissão habilitou.</param>
 public sealed record CobrancaDaParcela(
     long ValorEmCentavos,
-    string Identificador,
     IReadOnlyList<PagamentoPeloMercadoPago> PeloMercadoPago,
     IReadOnlyList<MeioDaCobranca> Meios
 );

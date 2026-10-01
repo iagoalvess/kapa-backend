@@ -8,7 +8,6 @@ namespace Backend.Api.DTOs.Admin;
 /// <param name="Kapa">A receita do Kapa: as assinaturas.</param>
 /// <param name="Turmas">O dinheiro das turmas, só agregado. Não é receita do Kapa.</param>
 /// <param name="Uso">Ações gravadas por recurso, da mais usada à menos.</param>
-/// <param name="GeradoEm">Momento da apuração, em UTC (ISO 8601).</param>
 public sealed record AnalyticsDaPlataformaDTO(
     DateOnly De,
     DateOnly Ate,
@@ -16,8 +15,7 @@ public sealed record AnalyticsDaPlataformaDTO(
     TurmasDaPlataformaDTO Formaturas,
     DinheiroDoKapaDTO Kapa,
     DinheiroDasTurmasDTO Turmas,
-    IReadOnlyList<UsoDoRecursoDTO> Uso,
-    DateTime GeradoEm
+    IReadOnlyList<UsoDoRecursoDTO> Uso
 );
 
 /// <summary>As contas da plataforma.</summary>

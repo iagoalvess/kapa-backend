@@ -223,7 +223,7 @@ public sealed class PagamentoService(
                     "O Mercado Pago não respondeu agora. Tente de novo em alguns minutos."
                 );
 
-            return new CobrancaDaParcela(valorEmCentavos, Identificador(parcelaIds[0]), peloMercadoPago, []);
+            return new CobrancaDaParcela(valorEmCentavos, peloMercadoPago, []);
         }
 
         var conta = await contaRepository.ObterDetalhe(ct);
@@ -236,7 +236,6 @@ public sealed class PagamentoService(
 
         return new CobrancaDaParcela(
             valorEmCentavos,
-            identificador,
             [],
             [
                 .. meios.Habilitados.Select(meio =>

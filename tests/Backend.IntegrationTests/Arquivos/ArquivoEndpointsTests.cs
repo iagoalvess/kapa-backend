@@ -12,7 +12,7 @@ namespace Backend.IntegrationTests.Arquivos;
 
 /// <summary>
 /// As fronteiras de acesso do módulo de arquivos contra a API real: download só para
-/// o dono e para o administrador, e 404 — nunca 403 — para o arquivo de terceiro.
+/// o dono, e 404 — nunca 403 — para o arquivo de terceiro, inclusive para o administrador.
 /// </summary>
 /// <remarks>
 /// O arquivo entra pelo endpoint da entidade que o justifica; aqui, a foto do próprio formando. Não

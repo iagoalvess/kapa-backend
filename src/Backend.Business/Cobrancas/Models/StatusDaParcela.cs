@@ -22,7 +22,4 @@ public enum StatusDaParcela
 
     /// <summary>Deixou de ser devida: o item foi encerrado antes de ela vencer.</summary>
     Cancelada,
-
-    /// <summary>Substituída por um acordo (pós-lançamento).</summary>
-    Renegociada,
 }

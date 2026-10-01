@@ -269,12 +269,16 @@ public sealed class CompraDeConviteRepository(AppDbContext db, CifraDeCampo cifr
         if (total == 0)
             return PaginaDe<CompraNaGestao>.Vazia(paginacao);
 
-        var linhas = await consulta
-            .OrderByDescending(linha => linha.Compra.CriadoEm)
-            .ThenBy(linha => linha.Compra.Id)
-            .Skip(paginacao.Pular)
-            .Take(paginacao.Tamanho)
-            .ToListAsync(ct);
+        var desc = paginacao.Descendente;
+        var ordenada = paginacao.OrdenarPor switch
+        {
+            "comprador" => consulta.Por(linha => linha.Compra.NomeDoComprador, desc),
+            "valor" => consulta.Por(linha => linha.Compra.ValorEmCentavos, desc),
+            "comprou_em" => consulta.Por(linha => linha.Compra.CriadoEm, desc),
+            _ => consulta.OrderByDescending(linha => linha.Compra.CriadoEm),
+        };
+
+        var linhas = await ordenada.ThenBy(linha => linha.Compra.Id).Skip(paginacao.Pular).Take(paginacao.Tamanho).ToListAsync(ct);
 
         return new PaginaDe<CompraNaGestao>([.. linhas.Select(NaGestao)], paginacao.Pagina, paginacao.Tamanho, total);
     }

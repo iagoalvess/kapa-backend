@@ -32,7 +32,7 @@ namespace Backend.Api.Controllers.V1.Comunicacao;
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class DocumentoController(IDocumentoService documentoService, IUsuarioAtual usuarioAtual) : MainController
 {
-    /// <summary>O acervo, por categoria, visibilidade e título — ou <c>ordenarPor=enviadoEm</c>, do mais recente com <c>descendente=true</c>.</summary>
+    /// <summary>O acervo, por categoria, visibilidade e título — ou <c>ordenar_por=enviado_em</c>, do mais recente com <c>descendente=true</c>.</summary>
     /// <param name="paginacao">Página e tamanho; o teto é aplicado no servidor.</param>
     /// <param name="filtro">Categoria, visibilidade e busca pelo título.</param>
     [HttpGet]

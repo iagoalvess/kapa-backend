@@ -1,6 +1,5 @@
 using Backend.Business.Adesoes.Models;
 using Backend.Business.Formaturas.Models;
-using Backend.Business.Usuarios.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -28,7 +27,6 @@ public sealed class TermoDaFormaturaMapping : IEntityTypeConfiguration<TermoDaFo
         builder.HasIndex(t => new { t.FormaturaId, t.Versao }).IsUnique();
 
         builder.HasOne<Formatura>().WithMany().HasForeignKey(t => t.FormaturaId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne<Usuario>().WithMany().HasForeignKey(t => t.PublicadoPorUsuarioId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -50,7 +48,6 @@ public sealed class ResumoDoTermoMapping : IEntityTypeConfiguration<ResumoDoTerm
         builder.HasKey(r => r.TermoId);
 
         builder.Property(r => r.Texto).IsRequired();
-        builder.Property(r => r.Modelo).IsRequired().HasMaxLength(200);
 
         builder.HasOne<TermoDaFormatura>().WithOne().HasForeignKey<ResumoDoTermo>(r => r.TermoId).OnDelete(DeleteBehavior.Restrict);
     }

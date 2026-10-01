@@ -54,9 +54,6 @@ public class Evento
     /// </remarks>
     public DateTime OcorridoEm { get; init; } = DateTime.UtcNow;
 
-    /// <summary>Rota HTTP que originou o evento, quando houver.</summary>
-    public string? Rota { get; init; }
-
     /// <summary>Dados adicionais em JSON, gravados como <c>jsonb</c>.</summary>
     public string? Dados { get; init; }
 }

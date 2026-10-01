@@ -441,9 +441,6 @@ public sealed class TesourariaService(
     /// Aberta ou vencida cancela; paga não — o dinheiro entrou, e o caminho é estornar a baixa antes. Aviso pendente
     /// também barra, como na baixa manual: cancelar deixaria na fila um aviso sobre uma parcela que não se deve mais.
     /// O que já tinha entrado nela vai para a lista "a devolver" (decisão 3), na mesma transação.
-    /// <para>
-    /// Renegociar é cancelar e lançar outra avulsa (decisão 8): o status <c>Renegociada</c> continua sem uso.
-    /// </para>
     /// </remarks>
     public async Task<Result<ParcelaResumo>> Cancelar(
         Guid formaturaId,

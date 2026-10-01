@@ -71,12 +71,10 @@ public sealed record PixDinamicoParaPagarDTO(string CopiaECola, DateTime ExpiraE
 /// <summary>A cobrança da parcela, montada na hora: quanto, e por onde a turma aceita receber.</summary>
 /// <remarks>Com um meio só nas duas listas, a tela não desenha seletor — é o caminho de sempre.</remarks>
 /// <param name="ValorEmCentavos">O valor de hoje, somado quando são várias parcelas.</param>
-/// <param name="Identificador">O identificador da parcela no PIX.</param>
 /// <param name="PeloMercadoPago">Os meios do Mercado Pago da turma, primeiro; vazio sem conexão ou se ele falhou.</param>
 /// <param name="Meios">Os meios que a comissão habilitou.</param>
 public sealed record CobrancaDaParcelaDTO(
     long ValorEmCentavos,
-    string Identificador,
     IReadOnlyList<PagamentoPeloMercadoPagoDTO> PeloMercadoPago,
     IReadOnlyList<MeioDaCobrancaDTO> Meios
 );

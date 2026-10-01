@@ -26,9 +26,8 @@ namespace Backend.Api.Analytics;
 /// contá-la inflaria a métrica justamente nos períodos em que algo estava quebrado.
 /// </para>
 /// <para>
-/// <c>Rota</c> guarda o <b>modelo</b> da rota, não o caminho: <c>/convites/{token}/aceitar</c>
-/// com o token real ficaria 180 dias numa tabela de analytics, anulando o "só o hash no banco".
-/// O que precisa do valor vai em <see cref="CamposDaRota"/>, escolhido um a um.
+/// O que precisa do valor do recurso vai em <see cref="CamposDaRota"/>, escolhido um a um: um
+/// token real numa tabela de analytics por 180 dias anularia o "só o hash no banco".
 /// </para>
 /// </remarks>
 /// <param name="nome">Nome do evento, no formato <c>recurso.acao</c>.</param>
@@ -61,7 +60,6 @@ public sealed class RegistrarEventoAttribute(string nome) : Attribute, IAsyncAct
                 Nome = Nome,
                 UsuarioId = usuario?.Autenticado == true ? usuario.Id : null,
                 OcorridoEm = DateTime.UtcNow,
-                Rota = $"{context.HttpContext.Request.Method} /{context.ActionDescriptor.AttributeRouteInfo?.Template}",
                 Dados = MontarDados(context),
             }
         );

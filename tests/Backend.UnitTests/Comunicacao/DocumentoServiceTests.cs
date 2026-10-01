@@ -43,11 +43,7 @@ public sealed class DocumentoServiceTests
     public DocumentoServiceTests()
     {
         _vinculos.ObterPapelAtivo(UsuarioId, FormaturaId, Arg.Any<CancellationToken>()).Returns(PapelNaFormatura.Comissao);
-        _arquivos
-            .Enviar(Arg.Any<NovoArquivo>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(
-                Result.Ok(new ArquivoResumo(NovoArquivoId, "contrato.pdf", "application/pdf", Pdf.Length, "documentos", UsuarioId, DateTime.UtcNow))
-            );
+        _arquivos.Enviar(Arg.Any<NovoArquivo>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Result.Ok(NovoArquivoId));
         _arquivos.Remover(Arg.Any<Guid>(), Arg.Any<SolicitanteDeArquivo>(), Arg.Any<CancellationToken>()).Returns(Result.Ok());
         _documentos.Obter(Arg.Any<Guid>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(chamada => Resumo(chamada.Arg<Guid>()));
     }

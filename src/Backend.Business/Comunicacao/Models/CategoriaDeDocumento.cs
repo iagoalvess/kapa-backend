@@ -23,4 +23,7 @@ public enum CategoriaDeDocumento
 
     /// <summary>O que não cabe nas outras.</summary>
     Outros = 5,
+
+    /// <summary>Comprovante de receita da turma (Sprint 28) — criado junto do lançamento da receita.</summary>
+    Comprovante = 6,
 }

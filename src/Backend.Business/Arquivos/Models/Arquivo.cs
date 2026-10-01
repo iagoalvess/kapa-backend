@@ -39,16 +39,6 @@ public class Arquivo : Entity
     public Guid EnviadoPorId { get; set; }
 }
 
-/// <summary>Arquivo como aparece em listagem.</summary>
-/// <param name="Id">Identificador.</param>
-/// <param name="Nome">Nome original.</param>
-/// <param name="ContentType">Tipo do conteúdo.</param>
-/// <param name="Tamanho">Tamanho em bytes.</param>
-/// <param name="Categoria">Agrupamento lógico.</param>
-/// <param name="EnviadoPorId">Quem enviou.</param>
-/// <param name="CriadoEm">Momento do envio, em UTC.</param>
-public sealed record ArquivoResumo(Guid Id, string Nome, string ContentType, long Tamanho, string Categoria, Guid EnviadoPorId, DateTime CriadoEm);
-
 /// <summary>Quanto um usuário já ocupa, para conferir a cota antes de aceitar mais um envio.</summary>
 /// <param name="Quantidade">Arquivos que o usuário tem hoje.</param>
 /// <param name="Bytes">Soma do tamanho deles.</param>

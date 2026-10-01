@@ -151,7 +151,7 @@ public sealed record SimulacaoDoPlanoDTO(IReadOnlyList<ParcelaSimuladaDTO> Parce
 /// <param name="De">Total de parcelas do item.</param>
 /// <param name="Vencimento">Dia do vencimento.</param>
 /// <param name="ValorOriginalEmCentavos">Valor antes de multa e juros, em centavos.</param>
-/// <param name="Status"><c>Aberta</c>, <c>Vencida</c>, <c>Paga</c>, <c>Cancelada</c> ou <c>Renegociada</c>, no dia de hoje.</param>
+/// <param name="Status"><c>Aberta</c>, <c>Vencida</c>, <c>Paga</c> ou <c>Cancelada</c>, no dia de hoje.</param>
 /// <param name="EmConferencia">Tem aviso de pagamento esperando a tesouraria ("Em conferência" na tela do formando).</param>
 /// <param name="ValorPagoEmCentavos">O que entrou, se paga.</param>
 /// <param name="PagoEm">Dia em que entrou, se paga.</param>

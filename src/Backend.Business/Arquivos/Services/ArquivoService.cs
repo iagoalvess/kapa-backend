@@ -72,19 +72,19 @@ public sealed class ArquivoService(
     /// é uma defesa que as outras três esqueceram.
     /// </para>
     /// </remarks>
-    public async Task<Result<ArquivoResumo>> Enviar(NovoArquivo dados, Guid enviadoPorId, CancellationToken ct = default)
+    public async Task<Result<Guid>> Enviar(NovoArquivo dados, Guid enviadoPorId, CancellationToken ct = default)
     {
         var validacao = validator.Validar(dados);
         if (validacao.Falhou)
-            return Result.Falha<ArquivoResumo>(validacao.Erros);
+            return Result.Falha<Guid>(validacao.Erros);
 
         var conteudo = await ConferirConteudo(dados, ct);
         if (conteudo.Falhou)
-            return Result.Falha<ArquivoResumo>(conteudo.Erros);
+            return Result.Falha<Guid>(conteudo.Erros);
 
         var cota = await ConferirCota(dados.Tamanho, enviadoPorId, ct);
         if (cota.Falhou)
-            return Result.Falha<ArquivoResumo>(cota.Erros);
+            return Result.Falha<Guid>(cota.Erros);
 
         var nome = Path.GetFileName(dados.Nome.Trim());
 
@@ -106,7 +106,7 @@ public sealed class ArquivoService(
 
         logger.LogInformation("Arquivo {ArquivoId} ({Tamanho} bytes) enviado por {UsuarioId}.", arquivo.Id, arquivo.Tamanho, enviadoPorId);
 
-        return Result.Ok(ParaResumo(arquivo));
+        return Result.Ok(arquivo.Id);
     }
 
     /// <inheritdoc />
@@ -331,7 +331,4 @@ public sealed class ArquivoService(
     /// </remarks>
     private static bool PodeAcessar(Arquivo arquivo, SolicitanteDeArquivo solicitante) =>
         solicitante.PeloSistema || arquivo.EnviadoPorId == solicitante.Id;
-
-    private static ArquivoResumo ParaResumo(Arquivo arquivo) =>
-        new(arquivo.Id, arquivo.Nome, arquivo.ContentType, arquivo.Tamanho, arquivo.Categoria, arquivo.EnviadoPorId, arquivo.CriadoEm);
 }

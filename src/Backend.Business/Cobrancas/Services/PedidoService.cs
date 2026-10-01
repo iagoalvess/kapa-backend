@@ -258,8 +258,7 @@ public sealed class PedidoService(
 
         var parcelas = await pedidoRepository.ListarParcelasParaEdicao(pedido, ct);
         var quitado =
-            parcelas.Any(p => p.Status == StatusDaParcela.Paga)
-            && parcelas.All(p => p.Status is StatusDaParcela.Paga or StatusDaParcela.Cancelada or StatusDaParcela.Renegociada);
+            parcelas.Any(p => p.Status == StatusDaParcela.Paga) && parcelas.All(p => p.Status is StatusDaParcela.Paga or StatusDaParcela.Cancelada);
 
         if (!quitado)
             return;

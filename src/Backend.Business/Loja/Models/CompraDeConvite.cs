@@ -49,9 +49,6 @@ public class CompraDeConvite : EntidadeDaFormatura
     /// <summary>Quantos convites.</summary>
     public int Quantidade { get; private set; }
 
-    /// <summary>O preço de uma unidade na hora da compra.</summary>
-    public long ValorUnitarioEmCentavos { get; private set; }
-
     /// <summary>O total cobrado.</summary>
     public long ValorEmCentavos { get; private set; }
 
@@ -148,7 +145,6 @@ public class CompraDeConvite : EntidadeDaFormatura
     {
         ItemDeCobrancaId = dados.ItemDeCobrancaId;
         Quantidade = dados.Quantidade;
-        ValorUnitarioEmCentavos = valorUnitarioEmCentavos;
         ValorEmCentavos = valorUnitarioEmCentavos * dados.Quantidade;
         Meio = dados.Meio;
         NomeDoComprador = dados.Nome.Trim();

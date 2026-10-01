@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -577,12 +578,16 @@ public sealed class PedidoEndpointsTests(ApiFactory fabrica)
 
     private static async Task<ItemDaFestaDTO> ItemDaFesta(MembroDeTeste gestao, TipoDeRateio rateio, long previsto, int estimados)
     {
-        var resposta = await gestao.Cliente.PostAsJsonAsync(
-            "/api/v1/festa/itens",
-            new ItemDaFestaRequestDTO("Fotografia", CategoriaDeDespesa.Fotografia, null, null, rateio, previsto, estimados),
-            Json,
-            Ct
-        );
+        var corpo = new MultipartFormDataContent
+        {
+            { new StringContent("Fotografia"), "titulo" },
+            { new StringContent(nameof(CategoriaDeDespesa.Fotografia)), "categoria" },
+            { new StringContent(rateio.ToString()), "rateio" },
+            { new StringContent(previsto.ToString(CultureInfo.InvariantCulture)), "valorPrevistoEmCentavos" },
+            { new StringContent(estimados.ToString(CultureInfo.InvariantCulture)), "quantidadeEstimada" },
+        };
+
+        var resposta = await gestao.Cliente.PostAsync("/api/v1/festa/itens", corpo, Ct);
         resposta.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         return (await resposta.Content.ReadFromJsonAsync<ItemDaFestaDTO>(Json, Ct))!;

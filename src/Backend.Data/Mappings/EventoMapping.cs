@@ -33,7 +33,6 @@ public sealed class EventoMapping : IEntityTypeConfiguration<Evento>
         builder.HasKey(e => e.Id);
 
         builder.Property(e => e.Nome).IsRequired().HasMaxLength(120);
-        builder.Property(e => e.Rota).HasMaxLength(300);
 
         builder.Property(e => e.Dados).HasColumnType("jsonb");
 

@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Arquivos.Models;
 using Backend.Business.Festa.Models;
 
 namespace Backend.Business.Festa.Interfaces;
@@ -32,12 +33,27 @@ public interface IItemDaFestaService
 
     /// <summary>Cria um item no fim da lista.</summary>
     /// <param name="dados">Título, categoria, o que inclui, rateio e valor.</param>
-    Task<Result<ItemDaFestaResumo>> Criar(DadosDoItemDaFesta dados, CancellationToken ct = default);
+    /// <param name="usuarioId">Quem cria — dono do contrato enviado, se vier arquivo.</param>
+    /// <param name="contrato">Contrato novo, se a comissão o anexou aqui; ausente, vale o <c>DocumentoId</c>.</param>
+    Task<Result<ItemDaFestaResumo>> Criar(
+        DadosDoItemDaFesta dados,
+        Guid usuarioId,
+        NovoArquivo? contrato,
+        CancellationToken ct = default
+    );
 
     /// <summary>Corrige um item.</summary>
     /// <param name="id">Item.</param>
     /// <param name="dados">Dados novos.</param>
-    Task<Result<ItemDaFestaResumo>> Atualizar(Guid id, DadosDoItemDaFesta dados, CancellationToken ct = default);
+    /// <param name="usuarioId">Quem corrige — dono do contrato enviado, se vier arquivo.</param>
+    /// <param name="contrato">Contrato novo, se a comissão o anexou aqui; ausente, vale o <c>DocumentoId</c>.</param>
+    Task<Result<ItemDaFestaResumo>> Atualizar(
+        Guid id,
+        DadosDoItemDaFesta dados,
+        Guid usuarioId,
+        NovoArquivo? contrato,
+        CancellationToken ct = default
+    );
 
     /// <summary>A turma desistiu: o item sai do custo e fica na lista com o selo.</summary>
     /// <param name="id">Item.</param>

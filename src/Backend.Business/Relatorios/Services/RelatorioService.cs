@@ -417,7 +417,6 @@ public sealed class RelatorioService(
             StatusDaParcela.Aberta => "Em aberto",
             StatusDaParcela.Vencida => "Vencida",
             StatusDaParcela.Paga => "Paga",
-            StatusDaParcela.Renegociada => "Renegociada",
             _ => "Cancelada",
         };
 }

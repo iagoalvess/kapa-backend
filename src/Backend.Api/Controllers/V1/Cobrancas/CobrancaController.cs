@@ -188,7 +188,7 @@ public sealed class CobrancaController(ICobrancaService cobrancaService, IConsul
     /// <summary>As parcelas da turma, por vencimento.</summary>
     /// <param name="paginacao">Página e tamanho; o teto é aplicado no servidor.</param>
     /// <param name="usuarioId">Só as deste formando.</param>
-    /// <param name="status">Situação no dia de hoje: <c>Aberta</c>, <c>Vencida</c>, <c>Paga</c>, <c>Cancelada</c> ou <c>Renegociada</c>.</param>
+    /// <param name="status">Situação no dia de hoje: <c>Aberta</c>, <c>Vencida</c>, <c>Paga</c> ou <c>Cancelada</c>.</param>
     /// <param name="de">Vencimento a partir deste dia, <c>aaaa-mm-dd</c>, inclusive.</param>
     /// <param name="ate">Vencimento até este dia, <c>aaaa-mm-dd</c>, inclusive.</param>
     /// <param name="busca">Trecho do nome da conta ou do nome civil do formando.</param>

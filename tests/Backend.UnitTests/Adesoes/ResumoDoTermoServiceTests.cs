@@ -67,9 +67,7 @@ public sealed class ResumoDoTermoServiceTests
                 ),
                 Ct
             );
-        await _adesoes
-            .Received(1)
-            .AdicionarResumo(Arg.Is<ResumoDoTermo>(r => r.TermoId == Termo.Id && r.Texto == "Você paga 12 parcelas." && r.Modelo == "m2"), Ct);
+        await _adesoes.Received(1).AdicionarResumo(Arg.Is<ResumoDoTermo>(r => r.TermoId == Termo.Id && r.Texto == "Você paga 12 parcelas."), Ct);
         await _unitOfWork.Received(1).SalvarAsync(Ct);
     }
 

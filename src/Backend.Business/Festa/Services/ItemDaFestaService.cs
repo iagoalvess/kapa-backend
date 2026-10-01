@@ -1,5 +1,7 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Arquivos.Models;
 using Backend.Business.Comunicacao.Interfaces;
+using Backend.Business.Comunicacao.Models;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Interfaces;
@@ -22,9 +24,11 @@ namespace Backend.Business.Festa.Services;
 /// <param name="itemRepository">Itens da turma.</param>
 /// <param name="despesaRepository">Despesas, para saber se o item está em uso.</param>
 /// <param name="documentoRepository">Acervo, para recusar um contrato que a turma não pode abrir.</param>
+/// <param name="documentoService">Acervo, para criar o contrato enviado junto do cadastro.</param>
 /// <param name="caixaRepository">O arrecadado da turma — o mesmo número da tela do Caixa.</param>
 /// <param name="propostaRepository">As candidatas de cada item, para o painel de detalhe.</param>
 /// <param name="perfilRepository">Vínculo de quem lê, para saber onde está o voto dele.</param>
+/// <param name="formaturaAtual">Turma da sessão, para gravar o contrato no acervo dela.</param>
 /// <param name="validator">Forma do item.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
@@ -32,9 +36,11 @@ public sealed class ItemDaFestaService(
     IItemDaFestaRepository itemRepository,
     IDespesaRepository despesaRepository,
     IDocumentoRepository documentoRepository,
+    IDocumentoService documentoService,
     ICaixaRepository caixaRepository,
     IPropostaRepository propostaRepository,
     IPerfilRepository perfilRepository,
+    IFormaturaAtual formaturaAtual,
     IValidator<DadosDoItemDaFesta> validator,
     IUnitOfWork unitOfWork,
     ILogger<ItemDaFestaService> logger
@@ -126,16 +132,27 @@ public sealed class ItemDaFestaService(
     }
 
     /// <inheritdoc />
-    public async Task<Result<ItemDaFestaResumo>> Criar(DadosDoItemDaFesta dados, CancellationToken ct = default)
+    /// <remarks>
+    /// Se a comissão anexou o contrato aqui, ele nasce no acervo (visível para a turma) e o item já
+    /// aponta para ele; caso contrário vale o documento escolhido. O arquivo é gravado antes do item —
+    /// na falha, sobra um documento órfão no acervo, nunca um item apontando para o que não existe.
+    /// </remarks>
+    public async Task<Result<ItemDaFestaResumo>> Criar(
+        DadosDoItemDaFesta dados,
+        Guid usuarioId,
+        NovoArquivo? contrato,
+        CancellationToken ct = default
+    )
     {
         var validacao = validator.Validar(dados);
         if (validacao.Falhou)
             return Result.Falha<ItemDaFestaResumo>(validacao.Erros);
 
-        if (await DocumentoInvalido(dados, ct))
-            return DocumentoNaoEncontrado;
+        var comContrato = await ComContrato(dados, usuarioId, contrato, ct);
+        if (comContrato.Falhou)
+            return Result.Falha<ItemDaFestaResumo>(comContrato.Erros);
 
-        var item = ItemDaFesta.Novo(dados, await itemRepository.UltimaOrdem(ct) + 1);
+        var item = ItemDaFesta.Novo(comContrato.Valor, await itemRepository.UltimaOrdem(ct) + 1);
 
         await itemRepository.Adicionar([item], ct);
         await unitOfWork.SalvarAsync(ct);
@@ -146,16 +163,23 @@ public sealed class ItemDaFestaService(
     }
 
     /// <inheritdoc />
-    public async Task<Result<ItemDaFestaResumo>> Atualizar(Guid id, DadosDoItemDaFesta dados, CancellationToken ct = default)
+    public async Task<Result<ItemDaFestaResumo>> Atualizar(
+        Guid id,
+        DadosDoItemDaFesta dados,
+        Guid usuarioId,
+        NovoArquivo? contrato,
+        CancellationToken ct = default
+    )
     {
         var validacao = validator.Validar(dados);
         if (validacao.Falhou)
             return Result.Falha<ItemDaFestaResumo>(validacao.Erros);
 
-        if (await DocumentoInvalido(dados, ct))
-            return DocumentoNaoEncontrado;
+        var comContrato = await ComContrato(dados, usuarioId, contrato, ct);
+        if (comContrato.Falhou)
+            return Result.Falha<ItemDaFestaResumo>(comContrato.Erros);
 
-        return await Alterar(id, item => item.Aplicar(dados), ct);
+        return await Alterar(id, item => item.Aplicar(comContrato.Valor), ct);
     }
 
     /// <inheritdoc />
@@ -234,6 +258,46 @@ public sealed class ItemDaFestaService(
     /// <param name="dados">Dados do item.</param>
     private async Task<bool> DocumentoInvalido(DadosDoItemDaFesta dados, CancellationToken ct) =>
         dados.DocumentoId is { } documentoId && await documentoRepository.Obter(documentoId, PapelNaFormatura.Formando, ct) is null;
+
+    /// <summary>
+    /// Resolve o contrato do item: se veio arquivo, ele nasce no acervo e o item aponta para ele;
+    /// senão, vale o <c>DocumentoId</c> informado, conferido contra a turma (decisão 7, revista em
+    /// 01/10/2026 — o contrato continua no acervo, mas a comissão não sai da tela para criá-lo).
+    /// </summary>
+    /// <param name="dados">Dados do item.</param>
+    /// <param name="usuarioId">Quem envia o contrato.</param>
+    /// <param name="contrato">Arquivo anexado aqui, se houver.</param>
+    private async Task<Result<DadosDoItemDaFesta>> ComContrato(
+        DadosDoItemDaFesta dados,
+        Guid usuarioId,
+        NovoArquivo? contrato,
+        CancellationToken ct
+    )
+    {
+        if (contrato is null)
+        {
+            if (await DocumentoInvalido(dados, ct))
+                return DocumentoNaoEncontrado;
+
+            return Result.Ok(dados);
+        }
+
+        var documento = await documentoService.Enviar(
+            FormaturaDaSessao(),
+            usuarioId,
+            new DadosDoDocumento(dados.Titulo.Trim(), CategoriaDeDocumento.Contrato, Visibilidade.Turma),
+            contrato,
+            ct
+        );
+
+        return documento.Falhou
+            ? Result.Falha<DadosDoItemDaFesta>(documento.Erros)
+            : dados with { DocumentoId = documento.Valor.Id };
+    }
+
+    /// <summary>Turma da sessão, que abre o acervo onde o contrato nasce. Ausente é escrita sem turma.</summary>
+    private Guid FormaturaDaSessao() =>
+        formaturaAtual.Id ?? throw new InvalidOperationException("Escrita de item da festa sem formatura selecionada na sessão.");
 
     private static Erro DocumentoNaoEncontrado =>
         Erro.Validacao(

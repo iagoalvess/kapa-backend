@@ -61,7 +61,7 @@ public sealed class PortariaController(IPortariaService portaria, IUsuarioAtual 
     ) => Arquivo(await portaria.ListaEmPdf(eventoId, tipo, ct));
 
     /// <summary>Um convite como a portaria o vê: situação, entrada e se a validação está aberta.</summary>
-    /// <param name="codigo">Código digitado ou token do QR.</param>
+    /// <param name="codigo">Código do convite ou token do QR.</param>
     [HttpGet("portaria/convites/{codigo}")]
     [ProducesResponseType(typeof(ConsultaNaPortariaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -75,7 +75,7 @@ public sealed class PortariaController(IPortariaService portaria, IUsuarioAtual 
     /// Também 409: <c>festa.convite_revogado</c>, <c>festa.outro_evento</c>, <c>festa.fora_da_janela</c>
     /// (de 6 h antes a 12 h depois do horário) e <c>festa.convite_sem_titular</c>.
     /// </remarks>
-    /// <param name="codigo">Código digitado ou token do QR.</param>
+    /// <param name="codigo">Código do convite ou token do QR.</param>
     /// <param name="requisicao">Evento aberto na portaria.</param>
     [HttpPost("convites/{codigo}/check-in")]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]

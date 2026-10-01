@@ -52,7 +52,7 @@ public sealed class OutraReceitaEndpointsTests(ApiFactory fabrica)
 
         (await membro.Cliente.GetAsync(OutrasReceitas, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await membro.Cliente.GetAsync($"{OutrasReceitas}/resumo", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await membro.Cliente.PostAsJsonAsync(OutrasReceitas, Nova("Cota ouro"), Json, Ct)).StatusCode.ShouldBe(lancar);
+        (await membro.Cliente.PostAsync(OutrasReceitas, Receita(Nova("Cota ouro")), Ct)).StatusCode.ShouldBe(lancar);
     }
 
     /// <summary>
@@ -155,7 +155,7 @@ public sealed class OutraReceitaEndpointsTests(ApiFactory fabrica)
         var outraReceita = await Lancar(tesoureiro, dados);
 
         await Codigo(
-            await tesoureiro.Cliente.PostAsJsonAsync(OutrasReceitas, dados, Json, Ct),
+            await tesoureiro.Cliente.PostAsync(OutrasReceitas, Receita(dados), Ct),
             HttpStatusCode.Conflict,
             "financeiro.outra_receita_duplicada"
         );
@@ -163,7 +163,7 @@ public sealed class OutraReceitaEndpointsTests(ApiFactory fabrica)
         (await tesoureiro.Cliente.PostAsync($"{OutrasReceitas}/{outraReceita.Id}/cancelar", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await Obter<ProjecaoDTO>(tesoureiro, $"{Caixa}/projecao")).Meses.Sum(m => m.EntradasPrevistasEmCentavos).ShouldBe(0);
 
-        (await tesoureiro.Cliente.PostAsJsonAsync(OutrasReceitas, dados, Json, Ct)).StatusCode.ShouldBe(HttpStatusCode.Created);
+        (await tesoureiro.Cliente.PostAsync(OutrasReceitas, Receita(dados), Ct)).StatusCode.ShouldBe(HttpStatusCode.Created);
     }
 
     /// <summary>O balancete traz as receitas em seção própria, e a soma das entradas bate com o caixa.</summary>
@@ -196,7 +196,7 @@ public sealed class OutraReceitaEndpointsTests(ApiFactory fabrica)
         var daComissao = await EnviarDocumento(presidente, "Negociação interna", Visibilidade.SomenteComissao);
 
         await Codigo(
-            await presidente.Cliente.PostAsJsonAsync(OutrasReceitas, Nova("Cota ouro") with { DocumentoId = daComissao }, Json, Ct),
+            await presidente.Cliente.PostAsync(OutrasReceitas, Receita(Nova("Cota ouro") with { DocumentoId = daComissao }), Ct),
             HttpStatusCode.BadRequest,
             "financeiro.documento_nao_encontrado"
         );
@@ -207,6 +207,30 @@ public sealed class OutraReceitaEndpointsTests(ApiFactory fabrica)
         var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
         (await Obter<OutraReceitaDTO>(formando, $"{OutrasReceitas}/{outraReceita.Id}")).Documento!.Id.ShouldBe(daTurma);
         (await formando.Cliente.GetAsync($"/api/v1/comunicacao/documentos/{daTurma}/download", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    /// <summary>O comprovante anexado no lançamento nasce no acervo, categoria própria, e liga à receita.</summary>
+    [Fact]
+    public async Task Comprovante_anexado_no_lancamento_nasce_no_acervo()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var tesoureiro = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Tesoureiro, Ct);
+
+        var resposta = await tesoureiro.Cliente.PostAsync(
+            OutrasReceitas,
+            Receita(Nova("Cota ouro") with { Recebida = true }, Encoding.UTF8.GetBytes("%PDF-1.4 comprovante de teste")),
+            Ct
+        );
+        resposta.StatusCode.ShouldBe(HttpStatusCode.Created, await resposta.Content.ReadAsStringAsync(Ct));
+
+        var outraReceita = (await resposta.Content.ReadFromJsonAsync<OutraReceitaDTO>(Json, Ct))!;
+        outraReceita.Documento.ShouldNotBeNull();
+        outraReceita.Documento!.Titulo.ShouldBe("Cota ouro");
+
+        // A turma abre o mesmo comprovante: nasceu visível para ela.
+        var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+        (await formando.Cliente.GetAsync($"/api/v1/comunicacao/documentos/{outraReceita.Documento.Id}/download", Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -228,10 +252,38 @@ public sealed class OutraReceitaEndpointsTests(ApiFactory fabrica)
 
     private static async Task<OutraReceitaDTO> Lancar(MembroDeTeste membro, NovaOutraReceitaRequestDTO dados)
     {
-        var resposta = await membro.Cliente.PostAsJsonAsync(OutrasReceitas, dados, Json, Ct);
+        var resposta = await membro.Cliente.PostAsync(OutrasReceitas, Receita(dados), Ct);
         resposta.StatusCode.ShouldBe(HttpStatusCode.Created, await resposta.Content.ReadAsStringAsync(Ct));
 
         return (await resposta.Content.ReadFromJsonAsync<OutraReceitaDTO>(Json, Ct))!;
+    }
+
+    /// <summary>A receita como multipart, como a tela a envia; o comprovante é opcional.</summary>
+    private static MultipartFormDataContent Receita(NovaOutraReceitaRequestDTO dados, byte[]? comprovante = null)
+    {
+        var corpo = new MultipartFormDataContent
+        {
+            { new StringContent(dados.Descricao ?? string.Empty), "descricao" },
+            { new StringContent(dados.Categoria.ToString()), "categoria" },
+            { new StringContent(dados.ValorEmCentavos.ToString(CultureInfo.InvariantCulture)), "valor_em_centavos" },
+            { new StringContent(dados.Data.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)), "data" },
+            { new StringContent(dados.Recebida.ToString()), "recebida" },
+        };
+
+        if (dados.Origem is not null)
+            corpo.Add(new StringContent(dados.Origem), "origem");
+
+        if (dados.DocumentoId is { } documentoId)
+            corpo.Add(new StringContent(documentoId.ToString()), "documento_id");
+
+        if (comprovante is not null)
+        {
+            var arquivo = new ByteArrayContent(comprovante);
+            arquivo.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+            corpo.Add(arquivo, "comprovante", "comprovante.pdf");
+        }
+
+        return corpo;
     }
 
     private static async Task<T> Obter<T>(MembroDeTeste membro, string rota) => (await membro.Cliente.GetFromJsonAsync<T>(rota, Json, Ct))!;

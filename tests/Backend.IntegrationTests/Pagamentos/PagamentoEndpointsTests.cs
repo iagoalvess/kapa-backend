@@ -14,6 +14,7 @@ using Backend.Business.Common.Datas;
 using Backend.Business.Common.Texto;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Pagamentos.Models;
+using Backend.Business.Pagamentos.Services;
 using Backend.Business.Recebimentos.Models;
 using Backend.IntegrationTests.Infra;
 using Microsoft.AspNetCore.Hosting;
@@ -106,7 +107,7 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         extrato.Proxima!.Id.ShouldBe(primeira);
         pix.Meio.ShouldBe(MeioDeRecebimento.Pix);
         pix.Pix!.CopiaECola.ShouldContain("52998224725");
-        pix.Pix.CopiaECola.ShouldContain(cobranca.Identificador);
+        pix.Pix.CopiaECola.ShouldContain(PagamentoService.Identificador(primeira));
         cobranca.ValorEmCentavos.ShouldBe(Mensalidade);
         pix.Pix.NomeDoTitular.ShouldBe("Comissão Medicina");
         informe.EmConferencia.ShouldBeTrue();

@@ -82,36 +82,50 @@ public sealed class ItemDaFestaController(IItemDaFestaService itemService, IUsua
             ))
         );
 
-    /// <summary>Cria um item no fim da lista.</summary>
+    /// <summary>Cria um item no fim da lista, com o contrato anexado aqui se houver.</summary>
+    /// <remarks>Multipart: o contrato vira documento no acervo (visível para a turma) e o item aponta para ele.</remarks>
     /// <param name="requisicao">Título, categoria, o que inclui, rateio e valor.</param>
+    /// <param name="contrato">Contrato em PDF, imagem, Word ou Excel; opcional.</param>
     [HttpPost("itens")]
     [Authorize(Policy = Politicas.Gestao)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [Consumes("multipart/form-data")]
     [RegistrarEvento("festa.item_criado")]
     [ProducesResponseType(typeof(ItemDaFestaDTO), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> Criar([FromBody] ItemDaFestaRequestDTO requisicao, CancellationToken ct)
+    public async Task<IActionResult> Criar([FromForm] ItemDaFestaRequestDTO requisicao, IFormFile? contrato, CancellationToken ct)
     {
-        var resultado = await itemService.Criar(ParaModelo(requisicao), ct);
+        await using var conteudo = contrato?.OpenReadStream() ?? Stream.Null;
+
+        var resultado = await itemService.Criar(ParaModelo(requisicao), usuarioAtual.Id, contrato.ParaNovoArquivo(conteudo), ct);
 
         return Criado(resultado.Map(item => item.Adapt<ItemDaFestaDTO>()), RotaDoItem, dto => dto.Id);
     }
 
-    /// <summary>Corrige um item.</summary>
+    /// <summary>Corrige um item, com o contrato anexado aqui se houver.</summary>
+    /// <remarks>Multipart: o contrato vira documento no acervo (visível para a turma) e o item aponta para ele.</remarks>
     /// <param name="id">Item.</param>
     /// <param name="requisicao">Dados novos.</param>
+    /// <param name="contrato">Contrato em PDF, imagem, Word ou Excel; opcional.</param>
     [HttpPut("itens/{id:guid}")]
     [Authorize(Policy = Politicas.Gestao)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [Consumes("multipart/form-data")]
     [RegistrarEvento("festa.item_alterado", CamposDaRota = ["id"])]
     [ProducesResponseType(typeof(ItemDaFestaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Atualizar(Guid id, [FromBody] ItemDaFestaRequestDTO requisicao, CancellationToken ct) =>
-        Responder((await itemService.Atualizar(id, ParaModelo(requisicao), ct)).Map(item => item.Adapt<ItemDaFestaDTO>()));
+    public async Task<IActionResult> Atualizar(Guid id, [FromForm] ItemDaFestaRequestDTO requisicao, IFormFile? contrato, CancellationToken ct)
+    {
+        await using var conteudo = contrato?.OpenReadStream() ?? Stream.Null;
+
+        var resultado = await itemService.Atualizar(id, ParaModelo(requisicao), usuarioAtual.Id, contrato.ParaNovoArquivo(conteudo), ct);
+
+        return Responder(resultado.Map(item => item.Adapt<ItemDaFestaDTO>()));
+    }
 
     /// <summary>A turma desistiu: o item sai do custo da festa e fica na lista com o selo.</summary>
     /// <remarks>As despesas dele não são canceladas (decisão 13): o que já saiu do caixa continua no balancete.</remarks>

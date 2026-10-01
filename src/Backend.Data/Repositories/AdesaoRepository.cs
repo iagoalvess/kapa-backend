@@ -174,7 +174,7 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
             "membro" => consulta.Por(linha => linha.Nome, desc),
             "papel" => consulta.Por(linha => linha.Papel, desc),
             "situacao" => consulta.Por(linha => linha.AdesaoId != null, desc),
-            "aceitoEm" => consulta.Por(linha => linha.AceitoEm, desc),
+            "aceito_em" => consulta.Por(linha => linha.AceitoEm, desc),
             _ => consulta.OrderBy(linha => linha.Nome),
         };
 

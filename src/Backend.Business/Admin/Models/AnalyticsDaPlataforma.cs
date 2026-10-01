@@ -15,7 +15,6 @@ namespace Backend.Business.Admin.Models;
 /// <param name="Kapa">A receita do Kapa.</param>
 /// <param name="Turmas">O dinheiro das turmas, agregado.</param>
 /// <param name="Uso">O que se faz na plataforma, por recurso, do mais usado ao menos (P2).</param>
-/// <param name="GeradoEm">Momento da apuração, em UTC.</param>
 public sealed record AnalyticsDaPlataforma(
     DateOnly De,
     DateOnly Ate,
@@ -23,8 +22,7 @@ public sealed record AnalyticsDaPlataforma(
     TurmasDaPlataforma Formaturas,
     DinheiroDoKapa Kapa,
     DinheiroDasTurmas Turmas,
-    IReadOnlyList<UsoDoRecurso> Uso,
-    DateTime GeradoEm
+    IReadOnlyList<UsoDoRecurso> Uso
 );
 
 /// <summary>As contas da plataforma.</summary>

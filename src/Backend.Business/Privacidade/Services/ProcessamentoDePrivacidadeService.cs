@@ -126,7 +126,7 @@ public sealed class ProcessamentoDePrivacidadeService(
         if (arquivo.Falhou)
             return await Desistir(solicitacao, arquivo.PrimeiroErro.Mensagem, ct);
 
-        solicitacao.ConcluirExportacao(arquivo.Valor.Id, agora);
+        solicitacao.ConcluirExportacao(arquivo.Valor, agora);
 
         await emails.ExportacaoPronta(dados.Conta.Email, SolicitacaoDePrivacidade.DiasDeValidadeDoArquivo, ct);
         await unitOfWork.SalvarAsync(ct);

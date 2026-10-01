@@ -62,10 +62,10 @@ public interface IArmazenamentoDeArquivos
 /// </remarks>
 public interface IArquivoService
 {
-    /// <summary>Envia um arquivo.</summary>
+    /// <summary>Envia um arquivo e devolve o id do registro criado.</summary>
     /// <param name="dados">Nome, tipo, tamanho, conteúdo e categoria.</param>
     /// <param name="enviadoPorId">Usuário autenticado que está enviando.</param>
-    Task<Result<ArquivoResumo>> Enviar(NovoArquivo dados, Guid enviadoPorId, CancellationToken ct = default);
+    Task<Result<Guid>> Enviar(NovoArquivo dados, Guid enviadoPorId, CancellationToken ct = default);
 
     /// <summary>Abre um arquivo para download.</summary>
     /// <param name="id">Identificador do arquivo.</param>

@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Arquivos.Models;
 using Backend.Business.Financeiro.Models;
 
 namespace Backend.Business.Financeiro.Interfaces;
@@ -28,12 +29,27 @@ public interface IOutraReceitaService
     /// <summary>Lança a receita, prevista ou já recebida.</summary>
     /// <remarks>A mesma receita duas vezes seguidas (descrição, origem e data) devolve 409 <c>financeiro.outra_receita_duplicada</c>.</remarks>
     /// <param name="dados">Descrição, origem, categoria, valor, data e comprovante.</param>
-    Task<Result<OutraReceitaResumo>> Lancar(NovaOutraReceita dados, CancellationToken ct = default);
+    /// <param name="usuarioId">Quem lança — dono do comprovante enviado, se vier arquivo.</param>
+    /// <param name="comprovante">Comprovante novo, se anexado aqui; ausente, vale o <c>DocumentoId</c>.</param>
+    Task<Result<OutraReceitaResumo>> Lancar(
+        NovaOutraReceita dados,
+        Guid usuarioId,
+        NovoArquivo? comprovante,
+        CancellationToken ct = default
+    );
 
     /// <summary>Corrige uma receita lançada — prevista ou recebida.</summary>
     /// <param name="id">Receita.</param>
     /// <param name="dados">Dados novos.</param>
-    Task<Result<OutraReceitaResumo>> Atualizar(Guid id, DadosDaOutraReceita dados, CancellationToken ct = default);
+    /// <param name="usuarioId">Quem corrige — dono do comprovante enviado, se vier arquivo.</param>
+    /// <param name="comprovante">Comprovante novo, se anexado aqui; ausente, vale o <c>DocumentoId</c>.</param>
+    Task<Result<OutraReceitaResumo>> Atualizar(
+        Guid id,
+        DadosDaOutraReceita dados,
+        Guid usuarioId,
+        NovoArquivo? comprovante,
+        CancellationToken ct = default
+    );
 
     /// <summary>Registra a entrada do dinheiro de uma receita prevista.</summary>
     /// <param name="id">Receita.</param>

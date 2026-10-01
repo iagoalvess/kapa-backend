@@ -139,7 +139,7 @@ public sealed class BuscaRepository(AppDbContext db) : IBuscaRepository
                     || EF.Functions.ILike(EF.Functions.Unaccent(aviso.Conteudo), padrao)
                 )
             )
-            .OrderByDescending(aviso => aviso.PublicadoEm)
+            .OrderByDescending(aviso => aviso.CriadoEm)
             .Take(porGrupo)
             .Select(aviso => new ResultadoDaBusca(TipoDeResultado.Aviso, aviso.Id, aviso.Titulo, null))
             .ToListAsync(ct);

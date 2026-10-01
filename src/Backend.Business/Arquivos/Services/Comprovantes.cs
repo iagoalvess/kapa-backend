@@ -38,7 +38,7 @@ public static class Comprovantes
 
         var arquivo = await arquivoService.Enviar(comprovante with { Categoria = categoria }, usuarioId, ct);
 
-        return arquivo.Falhou ? Result.Falha<Guid?>(arquivo.Erros) : arquivo.Valor.Id;
+        return arquivo.Falhou ? Result.Falha<Guid?>(arquivo.Erros) : arquivo.Valor;
     }
 
     /// <summary>Baixa o comprovante <b>como quem o enviou</b>.</summary>

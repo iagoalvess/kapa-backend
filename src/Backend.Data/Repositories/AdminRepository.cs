@@ -168,8 +168,7 @@ public sealed class AdminRepository(AppDbContext db) : IAdminRepository
                 cobrancas?.Estornado ?? 0
             ),
             new DinheiroDasTurmas(parcelas?.Pagas ?? 0, parcelas?.Pago ?? 0, parcelas?.Abertas ?? 0, parcelas?.Aberto ?? 0),
-            uso,
-            agoraUtc
+            uso
         );
     }
 
@@ -555,7 +554,6 @@ public sealed class AdminRepository(AppDbContext db) : IAdminRepository
                 : new AssinaturaNoSuporte(
                     turma.Assinatura.Id,
                     plano?.Nome ?? "(plano removido)",
-                    plano?.Codigo ?? string.Empty,
                     plano?.LimiteDeFormandos ?? 0,
                     turma.Assinatura.Status.ToString(),
                     turma.Assinatura.VigenteAte,

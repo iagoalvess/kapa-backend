@@ -72,7 +72,7 @@ public sealed class GeracaoDeRelatoriosService(
             if (arquivo.Falhou)
                 return await Desistir(solicitacao, arquivo.PrimeiroErro.Mensagem, ct);
 
-            solicitacao.Concluir(arquivo.Valor.Id, DateTime.UtcNow);
+            solicitacao.Concluir(arquivo.Valor, DateTime.UtcNow);
 
             await unitOfWork.SalvarAsync(ct);
 

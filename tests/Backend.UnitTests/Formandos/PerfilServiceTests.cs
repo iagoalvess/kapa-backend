@@ -109,7 +109,7 @@ public sealed class PerfilServiceTests
         perfil.TrocarFoto(anterior);
         _perfis.ObterParaEdicao(Membro.VinculoId, Ct).Returns(perfil);
 
-        var nova = new ArquivoResumo(Guid.CreateVersion7(), "foto.jpg", "image/jpeg", 10, PerfilService.CategoriaDaFoto, UsuarioId, DateTime.UtcNow);
+        var nova = Guid.CreateVersion7();
         _arquivos.Enviar(default!, default, Ct).ReturnsForAnyArgs(Result.Ok(nova));
         _arquivos.Remover(default, default, Ct).ReturnsForAnyArgs(Result.Ok());
 
@@ -119,7 +119,7 @@ public sealed class PerfilServiceTests
         var resultado = await Servico.EnviarFoto(FormaturaId, UsuarioId, new MemoryStream(png), png.Length, Ct);
 
         // Assert
-        resultado.Valor.FotoArquivoId.ShouldBe(nova.Id);
+        resultado.Valor.FotoArquivoId.ShouldBe(nova);
         Received.InOrder(() =>
         {
             _unitOfWork.SalvarAsync(Ct);

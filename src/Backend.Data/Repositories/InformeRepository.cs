@@ -81,7 +81,7 @@ public sealed class InformeRepository(AppDbContext db) : IInformeRepository
         var desc = paginacao.Descendente;
         var ordenada = paginacao.OrdenarPor switch
         {
-            "pagoEm" => consulta.Por(i => i.PagoEm, desc),
+            "pago_em" => consulta.Por(i => i.PagoEm, desc),
             "recebido" => consulta.Por(i => i.ValorEmCentavos, desc),
             "conferido" => consulta.Por(i => i.ConferidoEm, desc),
             _ when status == StatusDoInforme.Pendente => consulta.OrderBy(i => i.CriadoEm),

@@ -28,7 +28,7 @@ public sealed class AvisoRepository(AppDbContext db) : IAvisoRepository
         if (total == 0)
             return PaginaDe<AvisoResumo>.Vazia(paginacao);
 
-        var ordenada = consulta.OrderByDescending(a => a.Fixado).ThenByDescending(a => a.PublicadoEm).ThenByDescending(a => a.Id);
+        var ordenada = consulta.OrderByDescending(a => a.Fixado).ThenByDescending(a => a.CriadoEm).ThenByDescending(a => a.Id);
 
         var itens = await Projetar(ordenada.Skip(paginacao.Pular).Take(paginacao.Tamanho)).ToListAsync(ct);
 
@@ -49,7 +49,7 @@ public sealed class AvisoRepository(AppDbContext db) : IAvisoRepository
                 grupo.Count(a => a.Fixado),
                 grupo.Count(a => a.Destaque),
                 grupo.Count(a => a.Visibilidade == Visibilidade.SomenteComissao),
-                grupo.Max(a => (DateTime?)a.PublicadoEm)
+                grupo.Max(a => (DateTime?)a.CriadoEm)
             ))
             .SingleOrDefaultAsync(ct)
         ?? new ResumoDoMural(0, 0, 0, 0, null);
@@ -67,7 +67,7 @@ public sealed class AvisoRepository(AppDbContext db) : IAvisoRepository
         var novos = VisiveisPara(papel);
 
         if (vistoEm is { } desde)
-            novos = novos.Where(a => a.PublicadoEm > desde);
+            novos = novos.Where(a => a.CriadoEm > desde);
 
         var quantidade = await novos.CountAsync(ct);
 
@@ -75,9 +75,9 @@ public sealed class AvisoRepository(AppDbContext db) : IAvisoRepository
             return NovidadesDoMural.Nenhuma;
 
         var itens = await novos
-            .OrderByDescending(a => a.PublicadoEm)
+            .OrderByDescending(a => a.CriadoEm)
             .Take(limite)
-            .Select(a => new NovidadeDoMural(a.Id, a.Titulo, a.PublicadoEm, a.Destaque))
+            .Select(a => new NovidadeDoMural(a.Id, a.Titulo, a.CriadoEm, a.Destaque))
             .ToListAsync(ct);
 
         return new NovidadesDoMural(quantidade, itens);
@@ -129,10 +129,10 @@ public sealed class AvisoRepository(AppDbContext db) : IAvisoRepository
             consulta = consulta.Where(a => a.Visibilidade == visibilidade);
 
         if (filtro.De is { } de)
-            consulta = consulta.Where(a => a.PublicadoEm >= DataUtils.InicioDoDiaEmUtc(de));
+            consulta = consulta.Where(a => a.CriadoEm >= DataUtils.InicioDoDiaEmUtc(de));
 
         if (filtro.Ate is { } ate)
-            consulta = consulta.Where(a => a.PublicadoEm < DataUtils.FimDoDiaEmUtc(ate));
+            consulta = consulta.Where(a => a.CriadoEm < DataUtils.FimDoDiaEmUtc(ate));
 
         if (!string.IsNullOrWhiteSpace(filtro.Busca))
         {
@@ -158,7 +158,7 @@ public sealed class AvisoRepository(AppDbContext db) : IAvisoRepository
             aviso.Visibilidade,
             aviso.Fixado,
             aviso.Destaque,
-            aviso.PublicadoEm,
+            aviso.CriadoEm,
             aviso.AtualizadoEm,
             aviso.PublicadoPorUsuarioId,
             autor == null ? null : autor.Nome

@@ -14,7 +14,7 @@ namespace Backend.Data.Mappings;
 /// convenção de <c>EntidadeDaFormatura</c>, aplicada pelo <c>AppDbContext</c>.
 /// <para>
 /// ponytail: sem índice próprio para o feed — são dezenas de avisos por turma, e o de
-/// <c>formatura_id</c> já corta. Com milhares, <c>(formatura_id, fixado, publicado_em)</c>.
+/// <c>formatura_id</c> já corta. Com milhares, <c>(formatura_id, fixado, criado_em)</c>.
 /// </para>
 /// </remarks>
 public sealed class AvisoMapping : IEntityTypeConfiguration<Aviso>

@@ -14,9 +14,10 @@ namespace Backend.Api.Controllers.V1.Arquivos;
 /// Download de arquivo: o conteúdo e o objeto de uma URL temporária.
 /// </summary>
 /// <remarks>
-/// Regra de acesso: cada usuário enxerga os próprios arquivos, e o administrador enxerga todos.
-/// Arquivo de terceiro responde 404, e não 403 — devolver 403 confirmaria que o identificador
-/// existe.
+/// Regra de acesso: cada usuário enxerga os próprios arquivos, e <b>ninguém</b> enxerga os dos
+/// outros — o administrador inclusive (Sprint 44, D4): foto e comprovante são dado pessoal que o
+/// painel não usa. Arquivo de terceiro responde 404, e não 403 — devolver 403 confirmaria que o
+/// identificador existe.
 /// <para>
 /// <b>Não existe envio avulso.</b> O arquivo sobe pelo endpoint da entidade que o justifica — o
 /// comprovante junto da despesa, o documento junto do acervo, a foto junto do perfil —, numa

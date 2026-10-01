@@ -85,16 +85,7 @@ public sealed class ResumoDoTermoService(
         if (gerado.Texto.Length > TetoDeCaracteres)
             return Result.Falha(Erro.Validacao("adesao.resumo_descartado", $"O modelo {gerado.Modelo} devolveu {gerado.Texto.Length} caracteres."));
 
-        await adesaoRepository.AdicionarResumo(
-            new ResumoDoTermo
-            {
-                TermoId = termo.Id,
-                Texto = gerado.Texto,
-                Modelo = gerado.Modelo,
-                GeradoEm = DateTime.UtcNow,
-            },
-            ct
-        );
+        await adesaoRepository.AdicionarResumo(new ResumoDoTermo { TermoId = termo.Id, Texto = gerado.Texto }, ct);
 
         await unitOfWork.SalvarAsync(ct);
 

@@ -432,9 +432,8 @@ public sealed class PagamentoServiceTests
         var pix = comConta.Valor.Meios.ShouldHaveSingleItem();
         pix.Meio.ShouldBe(MeioDeRecebimento.Pix);
         pix.Pix!.CopiaECola.ShouldContain("52998224725");
-        pix.Pix.CopiaECola.ShouldContain(comConta.Valor.Identificador);
-        comConta.Valor.Identificador.ShouldBe(PagamentoService.Identificador(parcela.Id));
-        comConta.Valor.Identificador.Length.ShouldBe(25);
+        pix.Pix.CopiaECola.ShouldContain(PagamentoService.Identificador(parcela.Id));
+        PagamentoService.Identificador(parcela.Id).Length.ShouldBe(25);
         semConta.PrimeiroErro.Codigo.ShouldBe("pagamento.sem_conta");
         semConta.PrimeiroErro.Tipo.ShouldBe(ETipoErro.Conflito);
     }
@@ -453,8 +452,9 @@ public sealed class PagamentoServiceTests
 
         // Assert
         pix.Valor.ValorEmCentavos.ShouldBe(350_000 + 7_000 + 3_500 + 350_000);
-        pix.Valor.Identificador.ShouldBe(PagamentoService.Identificador(vencida.Id));
-        pix.Valor.Meios.ShouldHaveSingleItem().Pix!.CopiaECola.ShouldContain("54077105.00");
+        var brcode = pix.Valor.Meios.ShouldHaveSingleItem().Pix!.CopiaECola;
+        brcode.ShouldContain(PagamentoService.Identificador(vencida.Id));
+        brcode.ShouldContain("54077105.00");
     }
 
     /// <summary>Quem não pode avisar também não vê o QR: uma parcela ruim derruba o lote inteiro.</summary>
