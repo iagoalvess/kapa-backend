@@ -99,8 +99,7 @@ public interface IComprasDaLojaService
 }
 
 /// <summary>
-/// Desfazer uma compra paga da loja: o cancelamento da Gestão, a festa cancelada, a devolução e o pedido do
-/// comprador (Sprint 38).
+/// Desfazer uma compra paga da loja: o cancelamento da Gestão, a devolução e o pedido do comprador (Sprint 38).
 /// </summary>
 /// <remarks>
 /// Cancelar é uma operação só (decisão 1): revoga os convites, devolve o lugar ao estoque, lança o estorno da
@@ -127,19 +126,6 @@ public interface ICancelamentoDaCompraService
     /// <param name="dados">Os convites (nulo é todos) e o motivo.</param>
     /// <param name="usuarioId">Quem cancela, da Gestão.</param>
     Task<Result<CompraCancelada>> Cancelar(Guid compraId, DadosDoCancelamento dados, Guid usuarioId, CancellationToken ct = default);
-
-    /// <summary>
-    /// Festa cancelada (P6): cancela todas as compras pagas da loja e as põe na lista a devolver.
-    /// </summary>
-    /// <remarks>
-    /// Alcança só a loja pública: os convites de formando seguem o cancelamento de pedido da Sprint 20. A compra
-    /// pendente fica de fora (P8) — sai pela expiração.
-    /// </remarks>
-    /// <param name="eventoId">A festa.</param>
-    /// <param name="motivo">Por que — vai para a auditoria, a portaria e o e-mail.</param>
-    /// <param name="usuarioId">Quem cancela — o Presidente.</param>
-    /// <returns>Quantas compras foram canceladas agora.</returns>
-    Task<Result<int>> CancelarVendasDoEvento(Guid eventoId, string motivo, Guid usuarioId, CancellationToken ct = default);
 
     /// <summary>A comissão fez o PIX de volta: a compra sai da lista a devolver (decisão 2).</summary>
     /// <remarks>Sem comprovante, 400 <c>loja.comprovante_obrigatorio</c>; fora da lista, 409 <c>loja.compra_nao_a_devolver</c>.</remarks>
@@ -276,9 +262,6 @@ public interface ICompraDeConviteRepository
     /// <summary>Os convites de uma compra, válidos e revogados, por posição e emissão.</summary>
     /// <param name="compraId">A compra.</param>
     Task<IReadOnlyList<ConviteDaCompra>> ListarConvites(Guid compraId, CancellationToken ct = default);
-
-    /// <summary>As compras com lugar valendo, pagas — o alvo do cancelamento da festa (P6).</summary>
-    Task<IReadOnlyList<Guid>> ListarComLugar(CancellationToken ct = default);
 
     /// <summary>O pedido de cancelamento aberto da compra, ou o último respondido; nulo se nunca houve.</summary>
     /// <param name="compraId">A compra.</param>

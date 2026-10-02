@@ -145,15 +145,6 @@ public sealed class CompraDeConviteRepository(AppDbContext db, CifraDeCampo cifr
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<Guid>> ListarComLugar(CancellationToken ct = default) =>
-        await db
-            .ComprasDeConvite.AsNoTracking()
-            .Where(c => c.Status != StatusDaCompra.Pendente && c.Status != StatusDaCompra.Expirada && c.ConvitesCancelados < c.Quantidade)
-            .OrderBy(c => c.CriadoEm)
-            .Select(c => c.Id)
-            .ToListAsync(ct);
-
-    /// <inheritdoc />
     public async Task<IReadOnlyList<ConviteDaCompra>> ListarConvites(Guid compraId, CancellationToken ct = default) =>
         await db
             .ConvitesDoEvento.AsNoTracking()

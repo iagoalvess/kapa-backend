@@ -78,7 +78,7 @@ nossa, e o `trace_id` é o que o resolve.
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
-| <a id="agenda.evento_com_vendas"></a>`agenda.evento_com_vendas` | 409 | A festa tem compra da loja de pé ou pedido de convite de formando confirmado: não se marca "Cancelado" nem se exclui. A mensagem diz o caminho, e <code>dados</code> traz <code>compras_da_loja</code> e <code>pedidos_de_convite</code> (Sprint 38, P10). |
+| <a id="agenda.evento_com_vendas"></a>`agenda.evento_com_vendas` | 409 | A festa tem compra da loja de pé ou pedido de convite de formando confirmado: não se marca "Cancelado" nem se exclui. <code>dados</code> traz <code>compras_da_loja</code> e <code>pedidos_de_convite</code> (Sprint 38, P10). |
 | <a id="agenda.evento_nao_encontrado"></a>`agenda.evento_nao_encontrado` | 404 | Evento não encontrado na agenda. |
 | <a id="agenda.tipo_unico"></a>`agenda.tipo_unico` | 409 | Esta turma já tem uma colação (ou uma festa) na agenda. Altere a data da que existe. |
 
@@ -233,6 +233,7 @@ Não vem do domínio: é o `GlobalExceptionHandler`, a rede de segurança para e
 | <a id="festa.email_nao_confirmado"></a>`festa.email_nao_confirmado` | 403 | Confirme seu e-mail para votar. Use o link que enviamos quando você criou a conta, ou peça outro em Minha conta. |
 | <a id="festa.entrada_nao_encontrada"></a>`festa.entrada_nao_encontrada` | 404 | Entrada da portaria não encontrada. |
 | <a id="festa.evento_incompleto"></a>`festa.evento_incompleto` | 409 | A festa precisa estar na agenda com data, hora e local antes de qualquer convite sair (P6). |
+| <a id="festa.evento_sem_convite"></a>`festa.evento_sem_convite` | 400 | Só a festa e a colação têm cota de convites. |
 | <a id="festa.fora_da_janela"></a>`festa.fora_da_janela` | 409 | Fora do horário da portaria: a validação vale de 6 h antes a 12 h depois do evento (P7). |
 | <a id="festa.identificacao_em_uso"></a>`festa.identificacao_em_uso` | 409 | Já existe uma mesa com esse nome na turma (sem diferenciar caixa). |
 | <a id="festa.item_cancelado"></a>`festa.item_cancelado` | 409 | Este item foi cancelado. Reative-o antes de alterá-lo. |
@@ -349,7 +350,6 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | <a id="loja.cpf_invalido"></a>`loja.cpf_invalido` | 400 | CPF com dígito verificador inválido; recusado antes da reserva (P6). |
 | <a id="loja.dados_ainda_necessarios"></a>`loja.dados_ainda_necessarios` | 409 | Os dados do comprador sustentam os convites e a devolução até a festa. |
 | <a id="loja.esgotado"></a>`loja.esgotado` | 409 | Os convites esgotaram — ou restam menos que a quantidade pedida. Responde antes da fila (decisão 8). |
-| <a id="loja.evento_sem_loja"></a>`loja.evento_sem_loja` | 409 | Só a festa vende convites pela loja — o cancelamento das vendas é da festa (Sprint 38, P6). |
 | <a id="loja.fila_cheia"></a>`loja.fila_cheia` | 429 | Muita gente comprando na mesma turma. Tente de novo depois do <code>Retry-After</code>, com a mesma chave de idempotência. |
 | <a id="loja.item_nao_encontrado"></a>`loja.item_nao_encontrado` | 404 | Este convite não está à venda nesta loja. |
 | <a id="loja.limite_por_pessoa"></a>`loja.limite_por_pessoa` | 409 | O CPF já tem o máximo de convites deste tipo (P3). |

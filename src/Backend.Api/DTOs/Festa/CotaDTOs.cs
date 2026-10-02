@@ -5,13 +5,13 @@ namespace Backend.Api.DTOs.Festa;
 /// <param name="Capacidade">Lugares; nulo é "não sei".</param>
 public sealed record CotaRequestDTO(int? CotaPorFormando, int? Capacidade);
 
-/// <summary>O painel da cota da colação.</summary>
-/// <param name="Evento">A colação.</param>
+/// <summary>O painel da cota de um evento.</summary>
+/// <param name="Evento">A festa ou a colação.</param>
 /// <param name="CotaPorFormando">Convites por formando; nulo sem cota.</param>
 /// <param name="Capacidade">Lugares; nulo sem capacidade informada.</param>
 /// <param name="AbertaEm">Quando a cota foi aberta pela primeira vez; nulo se nunca.</param>
 /// <param name="FormandosAtivos">Formandos de hoje.</param>
-/// <param name="Cortesias">Cortesias válidas da colação.</param>
+/// <param name="Cortesias">Cortesias válidas do evento.</param>
 /// <param name="Lugares">Cota × formandos ativos + cortesias.</param>
 /// <param name="Excedente">Quanto passa da capacidade — aviso, não bloqueio; zero se cabe.</param>
 /// <param name="Emitidos">Convites de cota válidos.</param>

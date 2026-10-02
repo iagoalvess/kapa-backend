@@ -210,8 +210,7 @@ public sealed record CompraNaGestaoDTO(
 /// <param name="AguardandoPix">Convites presos esperando PIX.</param>
 /// <param name="ComprasADevolver">Compras pagas sem lugar (P5).</param>
 /// <param name="ArrecadadoEmCentavos">O que entrou pela loja.</param>
-/// <param name="FestaId">A festa da agenda, para cancelar as vendas dela (Sprint 38, P6).</param>
-public sealed record ResumoDaLojaDTO(int ConvitesVendidos, int AguardandoPix, int ComprasADevolver, long ArrecadadoEmCentavos, Guid? FestaId);
+public sealed record ResumoDaLojaDTO(int ConvitesVendidos, int AguardandoPix, int ComprasADevolver, long ArrecadadoEmCentavos);
 
 /// <summary>O cancelamento da Gestão (Sprint 38).</summary>
 /// <param name="ConviteIds">Os convites; vazio ou ausente é todos os que ainda valem.</param>
@@ -231,10 +230,6 @@ public sealed record PedidoDeCancelamentoRequestDTO(IReadOnlyList<Guid>? Convite
 /// <param name="ConvitesCancelados">Quantos convites deixaram de valer agora.</param>
 /// <param name="EstornoEmCentavos">O estorno lançado contra a receita da venda.</param>
 public sealed record CompraCanceladaDTO(int ConvitesCancelados, long EstornoEmCentavos);
-
-/// <summary>Quantas compras a festa cancelada pôs na lista a devolver.</summary>
-/// <param name="ComprasCanceladas">Compras canceladas agora.</param>
-public sealed record VendasCanceladasDTO(int ComprasCanceladas);
 
 /// <summary>Um convite da compra, para a Gestão escolher o que cancelar.</summary>
 /// <param name="Id">Convite.</param>

@@ -177,8 +177,7 @@ public sealed record CompraNaGestao(
 /// <param name="AguardandoPix">Convites presos em compras pendentes de PIX.</param>
 /// <param name="ComprasADevolver">Compras pagas sem lugar — a devolução é da comissão (P5).</param>
 /// <param name="ArrecadadoEmCentavos">O que entrou pela loja, menos os estornos (Sprint 38).</param>
-/// <param name="FestaId">A festa da agenda — o alvo de "Cancelar as vendas da festa" (Sprint 38, P6); nula sem festa.</param>
-public sealed record ResumoDaLoja(int ConvitesVendidos, int AguardandoPix, int ComprasADevolver, long ArrecadadoEmCentavos, Guid? FestaId = null);
+public sealed record ResumoDaLoja(int ConvitesVendidos, int AguardandoPix, int ComprasADevolver, long ArrecadadoEmCentavos);
 
 /// <summary>Uma compra pendente vencida, para o job expirar — e a turma dela, para apontar o escopo.</summary>
 /// <param name="CompraId">Compra.</param>

@@ -14,13 +14,12 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Backend.Api.Controllers.V1.Loja;
 
 /// <summary>
-/// Desfazer compras da loja, do lado da turma (Sprint 38): cancelar, a festa cancelada, a devolução e a fila de
-/// pedidos do comprador.
+/// Desfazer compras da loja, do lado da turma (Sprint 38): cancelar, a devolução e a fila de pedidos do
+/// comprador.
 /// </summary>
 /// <remarks>
-/// Cancelar é da Gestão; marcar devolvida é da Tesouraria, que fez o PIX; cancelar a festa inteira é do
-/// Presidente (P6). As escritas que mexem no estoque do item entram na fila da turma (decisão 1), a mesma da
-/// abertura de vendas, e exigem a turma ativa.
+/// Cancelar é da Gestão; marcar devolvida é da Tesouraria, que fez o PIX. As escritas que mexem no estoque do
+/// item entram na fila da turma (decisão 1), a mesma da abertura de vendas, e exigem a turma ativa.
 /// </remarks>
 /// <param name="cancelamento">Regras do cancelamento.</param>
 /// <param name="usuarioAtual">Quem chama.</param>
@@ -88,26 +87,6 @@ public sealed class CancelamentoDaLojaController(ICancelamentoDaCompraService ca
 
         return Responder(await cancelamento.MarcarDevolvida(id, comprovante.ParaNovoArquivo(conteudo), usuarioAtual.Id, ct));
     }
-
-    /// <summary>Festa cancelada: cancela todas as compras pagas da loja e as põe na lista a devolver (P6).</summary>
-    /// <remarks>Só a loja: os pedidos de convite dos formandos se cancelam um a um, com crédito ou devolução.</remarks>
-    /// <param name="id">A festa.</param>
-    /// <param name="requisicao">Motivo.</param>
-    [HttpPost("eventos/{id:guid}/cancelamento-das-compras")]
-    [FilaPorTurma]
-    [Authorize(Policy = Politicas.SomentePresidente)]
-    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [ProducesResponseType(typeof(VendasCanceladasDTO), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> CancelarVendasDoEvento(Guid id, [FromBody] MotivoRequestDTO requisicao, CancellationToken ct) =>
-        Responder(
-            (await cancelamento.CancelarVendasDoEvento(id, requisicao.Motivo ?? string.Empty, usuarioAtual.Id, ct)).Map(
-                canceladas => new VendasCanceladasDTO(canceladas)
-            )
-        );
 
     /// <summary>Os pedidos de cancelamento abertos, do mais antigo.</summary>
     [HttpGet("pedidos-de-cancelamento")]

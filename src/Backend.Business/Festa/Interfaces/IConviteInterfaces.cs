@@ -109,23 +109,26 @@ public interface IGestaoDeConvitesService
 }
 
 /// <summary>
-/// A cota de convites da colação: cada formando ativo recebe N convites, sem pedido e sem dinheiro (Sprint 30).
+/// A cota de convites de um evento: cada formando ativo recebe N convites, sem pedido e sem dinheiro.
 /// </summary>
 /// <remarks>
-/// Da Gestão. Um número por evento e a Sprint 21 faz o resto (decisões 1 e 2): o convite de cota é o
-/// mesmo convite, com <c>PedidoId</c> nulo.
+/// Da Gestão. A colação desde a Sprint 30 e a festa desde 01/10/2026 — o mesmo número por evento e a
+/// Sprint 21 faz o resto (decisões 1 e 2): o convite de cota é o mesmo convite, com <c>PedidoId</c>
+/// nulo. Só festa e colação têm convite; outro tipo responde 400 <c>festa.evento_sem_convite</c>.
 /// </remarks>
 public interface ICotaDoEventoService
 {
-    /// <summary>O painel da cota da colação: o número, a capacidade e a conta aberta.</summary>
-    Task<Result<PainelDaCota>> Obter(CancellationToken ct = default);
+    /// <summary>O painel da cota do evento: o número, a capacidade e a conta aberta.</summary>
+    /// <param name="tipo">Festa ou colação.</param>
+    Task<Result<PainelDaCota>> Obter(TipoDeEvento tipo, CancellationToken ct = default);
 
     /// <summary>
     /// Grava a cota e a capacidade — passar da capacidade avisa no painel, mas salva (decisão 3).
     /// </summary>
     /// <remarks>Depois de aberta, a cota só sobe: 409 <c>festa.cota_ja_aberta</c>.</remarks>
+    /// <param name="tipo">Festa ou colação.</param>
     /// <param name="dados">Cota por formando e capacidade.</param>
-    Task<Result<PainelDaCota>> Definir(DadosDaCota dados, CancellationToken ct = default);
+    Task<Result<PainelDaCota>> Definir(TipoDeEvento tipo, DadosDaCota dados, CancellationToken ct = default);
 
     /// <summary>
     /// Abre — ou reabre — a cota: emite o que falta a cada formando ativo, numa instrução (P1).
@@ -134,8 +137,9 @@ public interface ICotaDoEventoService
     /// Reabrir não duplica: quem já tem a cota não ganha nada, e quem entrou depois recebe a dele. Sem
     /// cota, 409 <c>festa.cota_nao_configurada</c>; sem hora e local, 409 <c>festa.evento_incompleto</c>.
     /// </remarks>
+    /// <param name="tipo">Festa ou colação.</param>
     /// <param name="usuarioId">Quem abre, para a auditoria.</param>
-    Task<Result<PainelDaCota>> Abrir(Guid usuarioId, CancellationToken ct = default);
+    Task<Result<PainelDaCota>> Abrir(TipoDeEvento tipo, Guid usuarioId, CancellationToken ct = default);
 }
 
 /// <summary>

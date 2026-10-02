@@ -11,14 +11,14 @@ using FluentValidation;
 namespace Backend.Business.Festa.Services;
 
 /// <summary>
-/// A cota de convites da colação: o número por formando, a capacidade do auditório e a abertura.
+/// A cota de convites de um evento: o número por formando, a capacidade do local e a abertura.
 /// </summary>
 /// <remarks>
-/// Só a fonte do direito (Sprint 30). O convite que sai daqui é o mesmo da Sprint 21, com
-/// <c>PedidoId</c> nulo — página, PDF, check-in, lista e revogação não sabem que ele veio de cota
-/// (decisão 2). Sem dinheiro em lugar nenhum (decisão 4).
+/// A colação (Sprint 30) e a festa (01/10/2026). Só a fonte do direito: o convite que sai daqui é o
+/// mesmo da Sprint 21, com <c>PedidoId</c> nulo — página, PDF, check-in, lista e revogação não sabem
+/// que ele veio de cota (decisão 2). Sem dinheiro em lugar nenhum (decisão 4).
 /// </remarks>
-/// <param name="agenda">A colação da agenda.</param>
+/// <param name="agenda">O evento da cota.</param>
 /// <param name="convites">A conta do painel.</param>
 /// <param name="emissao">A emissão idempotente da cota.</param>
 /// <param name="eventos">Auditoria da abertura.</param>
@@ -35,7 +35,10 @@ public sealed class CotaDoEventoService(
     IUnitOfWork unitOfWork
 ) : ICotaDoEventoService
 {
-    private static readonly Erro SemColacao = Erro.NaoEncontrado("agenda.evento_nao_encontrado", "A colação ainda não está na agenda.");
+    private static readonly Erro SemEvento = Erro.NaoEncontrado("agenda.evento_nao_encontrado", "Evento não encontrado na agenda.");
+
+    /// <summary>Só a festa e a colação têm convite — e são os únicos tipos únicos por turma.</summary>
+    private static readonly Erro SemConvite = Erro.Validacao("festa.evento_sem_convite", "Só a festa e a colação têm cota de convites.");
 
     private static readonly Erro NaoConfigurada = Erro.Conflito(
         "festa.cota_nao_configurada",
@@ -43,51 +46,60 @@ public sealed class CotaDoEventoService(
     );
 
     /// <inheritdoc />
-    public async Task<Result<PainelDaCota>> Obter(CancellationToken ct = default) =>
-        await Colacao(ct) is { } colacao ? await Painel(colacao, ct) : SemColacao;
+    public async Task<Result<PainelDaCota>> Obter(TipoDeEvento tipo, CancellationToken ct = default) =>
+        !TemConvite(tipo) ? SemConvite
+        : await Evento(tipo, ct) is { } evento ? await Painel(evento, ct)
+        : SemEvento;
 
     /// <inheritdoc />
-    public async Task<Result<PainelDaCota>> Definir(DadosDaCota dados, CancellationToken ct = default)
+    public async Task<Result<PainelDaCota>> Definir(TipoDeEvento tipo, DadosDaCota dados, CancellationToken ct = default)
     {
+        if (!TemConvite(tipo))
+            return SemConvite;
+
         var validacao = validator.Validar(dados);
         if (validacao.Falhou)
             return Result.Falha<PainelDaCota>(validacao.Erros);
 
-        if (await Colacao(ct) is not { } colacao)
-            return SemColacao;
+        if (await Evento(tipo, ct) is not { } evento)
+            return SemEvento;
 
-        var definida = colacao.DefinirCota(dados.CotaPorFormando, dados.Capacidade);
+        var definida = evento.DefinirCota(dados.CotaPorFormando, dados.Capacidade);
         if (definida.Falhou)
             return Result.Falha<PainelDaCota>(definida.Erros);
 
         await unitOfWork.SalvarAsync(ct);
 
-        return await Painel(colacao, ct);
+        return await Painel(evento, ct);
     }
 
     /// <inheritdoc />
     /// <remarks>
     /// A abertura é salva antes da emissão: a instrução da emissão lê <c>cota_aberta_em</c> do banco,
-    /// e é a mesma que a entrada na turma usa depois.
+    /// e é a mesma que a entrada na turma usa depois. Ela abrange todo evento com cota aberta, o que a
+    /// torna idempotente também quando as duas cotas já existem.
     /// </remarks>
-    public async Task<Result<PainelDaCota>> Abrir(Guid usuarioId, CancellationToken ct = default)
+    public async Task<Result<PainelDaCota>> Abrir(TipoDeEvento tipo, Guid usuarioId, CancellationToken ct = default)
     {
+        if (!TemConvite(tipo))
+            return SemConvite;
+
         var formaturaId = formaturaAtual.Id ?? throw new InvalidOperationException("Abertura de cota sem formatura selecionada na sessão.");
 
         var aberta = await unitOfWork.EmTransacaoAsync(
             async token =>
             {
-                if (await Colacao(token) is not { } colacao)
-                    return Result.Falha<EventoDaTurma>(SemColacao);
+                if (await Evento(tipo, token) is not { } evento)
+                    return Result.Falha<EventoDaTurma>(SemEvento);
 
-                if (colacao.CotaPorFormando is not { } cota)
+                if (evento.CotaPorFormando is not { } cota)
                     return Result.Falha<EventoDaTurma>(NaoConfigurada);
 
-                var completo = EmissaoDeConvites.Completo(ParaResumo(colacao));
+                var completo = EmissaoDeConvites.Completo(ParaResumo(evento));
                 if (completo.Falhou)
                     return Result.Falha<EventoDaTurma>(completo.Erros);
 
-                colacao.AbrirCota(DateTime.UtcNow);
+                evento.AbrirCota(DateTime.UtcNow);
                 await unitOfWork.SalvarAsync(token);
 
                 var emitidos = await emissao.EmitirDaCota(formaturaId, null, token);
@@ -98,7 +110,8 @@ public sealed class CotaDoEventoService(
                     new
                     {
                         formaturaId,
-                        eventoId = colacao.Id,
+                        eventoId = evento.Id,
+                        tipo,
                         cotaPorFormando = cota,
                         emitidos,
                     },
@@ -107,7 +120,7 @@ public sealed class CotaDoEventoService(
 
                 await unitOfWork.SalvarAsync(token);
 
-                return Result.Ok(colacao);
+                return Result.Ok(evento);
             },
             ct
         );
@@ -115,25 +128,28 @@ public sealed class CotaDoEventoService(
         return aberta.Falhou ? Result.Falha<PainelDaCota>(aberta.Erros) : await Painel(aberta.Valor, ct);
     }
 
-    /// <summary>A colação rastreada; nula se a turma ainda não a marcou.</summary>
-    private async Task<EventoDaTurma?> Colacao(CancellationToken ct) =>
-        await agenda.ObterDoTipo(TipoDeEvento.Colacao, ct) is { } resumo ? await agenda.ObterParaEdicao(resumo.Id, ct) : null;
+    /// <summary>O evento rastreado; nulo se a turma ainda não o marcou na agenda.</summary>
+    private async Task<EventoDaTurma?> Evento(TipoDeEvento tipo, CancellationToken ct) =>
+        await agenda.ObterDoTipo(tipo, ct) is { } resumo ? await agenda.ObterParaEdicao(resumo.Id, ct) : null;
+
+    /// <summary>Festa e colação são os únicos eventos com convite — e os únicos únicos por turma.</summary>
+    private static bool TemConvite(TipoDeEvento tipo) => tipo is TipoDeEvento.Festa or TipoDeEvento.Colacao;
 
     /// <summary>A conta aberta: <c>cota × formandos ativos + cortesias</c> contra a capacidade (decisão 3 e P3).</summary>
-    private async Task<PainelDaCota> Painel(EventoDaTurma colacao, CancellationToken ct)
+    private async Task<PainelDaCota> Painel(EventoDaTurma evento, CancellationToken ct)
     {
-        var contagem = await convites.ContarDaCota(colacao.Id, ct);
-        var lugares = (colacao.CotaPorFormando ?? 0) * contagem.FormandosAtivos + contagem.Cortesias;
+        var contagem = await convites.ContarDaCota(evento.Id, ct);
+        var lugares = (evento.CotaPorFormando ?? 0) * contagem.FormandosAtivos + contagem.Cortesias;
 
         return new PainelDaCota(
-            EmissaoDeConvites.ParaConvite(ParaResumo(colacao)),
-            colacao.CotaPorFormando,
-            colacao.Capacidade,
-            colacao.CotaAbertaEm,
+            EmissaoDeConvites.ParaConvite(ParaResumo(evento)),
+            evento.CotaPorFormando,
+            evento.Capacidade,
+            evento.CotaAbertaEm,
             contagem.FormandosAtivos,
             contagem.Cortesias,
             lugares,
-            colacao.Capacidade is { } capacidade ? Math.Max(0, lugares - capacidade) : 0,
+            evento.Capacidade is { } capacidade ? Math.Max(0, lugares - capacidade) : 0,
             contagem.Emitidos,
             contagem.Nomeados,
             contagem.Emitidos - contagem.Nomeados

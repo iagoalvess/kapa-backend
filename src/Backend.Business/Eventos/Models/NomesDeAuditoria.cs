@@ -160,9 +160,6 @@ public static class NomesDeAuditoria
     /// <summary>Convites de uma compra da loja cancelados pela Gestão, com motivo e estorno (Sprint 38, decisão 1).</summary>
     public const string CompraCancelada = "loja.compra_cancelada";
 
-    /// <summary>Todas as vendas da loja canceladas de uma vez, pelo Presidente — a festa cancelada (Sprint 38, P6).</summary>
-    public const string VendasDaFestaCanceladas = "loja.vendas_da_festa_canceladas";
-
     /// <summary>A comissão marcou a compra como devolvida, com o comprovante do PIX (Sprint 38, decisão 2).</summary>
     public const string CompraDevolvida = "loja.compra_devolvida";
 
@@ -199,7 +196,6 @@ public static class NomesDeAuditoria
         EntradaDesfeita,
         CotaAberta,
         CompraCancelada,
-        VendasDaFestaCanceladas,
         CompraDevolvida,
         PedidoDeCancelamentoRecusado,
         TermoPublicado,

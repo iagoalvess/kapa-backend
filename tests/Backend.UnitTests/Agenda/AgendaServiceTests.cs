@@ -196,7 +196,7 @@ public sealed class AgendaServiceTests
     private static EventoResumo Resumo(Guid? id = null) =>
         new(id ?? Guid.CreateVersion7(), "Reunião da comissão", TipoDeEvento.Reuniao, SituacaoDoEvento.AConfirmar, Hoje, null, null, null);
 
-    /// <summary>Sprint 38, P10: festa com venda de pé não se cancela nem se exclui, e o erro diz o caminho.</summary>
+    /// <summary>Sprint 38, P10: festa com venda de pé não se cancela nem se exclui, com as contagens no erro.</summary>
     [Fact]
     public async Task Festa_com_vendas_nao_cancela_nem_exclui()
     {
@@ -212,7 +212,7 @@ public sealed class AgendaServiceTests
         // Assert
         var erro = cancelada.Erros.ShouldHaveSingleItem();
         erro.Codigo.ShouldBe("agenda.evento_com_vendas");
-        erro.Mensagem.ShouldContain("Cancelar as vendas da festa");
+        erro.Mensagem.ShouldContain("compras da loja");
         erro.Mensagem.ShouldContain("pedidos de convite");
         excluida.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("agenda.evento_com_vendas");
         festa.Cancelado.ShouldBeFalse();

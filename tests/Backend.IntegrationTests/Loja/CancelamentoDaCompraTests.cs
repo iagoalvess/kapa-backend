@@ -20,8 +20,8 @@ namespace Backend.IntegrationTests.Loja;
 
 /// <summary>
 /// O cancelamento da compra (Sprint 38) contra a API e o Postgres de verdade: a revogação, o lugar de volta e o
-/// estorno numa operação, a idempotência sob clique duplo, o pedido do comprador, a festa cancelada e as portas
-/// de saída da agenda e do encerramento.
+/// estorno numa operação, a idempotência sob clique duplo, o pedido do comprador e as portas de saída da agenda
+/// e do encerramento.
 /// </summary>
 public sealed partial class LojaEndpointsTests
 {
@@ -59,8 +59,7 @@ public sealed partial class LojaEndpointsTests
         portaria.Convite.MotivoDaRevogacao.ShouldBe("compra cancelada: Desistiu da festa");
 
         var resumo = await Ler<ResumoDaLojaDTO>(await gestao.GetAsync("/api/v1/loja/compras/resumo", Ct));
-        (resumo with { FestaId = null }).ShouldBe(new ResumoDaLojaDTO(2, 0, 1, 40_000, null));
-        resumo.FestaId.ShouldNotBeNull();
+        resumo.ShouldBe(new ResumoDaLojaDTO(2, 0, 1, 40_000));
 
         await using var contexto = fabrica.ContextoDe(loja.Turma.FormaturaId);
         var receitas = await contexto.OutrasReceitas.AsNoTracking().ToListAsync(Ct);
@@ -167,16 +166,15 @@ public sealed partial class LojaEndpointsTests
         (await contexto.ComprasDeConvite.AsNoTracking().SingleAsync(c => c.Id == compra, Ct)).ConvitesCancelados.ShouldBe(1);
     }
 
-    /// <summary>P6, P10, P11 e decisão 2: a festa cancelada, a agenda que só cancela sem vendas, e a devolução.</summary>
+    /// <summary>P10, P11 e decisão 2: a agenda que só cancela sem vendas, e a devolução que tira da lista.</summary>
     [Fact]
-    public async Task Festa_cancelada_cancela_a_loja_libera_a_agenda_e_a_devolucao_tira_da_lista()
+    public async Task Sem_vendas_a_agenda_cancela_a_festa_e_a_devolucao_tira_da_lista()
     {
         // Arrange
         await using var loja = await Montar(estoque: 5, comFesta: true);
         var gestao = Cliente(loja.Api, loja.Turma.Presidente.Cliente);
-        var formando = await fabrica.FormandoComAdesao(loja.Turma.FormaturaId);
         var (primeira, _) = await CompradaEPaga(loja, 2);
-        await CompradaEPaga(loja, 1);
+        var (segunda, _) = await CompradaEPaga(loja, 1);
         (
             await gestao.PostAsJsonAsync(
                 "/api/v1/festa/convites/cortesias",
@@ -197,38 +195,28 @@ public sealed partial class LojaEndpointsTests
             "Espaço Vitrália",
             null
         );
-        var vendas = $"/api/v1/loja/eventos/{festa}/cancelamento-das-compras";
 
-        // Act + Assert — com vendas, a agenda não cancela nem exclui a festa, e o formando não cancela as vendas
+        // Act + Assert — com vendas de pé, a agenda não cancela nem exclui a festa
         await Problema(
             await gestao.PutAsJsonAsync($"/api/v1/agenda/{festa}", cancelarNaAgenda, Json, Ct),
             HttpStatusCode.Conflict,
             "agenda.evento_com_vendas"
         );
         await Problema(await gestao.DeleteAsync($"/api/v1/agenda/{festa}", Ct), HttpStatusCode.Conflict, "compras_da_loja");
-        (await formando.Cliente.PostAsJsonAsync(vendas, new MotivoRequestDTO("Salão fechou"), Json, Ct)).StatusCode.ShouldBe(
-            HttpStatusCode.Forbidden
-        );
 
-        // Act — o Presidente cancela as vendas; a agenda cancela a festa
-        var canceladas = await Ler<VendasCanceladasDTO>(await gestao.PostAsJsonAsync(vendas, new MotivoRequestDTO("Salão fechou"), Json, Ct));
+        // Act — sem ação em massa, cada compra se cancela pela porta da Gestão; só então a agenda cancela a festa
+        (await Cancelar(gestao, primeira, new CancelamentoRequestDTO(null, "Salão fechou"))).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await Cancelar(gestao, segunda, new CancelamentoRequestDTO(null, "Salão fechou"))).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await gestao.PutAsJsonAsync($"/api/v1/agenda/{festa}", cancelarNaAgenda, Json, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // Assert — nenhum convite vale; a loja fecha; tudo está na lista a devolver
-        canceladas.ComprasCanceladas.ShouldBe(2);
         await using (var contexto = fabrica.ContextoDe(loja.Turma.FormaturaId))
         {
             (await contexto.ConvitesDoEvento.CountAsync(c => c.RevogadoEm == null, Ct)).ShouldBe(0);
             (await contexto.ConvitesDoEvento.SingleAsync(c => c.CompraId == null, Ct)).MotivoDaRevogacao.ShouldBe("evento cancelado");
-            (
-                await contexto.Eventos.CountAsync(
-                    e => e.Nome == NomesDeAuditoria.VendasDaFestaCanceladas && e.FormaturaId == loja.Turma.FormaturaId,
-                    Ct
-                )
-            ).ShouldBe(1);
         }
         (await loja.Anonimo.GetAsync($"/api/v1/loja/{loja.Turma.FormaturaId}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        (await Ler<ResumoDaLojaDTO>(await gestao.GetAsync("/api/v1/loja/compras/resumo", Ct))).ShouldBe(new ResumoDaLojaDTO(0, 0, 2, 0, festa));
+        (await Ler<ResumoDaLojaDTO>(await gestao.GetAsync("/api/v1/loja/compras/resumo", Ct))).ShouldBe(new ResumoDaLojaDTO(0, 0, 2, 0));
 
         // Act + Assert — encerrar com dinheiro a devolver é recusado, com a contagem
         var encerrar = await gestao.PostAsync("/api/v1/formaturas/atual/encerrar", null, Ct);

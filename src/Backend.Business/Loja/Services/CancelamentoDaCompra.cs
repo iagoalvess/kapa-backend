@@ -22,24 +22,23 @@ using Microsoft.Extensions.Logging;
 namespace Backend.Business.Loja.Services;
 
 /// <summary>
-/// Desfazer uma compra paga da loja (Sprint 38): o cancelamento da Gestão, a festa cancelada, a devolução e o
-/// pedido do comprador.
+/// Desfazer uma compra paga da loja (Sprint 38): o cancelamento da Gestão, a devolução e o pedido do
+/// comprador.
 /// </summary>
 /// <remarks>
-/// O coração é <see cref="CancelarNaTransacao"/>, e as três portas — a Gestão, a aprovação do pedido e a festa
-/// cancelada — passam por ele: trava a compra, revoga os convites, devolve o lugar ao item, lança o estorno,
+/// O coração é <see cref="CancelarNaTransacao"/>, e as duas portas — a Gestão e a aprovação do pedido —
+/// passam por ele: trava a compra, revoga os convites, devolve o lugar ao item, lança o estorno,
 /// leva a compra à lista a devolver, avisa comprador e convidados e audita (decisão 1). A trava da compra é o
 /// que faz dois cliques contarem uma vez: o segundo espera, relê e não acha mais o que revogar (decisão 3).
 /// </remarks>
 /// <param name="compras">Compras, o estoque do item e os pedidos de cancelamento.</param>
 /// <param name="convites">Os convites da compra.</param>
 /// <param name="receitas">O estorno da receita da venda (P5).</param>
-/// <param name="agenda">A festa — o evento do e-mail do convidado, e o alvo da P6.</param>
+/// <param name="agenda">A festa — o evento do e-mail do convidado.</param>
 /// <param name="eventos">Auditoria.</param>
 /// <param name="arquivos">O comprovante da devolução.</param>
 /// <param name="emails">O aviso ao comprador e à comissão.</param>
 /// <param name="emailsDoConvite">O aviso ao convidado.</param>
-/// <param name="formaturaAtual">A turma da sessão, para a auditoria da festa cancelada.</param>
 /// <param name="validator">Forma do cancelamento.</param>
 /// <param name="pedidoValidator">Forma do pedido do comprador.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
@@ -53,7 +52,6 @@ public sealed class CancelamentoDaCompra(
     IArquivoService arquivos,
     EmailsDaLoja emails,
     EmailsDoConvite emailsDoConvite,
-    IFormaturaAtual formaturaAtual,
     IValidator<DadosDoCancelamento> validator,
     IValidator<PedidoDoComprador> pedidoValidator,
     IUnitOfWork unitOfWork,
@@ -110,61 +108,6 @@ public sealed class CancelamentoDaCompra(
                 await unitOfWork.SalvarAsync(token);
 
                 return cancelada;
-            },
-            ct
-        );
-    }
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// Uma transação para a festa inteira: ou todas as compras vão para a lista a devolver, ou nenhuma — metade
-    /// da festa cancelada é o estado que a P6 existe para impedir.
-    /// </remarks>
-    public async Task<Result<int>> CancelarVendasDoEvento(Guid eventoId, string motivo, Guid usuarioId, CancellationToken ct = default)
-    {
-        var validacao = validator.Validar(new DadosDoCancelamento(null, motivo));
-        if (validacao.Falhou)
-            return Result.Falha<int>(validacao.Erros);
-
-        var evento = await agenda.Obter(eventoId, ct);
-        if (evento is null)
-            return Erro.NaoEncontrado("agenda.evento_nao_encontrado", "Evento não encontrado na agenda.");
-
-        if (evento.Tipo != TipoDeEvento.Festa)
-            return Erro.Conflito("loja.evento_sem_loja", "Só a festa vende convites pela loja.");
-
-        return await unitOfWork.EmTransacaoAsync(
-            async token =>
-            {
-                var canceladas = 0;
-
-                foreach (var compraId in await compras.ListarComLugar(token))
-                {
-                    var cancelada = await CancelarNaTransacao(compraId, null, motivo.Trim(), usuarioId, null, token);
-                    if (cancelada.Falhou)
-                        return Result.Falha<int>(cancelada.Erros);
-
-                    canceladas++;
-                }
-
-                await eventos.Auditar(
-                    NomesDeAuditoria.VendasDaFestaCanceladas,
-                    usuarioId,
-                    new
-                    {
-                        formaturaId = formaturaAtual.Id,
-                        eventoId,
-                        compras = canceladas,
-                        motivo = motivo.Trim(),
-                    },
-                    token
-                );
-
-                await unitOfWork.SalvarAsync(token);
-
-                logger.LogInformation("Festa {EventoId}: {Canceladas} compras da loja canceladas.", eventoId, canceladas);
-
-                return Result.Ok(canceladas);
             },
             ct
         );

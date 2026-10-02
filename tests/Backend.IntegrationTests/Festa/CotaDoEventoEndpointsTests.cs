@@ -19,7 +19,8 @@ using Shouldly;
 namespace Backend.IntegrationTests.Festa;
 
 /// <summary>
-/// A cota de convites da colação (Sprint 30) contra a API e o Postgres de verdade.
+/// A cota de convites de um evento — a colação (Sprint 30) e a festa (01/10/2026) — contra a API e o
+/// Postgres de verdade.
 /// </summary>
 /// <remarks>
 /// A garantia "abrir de novo não duplica" é o índice único da posição e o <c>ON CONFLICT</c> da
@@ -28,9 +29,9 @@ namespace Backend.IntegrationTests.Festa;
 /// </remarks>
 /// <param name="fabrica">API de teste compartilhada.</param>
 [Collection(ColecaoDeApi.Nome)]
-public sealed class CotaDaColacaoEndpointsTests(ApiFactory fabrica)
+public sealed class CotaDoEventoEndpointsTests(ApiFactory fabrica)
 {
-    private const string Cota = "/api/v1/festa/colacao/cota";
+    private const string Cota = "/api/v1/festa/cota";
     private const string Convites = "/api/v1/festa/convites";
 
     private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
@@ -55,12 +56,33 @@ public sealed class CotaDaColacaoEndpointsTests(ApiFactory fabrica)
         primeira.AbertaEm.ShouldNotBeNull();
         segunda.Emitidos.ShouldBe(6);
         segunda.AbertaEm!.Value.ShouldBe(primeira.AbertaEm!.Value, TimeSpan.FromMilliseconds(1));
-        (await ValidosDaCota(cenario)).ShouldBe(6);
+        (await ValidosDaCota(cenario.Turma.FormaturaId, cenario.ColacaoId)).ShouldBe(6);
 
-        var meus = await MeusDaColacao(cenario.Ana);
+        var meus = await Meus(cenario.Ana, TipoDeEvento.Colacao);
         meus.Convites.Select(c => c.Sequencial).ShouldBe([1, 2]);
         meus.Evento!.Id.ShouldBe(cenario.ColacaoId);
         meus.AguardandoPagamento.ShouldBe(0);
+    }
+
+    /// <summary>A cota vale para a festa desde 01/10/2026: emite os convites do evento da festa.</summary>
+    [Fact]
+    public async Task Cota_da_festa_emite_os_convites_da_festa()
+    {
+        var cenario = await Montar();
+        var festaId = await CriarEvento(cenario.Turma.Presidente, TipoDeEvento.Festa, "Festa de formatura", TimeSpan.FromDays(60));
+
+        await Definir(cenario, 3, null, TipoDeEvento.Festa);
+        var aberta = await Abrir(cenario, TipoDeEvento.Festa);
+
+        aberta.Evento.Id.ShouldBe(festaId);
+        aberta.Emitidos.ShouldBe(9);
+        (await ValidosDaCota(cenario.Turma.FormaturaId, festaId)).ShouldBe(9);
+
+        var daFesta = await Meus(cenario.Ana, TipoDeEvento.Festa);
+        daFesta.Convites.Select(c => c.Sequencial).ShouldBe([1, 2, 3]);
+        daFesta.Evento!.Id.ShouldBe(festaId);
+
+        (await Meus(cenario.Ana, TipoDeEvento.Colacao)).Convites.ShouldBeEmpty();
     }
 
     /// <summary>P1: quem entra pelo convite depois da abertura recebe a cota na entrada.</summary>
@@ -86,13 +108,13 @@ public sealed class CotaDaColacaoEndpointsTests(ApiFactory fabrica)
         await Definir(cenario, 2, null);
         await Abrir(cenario);
         var carla = await fabrica.NovoMembro(cenario.Turma.FormaturaId, PapelNaFormatura.Formando, Ct);
-        (await MeusDaColacao(carla)).Convites.ShouldBeEmpty();
+        (await Meus(carla, TipoDeEvento.Colacao)).Convites.ShouldBeEmpty();
 
         var reaberta = await Abrir(cenario);
 
         reaberta.Emitidos.ShouldBe(8);
-        (await MeusDaColacao(carla)).Convites.Count().ShouldBe(2);
-        (await MeusDaColacao(cenario.Ana)).Convites.Count().ShouldBe(2);
+        (await Meus(carla, TipoDeEvento.Colacao)).Convites.Count().ShouldBe(2);
+        (await Meus(cenario.Ana, TipoDeEvento.Colacao)).Convites.Count().ShouldBe(2);
     }
 
     /// <summary>Decisão 3 e P3: cota × formandos + cortesias acima da capacidade avisa e salva.</summary>
@@ -140,17 +162,31 @@ public sealed class CotaDaColacaoEndpointsTests(ApiFactory fabrica)
         var turma = await fabrica.TurmaComPlano();
         var cliente = turma.Presidente.Cliente;
 
-        (await cliente.GetAsync(Cota, Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await cliente.GetAsync(Rota(TipoDeEvento.Colacao), Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         await CriarColacao(turma.Presidente, TimeSpan.FromDays(30), comHora: false);
-        var semCota = await cliente.PostAsync($"{Cota}/abrir", null, Ct);
+        var semCota = await cliente.PostAsync(RotaDeAbertura(TipoDeEvento.Colacao), null, Ct);
         (await Put(turma, 11, null)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await Put(turma, 2, null)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        var semHora = await cliente.PostAsync($"{Cota}/abrir", null, Ct);
+        var semHora = await cliente.PostAsync(RotaDeAbertura(TipoDeEvento.Colacao), null, Ct);
 
         (await semCota.Codigo(Ct)).ShouldBe("festa.cota_nao_configurada");
         semHora.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await semHora.Codigo(Ct)).ShouldBe("festa.evento_incompleto");
+    }
+
+    /// <summary>Só a festa e a colação têm convite; outro tipo de evento não tem cota (01/10/2026).</summary>
+    [Fact]
+    public async Task Cota_so_existe_na_festa_e_na_colacao()
+    {
+        var turma = await fabrica.TurmaComPlano();
+        var cliente = turma.Presidente.Cliente;
+
+        (await cliente.GetAsync(Rota(TipoDeEvento.Reuniao), Ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await cliente.PutAsJsonAsync(Rota(TipoDeEvento.Prazo), new CotaRequestDTO(2, null), Json, Ct)).StatusCode.ShouldBe(
+            HttpStatusCode.BadRequest
+        );
+        (await cliente.PostAsync(RotaDeAbertura(TipoDeEvento.Outro), null, Ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     /// <summary>O painel é da Gestão: o formando recebe 403.</summary>
@@ -159,8 +195,8 @@ public sealed class CotaDaColacaoEndpointsTests(ApiFactory fabrica)
     {
         var cenario = await Montar();
 
-        (await cenario.Ana.Cliente.GetAsync(Cota, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await cenario.Ana.Cliente.PostAsync($"{Cota}/abrir", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await cenario.Ana.Cliente.GetAsync(Rota(TipoDeEvento.Colacao), Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await cenario.Ana.Cliente.PostAsync(RotaDeAbertura(TipoDeEvento.Colacao), null, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     /// <summary>Decisão 5: desligar o formando revoga a cota dele, com motivo, e tira ele da conta.</summary>
@@ -202,7 +238,7 @@ public sealed class CotaDaColacaoEndpointsTests(ApiFactory fabrica)
         await Definir(cenario, 2, null);
         await Abrir(cenario);
         var gestao = cenario.Turma.Presidente.Cliente;
-        var convite = (await MeusDaColacao(cenario.Ana)).Convites.First();
+        var convite = (await Meus(cenario.Ana, TipoDeEvento.Colacao)).Convites.First();
         (
             await gestao.PutAsJsonAsync(
                 $"{Convites}/{convite.Id}/convidado",
@@ -233,6 +269,10 @@ public sealed class CotaDaColacaoEndpointsTests(ApiFactory fabrica)
 
         return new Cenario(turma, ana, bruno, colacaoId);
     }
+
+    private static string Rota(TipoDeEvento tipo) => $"{Cota}?tipo={tipo}";
+
+    private static string RotaDeAbertura(TipoDeEvento tipo) => $"{Cota}/abrir?tipo={tipo}";
 
     private static Task<Guid> CriarColacao(MembroDeTeste gestao, TimeSpan daqui, bool comHora = true) =>
         CriarEvento(gestao, TipoDeEvento.Colacao, "Colação de grau", daqui, comHora);
@@ -281,36 +321,35 @@ public sealed class CotaDaColacaoEndpointsTests(ApiFactory fabrica)
 
     private static Task<HttpResponseMessage> Put(Cenario cenario, int? cota, int? capacidade) => Put(cenario.Turma, cota, capacidade);
 
-    private static Task<HttpResponseMessage> Put(TurmaDeTeste turma, int? cota, int? capacidade) =>
-        turma.Presidente.Cliente.PutAsJsonAsync(Cota, new CotaRequestDTO(cota, capacidade), Json, Ct);
+    private static Task<HttpResponseMessage> Put(TurmaDeTeste turma, int? cota, int? capacidade, TipoDeEvento tipo = TipoDeEvento.Colacao) =>
+        turma.Presidente.Cliente.PutAsJsonAsync(Rota(tipo), new CotaRequestDTO(cota, capacidade), Json, Ct);
 
-    private static async Task<PainelDaCotaDTO> Definir(Cenario cenario, int? cota, int? capacidade)
+    private static async Task<PainelDaCotaDTO> Definir(Cenario cenario, int? cota, int? capacidade, TipoDeEvento tipo = TipoDeEvento.Colacao)
     {
-        var resposta = await Put(cenario, cota, capacidade);
+        var resposta = await Put(cenario.Turma, cota, capacidade, tipo);
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         return (await resposta.Content.ReadFromJsonAsync<PainelDaCotaDTO>(Json, Ct))!;
     }
 
-    private static async Task<PainelDaCotaDTO> Abrir(Cenario cenario)
+    private static async Task<PainelDaCotaDTO> Abrir(Cenario cenario, TipoDeEvento tipo = TipoDeEvento.Colacao)
     {
-        var resposta = await cenario.Turma.Presidente.Cliente.PostAsync($"{Cota}/abrir", null, Ct);
+        var resposta = await cenario.Turma.Presidente.Cliente.PostAsync(RotaDeAbertura(tipo), null, Ct);
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         return (await resposta.Content.ReadFromJsonAsync<PainelDaCotaDTO>(Json, Ct))!;
     }
 
-    private static async Task<PainelDaCotaDTO> Painel(Cenario cenario) =>
-        (await cenario.Turma.Presidente.Cliente.GetFromJsonAsync<PainelDaCotaDTO>(Cota, Json, Ct))!;
+    private static async Task<PainelDaCotaDTO> Painel(Cenario cenario, TipoDeEvento tipo = TipoDeEvento.Colacao) =>
+        (await cenario.Turma.Presidente.Cliente.GetFromJsonAsync<PainelDaCotaDTO>(Rota(tipo), Json, Ct))!;
 
-    private static async Task<MeusConvitesDTO> MeusDaColacao(MembroDeTeste membro) =>
-        (await membro.Cliente.GetFromJsonAsync<MeusConvitesDTO>($"{Convites}/meus?tipo=Colacao", Json, Ct))!;
+    private static async Task<MeusConvitesDTO> Meus(MembroDeTeste membro, TipoDeEvento tipo) =>
+        (await membro.Cliente.GetFromJsonAsync<MeusConvitesDTO>($"{Convites}/meus?tipo={tipo}", Json, Ct))!;
 
-    private async Task<int> ValidosDaCota(Cenario cenario)
+    private async Task<int> ValidosDaCota(Guid formaturaId, Guid eventoId)
     {
-        await using var contexto = fabrica.ContextoDe(cenario.Turma.FormaturaId);
-
-        return await contexto.ConvitesDoEvento.CountAsync(c => c.EventoId == cenario.ColacaoId && c.PedidoId == null && c.RevogadoEm == null, Ct);
+        await using var contexto = fabrica.ContextoDe(formaturaId);
+        return await contexto.ConvitesDoEvento.CountAsync(c => c.EventoId == eventoId && c.PedidoId == null && c.RevogadoEm == null, Ct);
     }
 
     private static Task<HttpResponseMessage> CheckIn(HttpClient cliente, string codigo, Guid eventoId) =>

@@ -1,7 +1,5 @@
 using System.Globalization;
 using Backend.Business.Abstractions;
-using Backend.Business.Agenda.Interfaces;
-using Backend.Business.Agenda.Models;
 using Backend.Business.Arquivos.Models;
 using Backend.Business.Common.Datas;
 using Backend.Business.Loja.Interfaces;
@@ -16,19 +14,14 @@ namespace Backend.Business.Loja.Services;
 /// As compras da loja do lado da Gestão (Sprint 26, P5): a lista da devolução, o resumo do que vendeu e a planilha.
 /// </summary>
 /// <param name="compras">As compras da turma.</param>
-/// <param name="agenda">A festa, para o resumo apontar o evento.</param>
-public sealed class ComprasDaLojaService(ICompraDeConviteRepository compras, IEventoDaTurmaRepository agenda) : IComprasDaLojaService
+public sealed class ComprasDaLojaService(ICompraDeConviteRepository compras) : IComprasDaLojaService
 {
     /// <inheritdoc />
     public async Task<Result<PaginaDe<CompraNaGestao>>> Listar(PaginacaoRequest paginacao, FiltroDeCompras filtro, CancellationToken ct = default) =>
         await compras.Listar(paginacao.Normalizar(), filtro, ct);
 
     /// <inheritdoc />
-    public async Task<Result<ResumoDaLoja>> Resumir(CancellationToken ct = default) =>
-        await compras.Resumir(ct) with
-        {
-            FestaId = (await agenda.ObterDoTipo(TipoDeEvento.Festa, ct))?.Id,
-        };
+    public async Task<Result<ResumoDaLoja>> Resumir(CancellationToken ct = default) => await compras.Resumir(ct);
 
     /// <inheritdoc />
     public async Task<Result<ArquivoParaDownload>> Exportar(FiltroDeCompras filtro, CancellationToken ct = default)

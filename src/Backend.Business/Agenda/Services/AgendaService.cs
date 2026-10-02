@@ -146,8 +146,8 @@ public sealed class AgendaService(
     }
 
     /// <summary>
-    /// O 409 da festa com venda de pé, com as contagens em <c>dados</c> e o caminho na mensagem (P10); nulo nos
-    /// outros eventos e na festa sem vendas.
+    /// O 409 da festa com venda de pé, com as contagens em <c>dados</c> (P10); nulo nos outros eventos e na
+    /// festa sem vendas.
     /// </summary>
     /// <param name="tipo">Tipo do evento — só a festa tem venda.</param>
     private async Task<Erro?> ComVendas(TipoDeEvento tipo, CancellationToken ct)
@@ -155,13 +155,11 @@ public sealed class AgendaService(
         if (tipo != TipoDeEvento.Festa || await pendencias.ContarVendasDaFesta(ct) is not { Alguma: true } vendas)
             return null;
 
-        var caminhos = new List<string>();
-        if (vendas.ComprasDaLoja > 0)
-            caminhos.Add("as compras da loja, em Loja > Cancelar as vendas da festa");
-        if (vendas.PedidosDeConvite > 0)
-            caminhos.Add("os pedidos de convite dos formandos, cancelados um a um em Pedidos");
-
-        return new Erro("agenda.evento_com_vendas", $"A festa tem vendas de pé. Cancele antes {string.Join(" e ", caminhos)}.", ETipoErro.Conflito)
+        return new Erro(
+            "agenda.evento_com_vendas",
+            "A festa tem vendas de pé e não se cancela nem se exclui. Cancele antes as compras da loja e os pedidos de convite.",
+            ETipoErro.Conflito
+        )
         {
             Dados = vendas,
         };
