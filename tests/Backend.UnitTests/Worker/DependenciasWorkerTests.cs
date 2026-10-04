@@ -54,9 +54,10 @@ public sealed class DependenciasWorkerTests
         // E-mail, refresh tokens, retenção de eventos, conciliação de assinaturas, relatórios,
         // régua de cobrança, privacidade (Sprint 14), o descarte dos documentos de convidados (Sprint 21)
         // o resumo do termo por IA (Sprint 24), a conciliação do Mercado Pago (Sprint 25) e a expiração das
-        // compras da loja (Sprint 26), a retenção de turmas (25/09/2026) e as jornadas de marketing (Sprint 40).
+        // compras da loja (Sprint 26), a retenção de turmas (25/09/2026), as jornadas de marketing (Sprint 40)
+        // e a métrica das filas (Sprint 49).
         // O do DataProtection é da plataforma e não conta.
-        provider.GetServices<IHostedService>().Count(servico => servico.GetType().Namespace == typeof(EnvioDeEmailJob).Namespace).ShouldBe(13);
+        provider.GetServices<IHostedService>().Count(servico => servico.GetType().Namespace == typeof(EnvioDeEmailJob).Namespace).ShouldBe(14);
     }
 
     /// <summary>

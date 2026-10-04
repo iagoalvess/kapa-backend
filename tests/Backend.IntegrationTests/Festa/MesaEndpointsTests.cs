@@ -67,9 +67,7 @@ public sealed class MesaEndpointsTests(ApiFactory fabrica)
 
         (await formando.GetAsync(Mesas, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await formando.PostAsJsonAsync(Mesas, new MesaRequestDTO("Minha", 10, null, null), Json, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await formando.PutAsJsonAsync($"{Mesas}/salao", new SalaoRequestDTO(2400, 1600, null, null), Json, Ct)).StatusCode.ShouldBe(
-            HttpStatusCode.Forbidden
-        );
+        (await formando.PutAsJsonAsync($"{Mesas}/salao", new SalaoRequestDTO(null, null), Json, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         var dele = await Criar(cenario.Turma.Presidente.Cliente, "Mesa 5", 10);
         await Criar(cenario.Turma.Presidente.Cliente, "Mesa 6", 10);
@@ -95,16 +93,17 @@ public sealed class MesaEndpointsTests(ApiFactory fabrica)
         var segunda = await Criar(gestao, "Mesa 2", 8, formato: FormatoDaMesa.Retangular);
         var palco = new ElementoDoSalaoDTO(TipoDeElemento.Palco, "  Palco  ", 800, 0, 800, 300, null);
         var familia = new ElementoDoSalaoDTO(TipoDeElemento.Area, "Família", 0, 400, 600, 600, CorDaArea.Lilas);
+        var divisoria = new ElementoDoSalaoDTO(TipoDeElemento.Divisoria, "Divisória", 1600, 300, 300, 40, null);
 
         var primeiraVez = await gestao.PutAsJsonAsync(
             $"{Mesas}/salao",
-            new SalaoRequestDTO(3000, 2000, [palco, familia], [new(primeira.Id, 300, 700, null), new(segunda.Id, 1500, 1200, true)]),
+            new SalaoRequestDTO([palco, familia, divisoria], [new(primeira.Id, 300, 700, null), new(segunda.Id, 1500, 1200, true)]),
             Json,
             Ct
         );
         var segundaVez = await gestao.PutAsJsonAsync(
             $"{Mesas}/salao",
-            new SalaoRequestDTO(3000, 2000, [palco], [new(primeira.Id, null, null, null)]),
+            new SalaoRequestDTO([palco, divisoria], [new(primeira.Id, null, null, null)]),
             Json,
             Ct
         );
@@ -112,8 +111,8 @@ public sealed class MesaEndpointsTests(ApiFactory fabrica)
         primeiraVez.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         segundaVez.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var mapa = await Mapa(turma.Presidente);
-        mapa.Salao.Largura.ShouldBe(3000);
-        mapa.Salao.Elementos.ShouldHaveSingleItem().Rotulo.ShouldBe("Palco");
+        mapa.Salao.Largura.ShouldBe(2400);
+        mapa.Salao.Elementos.Select(elemento => elemento.Tipo).ShouldBe([TipoDeElemento.Palco, TipoDeElemento.Divisoria]);
         var mesas = mapa.Lista.ToDictionary(mesa => mesa.Identificacao);
         (mesas["Mesa 1"].X, mesas["Mesa 1"].Y).ShouldBe((null, null));
         (mesas["Mesa 2"].X, mesas["Mesa 2"].Y, mesas["Mesa 2"].Girada, mesas["Mesa 2"].Formato).ShouldBe(
@@ -130,28 +129,15 @@ public sealed class MesaEndpointsTests(ApiFactory fabrica)
 
         var elementoFora = await gestao.PutAsJsonAsync(
             $"{Mesas}/salao",
-            new SalaoRequestDTO(1000, 1000, [new(TipoDeElemento.Pista, "Pista", 800, 0, 400, 400, null)], null),
+            new SalaoRequestDTO([new(TipoDeElemento.Pista, "Pista", 2200, 0, 400, 400, null)], null),
             Json,
             Ct
         );
-        var mesaFora = await gestao.PutAsJsonAsync(
-            $"{Mesas}/salao",
-            new SalaoRequestDTO(1000, 1000, null, [new(mesa.Id, 1200, 500, null)]),
-            Json,
-            Ct
-        );
-        var meiaCoordenada = await gestao.PutAsJsonAsync(
-            $"{Mesas}/salao",
-            new SalaoRequestDTO(1000, 1000, null, [new(mesa.Id, 500, null, null)]),
-            Json,
-            Ct
-        );
-        var salaoMinusculo = await gestao.PutAsJsonAsync($"{Mesas}/salao", new SalaoRequestDTO(100, 1000, null, null), Json, Ct);
-
+        var mesaFora = await gestao.PutAsJsonAsync($"{Mesas}/salao", new SalaoRequestDTO(null, [new(mesa.Id, 2500, 500, null)]), Json, Ct);
+        var meiaCoordenada = await gestao.PutAsJsonAsync($"{Mesas}/salao", new SalaoRequestDTO(null, [new(mesa.Id, 500, null, null)]), Json, Ct);
         elementoFora.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         mesaFora.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         meiaCoordenada.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        salaoMinusculo.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         await using var contexto = fabrica.ContextoDe(turma.FormaturaId);
         var erro = await Should.ThrowAsync<PostgresException>(() =>

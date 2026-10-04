@@ -103,14 +103,17 @@ public sealed class MesaService(
     /// </remarks>
     public async Task<Result> SalvarSalao(DesenhoDoSalao desenho, CancellationToken ct = default)
     {
-        var validacao = validatorDoSalao.Validar(desenho);
+        var salao = await mesas.ObterSalaoParaEdicao(ct);
+        var plantaAtual = salao is null ? PlantaDoSalao.Padrao : new PlantaDoSalao(salao.Largura, salao.Altura, []);
+        var desenhoComTamanhoAtual = desenho with { Planta = desenho.Planta with { Largura = plantaAtual.Largura, Altura = plantaAtual.Altura } };
+        var validacao = validatorDoSalao.Validar(desenhoComTamanhoAtual);
         if (validacao.Falhou)
             return Result.Falha(validacao.Erros);
 
-        if (await mesas.ObterSalaoParaEdicao(ct) is { } salao)
-            salao.Redesenhar(desenho.Planta);
+        if (salao is not null)
+            salao.Redesenhar(desenhoComTamanhoAtual.Planta);
         else
-            await mesas.AdicionarSalao(Salao.Novo(desenho.Planta), ct);
+            await mesas.AdicionarSalao(Salao.Novo(desenhoComTamanhoAtual.Planta), ct);
 
         var posicoes = desenho.Posicoes.DistinctBy(posicao => posicao.MesaId).ToDictionary(posicao => posicao.MesaId);
         foreach (var mesa in await mesas.ListarParaEdicao(posicoes.Keys, ct))

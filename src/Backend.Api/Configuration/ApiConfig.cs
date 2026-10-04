@@ -120,6 +120,10 @@ public static class ApiConfig
     /// O limitador vem <b>depois</b> da autenticação: antes dela o <c>User</c> ainda é anônimo, e
     /// toda partição caía no IP — uma turma inteira no Wi-Fi da faculdade dividindo a mesma cota.
     /// E vem antes da autorização, para a requisição recusada não pagar a consulta de vínculo.
+    /// <para>
+    /// O escopo de log entra logo depois da autenticação, pelo mesmo motivo: é o primeiro ponto em
+    /// que as claims já foram validadas, e daí para frente toda linha carrega usuário e formatura.
+    /// </para>
     /// </remarks>
     /// <param name="app">Aplicação web.</param>
     public static WebApplication UseApi(this WebApplication app)
@@ -136,6 +140,7 @@ public static class ApiConfig
         app.UseRouting();
         app.UseCors(PoliticaDeCors);
         app.UseAuthentication();
+        app.UseMiddleware<EscopoDeLog>();
         app.UseRateLimiter();
         app.UseAuthorization();
         app.MapControllers();
@@ -214,6 +219,7 @@ public static class ApiConfig
     private static IServiceCollection AddEventos(this IServiceCollection services)
     {
         services.AddSingleton<FilaDeEventos>();
+        services.AddSingleton<MetricasDeEventos>();
         services.AddSingleton<IRegistradorDeEventos>(sp => sp.GetRequiredService<FilaDeEventos>());
         services.AddHostedService<FlushDeEventosService>();
 

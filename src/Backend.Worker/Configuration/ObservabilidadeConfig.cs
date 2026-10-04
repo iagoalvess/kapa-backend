@@ -1,3 +1,4 @@
+using Backend.Business.Abstractions;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -56,6 +57,7 @@ public static class ObservabilidadeConfig
             .WithMetrics(metricas =>
             {
                 metricas.AddHttpClientInstrumentation().AddRuntimeInstrumentation();
+                metricas.AddMeter(Medidores.Filas);
 
                 if (!string.IsNullOrWhiteSpace(coletor))
                     metricas.AddOtlpExporter();

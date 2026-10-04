@@ -49,7 +49,7 @@ public sealed class MesaController(IMesaService mesas, IUsuarioAtual usuarioAtua
     public async Task<IActionResult> SalaoDoFormando(CancellationToken ct) =>
         Responder((await mesas.SalaoDoFormando(FormaturaId, usuarioAtual.Id, ct)).Map(salao => salao.Adapt<SalaoDoFormandoDTO>()));
 
-    /// <summary>Grava o mapa de uma vez: o tamanho do salão, os elementos e o lugar das mesas.</summary>
+    /// <summary>Grava o mapa de uma vez: os elementos e o lugar das mesas.</summary>
     /// <remarks>Os elementos vêm sempre todos; das mesas, só as que mudaram de lugar.</remarks>
     /// <param name="requisicao">O salão e as posições.</param>
     [HttpPut("salao")]
@@ -132,9 +132,9 @@ public sealed class MesaController(IMesaService mesas, IUsuarioAtual usuarioAtua
 
     private static DesenhoDoSalao ParaModelo(SalaoRequestDTO requisicao) =>
         new(
-            new PlantaDoSalao(
-                requisicao.Largura,
-                requisicao.Altura,
+            PlantaDoSalao.Padrao with
+            {
+                Elementos =
                 [
                     .. (requisicao.Elementos ?? []).Select(elemento => new ElementoDoSalao(
                         elemento.Tipo,
@@ -145,8 +145,8 @@ public sealed class MesaController(IMesaService mesas, IUsuarioAtual usuarioAtua
                         elemento.Altura,
                         elemento.Cor
                     )),
-                ]
-            ),
+                ],
+            },
             [.. (requisicao.Posicoes ?? []).Select(posicao => new PosicaoDaMesa(posicao.MesaId, posicao.X, posicao.Y, posicao.Girada ?? false))]
         );
 }

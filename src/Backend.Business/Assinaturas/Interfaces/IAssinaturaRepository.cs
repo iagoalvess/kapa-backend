@@ -142,4 +142,14 @@ public interface IAssinaturaRepository
     /// </remarks>
     /// <param name="evento">Evento recebido.</param>
     Task<bool> RegistrarSeNovo(EventoDeCobranca evento, CancellationToken ct = default);
+
+    /// <summary>
+    /// Quando chegou o último webhook de cobrança, de qualquer formatura.
+    /// </summary>
+    /// <remarks>
+    /// A pergunta que a Sprint 25 deixou em aberto: provedor que para de reentregar não avisa. A
+    /// idade deste instante é o sinal de "nenhum webhook há X horas com cobrança viva"; a correlação
+    /// com cobrança viva é do alerta, não do repositório.
+    /// </remarks>
+    Task<DateTime?> UltimoEventoRecebidoDeTodasAsFormaturas(CancellationToken ct = default);
 }

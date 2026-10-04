@@ -82,6 +82,9 @@ public enum TipoDeElemento
 
     /// <summary>Um trecho do salão com nome e cor: "Família", "Próximo ao palco".</summary>
     Area,
+
+    /// <summary>Uma divisória entre ambientes.</summary>
+    Divisoria,
 }
 
 /// <summary>As cores que uma área pode ter — as do mapa, e só elas.</summary>

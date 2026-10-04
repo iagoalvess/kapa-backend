@@ -7,6 +7,7 @@ using Backend.Data.Criptografia;
 using Backend.Data.Seed;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,6 +49,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     /// <summary>Quantidade de arquivos por usuário nos testes, baixa para a cota ser alcançável.</summary>
     public const int LimiteDeArquivos = 3;
+
+    /// <summary>Contador de comandos SQL, para a guarda de N+1 medir uma requisição.</summary>
+    public ContadorDeComandos Contador { get; } = new();
 
     private readonly string _diretorioDeArquivos = Path.Combine(Path.GetTempPath(), $"backend-arquivos-{Guid.CreateVersion7():N}");
 
@@ -128,9 +132,29 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// A rajada da entrada vai por <c>UseSetting</c>, e não pelo dicionário de <see cref="CreateHost"/>:
     /// lá ela ganharia do <c>UseSetting</c> de um host apertado, e o teste do limite não conseguiria
     /// baixá-la. Aqui, o <c>WithWebHostBuilder</c> do teste roda depois e sobrescreve.
+    /// <para>
+    /// O <see cref="Contador"/> é preso às opções do <c>AppDbContext</c>: o EF Core não resolve
+    /// <c>IInterceptor</c> do provedor com a configuração do projeto, então o host de teste troca o
+    /// registro do contexto por um idêntico <b>com</b> o interceptor. A connection string é a mesma.
+    /// </para>
     /// </remarks>
     protected override void ConfigureWebHost(IWebHostBuilder builder) =>
-        builder.UseEnvironment("Testing").UseSetting("RateLimit:EntradaRajada", "100000").UseSetting("RateLimit:IngressoRajada", "100000");
+        builder
+            .UseEnvironment("Testing")
+            .UseSetting("RateLimit:EntradaRajada", "100000")
+            .UseSetting("RateLimit:IngressoRajada", "100000")
+            .ConfigureTestServices(services =>
+            {
+                services.RemoveAll<AppDbContext>();
+                services.RemoveAll<DbContextOptions<AppDbContext>>();
+
+                services.AddDbContext<AppDbContext>(opcoes =>
+                    opcoes
+                        .UseNpgsql(_postgres.GetConnectionString(), npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 3))
+                        .UseSnakeCaseNamingConvention()
+                        .AddInterceptors(Contador)
+                );
+            });
 
     /// <summary>
     /// Injeta a configuração do teste **antes** de o host da aplicação ser construído.

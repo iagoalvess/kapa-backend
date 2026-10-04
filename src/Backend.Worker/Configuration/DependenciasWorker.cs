@@ -4,6 +4,7 @@ using Backend.Business.Usuarios.Models;
 using Backend.Data;
 using Backend.Data.Context;
 using Backend.Worker.Jobs;
+using Backend.Worker.Metricas;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Backend.Worker.Configuration;
@@ -39,6 +40,7 @@ public static class DependenciasWorker
     private static IHostApplicationBuilder AdicionarJobs(this IHostApplicationBuilder builder)
     {
         builder.Services.AddSingleton<LiderancaDeJob>();
+        builder.Services.AddSingleton<MetricasDeFilas>();
         builder.Services.AddHostedService<EnvioDeEmailJob>();
         builder.Services.AddHostedService<LimpezaRefreshTokensJob>();
         builder.Services.AddHostedService<RetencaoDeEventosJob>();
@@ -52,6 +54,7 @@ public static class DependenciasWorker
         builder.Services.AddHostedService<ExpiracaoDeComprasJob>();
         builder.Services.AddHostedService<RetencaoDeFormaturasJob>();
         builder.Services.AddHostedService<JornadasDeMarketingJob>();
+        builder.Services.AddHostedService<MetricasDeFilasJob>();
 
         return builder;
     }

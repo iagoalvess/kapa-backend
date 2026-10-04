@@ -247,4 +247,8 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
             """,
             ct
         ) == 1;
+
+    /// <inheritdoc />
+    public Task<DateTime?> UltimoEventoRecebidoDeTodasAsFormaturas(CancellationToken ct = default) =>
+        db.EventosDeCobranca.AsNoTracking().MaxAsync(e => (DateTime?)e.RecebidoEm, ct);
 }

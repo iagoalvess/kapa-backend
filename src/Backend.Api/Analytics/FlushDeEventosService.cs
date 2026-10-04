@@ -15,9 +15,14 @@ namespace Backend.Api.Analytics;
 /// </remarks>
 /// <param name="fila">Fila em memória.</param>
 /// <param name="scopeFactory">Fábrica de escopos, para obter o repositório.</param>
+/// <param name="metricas">Contador do descarte para a telemetria.</param>
 /// <param name="logger">Log estruturado.</param>
-public sealed class FlushDeEventosService(FilaDeEventos fila, IServiceScopeFactory scopeFactory, ILogger<FlushDeEventosService> logger)
-    : BackgroundService
+public sealed class FlushDeEventosService(
+    FilaDeEventos fila,
+    IServiceScopeFactory scopeFactory,
+    MetricasDeEventos metricas,
+    ILogger<FlushDeEventosService> logger
+) : BackgroundService
 {
     private const int TamanhoDoLote = 500;
 
@@ -54,6 +59,9 @@ public sealed class FlushDeEventosService(FilaDeEventos fila, IServiceScopeFacto
         var descartados = fila.DescartadosEZerar();
 
         if (descartados > 0)
+        {
+            metricas.RegistrarDescarte(descartados);
             logger.LogWarning("{Descartados} eventos descartados por fila cheia. A gravação não está acompanhando a produção.", descartados);
+        }
     }
 }

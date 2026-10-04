@@ -79,7 +79,22 @@ public interface IEmailFilaRepository
     /// <param name="limiteUtc">Reservado antes disto é dado por perdido.</param>
     /// <returns>Quantos foram marcados.</returns>
     Task<int> DesistirDosPresosAnterioresA(DateTime limiteUtc, CancellationToken ct = default);
+
+    /// <summary>Retrato da fila para a métrica de operação: tamanho, presos e idade.</summary>
+    /// <remarks>
+    /// Contagem agregada, e não listagem: quem chama é o job de métricas, a cada minuto, e não pode
+    /// pagar o custo de trazer as linhas. A idade do pendente mais antigo é o sinal que falta à
+    /// contagem crua — cem e-mails de um segundo atrás não são a mesma coisa que cem parados há uma hora.
+    /// </remarks>
+    /// <param name="limiteDoPreso">Em <c>Enviando</c> desde antes disto é preso.</param>
+    Task<ProfundidadeDaFilaDeEmail> ContarProfundidade(DateTime limiteDoPreso, CancellationToken ct = default);
 }
+
+/// <summary>Retrato da fila de e-mails para a métrica de operação.</summary>
+/// <param name="Pendentes">Quantos esperam envio.</param>
+/// <param name="Presos">Quantos estão em envio desde antes do limite.</param>
+/// <param name="MaisAntigoEm">Quando o pendente mais antigo entrou na fila, ou nulo se a fila está vazia.</param>
+public readonly record struct ProfundidadeDaFilaDeEmail(int Pendentes, int Presos, DateTime? MaisAntigoEm);
 
 /// <summary>
 /// Esvazia a fila: reserva, envia e registra o resultado. Chamado pelo worker, nunca por uma requisição.

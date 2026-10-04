@@ -83,4 +83,21 @@ public sealed class EmailFilaRepository(AppDbContext db) : IEmailFilaRepository
                         .SetProperty(e => e.AtualizadoEm, DateTime.UtcNow),
                 ct
             );
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Três agregações em vez de trazer linhas: é leitura de job, a cada minuto, sobre uma tabela que
+    /// pode ter dezenas de milhares de concluídos. <c>AsNoTracking</c> porque nada será alterado.
+    /// </remarks>
+    public async Task<ProfundidadeDaFilaDeEmail> ContarProfundidade(DateTime limiteDoPreso, CancellationToken ct = default)
+    {
+        var pendentes = db.EmailsFila.AsNoTracking().Where(e => e.Status == EEmailStatus.Pendente);
+
+        var maisAntigoEm = await pendentes.MinAsync(e => (DateTime?)e.CriadoEm, ct);
+        var quantidadeDePendentes = await pendentes.CountAsync(ct);
+
+        var presos = await db.EmailsFila.AsNoTracking().CountAsync(e => e.Status == EEmailStatus.Enviando && e.AtualizadoEm < limiteDoPreso, ct);
+
+        return new ProfundidadeDaFilaDeEmail(quantidadeDePendentes, presos, maisAntigoEm);
+    }
 }

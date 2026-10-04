@@ -86,7 +86,7 @@ public sealed class DesenhoDoSalaoValidator : AbstractValidator<DesenhoDoSalao>
                     && elemento.X + elemento.Largura <= desenho.Planta.Largura
                     && elemento.Y + elemento.Altura <= desenho.Planta.Altura
             )
-            .WithMessage("Há elemento fora do salão. Diminua o elemento ou aumente o salão.");
+            .WithMessage("Há elemento fora do salão. Mova ou diminua o elemento.");
 
         RuleForEach(x => x.Posicoes)
             .Must(posicao => (posicao.X is null) == (posicao.Y is null))
@@ -96,6 +96,6 @@ public sealed class DesenhoDoSalaoValidator : AbstractValidator<DesenhoDoSalao>
                     posicao.X is null
                     || (posicao.X >= 0 && posicao.Y >= 0 && posicao.X <= desenho.Planta.Largura && posicao.Y <= desenho.Planta.Altura)
             )
-            .WithMessage("Há mesa fora do salão. Aproxime a mesa ou aumente o salão.");
+            .WithMessage("Há mesa fora do salão. Mova a mesa para dentro do salão.");
     }
 }

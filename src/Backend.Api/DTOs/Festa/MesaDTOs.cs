@@ -90,17 +90,10 @@ public sealed record PlantaDoSalaoDTO(int Largura, int Altura, IReadOnlyList<Ele
 /// <param name="Girada">Retangular em pé; ausente vale falso.</param>
 public sealed record PosicaoDaMesaDTO(Guid MesaId, int? X, int? Y, bool? Girada);
 
-/// <summary>Corpo do "Salvar mapa": o salão inteiro e o lugar das mesas que mudaram.</summary>
-/// <param name="Largura">Largura do salão, em centímetros.</param>
-/// <param name="Altura">Profundidade do salão, em centímetros.</param>
+/// <summary>Corpo do "Salvar mapa": os elementos e o lugar das mesas que mudaram.</summary>
 /// <param name="Elementos">Todos os elementos; os que não vêm saem do mapa.</param>
 /// <param name="Posicoes">As mesas a mover; a que não vem fica onde está.</param>
-public sealed record SalaoRequestDTO(
-    int Largura,
-    int Altura,
-    IReadOnlyList<ElementoDoSalaoDTO>? Elementos,
-    IReadOnlyList<PosicaoDaMesaDTO>? Posicoes
-);
+public sealed record SalaoRequestDTO(IReadOnlyList<ElementoDoSalaoDTO>? Elementos, IReadOnlyList<PosicaoDaMesaDTO>? Posicoes);
 
 /// <summary>Uma mesa no mapa do formando, sem o dono.</summary>
 /// <param name="Id">Identificador.</param>
