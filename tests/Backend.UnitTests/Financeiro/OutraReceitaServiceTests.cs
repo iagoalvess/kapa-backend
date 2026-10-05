@@ -173,9 +173,7 @@ public sealed class OutraReceitaServiceTests
 
         // Assert
         resultado.Sucesso.ShouldBeTrue();
-        await _outrasReceitas
-            .Received(1)
-            .Adicionar(Arg.Is<OutraReceita>(receita => receita.DocumentoId == doAcervo), Arg.Any<CancellationToken>());
+        await _outrasReceitas.Received(1).Adicionar(Arg.Is<OutraReceita>(receita => receita.DocumentoId == doAcervo), Arg.Any<CancellationToken>());
     }
 
     [Fact]

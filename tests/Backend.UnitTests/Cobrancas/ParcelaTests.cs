@@ -127,4 +127,43 @@ public sealed class ParcelaTests
         // Assert
         estorno.PrimeiroErro.Codigo.ShouldBe("pagamento.parcela_nao_paga");
     }
+
+    /// <summary>
+    /// Sprint 48, D12: enquanto a comissão não responde, a vencida suspensa se lê como aberta; vencido o prazo de
+    /// resposta, volta a ser vencida sozinha.
+    /// </summary>
+    [Fact]
+    public void Suspensa_se_le_aberta_ate_o_fim_do_prazo()
+    {
+        // Arrange
+        var parcela = Nova();
+        var depois = Vencimento.AddDays(3);
+
+        // Act
+        parcela.Suspender(Vencimento.AddDays(7));
+
+        // Assert
+        Parcela.StatusNoDia(parcela.Status, parcela.Vencimento, depois, parcela.SuspensaAte).ShouldBe(StatusDaParcela.Aberta);
+        Parcela.StatusNoDia(parcela.Status, parcela.Vencimento, Vencimento.AddDays(8), parcela.SuspensaAte).ShouldBe(StatusDaParcela.Vencida);
+        parcela.StatusEm(depois).ShouldBe(StatusDaParcela.Vencida);
+    }
+
+    /// <summary>Aprovado o cancelamento do pacote (D9), a paga deixa de valer e o pago fica nela, para a lista "a devolver".</summary>
+    [Fact]
+    public void Desfazer_cancela_ate_a_paga_e_guarda_o_que_entrou()
+    {
+        // Arrange
+        var parcela = Nova();
+        parcela.Pagar(350_000, Vencimento, 350_000);
+        parcela.Suspender(Vencimento.AddDays(7));
+
+        // Act
+        var desfeita = parcela.Desfazer();
+
+        // Assert
+        desfeita.ShouldBeTrue();
+        parcela.Status.ShouldBe(StatusDaParcela.Cancelada);
+        parcela.ValorPagoEmCentavos.ShouldBe(350_000);
+        parcela.Desfazer().ShouldBeFalse();
+    }
 }

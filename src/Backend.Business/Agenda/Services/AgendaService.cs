@@ -3,6 +3,7 @@ using Backend.Business.Agenda.Interfaces;
 using Backend.Business.Agenda.Models;
 using Backend.Business.Common.Datas;
 using Backend.Business.Festa.Interfaces;
+using Backend.Business.Festa.Services;
 using Backend.Business.Formaturas.Interfaces;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
@@ -18,13 +19,15 @@ namespace Backend.Business.Agenda.Services;
 /// é projeção destes eventos, e é por isso que mover a data aqui muda o contador do Início e a
 /// janela da projeção do caixa sem nenhuma outra escrita.
 /// <para>
-/// Nada aqui gera despesa, parcela, convite ou aviso, e nenhum e-mail sai daqui (decisão 9). A exceção é
-/// cancelar: evento cancelado não tem porta, e os convites que sobraram nele são revogados (Sprint 38, P10).
+/// Nada aqui gera despesa, parcela ou aviso, e nenhum e-mail sai daqui (decisão 9). As exceções são de convite:
+/// cancelar revoga o que sobrou no evento (Sprint 38, P10), e salvar a festa ou a colação emite os convites que os
+/// pacotes já contratados concedem e ainda não saíram — o evento só emite quando tem data, hora e local (Sprint 47).
 /// </para>
 /// </remarks>
 /// <param name="eventos">Eventos da turma.</param>
 /// <param name="pendencias">As vendas de pé da festa, que impedem cancelá-la ou excluí-la (P10).</param>
 /// <param name="convites">Os convites que o evento cancelado revoga.</param>
+/// <param name="emissao">Os convites dos pacotes, emitidos quando a festa ou a colação fica completa.</param>
 /// <param name="validator">Forma do evento.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
@@ -32,6 +35,7 @@ public sealed class AgendaService(
     IEventoDaTurmaRepository eventos,
     IPendenciasDaTurmaRepository pendencias,
     IConviteDoEventoRepository convites,
+    EmissaoDeConvites emissao,
     IValidator<DadosDoEvento> validator,
     IUnitOfWork unitOfWork,
     ILogger<AgendaService> logger
@@ -75,6 +79,9 @@ public sealed class AgendaService(
         await eventos.Adicionar(evento, ct);
         await unitOfWork.SalvarAsync(ct);
 
+        if (TemConvite(evento.Tipo))
+            await emissao.EmitirDosPacotesDaTurma(ct);
+
         logger.LogInformation("Evento {EventoId} marcado na agenda da turma.", evento.Id);
 
         return await ObterPorId(evento.Id, ct);
@@ -84,7 +91,7 @@ public sealed class AgendaService(
     /// <remarks>
     /// Marcar a festa como cancelada com venda de pé responde 409 <c>agenda.evento_com_vendas</c> (Sprint 38, P10):
     /// o dinheiro se resolve primeiro, pelo caminho que devolve. Sem vendas, cancelar revoga o que sobrou sem
-    /// dinheiro envolvido — cortesias e cota da colação —, na mesma transação.
+    /// dinheiro envolvido — cortesias e convites dos pacotes —, na mesma transação.
     /// </remarks>
     public async Task<Result<EventoResumo>> Atualizar(Guid id, DadosDoEvento dados, CancellationToken ct = default)
     {
@@ -118,6 +125,9 @@ public sealed class AgendaService(
                 }
 
                 await unitOfWork.SalvarAsync(token);
+
+                if (!evento.Cancelado && TemConvite(evento.Tipo))
+                    await emissao.EmitirDosPacotesDaTurma(token);
 
                 return Result.Ok();
             },
@@ -184,4 +194,8 @@ public sealed class AgendaService(
                     : "Esta turma já tem uma festa na agenda. Altere a data da que existe."
             )
             : null;
+
+    /// <summary>Festa e colação são os únicos eventos com convite.</summary>
+    /// <param name="tipo">Tipo do evento.</param>
+    private static bool TemConvite(TipoDeEvento tipo) => tipo is TipoDeEvento.Festa or TipoDeEvento.Colacao;
 }

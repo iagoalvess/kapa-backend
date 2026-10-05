@@ -383,8 +383,7 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
 
         // O formando abre o contrato: nasceu visível para a turma.
         var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
-        (await formando.Cliente.GetAsync($"/api/v1/comunicacao/documentos/{item.Documento.Id}/download", Ct))
-            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await formando.Cliente.GetAsync($"/api/v1/comunicacao/documentos/{item.Documento.Id}/download", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]

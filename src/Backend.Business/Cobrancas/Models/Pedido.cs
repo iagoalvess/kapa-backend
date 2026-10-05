@@ -45,6 +45,9 @@ public class Pedido : EntidadeDaFormatura
     /// <summary>Quando foi cancelado, em UTC. Nulo no pedido de pé.</summary>
     public DateTime? CanceladoEm { get; private set; }
 
+    /// <summary>Detalhe livre de quem pede — tamanho da beca, nome no convite (Sprint 48, D26). A Gestão lê na lista.</summary>
+    public string? Observacao { get; private set; }
+
     /// <summary>Se ainda vale — é o que conta no estoque e o que a Sprint 21 vai transformar em convite.</summary>
     public bool Confirmado => Status == StatusDoPedido.Confirmado;
 
@@ -53,14 +56,26 @@ public class Pedido : EntidadeDaFormatura
     /// <param name="itemId">Item opcional.</param>
     /// <param name="quantidade">Quantas unidades.</param>
     /// <param name="parcelas">Em quantas vezes, já conferido contra o teto do item.</param>
-    public static Pedido Novo(Guid vinculoId, Guid itemId, int quantidade, int parcelas = 1) =>
+    /// <param name="observacao">Detalhe livre de quem pede.</param>
+    public static Pedido Novo(Guid vinculoId, Guid itemId, int quantidade, int parcelas = 1, string? observacao = null) =>
         new()
         {
             VinculoId = vinculoId,
             ItemDeCobrancaId = itemId,
             Quantidade = quantidade,
             Parcelas = parcelas,
+            Observacao = Aparar(observacao),
         };
+
+    /// <summary>Troca o detalhe livre. Nulo mantém o que havia — o <c>PUT</c> da quantidade não o reenvia.</summary>
+    /// <param name="observacao">Texto novo; vazio apaga.</param>
+    public void Observar(string? observacao)
+    {
+        if (observacao is not null)
+            Observacao = Aparar(observacao);
+    }
+
+    private static string? Aparar(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
 
     /// <summary>Grava a quantidade nova — sempre absoluta, nunca um incremento.</summary>
     /// <remarks>

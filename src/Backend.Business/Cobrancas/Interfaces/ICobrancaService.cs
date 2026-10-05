@@ -29,23 +29,52 @@ public interface ICobrancaService
     /// <param name="dados">Nome e regras de atraso.</param>
     Task<Result<PlanoDeCobrancaDetalhe>> Atualizar(Guid planoId, DadosDoPlano dados, CancellationToken ct = default);
 
-    /// <summary>Inclui um item no plano. Com <paramref name="rateio"/>, ele alcança também quem já aderiu.</summary>
+    /// <summary>
+    /// Inclui um pacote no catálogo. Com <paramref name="rateio"/>, inclui o item da assembleia, que alcança também
+    /// quem já aderiu — e aí só o item de <paramref name="dados"/> conta.
+    /// </summary>
     /// <param name="planoId">Plano.</param>
-    /// <param name="dados">Item.</param>
+    /// <param name="dados">Pacote: o item, o grupo de faixas, os benefícios e o último vencimento.</param>
     /// <param name="rateio">Rateio extraordinário; ausente, o item vale só para quem aderir depois.</param>
     Task<Result<PlanoDeCobrancaDetalhe>> AdicionarItem(
         Guid planoId,
-        DadosDoItem dados,
+        DadosDoPacote dados,
         RateioExtraordinario? rateio = null,
         CancellationToken ct = default
     );
 
-    /// <summary>Altera um item. Com parcela gerada, só o valor muda — e só nas que ainda não venceram.</summary>
+    /// <summary>
+    /// Altera um item. Com parcela gerada, só o valor muda — no catálogo, para quem aderir depois; e, com
+    /// <paramref name="aplicarAosAtuais"/>, também nas parcelas que ainda não venceram de quem já aderiu (Sprint 48, D21).
+    /// </summary>
     /// <param name="planoId">Plano.</param>
     /// <param name="itemId">Item.</param>
     /// <param name="dados">Dados novos.</param>
-    /// <param name="autorId">Quem alterou — vai na trilha de auditoria com o antes e o depois.</param>
-    Task<Result<PlanoDeCobrancaDetalhe>> AlterarItem(Guid planoId, Guid itemId, DadosDoItem dados, Guid autorId, CancellationToken ct = default);
+    /// <param name="autorId">Quem alterou — vai na trilha de auditoria com o antes, o depois e a escolha.</param>
+    /// <param name="aplicarAosAtuais">Repactua quem já aderiu. O padrão é não: travar o contrato é a regra.</param>
+    Task<Result<PlanoDeCobrancaDetalhe>> AlterarItem(
+        Guid planoId,
+        Guid itemId,
+        DadosDoPacote dados,
+        Guid autorId,
+        bool aplicarAosAtuais = false,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
+    /// Quantos de quem já aderiu o preço novo alcançaria, e quanto a soma do que devem mudaria — a pergunta "aplicar
+    /// também a quem já aderiu?" (D21), sem gravar nada.
+    /// </summary>
+    /// <param name="planoId">Plano.</param>
+    /// <param name="itemId">Item.</param>
+    /// <param name="valorEmCentavos">Preço novo.</param>
+    Task<Result<Alcance>> SimularPreco(Guid planoId, Guid itemId, long valorEmCentavos, CancellationToken ct = default);
+
+    /// <summary>Quantos formandos o rateio alcançaria hoje, e o total — a conta antes de confirmar (D19).</summary>
+    /// <param name="planoId">Plano.</param>
+    /// <param name="alvo">Pacotes de quem paga; vazio é todos os que já aderiram.</param>
+    /// <param name="valorEmCentavos">Valor por formando.</param>
+    Task<Result<Alcance>> SimularRateio(Guid planoId, IReadOnlyList<Guid> alvo, long valorEmCentavos, CancellationToken ct = default);
 
     /// <summary>Remove um item que nunca gerou parcela.</summary>
     /// <param name="planoId">Plano.</param>

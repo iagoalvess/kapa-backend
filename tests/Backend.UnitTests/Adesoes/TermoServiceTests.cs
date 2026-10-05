@@ -7,6 +7,7 @@ using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
+using Backend.Business.Formandos.Interfaces;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -25,7 +26,16 @@ public sealed class TermoServiceTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
     private TermoService Servico =>
-        new(_adesoes, _planos, new PublicarTermoValidator(), _eventos, _formatura, _unitOfWork, NullLogger<TermoService>.Instance);
+        new(
+            _adesoes,
+            _planos,
+            Substitute.For<IPerfilRepository>(),
+            new PublicarTermoValidator(),
+            _eventos,
+            _formatura,
+            _unitOfWork,
+            NullLogger<TermoService>.Instance
+        );
 
     [Fact]
     public async Task Publicar_grava_a_versao_seguinte()
@@ -92,7 +102,7 @@ public sealed class TermoServiceTests
         _adesoes.ObterTermoVigente(Arg.Any<CancellationToken>()).Returns(new VersaoDoTermo(Guid.CreateVersion7(), 1, "Texto", DateTime.UtcNow));
         _planos.ObterVigente(Arg.Any<CancellationToken>()).Returns((PlanoDeCobranca?)null);
 
-        var conteudo = (await Servico.ObterParaAdesao(Ct)).Valor;
+        var conteudo = (await Servico.ObterParaAdesao(Guid.CreateVersion7(), Guid.CreateVersion7(), [], Ct)).Valor;
 
         conteudo.Termo.ShouldNotBeNull();
         conteudo.Plano.ShouldBeNull();

@@ -28,7 +28,6 @@ public sealed class PlanoDeCobrancaMapping : IEntityTypeConfiguration<PlanoDeCob
         builder.Property(p => p.Nome).IsRequired().HasMaxLength(120);
         builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
 
-        builder.Ignore(p => p.ItensAtivos);
         builder.Ignore(p => p.ItensOpcionais);
         builder.HasMany(p => p.Itens).WithOne().HasForeignKey(i => i.PlanoId).OnDelete(DeleteBehavior.Restrict);
 
@@ -71,6 +70,7 @@ public sealed class ItemDeCobrancaMapping : IEntityTypeConfiguration<ItemDeCobra
             {
                 tabela.HasCheckConstraint("ck_itens_de_cobranca_reservados", "reservados >= 0 AND (estoque IS NULL OR reservados <= estoque)");
                 tabela.HasCheckConstraint("ck_itens_de_cobranca_estoque", "estoque IS NULL OR estoque >= 0");
+                tabela.HasCheckConstraint("ck_itens_de_cobranca_beneficios", "convites_da_festa >= 0 AND convites_da_colacao >= 0");
             }
         );
 
@@ -85,6 +85,11 @@ public sealed class ItemDeCobrancaMapping : IEntityTypeConfiguration<ItemDeCobra
         builder.Ignore(i => i.Disponivel);
         builder.Ignore(i => i.PrecoNaLoja);
         builder.Ignore(i => i.NaLoja);
+        builder.Ignore(i => i.Pacote);
+        builder.Property(i => i.Grupo).HasMaxLength(60);
+        builder.Property(i => i.AlvoDoRateio).HasDefaultValueSql("'{}'::uuid[]");
+
+        builder.HasOne<VinculoDeFormatura>().WithMany().HasForeignKey(i => i.VinculoDoLancamento).OnDelete(DeleteBehavior.Restrict);
 
         builder
             .HasIndex(i => i.ItemDaFestaId, "ix_itens_de_cobranca_item_da_festa")
@@ -95,6 +100,28 @@ public sealed class ItemDeCobrancaMapping : IEntityTypeConfiguration<ItemDeCobra
         builder.HasOne<Formatura>().WithMany().HasForeignKey(i => i.FormaturaId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<ItemDaFesta>().WithMany().HasForeignKey(i => i.ItemDaFestaId).OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+/// <summary>Mapeamento da cesta do formando (Sprint 47).</summary>
+/// <remarks>Um pacote entra uma vez na cesta de cada vínculo: o índice único é a garantia contra a adesão em dobro.</remarks>
+public sealed class EscolhaDaCestaMapping : IEntityTypeConfiguration<EscolhaDaCesta>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<EscolhaDaCesta> builder)
+    {
+        builder.ToTable("escolhas_da_cesta");
+
+        builder.HasKey(e => e.Id);
+
+        builder.Property(e => e.Observacao).HasMaxLength(PedidoMapping.TamanhoDaObservacao);
+
+        builder.HasIndex(e => new { e.VinculoId, e.ItemDeCobrancaId }).IsUnique();
+        builder.HasIndex(e => e.ItemDeCobrancaId);
+
+        builder.HasOne<VinculoDeFormatura>().WithMany().HasForeignKey(e => e.VinculoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ItemDeCobranca>().WithMany().HasForeignKey(e => e.ItemDeCobrancaId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Formatura>().WithMany().HasForeignKey(e => e.FormaturaId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -110,6 +137,9 @@ public sealed class ItemDeCobrancaMapping : IEntityTypeConfiguration<ItemDeCobra
 /// </remarks>
 public sealed class PedidoMapping : IEntityTypeConfiguration<Pedido>
 {
+    /// <summary>Teto do detalhe livre do pedido e da cesta (Sprint 48, D26) — o mesmo dos validators.</summary>
+    public const int TamanhoDaObservacao = 300;
+
     /// <inheritdoc />
     public void Configure(EntityTypeBuilder<Pedido> builder)
     {
@@ -127,6 +157,7 @@ public sealed class PedidoMapping : IEntityTypeConfiguration<Pedido>
         builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
 
         builder.Ignore(p => p.Confirmado);
+        builder.Property(p => p.Observacao).HasMaxLength(TamanhoDaObservacao);
 
         builder.HasIndex(p => new { p.VinculoId, p.ItemDeCobrancaId }).IsUnique();
         builder.HasIndex(p => new { p.ItemDeCobrancaId, p.Status });
@@ -183,5 +214,37 @@ public sealed class ParcelaMapping : IEntityTypeConfiguration<Parcela>
         builder.HasOne<VinculoDeFormatura>().WithMany().HasForeignKey(p => p.VinculoId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ItemDeCobranca>().WithMany().HasForeignKey(p => p.ItemDeCobrancaId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Formatura>().WithMany().HasForeignKey(p => p.FormaturaId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+/// <summary>Mapeamento das solicitações de cancelamento do formando (Sprint 48, D8).</summary>
+/// <remarks>
+/// Uma aberta por par (vínculo, item): o índice único parcial é o que faz do clique duplo uma solicitação só, como no
+/// pedido de cancelamento da loja. Chaves em <c>Restrict</c>, como tudo o que toca dívida.
+/// </remarks>
+public sealed class SolicitacaoDeCancelamentoMapping : IEntityTypeConfiguration<SolicitacaoDeCancelamento>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<SolicitacaoDeCancelamento> builder)
+    {
+        builder.ToTable("solicitacoes_de_cancelamento");
+
+        builder.HasKey(s => s.Id);
+
+        builder.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(s => s.Motivo).HasMaxLength(PedidoMapping.TamanhoDaObservacao);
+        builder.Property(s => s.MotivoDaResposta).HasMaxLength(PedidoMapping.TamanhoDaObservacao);
+
+        builder
+            .HasIndex(s => new { s.VinculoId, s.ItemDeCobrancaId })
+            .IsUnique()
+            .HasFilter("status = 'Aberto'")
+            .HasDatabaseName("ix_solicitacoes_de_cancelamento_uma_aberta");
+        builder.HasIndex(s => new { s.FormaturaId, s.Status });
+
+        builder.HasOne<VinculoDeFormatura>().WithMany().HasForeignKey(s => s.VinculoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ItemDeCobranca>().WithMany().HasForeignKey(s => s.ItemDeCobrancaId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Pedido>().WithMany().HasForeignKey(s => s.PedidoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Formatura>().WithMany().HasForeignKey(s => s.FormaturaId).OnDelete(DeleteBehavior.Restrict);
     }
 }

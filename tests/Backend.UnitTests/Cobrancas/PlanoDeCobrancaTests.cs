@@ -21,35 +21,63 @@ public sealed class PlanoDeCobrancaTests
         return plano;
     }
 
+    /// <summary>"Festa 10" e "Festa 15" juntos é erro de clique: uma faixa por grupo (Sprint 47, D32).</summary>
     [Fact]
-    public void Segunda_adesao_no_plano_e_recusada()
+    public void Cesta_aceita_uma_faixa_por_grupo_e_qualquer_pacote_avulso()
     {
         // Arrange
-        var plano = ComItens(TipoDeCobranca.Adesao, TipoDeCobranca.Mensalidade);
+        var plano = new PlanoDeCobranca { Nome = "Plano 2027" };
+        var festa10 = Pacote(plano, "Festa", 10);
+        var festa15 = Pacote(plano, "Festa", 15);
+        var foto = Pacote(plano, null, 0);
+        plano.Itens.AddRange([festa10, festa15, foto]);
 
         // Act
-        var resultado = plano.AceitaItem(TipoDeCobranca.Adesao);
+        var valida = plano.MontarCesta([foto.Id, festa15.Id]);
+        var duasFaixas = plano.MontarCesta([festa10.Id, festa15.Id]);
+        var repetida = plano.MontarCesta([foto.Id, foto.Id]);
+        var inexistente = plano.MontarCesta([Guid.CreateVersion7()]);
 
         // Assert
-        resultado.PrimeiroErro.Codigo.ShouldBe("cobranca.adesao_duplicada");
+        valida.Valor.ShouldBe([festa15, foto]);
+        duasFaixas.PrimeiroErro.Codigo.ShouldBe("cobranca.faixa_invalida");
+        repetida.PrimeiroErro.Codigo.ShouldBe("cobranca.cesta_duplicada");
+        inexistente.PrimeiroErro.Codigo.ShouldBe("cobranca.pacote_invalido");
     }
 
+    /// <summary>
+    /// O rateio da assembleia não é pacote, e é pontual (Sprint 48, D39): quem adere depois dele não o deve — nem o
+    /// lançamento avulso de outro formando entra no catálogo.
+    /// </summary>
     [Fact]
-    public void Adesao_alterada_nao_conflita_consigo_mesma_e_encerrada_nao_conta()
+    public void Rateio_e_lancamento_ficam_fora_do_catalogo_e_da_adesao()
     {
         // Arrange
-        var plano = ComItens(TipoDeCobranca.Adesao);
-        var adesao = plano.Itens[0];
-
-        // Act
-        var alterando = plano.AceitaItem(TipoDeCobranca.Adesao, exceto: adesao);
-        adesao.Encerrar(Hoje);
-        var depoisDeEncerrar = plano.AceitaItem(TipoDeCobranca.Adesao);
+        var plano = new PlanoDeCobranca { Nome = "Plano 2027" };
+        var foto = Pacote(plano, null, 0);
+        var rateio = ItemDeCobranca.Novo(
+            plano.Id,
+            new DadosDoItem(TipoDeCobranca.Avulsa, "Formatura extra", 10_000, 1, 10, Hoje),
+            "assembleia de 12/10"
+        );
+        var multa = ItemDeCobranca.NovoLancamento(
+            plano.Id,
+            Guid.CreateVersion7(),
+            new DadosDoItem(TipoDeCobranca.Avulsa, "Multa da mesa", 5_000, 1, 10, Hoje)
+        );
+        plano.Itens.AddRange([foto, rateio, multa]);
 
         // Assert
-        alterando.Sucesso.ShouldBeTrue();
-        depoisDeEncerrar.Sucesso.ShouldBeTrue();
+        plano.Pacotes().ShouldBe([foto]);
+        plano.ItensDoFormando([]).ShouldBeEmpty();
+        plano.ItensDoFormando([foto]).ShouldBe([foto]);
     }
+
+    private static ItemDeCobranca Pacote(PlanoDeCobranca plano, string? grupo, int convites) =>
+        ItemDeCobranca.NovoPacote(
+            plano.Id,
+            new DadosDoPacote(new DadosDoItem(TipoDeCobranca.Festa, $"{convites} pessoas", 100_000, 2, 10, Hoje.AddMonths(1)), grupo, convites)
+        );
 
     [Fact]
     public void Plano_sem_item_ativo_nao_entra_em_vigor()

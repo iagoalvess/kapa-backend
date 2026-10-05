@@ -199,7 +199,9 @@ public sealed class MesaEndpointsTests(ApiFactory fabrica)
         var mesa = await Criar(cenario.Turma.Presidente.Cliente, "Mesa 7", 10);
         (await Atribuir(cenario.Turma.Presidente, mesa.Id, cenario.VinculoId)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        (await cenario.Formando.Cliente.PostAsync($"/api/v1/pedidos/{cenario.PedidoId}/cancelar", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await cenario.Turma.Presidente.Cliente.PostAsync($"/api/v1/pedidos/{cenario.PedidoId}/cancelar", null, Ct)).StatusCode.ShouldBe(
+            HttpStatusCode.OK
+        );
 
         var mapa = await Mapa(cenario.Turma.Presidente);
         mapa.Lista.Single().VinculoId.ShouldBeNull();

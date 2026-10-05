@@ -54,10 +54,10 @@ public sealed class DadosDoItemValidator : AbstractValidator<DadosDoItem>
     public const long ValorMaximo = 100_000_000;
 
     /// <summary>Registra as regras de validação.</summary>
-    /// <param name="tipos">Os tipos aceitos; sem ele, os do plano (<see cref="TiposDeCobranca.DoPlano"/>).</param>
+    /// <param name="tipos">Os tipos aceitos; sem ele, os do rateio (<see cref="TiposDeCobranca.DosRateios"/>).</param>
     public DadosDoItemValidator(IReadOnlySet<TipoDeCobranca>? tipos = null)
     {
-        var aceitos = tipos ?? TiposDeCobranca.DoPlano;
+        var aceitos = tipos ?? TiposDeCobranca.DosRateios;
 
         RuleFor(x => x.Tipo).Must(aceitos.Contains).WithErrorCode("cobranca.tipo_invalido").WithMessage("Este tipo de cobrança não cabe aqui.");
 
@@ -94,6 +94,37 @@ public sealed class DadosDoItemValidator : AbstractValidator<DadosDoItem>
     }
 }
 
+/// <summary>Forma de um pacote do catálogo (Sprint 47): o item, o grupo de faixas e os benefícios.</summary>
+public sealed class DadosDoPacoteValidator : AbstractValidator<DadosDoPacote>
+{
+    /// <summary>Tamanho do nome do grupo de faixas.</summary>
+    public const int TamanhoDoGrupo = 60;
+
+    /// <summary>Teto de convites por benefício: a maior faixa de festa que se vende cabe com folga.</summary>
+    public const int ConvitesMaximos = 100;
+
+    /// <summary>Registra as regras de validação.</summary>
+    public DadosDoPacoteValidator()
+    {
+        RuleFor(x => x.Item).SetValidator(new DadosDoItemValidator(TiposDeCobranca.DosPacotes)).OverridePropertyName(string.Empty);
+
+        RuleFor(x => x.Grupo)
+            .MaximumLength(TamanhoDoGrupo)
+            .OverridePropertyName("grupo")
+            .WithMessage($"O grupo deve ter no máximo {TamanhoDoGrupo} caracteres.");
+
+        RuleFor(x => x.ConvitesDaFesta)
+            .InclusiveBetween(0, ConvitesMaximos)
+            .OverridePropertyName("convites_da_festa")
+            .WithMessage($"Os convites da festa vão de 0 a {ConvitesMaximos}.");
+
+        RuleFor(x => x.ConvitesDaColacao)
+            .InclusiveBetween(0, ConvitesMaximos)
+            .OverridePropertyName("convites_da_colacao")
+            .WithMessage($"Os convites da colação vão de 0 a {ConvitesMaximos}.");
+    }
+}
+
 /// <summary>
 /// Forma do rateio extraordinário: sem a origem da decisão, ele não existe.
 /// </summary>
@@ -115,6 +146,11 @@ public sealed class RateioExtraordinarioValidator : AbstractValidator<RateioExtr
             .WithMessage("Informe onde a turma decidiu esta cobrança — a assembleia e a data.")
             .MaximumLength(TamanhoDaOrigem)
             .WithMessage($"A origem deve ter no máximo {TamanhoDaOrigem} caracteres.");
+
+        RuleFor(x => x.Alvo)
+            .Must(alvo => alvo is null || alvo.Count <= SimularPlanoValidator.ItensMaximos)
+            .OverridePropertyName("alvo")
+            .WithMessage($"Escolha até {SimularPlanoValidator.ItensMaximos} pacotes no alvo.");
     }
 }
 
@@ -134,7 +170,7 @@ public sealed class DadosDoOpcionalValidator : AbstractValidator<DadosDoOpcional
     /// <summary>Registra as regras de validação.</summary>
     public DadosDoOpcionalValidator()
     {
-        RuleFor(x => x.Item).SetValidator(new DadosDoItemValidator(TiposDeCobranca.DosOpcionais));
+        RuleFor(x => x.Item).SetValidator(new DadosDoItemValidator(TiposDeCobranca.DosOpcionais)).OverridePropertyName(string.Empty);
 
         RuleFor(x => x.Item.ValorEmCentavos)
             .GreaterThan(0)
@@ -196,6 +232,50 @@ public sealed class DadosDoPedidoValidator : AbstractValidator<DadosDoPedido>
             .When(x => x.Parcelas is not null)
             .OverridePropertyName("parcelas")
             .WithMessage("Escolha ao menos 1 parcela.");
+
+        RuleFor(x => x.Observacao)
+            .MaximumLength(DadosDaSolicitacaoValidator.TamanhoDoTexto)
+            .OverridePropertyName("observacao")
+            .WithMessage($"Escreva o detalhe em até {DadosDaSolicitacaoValidator.TamanhoDoTexto} caracteres.");
+    }
+}
+
+/// <summary>Forma da solicitação de cancelamento do formando (Sprint 48, D8).</summary>
+public sealed class DadosDaSolicitacaoValidator : AbstractValidator<DadosDaSolicitacao>
+{
+    /// <summary>Teto dos textos livres da sprint — motivo, recusa e detalhe do pedido e da cesta.</summary>
+    public const int TamanhoDoTexto = 300;
+
+    /// <summary>Registra as regras de validação.</summary>
+    public DadosDaSolicitacaoValidator()
+    {
+        RuleFor(x => x.ItemDeCobrancaId).NotEmpty().OverridePropertyName("item_de_cobranca_id").WithMessage("Escolha o que cancelar.");
+
+        RuleFor(x => x.Motivo)
+            .MaximumLength(TamanhoDoTexto)
+            .OverridePropertyName("motivo")
+            .WithMessage($"Escreva o motivo em até {TamanhoDoTexto} caracteres.");
+    }
+}
+
+/// <summary>Forma do lançamento avulso no vínculo de um formando (Sprint 48, D23/D42): quem e o quê.</summary>
+/// <remarks>
+/// Valor, parcelas e data passam pelo <see cref="DadosDoItemValidator"/> — o lançamento vira um item <c>Avulsa</c>, e
+/// a regra do valor (diferente de zero, negativo credita) é a dele. Quem confere a adesão é o service.
+/// </remarks>
+public sealed class LancamentoAvulsoValidator : AbstractValidator<LancamentoAvulso>
+{
+    /// <summary>Registra as regras de validação.</summary>
+    public LancamentoAvulsoValidator()
+    {
+        RuleFor(x => x.UsuarioId).NotEmpty().OverridePropertyName("usuario_id").WithMessage("Escolha o formando.");
+
+        RuleFor(x => x.Descricao)
+            .NotEmpty()
+            .WithMessage("Diga o que é o lançamento.")
+            .MaximumLength(120)
+            .WithMessage("A descrição deve ter no máximo 120 caracteres.")
+            .OverridePropertyName("descricao");
     }
 }
 

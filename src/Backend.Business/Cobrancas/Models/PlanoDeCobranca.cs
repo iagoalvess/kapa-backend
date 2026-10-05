@@ -6,9 +6,13 @@ namespace Backend.Business.Cobrancas.Models;
 /// O que a turma decidiu cobrar: os itens e as regras de atraso.
 /// </summary>
 /// <remarks>
+/// Desde a Sprint 47 é o <b>catálogo</b>: os pacotes de onde cada formando monta a cesta, os opcionais e os
+/// rateios. "Um vigente por turma" continua — o que é único é o catálogo, não a dívida (D16).
+/// <para>
 /// É configuração, editável. O que uma pessoa deve é a <see cref="Parcela"/>, gravada na adesão
 /// com o valor congelado — confundir os dois é o erro que faz "alterar a mensalidade" apagar o
 /// histórico de pagamento da turma inteira.
+/// </para>
 /// <para>
 /// As regras de atraso ficam aqui desde já e são aplicadas depois (baixa na Sprint 9, régua na
 /// Sprint 13). Guardar a regra sem aplicá-la é barato; descobrir lá que o plano não tem onde
@@ -44,22 +48,70 @@ public class PlanoDeCobranca : EntidadeDaFormatura
     /// <summary>Itens do plano, inclusive os encerrados.</summary>
     public List<ItemDeCobranca> Itens { get; private set; } = [];
 
-    /// <summary>
-    /// Itens que ainda cobram <b>todo mundo</b> — os opcionais ficam de fora.
-    /// </summary>
+    /// <summary>Os pacotes à venda no catálogo, na ordem em que foram criados.</summary>
     /// <remarks>
-    /// É a propriedade que a adesão lê, e por isso o filtro de <c>Opcional</c> mora aqui (Sprint
-    /// 20, decisão 1): esquecê-lo faria o convite extra entrar na adesão da turma inteira, cobrando
-    /// de todos um item que ninguém pediu. O opcional é alcançado só pelo pedido.
+    /// Ordem fixa, com desempate pelo id: o catálogo da adesão, a grade e o texto aceito saem sempre iguais. O filtro
+    /// de <c>Opcional</c> mora em <see cref="ItemDeCobranca.Pacote"/> — esquecê-lo poria o convite extra na cesta.
     /// </remarks>
-    public IEnumerable<ItemDeCobranca> ItensAtivos => Itens.Where(item => item.EncerradoEm is null && !item.Opcional);
+    public IReadOnlyList<ItemDeCobranca> Pacotes() =>
+        [.. Itens.Where(item => item.EncerradoEm is null && item.Pacote).OrderBy(i => i.CriadoEm).ThenBy(i => i.Id)];
 
     /// <summary>Os itens opcionais que ainda estão à venda — o que o pedido alcança.</summary>
     public IEnumerable<ItemDeCobranca> ItensOpcionais => Itens.Where(item => item.EncerradoEm is null && item.Opcional);
 
-    /// <summary>Os itens que ainda cobram, como dados, na ordem em que foram criados.</summary>
-    /// <remarks>Ordem fixa, com desempate pelo id: a grade e o texto aceito na adesão saem sempre iguais.</remarks>
-    public IReadOnlyList<DadosDoItem> DadosDosItensAtivos() => [.. ItensAtivos.OrderBy(i => i.CriadoEm).ThenBy(i => i.Id).Select(i => i.ParaDados())];
+    /// <summary>
+    /// O que um formando passa a dever na adesão: os pacotes da cesta, na ordem do plano.
+    /// </summary>
+    /// <remarks>
+    /// Só a cesta. O rateio extraordinário é pontual (Sprint 48, D22/D39): cobra quem tem o alvo no dia do lançamento,
+    /// e quem adere depois paga o preço vigente do catálogo — que a comissão ajusta, se quiser (D21). Até a Sprint 47,
+    /// o rateio ativo alcançava também quem aderia depois.
+    /// </remarks>
+    /// <param name="cesta">Pacotes escolhidos, já conferidos por <see cref="MontarCesta"/>.</param>
+    public IReadOnlyList<ItemDeCobranca> ItensDoFormando(IReadOnlyCollection<ItemDeCobranca> cesta) =>
+        [.. Itens.Where(cesta.Contains).OrderBy(i => i.CriadoEm).ThenBy(i => i.Id)];
+
+    /// <summary>
+    /// Confere a escolha do formando contra o catálogo: pacotes que existem, sem repetição, uma faixa por grupo (D32).
+    /// </summary>
+    /// <remarks>
+    /// A cesta vazia passa aqui — a prévia do termo a mostra antes da escolha. Quem exige ao menos um pacote é a adesão
+    /// (D33).
+    /// </remarks>
+    /// <param name="pacoteIds">Ids escolhidos.</param>
+    /// <returns>Os pacotes, na ordem do catálogo.</returns>
+    public Result<IReadOnlyList<ItemDeCobranca>> MontarCesta(IReadOnlyCollection<Guid> pacoteIds)
+    {
+        if (pacoteIds.Distinct().Count() != pacoteIds.Count)
+            return Erro.Validacao("cobranca.cesta_duplicada", "O mesmo pacote foi escolhido duas vezes.", campo: "pacotes");
+
+        var catalogo = Pacotes();
+        var cesta = catalogo.Where(pacote => pacoteIds.Contains(pacote.Id)).ToList();
+
+        if (cesta.Count != pacoteIds.Count)
+            return Erro.Validacao("cobranca.pacote_invalido", "Um dos pacotes escolhidos não está mais no catálogo da turma.", campo: "pacotes");
+
+        if (
+            cesta.Where(pacote => pacote.Grupo is not null).GroupBy(pacote => pacote.Grupo).FirstOrDefault(grupo => grupo.Count() > 1) is { } repetido
+        )
+            return Erro.Validacao("cobranca.faixa_invalida", $"Escolha só uma faixa de {repetido.Key}.", campo: "pacotes");
+
+        return cesta;
+    }
+
+    /// <summary>
+    /// A cesta de quem adere: a que ele já contratou numa adesão anterior, ou a que escolheu agora.
+    /// </summary>
+    /// <remarks>
+    /// A re-adesão a uma versão nova do termo não muda o contrato (D4): a cesta contratada vale, mesmo que um pacote
+    /// tenha sido encerrado depois. Trocar de faixa é a Sprint 48.
+    /// </remarks>
+    /// <param name="contratada">Pacotes já gravados na cesta do vínculo.</param>
+    /// <param name="escolhida">Pacotes escolhidos na tela.</param>
+    public Result<IReadOnlyList<ItemDeCobranca>> CestaDe(IReadOnlyCollection<Guid> contratada, IReadOnlyCollection<Guid> escolhida) =>
+        contratada.Count > 0
+            ? Result.Ok<IReadOnlyList<ItemDeCobranca>>([.. Itens.Where(item => contratada.Contains(item.Id))])
+            : MontarCesta(escolhida);
 
     /// <summary>Grava nome e regras de atraso.</summary>
     /// <param name="dados">Dados já validados.</param>
@@ -73,23 +125,6 @@ public class PlanoDeCobranca : EntidadeDaFormatura
         DiasMinimosParaDesconto = dados.DiasMinimosParaDesconto;
     }
 
-    /// <summary>
-    /// Confere se um item deste tipo cabe no plano.
-    /// </summary>
-    /// <remarks>
-    /// A adesão é única: duas taxas de entrada no mesmo plano é erro de digitação, nunca intenção. O
-    /// item encerrado não conta — é o caminho para trocar a taxa depois que ela já foi cobrada.
-    /// </remarks>
-    /// <param name="tipo">Tipo do item novo ou alterado.</param>
-    /// <param name="exceto">O item em alteração, que não conflita consigo mesmo.</param>
-    public Result AceitaItem(TipoDeCobranca tipo, ItemDeCobranca? exceto = null)
-    {
-        if (tipo == TipoDeCobranca.Adesao && ItensAtivos.Any(item => item.Tipo == TipoDeCobranca.Adesao && item != exceto))
-            return Result.Falha(Erro.Conflito("cobranca.adesao_duplicada", "Este plano já tem uma taxa de adesão."));
-
-        return Result.Ok();
-    }
-
     /// <summary>Coloca o plano em vigor: a partir daqui, a adesão gera parcelas por ele.</summary>
     /// <remarks>
     /// "Só um vigente por turma" não mora aqui — depende dos outros planos, e é conferido pelo
@@ -101,8 +136,8 @@ public class PlanoDeCobranca : EntidadeDaFormatura
         if (Status != StatusDoPlano.Rascunho)
             return Result.Falha(Erro.Conflito("cobranca.plano_ja_vigente", "Este plano já está em vigor."));
 
-        if (!ItensAtivos.Any())
-            return Result.Falha(Erro.Conflito("cobranca.plano_sem_itens", "Inclua ao menos um item antes de colocar o plano em vigor."));
+        if (Pacotes().Count == 0)
+            return Result.Falha(Erro.Conflito("cobranca.plano_sem_itens", "Inclua ao menos um pacote antes de colocar o plano em vigor."));
 
         Status = StatusDoPlano.Vigente;
         VigenteDesde = agoraUtc;

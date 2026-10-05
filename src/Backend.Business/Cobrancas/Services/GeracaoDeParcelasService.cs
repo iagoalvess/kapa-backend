@@ -17,7 +17,12 @@ namespace Backend.Business.Cobrancas.Services;
 public sealed class GeracaoDeParcelasService(IParcelaRepository parcelaRepository) : IGeracaoDeParcelasService
 {
     /// <inheritdoc />
-    public async Task<Result<int>> Gerar(Guid vinculoId, PlanoDeCobranca plano, CancellationToken ct = default)
+    public async Task<Result<int>> Gerar(
+        Guid vinculoId,
+        PlanoDeCobranca plano,
+        IReadOnlyCollection<ItemDeCobranca> cesta,
+        CancellationToken ct = default
+    )
     {
         if (plano.Status != StatusDoPlano.Vigente)
             return Erro.Conflito("cobranca.sem_plano_vigente", "A turma ainda não tem plano de cobrança em vigor.");
@@ -25,7 +30,7 @@ public sealed class GeracaoDeParcelasService(IParcelaRepository parcelaRepositor
         var hoje = DataUtils.Hoje();
         var novas = new List<Parcela>();
 
-        foreach (var item in plano.ItensAtivos)
+        foreach (var item in plano.ItensDoFormando(cesta))
         {
             var geradas = await parcelaRepository.ListarNumerosGerados(vinculoId, item.Id, ct);
 

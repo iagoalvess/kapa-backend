@@ -42,12 +42,14 @@ public sealed class RetencaoDeFormaturasRepository(AppDbContext db) : IRetencaoD
         typeof(CheckIn),
         typeof(ConviteDoEvento),
         typeof(ValorADevolver),
+        typeof(SolicitacaoDeCancelamento),
         typeof(Recebimento),
         typeof(CobrancaBancaria),
         typeof(PedidoDeCancelamento),
         typeof(CompraDeConvite),
         typeof(NotificacaoEnviada),
         typeof(InformeDePagamento),
+        typeof(EscolhaDaCesta),
         typeof(Parcela),
         typeof(Pedido),
         typeof(Despesa),
@@ -74,7 +76,14 @@ public sealed class RetencaoDeFormaturasRepository(AppDbContext db) : IRetencaoD
     /// convite de quem entrou na comissão (e o aceite dele) e a assinatura com o Kapa, que é registro fiscal
     /// do próprio Kapa.
     /// </summary>
-    public static readonly Type[] Mantidas = [typeof(AdesaoDoFormando), typeof(TermoDaFormatura), typeof(Convite), typeof(Assinatura)];
+    public static readonly Type[] Mantidas =
+    [
+        typeof(AdesaoDoFormando),
+        typeof(AditivoDaAdesao),
+        typeof(TermoDaFormatura),
+        typeof(Convite),
+        typeof(Assinatura),
+    ];
 
     private static readonly MethodInfo ApagarDaTurma = typeof(RetencaoDeFormaturasRepository).GetMethod(
         nameof(Apagar),

@@ -80,7 +80,7 @@ public sealed class DesligamentoDeFormandoTests
             .ObterMembro(FormaturaId, UsuarioId, Arg.Any<CancellationToken>())
             .Returns(new MembroDoPerfil(VinculoId, UsuarioId, "João Pedro", "joao@exemplo.com", PapelNaFormatura.Formando));
         _parcelas.ListarDoVinculo(VinculoId, Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns([]);
-        _convites.TravarDaCota(default, default).ReturnsForAnyArgs([]);
+        _convites.TravarDosPacotes(default, default).ReturnsForAnyArgs([]);
     }
 
     private MembroService Servico =>
@@ -295,7 +295,7 @@ public sealed class DesligamentoDeFormandoTests
     {
         // Arrange
         var convite = ConviteDoEvento.Cortesia(Guid.CreateVersion7(), "MED27-AAAA", new DadosDoConvidado("Avó", null, null, null));
-        _convites.TravarDaCota(VinculoId, Arg.Any<CancellationToken>()).Returns([convite]);
+        _convites.TravarDosPacotes(VinculoId, Arg.Any<CancellationToken>()).Returns([convite]);
         ComVinculo(_vinculo);
         ComParcelas();
 

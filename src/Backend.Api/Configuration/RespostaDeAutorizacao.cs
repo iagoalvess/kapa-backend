@@ -51,6 +51,14 @@ public sealed class RespostaDeAutorizacao : IAuthorizationMiddlewareResultHandle
                 "Esta área não está incluída no plano da turma."
             );
 
+        if (authorizeResult.Forbidden && SoFaltouAdesao(authorizeResult.AuthorizationFailure))
+            return AuthConfig.EscreverProblema(
+                context,
+                StatusCodes.Status403Forbidden,
+                "adesao.pendente",
+                "Para usar o app, primeiro adira ao termo da turma."
+            );
+
         return _padrao.HandleAsync(next, context, policy, authorizeResult);
     }
 
@@ -76,6 +84,11 @@ public sealed class RespostaDeAutorizacao : IAuthorizationMiddlewareResultHandle
     /// <param name="falha">Falha de autorização.</param>
     private static bool SoFaltouModulo(AuthorizationFailure? falha) =>
         falha?.FailedRequirements.Any() == true && falha.FailedRequirements.All(requisito => requisito is PlanoComModuloRequirement);
+
+    /// <summary>A única coisa que faltou foi a adesão do formando (Sprint 47, D18): a tela o leva ao termo.</summary>
+    /// <param name="falha">Falha de autorização.</param>
+    private static bool SoFaltouAdesao(AuthorizationFailure? falha) =>
+        falha?.FailedRequirements.Any() == true && falha.FailedRequirements.All(requisito => requisito is AdesaoNaFormaturaRequirement);
 
     private static bool FaltouFormatura(AuthorizationFailure? falha) =>
         falha?.FailedRequirements.OfType<ClaimsAuthorizationRequirement>().Any(requisito => requisito.ClaimType == TokenService.ClaimDeFormatura)

@@ -6,6 +6,7 @@ using Backend.Business.Agenda.Validators;
 using Backend.Business.Common.Datas;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
+using Backend.Business.Festa.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -28,9 +29,18 @@ public sealed class AgendaServiceTests
     private readonly IPendenciasDaTurmaRepository _pendencias = Substitute.For<IPendenciasDaTurmaRepository>();
     private readonly IConviteDoEventoRepository _convites = Substitute.For<IConviteDoEventoRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IFormaturaRepository _formaturas = Substitute.For<IFormaturaRepository>();
+    private readonly IFormaturaAtual _formaturaAtual = Substitute.For<IFormaturaAtual>();
 
     public AgendaServiceTests()
     {
+        var formaturaId = Guid.CreateVersion7();
+        _formaturaAtual.Id.Returns(formaturaId);
+        _formaturas
+            .ObterDetalheDeTodasAsFormaturas(formaturaId, Arg.Any<CancellationToken>())
+            .Returns(
+                new FormaturaDetalhe(formaturaId, "Medicina 2027.1", "UFPR", "Medicina", 2027, 1, null, null, StatusDaFormatura.Ativa, null, true)
+            );
         _pendencias.ContarVendasDaFesta(Arg.Any<CancellationToken>()).Returns(new VendasDaFesta(0, 0));
         _convites.TravarValidosDoEvento(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([]);
         _unitOfWork
@@ -39,7 +49,15 @@ public sealed class AgendaServiceTests
     }
 
     private AgendaService Servico =>
-        new(_eventos, _pendencias, _convites, new DadosDoEventoValidator(), _unitOfWork, NullLogger<AgendaService>.Instance);
+        new(
+            _eventos,
+            _pendencias,
+            _convites,
+            new EmissaoDeConvites(_convites, _eventos, _formaturas, _formaturaAtual, NullLogger<EmissaoDeConvites>.Instance),
+            new DadosDoEventoValidator(),
+            _unitOfWork,
+            NullLogger<AgendaService>.Instance
+        );
 
     private static DadosDoEvento Dados(
         TipoDeEvento tipo = TipoDeEvento.Reuniao,

@@ -31,12 +31,7 @@ public interface IOutraReceitaService
     /// <param name="dados">Descrição, origem, categoria, valor, data e comprovante.</param>
     /// <param name="usuarioId">Quem lança — dono do comprovante enviado, se vier arquivo.</param>
     /// <param name="comprovante">Comprovante novo, se anexado aqui; ausente, vale o <c>DocumentoId</c>.</param>
-    Task<Result<OutraReceitaResumo>> Lancar(
-        NovaOutraReceita dados,
-        Guid usuarioId,
-        NovoArquivo? comprovante,
-        CancellationToken ct = default
-    );
+    Task<Result<OutraReceitaResumo>> Lancar(NovaOutraReceita dados, Guid usuarioId, NovoArquivo? comprovante, CancellationToken ct = default);
 
     /// <summary>Corrige uma receita lançada — prevista ou recebida.</summary>
     /// <param name="id">Receita.</param>

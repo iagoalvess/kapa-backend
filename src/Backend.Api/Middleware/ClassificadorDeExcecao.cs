@@ -50,10 +50,13 @@ public static class ClassificadorDeExcecao
 
             BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge } => (
                 StatusCodes.Status413PayloadTooLarge,
-                "A requisição é grande demais."
+                "O envio passou do tamanho permitido. Tente com um arquivo menor."
             ),
 
-            BadHttpRequestException => (StatusCodes.Status400BadRequest, "A requisição não pôde ser lida."),
+            BadHttpRequestException => (
+                StatusCodes.Status400BadRequest,
+                "Não conseguimos entender o que foi enviado. Recarregue a página e tente de novo."
+            ),
 
             _ => (StatusCodes.Status500InternalServerError, "Ocorreu um erro inesperado."),
         };

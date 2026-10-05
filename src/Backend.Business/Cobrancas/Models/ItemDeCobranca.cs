@@ -62,8 +62,8 @@ public class ItemDeCobranca : EntidadeDaFormatura
     /// O item é opcional: só cobra quem pedir (Sprint 20, decisão 1).
     /// </summary>
     /// <remarks>
-    /// <see cref="PlanoDeCobranca.ItensAtivos"/> os ignora, e é isso que impede o convite extra de
-    /// entrar na adesão da turma inteira. O pedido do formando é o único caminho que os alcança.
+    /// <see cref="Pacote"/> os exclui, e é isso que impede o convite extra de entrar na cesta de
+    /// quem adere. O pedido do formando é o único caminho que os alcança.
     /// </remarks>
     public bool Opcional { get; private set; }
 
@@ -119,6 +119,60 @@ public class ItemDeCobranca : EntidadeDaFormatura
     /// </remarks>
     public Guid? ItemDaFestaId { get; private set; }
 
+    /// <summary>
+    /// O grupo de faixas do pacote — "Festa". Nulo: pacote avulso, escolhido sozinho (Sprint 47, D32).
+    /// </summary>
+    /// <remarks>Na cesta, no máximo uma faixa por grupo: "Festa 10" e "Festa 15" juntos é erro de clique, não intenção.</remarks>
+    public string? Grupo { get; private set; }
+
+    /// <summary>Convites da festa que o pacote concede a quem o escolhe (Sprint 47, D14).</summary>
+    public int ConvitesDaFesta { get; private set; }
+
+    /// <summary>Convites da colação que o pacote concede a quem o escolhe.</summary>
+    public int ConvitesDaColacao { get; private set; }
+
+    /// <summary>
+    /// Até quando a última parcela pode vencer (Sprint 47, D27/D28/D35). Nulo: nada é conferido.
+    /// </summary>
+    /// <remarks>
+    /// Campo da comissão, não derivado da agenda: é ela quem sabe que o buffet exige tudo pago um mês antes. Vale
+    /// para pacote e opcional — no opcional, também para a grade de cada pedido, que começa depois.
+    /// </remarks>
+    public DateOnly? UltimoVencimento { get; private set; }
+
+    /// <summary>
+    /// Último dia em que o formando pode pedir o cancelamento do pacote ou do pedido (Sprint 48, D36). Nulo: sem trava.
+    /// </summary>
+    /// <remarks>
+    /// Só a data é campo. O estado — fornecedor contratado, serviço prestado — fica com a comissão, que recusa a
+    /// solicitação (D25): ela é a porta única do cancelamento.
+    /// </remarks>
+    public DateOnly? CancelavelAte { get; private set; }
+
+    /// <summary>
+    /// Os pacotes de quem o rateio cobrou — o alvo "Festa", "Foto" (Sprint 48, D19). Vazio: todos os que já aderiram.
+    /// </summary>
+    /// <remarks>Gravado para a trilha e para a tela: o rateio é pontual (D39), e ninguém relê o alvo depois do lançamento.</remarks>
+    public Guid[] AlvoDoRateio { get; private set; } = [];
+
+    /// <summary>
+    /// O formando de um lançamento avulso — a cobrança ou o crédito só dele (Sprint 48, D23). Nulo no item da turma.
+    /// </summary>
+    /// <remarks>
+    /// É item, e não parcela solta, porque a parcela precisa de um item de origem — é por ele que o extrato diz "do
+    /// quê". Um item por lançamento: a chave natural da parcela <c>(vínculo, item, número)</c> segue valendo.
+    /// </remarks>
+    public Guid? VinculoDoLancamento { get; private set; }
+
+    /// <summary>
+    /// O item é um pacote do catálogo: só cobra quem o põe na cesta (Sprint 47, D16/D31).
+    /// </summary>
+    /// <remarks>
+    /// O plano é o catálogo: todo item que não é opcional nem rateio extraordinário é pacote. Não há item que cobre a
+    /// turma inteira na adesão — o rateio decidido em assembleia é a exceção, e chega depois.
+    /// </remarks>
+    public bool Pacote => !Opcional && OrigemDaDecisao is null && VinculoDoLancamento is null;
+
     /// <summary>Quantas unidades ainda cabem. Nulo no item sem teto — número onde não há teto é ruído.</summary>
     public int? Disponivel => Estoque is { } teto ? Math.Max(0, teto - Reservados) : null;
 
@@ -126,9 +180,27 @@ public class ItemDeCobranca : EntidadeDaFormatura
     /// <param name="planoId">Plano dono.</param>
     /// <param name="dados">Dados já validados.</param>
     /// <param name="origemDaDecisao">Onde a turma decidiu, no rateio extraordinário; nulo no item comum.</param>
-    public static ItemDeCobranca Novo(Guid planoId, DadosDoItem dados, string? origemDaDecisao = null)
+    /// <param name="alvo">Os pacotes de quem o rateio cobra; vazio é todos.</param>
+    public static ItemDeCobranca Novo(Guid planoId, DadosDoItem dados, string? origemDaDecisao = null, IEnumerable<Guid>? alvo = null)
     {
-        var item = new ItemDeCobranca { PlanoId = planoId, OrigemDaDecisao = origemDaDecisao?.Trim() };
+        var item = new ItemDeCobranca
+        {
+            PlanoId = planoId,
+            OrigemDaDecisao = origemDaDecisao?.Trim(),
+            AlvoDoRateio = [.. (alvo ?? []).Distinct()],
+        };
+        item.Aplicar(dados);
+
+        return item;
+    }
+
+    /// <summary>Cria o item de um lançamento avulso no vínculo de um formando (D23).</summary>
+    /// <param name="planoId">Plano vigente.</param>
+    /// <param name="vinculoId">Quem deve — ou quem recebe o crédito.</param>
+    /// <param name="dados">Dados já validados, com tipo <see cref="TipoDeCobranca.Avulsa"/>.</param>
+    public static ItemDeCobranca NovoLancamento(Guid planoId, Guid vinculoId, DadosDoItem dados)
+    {
+        var item = new ItemDeCobranca { PlanoId = planoId, VinculoDoLancamento = vinculoId };
         item.Aplicar(dados);
 
         return item;
@@ -144,6 +216,62 @@ public class ItemDeCobranca : EntidadeDaFormatura
 
         return item;
     }
+
+    /// <summary>Cria um pacote do catálogo — o que só cobra quem o escolhe na adesão.</summary>
+    /// <param name="planoId">Plano dono.</param>
+    /// <param name="dados">Dados já validados.</param>
+    public static ItemDeCobranca NovoPacote(Guid planoId, DadosDoPacote dados)
+    {
+        var item = new ItemDeCobranca { PlanoId = planoId };
+        item.AplicarDadosDoPacote(dados);
+
+        return item;
+    }
+
+    /// <summary>Grava os dados do pacote: o item, o grupo de faixas, os benefícios e o último vencimento.</summary>
+    /// <param name="dados">Dados já validados.</param>
+    public void AplicarDadosDoPacote(DadosDoPacote dados)
+    {
+        Aplicar(dados.Item);
+
+        Grupo = string.IsNullOrWhiteSpace(dados.Grupo) ? null : dados.Grupo.Trim();
+        ConvitesDaFesta = dados.ConvitesDaFesta;
+        ConvitesDaColacao = dados.ConvitesDaColacao;
+        UltimoVencimento = dados.UltimoVencimento;
+        CancelavelAte = dados.CancelavelAte;
+    }
+
+    /// <summary>
+    /// Se os dados mudam o que o pacote concede — e não só o preço.
+    /// </summary>
+    /// <remarks>
+    /// Com alguém já tendo escolhido o pacote, os convites foram emitidos por estes números; mudá-los depois deixaria
+    /// o contrato dizendo uma coisa e a portaria outra. Trocar de faixa é o aditivo (Sprint 48, D38).
+    /// </remarks>
+    /// <param name="dados">Dados pretendidos.</param>
+    public bool MudaOsBeneficios(DadosDoPacote dados) =>
+        dados.ConvitesDaFesta != ConvitesDaFesta
+        || dados.ConvitesDaColacao != ConvitesDaColacao
+        || !string.Equals(string.IsNullOrWhiteSpace(dados.Grupo) ? null : dados.Grupo.Trim(), Grupo, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Recusa a grade cuja última parcela vence depois do <paramref name="ultimoVencimento"/> (D28).
+    /// </summary>
+    /// <param name="ultimaParcela">Vencimento da última parcela da grade.</param>
+    /// <param name="ultimoVencimento">O limite da comissão; nulo não confere nada.</param>
+    public static Erro? PassaDoLimite(DateOnly ultimaParcela, DateOnly? ultimoVencimento) =>
+        ultimoVencimento is { } limite && ultimaParcela > limite
+            ? Erro.Validacao(
+                "cobranca.ultima_parcela_depois_do_limite",
+                $"A última parcela venceria em {ultimaParcela:dd/MM/yyyy}, depois do último vencimento ({limite:dd/MM/yyyy}). Diminua as parcelas ou antecipe o primeiro mês.",
+                campo: "numero_de_parcelas"
+            )
+            : null;
+
+    /// <summary>A última parcela do teto: <c>primeiro_mes + numero_de_parcelas − 1</c>, no dia do vencimento.</summary>
+    /// <param name="dados">Grade do item.</param>
+    public static DateOnly UltimaParcelaDoTeto(DadosDoItem dados) =>
+        GradeDeParcelas.Vencimento(GradeDeParcelas.PrimeiroDoMes(dados.PrimeiroMes).AddMonths(dados.NumeroDeParcelas - 1), dados.DiaDeVencimento);
 
     /// <summary>Grava os dados informados.</summary>
     /// <param name="dados">Dados já validados.</param>
@@ -182,6 +310,8 @@ public class ItemDeCobranca : EntidadeDaFormatura
         Estoque = dados.Estoque;
         AberturaDeVendas = dados.AberturaDeVendas;
         ItemDaFestaId = dados.ItemDaFestaId;
+        UltimoVencimento = dados.UltimoVencimento;
+        CancelavelAte = dados.CancelavelAte;
         ModoDeVenda = dados.ModoDeVenda;
         PrecoPublicoEmCentavos = dados.ModoDeVenda == ModoDeVenda.Publica ? dados.PrecoPublicoEmCentavos : null;
 
@@ -201,6 +331,10 @@ public class ItemDeCobranca : EntidadeDaFormatura
         || dados.NumeroDeParcelas != NumeroDeParcelas
         || dados.DiaDeVencimento != DiaDeVencimento
         || GradeDeParcelas.PrimeiroDoMes(dados.PrimeiroMes) != PrimeiroMes;
+
+    /// <summary>Se o formando ainda pode pedir o cancelamento hoje (D36): sem data, sempre; com, até o dia, inclusive.</summary>
+    /// <param name="hoje">Dia de referência.</param>
+    public bool CancelavelEm(DateOnly hoje) => CancelavelAte is not { } limite || hoje <= limite;
 
     /// <summary>Deixa de cobrar a partir de hoje. Encerrar de novo não muda a data.</summary>
     /// <param name="hoje">Dia do encerramento.</param>

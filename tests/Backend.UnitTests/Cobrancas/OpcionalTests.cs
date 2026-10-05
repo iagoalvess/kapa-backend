@@ -31,9 +31,9 @@ public sealed class OpcionalTests
             new DadosDoOpcional(Convite, limite, prazo, estoque, abertura is { } dia ? DataUtils.InicioDoDiaEmUtc(dia) : null, itemDaFestaId)
         );
 
-    /// <summary>O ponto crítico da sprint: o item opcional não pode entrar na adesão de todo mundo.</summary>
+    /// <summary>O ponto crítico da sprint: o item opcional não pode entrar na cesta de quem adere (Sprint 47).</summary>
     [Fact]
-    public void Item_opcional_fica_fora_dos_itens_ativos_do_plano()
+    public void Item_opcional_fica_fora_dos_pacotes_do_catalogo()
     {
         // Arrange
         var plano = new PlanoDeCobranca { Nome = "Plano 2027" };
@@ -44,9 +44,9 @@ public sealed class OpcionalTests
         plano.Itens.Add(Item());
 
         // Assert
-        plano.ItensAtivos.ShouldHaveSingleItem().ShouldBe(mensalidade);
+        plano.Pacotes().ShouldHaveSingleItem().ShouldBe(mensalidade);
         plano.ItensOpcionais.ShouldHaveSingleItem().Opcional.ShouldBeTrue();
-        plano.DadosDosItensAtivos().ShouldHaveSingleItem().Tipo.ShouldBe(TipoDeCobranca.Mensalidade);
+        plano.MontarCesta([plano.ItensOpcionais.Single().Id]).PrimeiroErro.Codigo.ShouldBe("cobranca.pacote_invalido");
     }
 
     [Fact]

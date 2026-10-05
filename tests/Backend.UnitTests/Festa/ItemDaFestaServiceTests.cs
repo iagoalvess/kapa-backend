@@ -217,7 +217,8 @@ public sealed class ItemDaFestaServiceTests
 
         // Assert
         resultado.Sucesso.ShouldBeTrue();
-        await _itens.Received(1)
+        await _itens
+            .Received(1)
             .Adicionar(Arg.Is<IReadOnlyList<ItemDaFesta>>(lista => lista[0].DocumentoId == doAcervo), Arg.Any<CancellationToken>());
     }
 

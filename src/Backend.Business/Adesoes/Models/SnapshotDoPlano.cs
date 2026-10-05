@@ -34,6 +34,10 @@ namespace Backend.Business.Adesoes.Models;
 /// os snapshots já assinados continuarem lendo: neles o campo não existe, e zero é exatamente a regra
 /// que aquelas pessoas aceitaram — qualquer dia antes do vencimento.
 /// </param>
+/// <param name="Cesta">
+/// Os pacotes escolhidos — o quadro de escolhas do termo (Sprint 47, D3). Por último e com padrão, como o campo acima:
+/// nos snapshots anteriores à cesta ele não existe, e a lista vazia é exatamente o que aquelas pessoas contrataram.
+/// </param>
 public sealed record SnapshotDoPlano(
     int VersaoDoEsquema,
     Guid PlanoId,
@@ -45,7 +49,8 @@ public sealed record SnapshotDoPlano(
     IReadOnlyList<DadosDoItem> Itens,
     IReadOnlyList<ParcelaSimulada> Parcelas,
     long TotalEmCentavos,
-    int DiasMinimosParaDesconto = 0
+    int DiasMinimosParaDesconto = 0,
+    IReadOnlyList<PacoteDaCesta>? Cesta = null
 )
 {
     /// <summary>Versão atual da forma do JSON.</summary>
@@ -55,23 +60,28 @@ public sealed record SnapshotDoPlano(
     /// Serialização fixa: a mesma entrada produz sempre o mesmo texto, e o hash do aceite é calculado
     /// sobre ele. Acento sai legível — o texto é lido no <c>psql</c>, nunca posto em HTML.
     /// </summary>
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
+    internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() },
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    /// <summary>Congela o plano vigente, com a grade de quem adere no dia.</summary>
+    /// <summary>Congela o plano vigente com a cesta do formando, e a grade de quem adere no dia.</summary>
     /// <remarks>
     /// A grade sai por <c>GradeDeParcelas.DeQuemAdereEm</c>: quem adere depois do começo do plano
     /// deve o mesmo total, redividido pelas parcelas que ainda não venceram. É a mesma conta da
     /// geração — o que a pessoa lê e assina é, parcela por parcela, o que ela passa a dever.
+    /// <para>
+    /// Os itens são os da cesta (<see cref="PlanoDeCobranca.ItensDoFormando"/>) — o rateio é pontual (Sprint 48, D39) —, a mesma lista
+    /// que a geração lê. A cesta entra também com os benefícios: "Festa 15 concede 15 convites" é contrato.
+    /// </para>
     /// </remarks>
     /// <param name="plano">Plano em vigor, com os itens.</param>
+    /// <param name="cesta">Pacotes escolhidos, já conferidos.</param>
     /// <param name="hoje">Dia da adesão.</param>
-    public static SnapshotDoPlano De(PlanoDeCobranca plano, DateOnly hoje)
+    public static SnapshotDoPlano De(PlanoDeCobranca plano, IReadOnlyCollection<ItemDeCobranca> cesta, DateOnly hoje)
     {
-        var itens = plano.DadosDosItensAtivos();
+        var itens = plano.ItensDoFormando(cesta).Select(item => item.ParaDados()).ToList();
         var parcelas = GradeDeParcelas.DoFormando(itens, hoje);
 
         return new SnapshotDoPlano(
@@ -85,7 +95,8 @@ public sealed record SnapshotDoPlano(
             itens,
             parcelas,
             parcelas.Sum(parcela => parcela.ValorEmCentavos),
-            plano.DiasMinimosParaDesconto
+            plano.DiasMinimosParaDesconto,
+            [.. plano.ItensDoFormando(cesta).Where(item => item.Pacote).Select(PacoteDaCesta.De)]
         );
     }
 
@@ -134,4 +145,41 @@ public sealed record SnapshotDoPlano(
 
         return $"{atraso} Desconto de {FormatosBrasileiros.Percentual(PercentualDeDescontoPorAntecipacao)} para pagamento {antecedencia}.";
     }
+}
+
+/// <summary>Um pacote como o termo o congela: o nome, o preço e o que ele concede (Sprint 47).</summary>
+/// <param name="ItemId">Pacote de origem — é o que a re-adesão relê para manter a mesma cesta.</param>
+/// <param name="Grupo">Grupo de faixas; nulo é pacote avulso.</param>
+/// <param name="Tipo">Categoria do pacote.</param>
+/// <param name="Descricao">Nome na tela, se houver.</param>
+/// <param name="ValorEmCentavos">Preço total do pacote.</param>
+/// <param name="ConvitesDaFesta">Convites da festa que o pacote concede.</param>
+/// <param name="ConvitesDaColacao">Convites da colação que o pacote concede.</param>
+public sealed record PacoteDaCesta(
+    Guid ItemId,
+    string? Grupo,
+    TipoDeCobranca Tipo,
+    string? Descricao,
+    long ValorEmCentavos,
+    int ConvitesDaFesta,
+    int ConvitesDaColacao
+)
+{
+    /// <summary>O pacote do catálogo, como entra no snapshot.</summary>
+    /// <param name="item">Pacote.</param>
+    public static PacoteDaCesta De(ItemDeCobranca item) =>
+        new(item.Id, item.Grupo, item.Tipo, item.Descricao, item.ValorEmCentavos, item.ConvitesDaFesta, item.ConvitesDaColacao);
+
+    /// <summary>"Festa — 15 pessoas": o grupo e a faixa, ou só o nome do pacote avulso.</summary>
+    public string Rotulo() => Grupo is null ? RotuloDoItem.De(Tipo, Descricao) : $"{Grupo} — {RotuloDoItem.De(Tipo, Descricao)}";
+
+    /// <summary>"15 convites da festa e 3 da colação", ou nulo se o pacote não concede convite.</summary>
+    public string? BeneficiosPorExtenso() =>
+        (ConvitesDaFesta, ConvitesDaColacao) switch
+        {
+            (0, 0) => null,
+            (var festa, 0) => $"{festa} {(festa == 1 ? "convite" : "convites")} da festa",
+            (0, var colacao) => $"{colacao} {(colacao == 1 ? "convite" : "convites")} da colação",
+            var (festa, colacao) => $"{festa} {(festa == 1 ? "convite" : "convites")} da festa e {colacao} da colação",
+        };
 }

@@ -229,8 +229,9 @@ public sealed class OutraReceitaEndpointsTests(ApiFactory fabrica)
 
         // A turma abre o mesmo comprovante: nasceu visível para ela.
         var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
-        (await formando.Cliente.GetAsync($"/api/v1/comunicacao/documentos/{outraReceita.Documento.Id}/download", Ct))
-            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await formando.Cliente.GetAsync($"/api/v1/comunicacao/documentos/{outraReceita.Documento.Id}/download", Ct)).StatusCode.ShouldBe(
+            HttpStatusCode.OK
+        );
     }
 
     [Fact]

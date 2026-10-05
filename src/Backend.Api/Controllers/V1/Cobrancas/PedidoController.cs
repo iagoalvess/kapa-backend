@@ -107,7 +107,7 @@ public sealed class PedidoController(IPedidoService pedidoService, IUsuarioAtual
                 await pedidoService.Pedir(
                     FormaturaId,
                     usuarioAtual.Id,
-                    new DadosDoPedido(requisicao.ItemDeCobrancaId, requisicao.Quantidade, requisicao.Parcelas),
+                    new DadosDoPedido(requisicao.ItemDeCobrancaId, requisicao.Quantidade, requisicao.Parcelas, requisicao.Observacao),
                     ct
                 )
             ).Map(pedido => pedido.Adapt<PedidoDTO>())
@@ -131,10 +131,11 @@ public sealed class PedidoController(IPedidoService pedidoService, IUsuarioAtual
         );
 
     /// <summary>
-    /// Cancela um pedido: o estoque volta e as parcelas em aberto são canceladas.
+    /// Cancela um pedido — pela tesouraria — ou pede o cancelamento à comissão — pelo formando (Sprint 48, D8).
     /// </summary>
     /// <remarks>
-    /// O próprio dono cancela enquanto nada foi pago; depois disso é da tesouraria. Sem crédito e com
+    /// Do formando, abre a solicitação (mesmo sem nada pago) e devolve o pedido com <c>cancelamento_solicitado</c>;
+    /// passado o "cancelável até" do item, 409 <c>cobranca.cancelamento_fora_do_prazo</c>. Da tesouraria, sem crédito e com
     /// parcela paga, o pedido encolhe para o <c>piso(pago ÷ preço unitário)</c> (P9). Com crédito, o
     /// pedido inteiro cai e o valor vira parcela negativa dele (P5).
     /// </remarks>
@@ -151,8 +152,14 @@ public sealed class PedidoController(IPedidoService pedidoService, IUsuarioAtual
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Cancelar(Guid id, [FromBody] CancelarPedidoRequestDTO? requisicao, CancellationToken ct) =>
         Responder(
-            (await pedidoService.Cancelar(id, FormaturaId, usuarioAtual.Id, new CancelamentoDePedido(requisicao?.CreditoEmCentavos ?? 0), ct)).Map(
-                pedido => pedido.Adapt<PedidoDTO>()
-            )
+            (
+                await pedidoService.Cancelar(
+                    id,
+                    FormaturaId,
+                    usuarioAtual.Id,
+                    new CancelamentoDePedido(requisicao?.CreditoEmCentavos ?? 0, Motivo: requisicao?.Motivo),
+                    ct
+                )
+            ).Map(pedido => pedido.Adapt<PedidoDTO>())
         );
 }

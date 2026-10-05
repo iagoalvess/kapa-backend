@@ -1,4 +1,5 @@
 using Backend.Api.DTOs.Adesoes;
+using Backend.Api.DTOs.Cobrancas;
 using Backend.Business.Adesoes.Models;
 using Backend.Business.Cobrancas.Models;
 using Mapster;
@@ -24,5 +25,18 @@ public sealed class RegistroDeMapeamentosAdesoes : IRegister
         config.NewConfig<MinhaAdesao, MinhaAdesaoDTO>();
         config.NewConfig<SituacaoDeAdesao, SituacaoDeAdesaoDTO>();
         config.NewConfig<ResumoDeAdesoes, ResumoDeAdesoesDTO>();
+        config.NewConfig<PacoteEscolhido, PacoteEscolhidoDTO>();
+        config.NewConfig<PacoteNaCesta, PacoteNaCestaDTO>();
+        config.NewConfig<PacoteDisponivel, PacoteDisponivelDTO>();
+        config.NewConfig<MinhaCesta, MinhaCestaDTO>();
+        config.NewConfig<MudancaDaCesta, MudancaDaCestaDTO>();
+        config
+            .NewConfig<PreviaDoAditivo, PreviaDoAditivoDTO>()
+            .MapWith(previa => new PreviaDoAditivoDTO(
+                previa.Aditivo.Mudancas.Adapt<List<MudancaDaCestaDTO>>(),
+                previa.Aditivo.Parcelas.Adapt<List<ParcelaSimuladaDTO>>(),
+                previa.Aditivo.TotalEmCentavos,
+                previa.HashDoConteudo
+            ));
     }
 }

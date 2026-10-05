@@ -115,17 +115,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Itens dos planos de cobrança.</summary>
     public DbSet<ItemDeCobranca> ItensDeCobranca => Set<ItemDeCobranca>();
 
+    /// <summary>Os pacotes que cada formando escolheu na adesão (Sprint 47).</summary>
+    public DbSet<EscolhaDaCesta> EscolhasDaCesta => Set<EscolhaDaCesta>();
+
     /// <summary>Parcelas devidas pelos formandos, uma por vencimento.</summary>
     public DbSet<Parcela> Parcelas => Set<Parcela>();
 
     /// <summary>Pedidos dos opcionais: o que cada formando pediu só para ele.</summary>
     public DbSet<Pedido> Pedidos => Set<Pedido>();
 
+    /// <summary>Solicitações de cancelamento de pacote ou pedido, esperando a comissão (Sprint 48, D8).</summary>
+    public DbSet<SolicitacaoDeCancelamento> SolicitacoesDeCancelamento => Set<SolicitacaoDeCancelamento>();
+
     /// <summary>Versões do termo de adesão de cada formatura.</summary>
     public DbSet<TermoDaFormatura> TermosDeAdesao => Set<TermoDaFormatura>();
 
     /// <summary>Aceites do termo de adesão, com o plano congelado.</summary>
     public DbSet<AdesaoDoFormando> Adesoes => Set<AdesaoDoFormando>();
+
+    /// <summary>Aditivos da adesão: o que o formando acrescentou à cesta depois (Sprint 48, D38).</summary>
+    public DbSet<AditivoDaAdesao> AditivosDaAdesao => Set<AditivoDaAdesao>();
 
     /// <summary>Resumo gerado por IA de cada versão do termo (Sprint 24). Fora do que foi aceito.</summary>
     public DbSet<ResumoDoTermo> ResumosDeTermo => Set<ResumoDoTermo>();

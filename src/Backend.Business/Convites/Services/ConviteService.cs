@@ -2,9 +2,11 @@ using System.Buffers.Text;
 using System.Globalization;
 using System.Security.Cryptography;
 using Backend.Business.Abstractions;
+using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Assinaturas.Services;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
+using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Common;
 using Backend.Business.Common.Datas;
 using Backend.Business.Common.Texto;
@@ -13,7 +15,6 @@ using Backend.Business.Convites.Models;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
 using Backend.Business.Emails.Services;
-using Backend.Business.Festa.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Legal.Models;
@@ -30,6 +31,8 @@ namespace Backend.Business.Convites.Services;
 /// <param name="vinculoRepository">Vínculos, para o papel do autor, o do convidado e a lotação da turma.</param>
 /// <param name="formaturaRepository">A turma do convite, para o nome e o status.</param>
 /// <param name="vagas">As vagas do plano, conferidas na criação e no aceite.</param>
+/// <param name="adesaoRepository">O termo publicado, que o convite de formando exige (Sprint 47, D34).</param>
+/// <param name="planoRepository">O catálogo vigente, que o convite de formando exige (D34).</param>
 /// <param name="usuarioRepository">E-mail da conta que aceita o convite nominal.</param>
 /// <param name="authService">Emissão da sessão dentro da turma nova.</param>
 /// <param name="tokenService">Hash do token, o mesmo do refresh token.</param>
@@ -42,7 +45,8 @@ public sealed class ConviteService(
     IVinculoRepository vinculoRepository,
     IFormaturaRepository formaturaRepository,
     VagasDoPlano vagas,
-    EmissaoDeConvites convitesDoEvento,
+    IAdesaoRepository adesaoRepository,
+    IPlanoDeCobrancaRepository planoRepository,
     IUsuarioRepository usuarioRepository,
     IAuthService authService,
     ITokenService tokenService,
@@ -105,6 +109,9 @@ public sealed class ConviteService(
 
         if (await vagas.ConferirEntrada(formaturaId, ct) is { } lotada)
             return lotada;
+
+        if (papel == PapelNaFormatura.Formando && await SemOQueAderir(ct) is { } semTermo)
+            return semTermo;
 
         var agora = DateTime.UtcNow;
         var email = dados.Email?.Trim();
@@ -206,10 +213,6 @@ public sealed class ConviteService(
     /// voltar reativava o vínculo sem as parcelas que o desligamento cancelou. Removido — quem saiu
     /// sem ter aderido — continua voltando pelo convite pessoal.
     /// </para>
-    /// <para>
-    /// Quem entra depois de a colação abrir a cota recebe os convites dele aqui, na mesma transação
-    /// (Sprint 30, P1). Turma sem cota aberta não emite nada.
-    /// </para>
     /// </remarks>
     public async Task<Result<ParDeTokens>> Aceitar(
         Guid usuarioId,
@@ -289,7 +292,6 @@ public sealed class ConviteService(
                 );
 
                 await unitOfWork.SalvarAsync(tentativa);
-                await convitesDoEvento.EmitirDaCota(convite.FormaturaId, vinculo.Id, tentativa);
 
                 return await authService.EmitirSessaoDeFormatura(
                     usuarioId,
@@ -327,6 +329,21 @@ public sealed class ConviteService(
 
         return formatura is not null && AceitaEntrada(formatura.Status) ? (convite, formatura) : null;
     }
+
+    /// <summary>
+    /// Recusa convidar formando antes de a turma ter a que ele aderir: termo publicado e catálogo vigente (Sprint 47, D34).
+    /// </summary>
+    /// <remarks>
+    /// Com isso todo formando que entra já encontra o termo, e o gate de adesão nunca prende alguém sem saída. Convite
+    /// para a comissão e a tesouraria não passa por aqui: são elas que montam o catálogo.
+    /// </remarks>
+    private async Task<Erro?> SemOQueAderir(CancellationToken ct) =>
+        await adesaoRepository.ObterTermoVigente(ct) is null || !await planoRepository.ExisteVigente(ct)
+            ? Erro.Conflito(
+                "convite.sem_termo_ou_plano",
+                "Antes de convidar formandos, publique o termo de adesão e coloque o plano de cobrança em vigor: é a eles que cada formando adere."
+            )
+            : null;
 
     /// <summary>Se a turma, neste status, recebe alguém.</summary>
     /// <remarks>

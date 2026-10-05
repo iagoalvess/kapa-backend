@@ -29,4 +29,13 @@ public static class ErrosDoConvite
         "festa.convite_sem_titular",
         "Este convite ainda não tem nome e documento do convidado. Complete antes de validar a entrada."
     );
+
+    /// <summary>
+    /// O convite do pacote está preso: o dono tem parcela vencida além da carência (Sprint 47, D24).
+    /// </summary>
+    /// <remarks>Não é revogação: regularizar — ou a comissão liberar — solta o mesmo convite, com o mesmo código.</remarks>
+    public static readonly Erro Preso = Erro.Conflito(
+        "festa.convite_preso",
+        "Este convite está preso por parcela em atraso do formando. Ele volta a valer quando o pagamento for regularizado ou a comissão liberar."
+    );
 }

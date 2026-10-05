@@ -48,4 +48,28 @@ public interface IPlanoDeCobrancaRepository
     /// <summary>Marca um item para remoção.</summary>
     /// <param name="item">Item carregado por <see cref="ObterParaEdicao"/>.</param>
     void RemoverItem(ItemDeCobranca item);
+
+    /// <summary>Os pacotes da cesta de um vínculo — vazia se ele nunca aderiu (Sprint 47).</summary>
+    /// <param name="vinculoId">Vínculo.</param>
+    Task<IReadOnlyList<Guid>> ListarCesta(Guid vinculoId, CancellationToken ct = default);
+
+    /// <summary>Marca as escolhas da cesta para inclusão, na transação da adesão.</summary>
+    /// <param name="escolhas">Uma linha por pacote escolhido.</param>
+    Task AdicionarEscolhas(IEnumerable<EscolhaDaCesta> escolhas, CancellationToken ct = default);
+
+    /// <summary>A escolha de um pacote por um vínculo, rastreada — o aditivo a troca, o cancelamento a tira (Sprint 48).</summary>
+    /// <param name="vinculoId">Vínculo.</param>
+    /// <param name="itemId">Pacote.</param>
+    Task<EscolhaDaCesta?> ObterEscolhaParaEdicao(Guid vinculoId, Guid itemId, CancellationToken ct = default);
+
+    /// <summary>A cesta de um vínculo com o detalhe livre de cada pacote (D40).</summary>
+    /// <param name="vinculoId">Vínculo.</param>
+    Task<IReadOnlyList<EscolhaDaCesta>> ListarEscolhas(Guid vinculoId, CancellationToken ct = default);
+
+    /// <summary>Marca a escolha para remoção: o pacote saiu da cesta.</summary>
+    /// <param name="escolha">Escolha rastreada.</param>
+    void RemoverEscolha(EscolhaDaCesta escolha);
+
+    /// <summary>Os lançamentos avulsos da turma, do mais novo para o mais antigo (Sprint 48, D23).</summary>
+    Task<IReadOnlyList<LancamentoResumo>> ListarLancamentos(CancellationToken ct = default);
 }

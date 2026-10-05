@@ -1,3 +1,6 @@
+using Backend.Business.Agenda.Models;
+using Backend.Business.Cobrancas.Models;
+using Backend.Business.Common.Datas;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Backend.Business.Festa.Services;
@@ -126,18 +129,10 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
 
     /// <inheritdoc />
     /// <remarks>
-    /// O código é sorteado no próprio Postgres, com o mesmo alfabeto e os mesmos quatro caracteres do
-    /// C# (<see cref="CodigoDoConvite.TamanhoDoSorteio"/>): a quantidade de linhas só se sabe dentro da
-    /// instrução. Código que colide com outro cai no <c>ON CONFLICT</c>, e a tentativa
-    /// seguinte preenche só a posição que ficou vazia — por isso a volta termina quando uma tentativa
-    /// não insere nada.
-    /// <para>
-    /// <c>ponytail:</c> <c>random()</c> e não o gerador criptográfico: o código da cota é tão ditável
-    /// quanto o comprado, e quem o protege na URL é a assinatura HMAC, não o sorteio. Se um dia o
-    /// código precisar ser o segredo, é trocar por <c>gen_random_bytes</c>.
-    /// </para>
+    /// Os benefícios somam por vínculo e por evento: "Festa 15" e "Colação 3" na mesma cesta dão 15 convites de uma
+    /// porta e 3 da outra, e a posição (<c>sequencial</c>) vai de 1 à soma — a chave natural é a mesma da cota.
     /// </remarks>
-    public async Task<int> EmitirDaCota(Guid formaturaId, Guid? vinculoId, string prefixo, CancellationToken ct = default)
+    public async Task<int> EmitirDosPacotes(Guid formaturaId, Guid? vinculoId, string prefixo, CancellationToken ct = default)
     {
         const string alfabeto = CodigoDoConvite.Alfabeto;
         var emitidos = 0;
@@ -150,7 +145,7 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
                 $"""
                 INSERT INTO convites_do_evento
                     (id, formatura_id, evento_id, vinculo_id, pedido_id, sequencial, codigo, emitido_em, criado_em, atualizado_em)
-                SELECT gen_random_uuid(), e.formatura_id, e.id, v.id, NULL, g,
+                SELECT gen_random_uuid(), e.formatura_id, e.id, b.vinculo_id, NULL, g,
                        {prefixo} || '-'
                            || substr({alfabeto}, 1 + floor(random() * {alfabeto.Length})::int, 1)
                            || substr({alfabeto}, 1 + floor(random() * {alfabeto.Length})::int, 1)
@@ -158,11 +153,21 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
                            || substr({alfabeto}, 1 + floor(random() * {alfabeto.Length})::int, 1),
                        {agora}, {agora}, {agora}
                   FROM eventos_da_turma e
-                  JOIN vinculos_de_formatura v ON v.formatura_id = e.formatura_id AND v.ativo
-                 CROSS JOIN LATERAL generate_series(1, e.cota_por_formando) AS g
+                  JOIN (
+                        SELECT x.vinculo_id, SUM(i.convites_da_festa)::int AS festa, SUM(i.convites_da_colacao)::int AS colacao
+                          FROM escolhas_da_cesta x
+                          JOIN itens_de_cobranca i ON i.id = x.item_de_cobranca_id
+                          JOIN vinculos_de_formatura v ON v.id = x.vinculo_id AND v.ativo
+                         WHERE x.formatura_id = {formaturaId}
+                           AND ({vinculoId}::uuid IS NULL OR x.vinculo_id = {vinculoId}::uuid)
+                         GROUP BY x.vinculo_id
+                       ) b ON TRUE
+                 CROSS JOIN LATERAL generate_series(1, CASE e.tipo WHEN 'Festa' THEN b.festa ELSE b.colacao END) AS g
                  WHERE e.formatura_id = {formaturaId}
-                   AND e.cota_aberta_em IS NOT NULL
-                   AND ({vinculoId}::uuid IS NULL OR v.id = {vinculoId}::uuid)
+                   AND e.tipo IN ('Festa', 'Colacao')
+                   AND e.situacao <> 'Cancelado'
+                   AND e.hora IS NOT NULL
+                   AND coalesce(btrim(e.local), '') <> ''
                 ON CONFLICT DO NOTHING
                 """,
                 ct
@@ -179,7 +184,7 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
 
     /// <inheritdoc />
     /// <remarks>Em ordem de id, como as outras travas: duas revogações do mesmo vínculo nunca se travam em cruz.</remarks>
-    public async Task<IReadOnlyList<ConviteDoEvento>> TravarDaCota(Guid vinculoId, CancellationToken ct = default) =>
+    public async Task<IReadOnlyList<ConviteDoEvento>> TravarDosPacotes(Guid vinculoId, CancellationToken ct = default) =>
         await db
             .ConvitesDoEvento.FromSql(
                 $"SELECT * FROM convites_do_evento WHERE vinculo_id = {vinculoId} AND pedido_id IS NULL AND revogado_em IS NULL ORDER BY id FOR UPDATE"
@@ -187,18 +192,53 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
             .ToListAsync(ct);
 
     /// <inheritdoc />
-    public async Task<ContagemDaCota> ContarDaCota(Guid eventoId, CancellationToken ct = default)
+    public async Task<ContagemDoEvento> ContarDoPainel(Guid eventoId, TipoDeEvento tipo, CancellationToken ct = default)
     {
         var formaturaId = FormaturaDaSessao();
         var validos = db.ConvitesDoEvento.Where(c => c.EventoId == eventoId && c.RevogadoEm == null);
-        var daCota = validos.Where(c => c.PedidoId == null && c.VinculoId != null);
+        var dosPacotes = validos.Where(c => c.PedidoId == null && c.CompraId == null && c.VinculoId != null);
+        var daFesta = tipo == TipoDeEvento.Festa;
+        var beneficios =
+            from escolha in db.EscolhasDaCesta
+            join item in db.ItensDeCobranca on escolha.ItemDeCobrancaId equals item.Id
+            join vinculo in db.Vinculos on escolha.VinculoId equals vinculo.Id
+            where vinculo.Ativo
+            select daFesta ? item.ConvitesDaFesta : item.ConvitesDaColacao;
 
-        return new ContagemDaCota(
+        return new ContagemDoEvento(
             await db.Vinculos.CountAsync(v => v.FormaturaId == formaturaId && v.Ativo, ct),
-            await daCota.CountAsync(ct),
-            await daCota.CountAsync(c => c.NomeDoConvidado != null && c.NumeroDoDocumento != null, ct),
-            await validos.CountAsync(c => c.VinculoId == null, ct)
+            await beneficios.SumAsync(ct),
+            await dosPacotes.CountAsync(ct),
+            await dosPacotes.CountAsync(c => c.NomeDoConvidado != null && c.NumeroDoDocumento != null, ct),
+            await validos.CountAsync(c => c.PedidoId != null || c.CompraId != null, ct),
+            await validos.CountAsync(c => c.VinculoId == null && c.CompraId == null, ct)
         );
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<FormandoComConvitePreso>> ListarPresos(Guid eventoId, CancellationToken ct = default)
+    {
+        var limite = await LimiteDoAtraso(ct);
+
+        var presos = await (
+            from convite in db.ConvitesDoEvento.AsNoTracking()
+            where convite.EventoId == eventoId && convite.RevogadoEm == null
+            where convite.VinculoId != null && convite.PedidoId == null && convite.CompraId == null && convite.LiberadoEm == null
+            where db.Parcelas.Any(p => p.VinculoId == convite.VinculoId && p.Status == StatusDaParcela.Aberta && p.Vencimento < limite)
+            join vinculo in db.Vinculos.AsNoTracking() on convite.VinculoId equals (Guid?)vinculo.Id
+            join usuario in db.Users.AsNoTracking() on vinculo.UsuarioId equals usuario.Id
+            join perfil in db.PerfisDeFormandos.AsNoTracking() on vinculo.Id equals perfil.VinculoId into perfis
+            from perfil in perfis.DefaultIfEmpty()
+            select new { VinculoId = vinculo.Id, Nome = perfil != null && perfil.NomeCompleto != null ? perfil.NomeCompleto : usuario.Nome }
+        ).ToListAsync(ct);
+
+        return
+        [
+            .. presos
+                .GroupBy(preso => (preso.VinculoId, preso.Nome))
+                .OrderBy(grupo => grupo.Key.Nome, StringComparer.CurrentCulture)
+                .Select(grupo => new FormandoComConvitePreso(grupo.Key.VinculoId, grupo.Key.Nome, grupo.Count())),
+        ];
     }
 
     /// <inheritdoc />
@@ -303,7 +343,7 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
     /// </remarks>
     public async Task<IReadOnlyList<ConviteGravadoNaPortaria>> ListarNaPortaria(Guid eventoId, string? busca, CancellationToken ct = default)
     {
-        var consulta = Linhas().Where(linha => linha.Convite.EventoId == eventoId);
+        var consulta = Linhas(await LimiteDoAtraso(ct)).Where(linha => linha.Convite.EventoId == eventoId);
 
         if (!string.IsNullOrWhiteSpace(busca))
         {
@@ -327,7 +367,9 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
 
     /// <inheritdoc />
     public async Task<ConviteGravadoNaPortaria?> ObterNaPortaria(string codigo, CancellationToken ct = default) =>
-        await Linhas().Where(linha => linha.Convite.Codigo == codigo).FirstOrDefaultAsync(ct) is { } linha ? ParaPortaria(linha) : null;
+        await Linhas(await LimiteDoAtraso(ct)).Where(linha => linha.Convite.Codigo == codigo).FirstOrDefaultAsync(ct) is { } linha
+            ? ParaPortaria(linha)
+            : null;
 
     /// <inheritdoc />
     /// <remarks>
@@ -421,7 +463,8 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
     /// e a tentativa repetida sem rede vêm por subconsulta: a lista de um evento são centenas de linhas, e
     /// as subconsultas batem no índice <c>(convite_id, validado_em)</c>.
     /// </remarks>
-    private IQueryable<LinhaDeConvite> Linhas() =>
+    /// <param name="limite">Parcela aberta com vencimento antes deste dia prende o convite do pacote (D24).</param>
+    private IQueryable<LinhaDeConvite> Linhas(DateOnly limite) =>
         from convite in db.ConvitesDoEvento.AsNoTracking()
         join vinculo in db.Vinculos.AsNoTracking() on convite.VinculoId equals (Guid?)vinculo.Id into vinculos
         from vinculo in vinculos.DefaultIfEmpty()
@@ -446,10 +489,31 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
                 select new EntradaNaPortaria(checkIn.Id, checkIn.ValidadoEm, validador.Nome, validador.Id)
             ).FirstOrDefault(),
             Repetida = db.CheckIns.Any(checkIn => checkIn.ConviteId == convite.Id && checkIn.Motivo == CheckIn.DuplicadaOffline),
+            Preso =
+                convite.VinculoId != null
+                && convite.PedidoId == null
+                && convite.CompraId == null
+                && convite.LiberadoEm == null
+                && db.Parcelas.Any(p => p.VinculoId == convite.VinculoId && p.Status == StatusDaParcela.Aberta && p.Vencimento < limite),
         };
 
+    /// <summary>
+    /// O dia antes do qual uma parcela aberta prende o convite: hoje menos a carência do plano vigente (Sprint 47, D24).
+    /// </summary>
+    /// <remarks>
+    /// <c>ponytail:</c> a carência do plano vigente, não a do snapshot de cada adesão — são iguais enquanto a comissão
+    /// não muda a carência depois de gente aderir. Ler por adesão se isso passar a acontecer.
+    /// </remarks>
+    private async Task<DateOnly> LimiteDoAtraso(CancellationToken ct)
+    {
+        var carencia =
+            await db.PlanosDeCobranca.Where(p => p.Status == StatusDoPlano.Vigente).Select(p => (int?)p.CarenciaEmDias).FirstOrDefaultAsync(ct) ?? 0;
+
+        return DataUtils.Hoje().AddDays(-carencia);
+    }
+
     private static ConviteGravadoNaPortaria ParaPortaria(LinhaDeConvite linha) =>
-        new(linha.Convite, linha.ConvidadoDe, linha.Entrada, linha.Repetida);
+        new(linha.Convite, linha.ConvidadoDe, linha.Entrada, linha.Repetida, linha.Preso);
 }
 
 /// <summary>Um convite com quem o convidou e a entrada — a forma intermediária das consultas da portaria.</summary>
@@ -466,4 +530,7 @@ internal sealed class LinhaDeConvite
 
     /// <summary>Se há tentativa repetida sem rede.</summary>
     public bool Repetida { get; init; }
+
+    /// <summary>Se é convite de pacote preso por atraso (D24).</summary>
+    public bool Preso { get; init; }
 }

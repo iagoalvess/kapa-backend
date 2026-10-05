@@ -16,6 +16,8 @@ namespace Backend.Business.Cobrancas.Models;
 /// <param name="ItemDaFestaId">O item da festa que este vende; nulo é o caso comum (decisão 11).</param>
 /// <param name="ModoDeVenda">Vitrine do formando ou loja pública (Sprint 26, P8).</param>
 /// <param name="PrecoPublicoEmCentavos">Preço na loja, se diferente; nulo é o mesmo do formando (Sprint 26, P4).</param>
+/// <param name="UltimoVencimento">Até quando a última parcela pode vencer; nulo não confere (Sprint 47, D28).</param>
+/// <param name="CancelavelAte">Último dia para o formando pedir o cancelamento; nulo, sem trava (Sprint 48, D36).</param>
 public sealed record DadosDoOpcional(
     DadosDoItem Item,
     int? LimitePorFormando = null,
@@ -24,7 +26,9 @@ public sealed record DadosDoOpcional(
     DateTime? AberturaDeVendas = null,
     Guid? ItemDaFestaId = null,
     ModoDeVenda ModoDeVenda = ModoDeVenda.AoFormando,
-    long? PrecoPublicoEmCentavos = null
+    long? PrecoPublicoEmCentavos = null,
+    DateOnly? UltimoVencimento = null,
+    DateOnly? CancelavelAte = null
 );
 
 /// <summary>
@@ -49,6 +53,7 @@ public sealed record DadosDoOpcional(
 /// <param name="AberturaDeVendas">A partir de quando se pode pedir; antes dela, o cartão mostra a data.</param>
 /// <param name="ItemDaFestaId">O item da festa que este vende, se houver.</param>
 /// <param name="AbertoAPedido">Se o botão aparece hoje.</param>
+/// <param name="UltimoVencimento">Até quando a última parcela do pedido pode vencer — a prévia avisa antes de o pedido ser recusado (D28).</param>
 public sealed record Opcional(
     Guid Id,
     TipoDeCobranca Tipo,
@@ -64,14 +69,16 @@ public sealed record Opcional(
     int? Disponivel,
     DateTime? AberturaDeVendas,
     Guid? ItemDaFestaId,
-    bool AbertoAPedido
+    bool AbertoAPedido,
+    DateOnly? UltimoVencimento
 );
 
 /// <summary>Quantas unidades um formando quer de um item, e em quantas vezes.</summary>
 /// <param name="ItemDeCobrancaId">Item opcional.</param>
 /// <param name="Quantidade">Quantidade <b>absoluta</b>, nunca um incremento.</param>
 /// <param name="Parcelas">Em quantas vezes, até o teto do item; nulo é à vista.</param>
-public sealed record DadosDoPedido(Guid ItemDeCobrancaId, int Quantidade, int? Parcelas = null);
+/// <param name="Observacao">Detalhe livre de quem pede — tamanho da beca, nome no convite (Sprint 48, D26).</param>
+public sealed record DadosDoPedido(Guid ItemDeCobrancaId, int Quantidade, int? Parcelas = null, string? Observacao = null);
 
 /// <summary>
 /// Um pedido como as duas telas o mostram: a do formando e a da Gestão.
@@ -88,6 +95,9 @@ public sealed record DadosDoPedido(Guid ItemDeCobrancaId, int Quantidade, int? P
 /// <param name="PagoEmCentavos">O que já entrou pelas parcelas deste pedido.</param>
 /// <param name="Status">Confirmado ou cancelado.</param>
 /// <param name="PedidoEm">Quando foi pedido, em UTC.</param>
+/// <param name="Observacao">O detalhe livre de quem pediu (D26).</param>
+/// <param name="CancelavelAte">Último dia para pedir o cancelamento; nulo, sem trava (D36).</param>
+/// <param name="CancelamentoSolicitado">Há solicitação de cancelamento esperando a comissão (D8).</param>
 public sealed record PedidoResumo(
     Guid Id,
     Guid ItemDeCobrancaId,
@@ -100,7 +110,10 @@ public sealed record PedidoResumo(
     long TotalEmCentavos,
     long PagoEmCentavos,
     StatusDoPedido Status,
-    DateTime PedidoEm
+    DateTime PedidoEm,
+    string? Observacao = null,
+    DateOnly? CancelavelAte = null,
+    bool CancelamentoSolicitado = false
 )
 {
     /// <summary>Se o pedido já foi quitado — é o que a Sprint 21 vai ler para emitir o convite.</summary>
@@ -152,7 +165,11 @@ public sealed record ResumoDoItemPedido(
 /// dinheiro é uma despesa no caixa, lançada quando o PIX de volta acontece.
 /// </remarks>
 /// <param name="CreditoEmCentavos">Quanto devolver, em centavos. Zero ou ausente: sem crédito.</param>
-public sealed record CancelamentoDePedido(long CreditoEmCentavos = 0);
+/// <param name="TudoADevolver">
+/// O crédito é todo o pago — a aprovação de uma solicitação do formando (Sprint 48, D9): o pedido inteiro cai.
+/// </param>
+/// <param name="Motivo">Por que o formando pede o cancelamento — só na solicitação dele (D8).</param>
+public sealed record CancelamentoDePedido(long CreditoEmCentavos = 0, bool TudoADevolver = false, string? Motivo = null);
 
 /// <summary>Um pedido de convite extra quitado, e quantos convites ele já tem.</summary>
 /// <param name="Pedido">O pedido.</param>

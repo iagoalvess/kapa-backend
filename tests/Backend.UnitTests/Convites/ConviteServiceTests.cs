@@ -1,12 +1,15 @@
 using System.Security.Cryptography;
 using System.Text;
 using Backend.Business.Abstractions;
+using Backend.Business.Adesoes.Interfaces;
+using Backend.Business.Adesoes.Models;
 using Backend.Business.Agenda.Interfaces;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Assinaturas.Services;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
+using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Common;
 using Backend.Business.Convites.Interfaces;
 using Backend.Business.Convites.Models;
@@ -47,10 +50,14 @@ public sealed class ConviteServiceTests
     private readonly IEmailService _emails = Substitute.For<IEmailService>();
     private readonly IAssinaturaRepository _assinaturas = Substitute.For<IAssinaturaRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IAdesaoRepository _adesoes = Substitute.For<IAdesaoRepository>();
+    private readonly IPlanoDeCobrancaRepository _planos = Substitute.For<IPlanoDeCobrancaRepository>();
 
     public ConviteServiceTests()
     {
         _tokens.CalcularHash(Arg.Any<string>()).Returns(chamada => Hash(chamada.Arg<string>()));
+        _adesoes.ObterTermoVigente(Arg.Any<CancellationToken>()).Returns(new VersaoDoTermo(Guid.CreateVersion7(), 1, "Termo", DateTime.UtcNow));
+        _planos.ExisteVigente(Arg.Any<CancellationToken>()).Returns(true);
         _formaturas.ObterDetalheDeTodasAsFormaturas(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Formatura(StatusDaFormatura.Ativa));
         _unitOfWork
             .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<ParDeTokens>>>>(), Arg.Any<CancellationToken>())
@@ -68,13 +75,8 @@ public sealed class ConviteServiceTests
             _vinculos,
             _formaturas,
             new VagasDoPlano(_assinaturas, _vinculos),
-            new EmissaoDeConvites(
-                Substitute.For<IConviteDoEventoRepository>(),
-                Substitute.For<IEventoDaTurmaRepository>(),
-                _formaturas,
-                Substitute.For<IFormaturaAtual>(),
-                NullLogger<EmissaoDeConvites>.Instance
-            ),
+            _adesoes,
+            _planos,
             _usuarios,
             _auth,
             _tokens,
@@ -83,6 +85,23 @@ public sealed class ConviteServiceTests
             Options.Create(new AplicacaoSettings { Nome = "Kapa", UrlDoFrontend = "https://app.kapa" }),
             _unitOfWork
         );
+
+    /// <summary>Sem termo e catálogo, o formando não teria a que aderir — e o gate o prenderia (Sprint 47, D34).</summary>
+    [Fact]
+    public async Task Convite_de_formando_sem_termo_publicado_e_recusado()
+    {
+        // Arrange
+        _adesoes.ObterTermoVigente(Arg.Any<CancellationToken>()).Returns((VersaoDoTermo?)null);
+        var presidente = Guid.CreateVersion7();
+        _vinculos.ObterPapelAtivo(presidente, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(PapelNaFormatura.Presidente);
+
+        // Act
+        var resultado = await Servico.Criar(Guid.CreateVersion7(), presidente, new CriarConvite(null, null), Ct);
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("convite.sem_termo_ou_plano");
+        await _convites.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+    }
 
     [Theory]
     [InlineData(PapelNaFormatura.Tesoureiro)]

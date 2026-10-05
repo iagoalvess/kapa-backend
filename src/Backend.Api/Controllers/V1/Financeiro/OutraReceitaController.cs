@@ -126,7 +126,12 @@ public sealed class OutraReceitaController(IOutraReceitaService outraReceitaServ
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Atualizar(Guid id, [FromForm] AtualizarOutraReceitaRequestDTO requisicao, IFormFile? comprovante, CancellationToken ct)
+    public async Task<IActionResult> Atualizar(
+        Guid id,
+        [FromForm] AtualizarOutraReceitaRequestDTO requisicao,
+        IFormFile? comprovante,
+        CancellationToken ct
+    )
     {
         await using var conteudo = comprovante?.OpenReadStream() ?? Stream.Null;
 

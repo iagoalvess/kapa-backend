@@ -137,31 +137,54 @@ public sealed class ConviteDaFestaEndpointsTests(ApiFactory fabrica)
         ).ShouldBe(1);
     }
 
-    /// <summary>Cancelar o pedido derruba o convite (decisão 8).</summary>
+    /// <summary>Cancelar o pedido — pela comissão, desde a Sprint 48 (D8) — derruba o convite (decisão 8).</summary>
     [Fact]
     public async Task Cancelar_o_pedido_revoga_os_convites()
     {
         var cenario = await Montar(quantidade: 2, parcelas: 2, festaEm: TimeSpan.FromDays(10));
         await Liberar(cenario);
 
-        (await cenario.Formando.Cliente.PostAsync($"/api/v1/pedidos/{cenario.PedidoId}/cancelar", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await cenario.Turma.Presidente.Cliente.PostAsync($"/api/v1/pedidos/{cenario.PedidoId}/cancelar", null, Ct)).StatusCode.ShouldBe(
+            HttpStatusCode.OK
+        );
 
         (await ValidosDoPedido(cenario)).ShouldBe(0);
     }
 
-    /// <summary>P2.1: convite extra com grade que passa do fechamento da lista é recusado no cadastro.</summary>
+    /// <summary>
+    /// D28: o limite é o último vencimento que a comissão definiu, não a agenda — a grade que passa dele é recusada no
+    /// cadastro, e sem o campo nada é conferido.
+    /// </summary>
     [Fact]
-    public async Task Grade_do_convite_depois_do_fechamento_da_lista_e_recusada()
+    public async Task Grade_do_convite_depois_do_ultimo_vencimento_e_recusada()
     {
         var turma = await fabrica.TurmaComPlano();
-        await CriarFesta(turma.Presidente, TimeSpan.FromDays(60));
+        var limite = DataUtils.Hoje().AddMonths(3);
 
-        var tarde = await turma.Presidente.Cliente.PostAsJsonAsync("/api/v1/cobrancas/opcionais", Opcional(parcelas: 6), Json, Ct);
-        var cabe = await turma.Presidente.Cliente.PostAsJsonAsync("/api/v1/cobrancas/opcionais", Opcional(parcelas: 1), Json, Ct);
+        var tarde = await turma.Presidente.Cliente.PostAsJsonAsync(
+            "/api/v1/cobrancas/opcionais",
+            Opcional(parcelas: 6) with
+            {
+                UltimoVencimento = limite,
+            },
+            Json,
+            Ct
+        );
+        var cabe = await turma.Presidente.Cliente.PostAsJsonAsync(
+            "/api/v1/cobrancas/opcionais",
+            Opcional(parcelas: 1) with
+            {
+                UltimoVencimento = limite,
+            },
+            Json,
+            Ct
+        );
+        var semLimite = await turma.Presidente.Cliente.PostAsJsonAsync("/api/v1/cobrancas/opcionais", Opcional(parcelas: 6), Json, Ct);
 
         tarde.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        (await tarde.Codigo(Ct)).ShouldBe("cobranca.grade_depois_da_festa");
+        (await tarde.Codigo(Ct)).ShouldBe("cobranca.ultima_parcela_depois_do_limite");
         cabe.StatusCode.ShouldBe(HttpStatusCode.OK);
+        semLimite.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     // ---- Página pública ----
@@ -371,7 +394,7 @@ public sealed class ConviteDaFestaEndpointsTests(ApiFactory fabrica)
         var cenario = await Montar(quantidade: 1, festaEm: TimeSpan.FromDays(10));
         await Quitar(cenario);
         var conviteId = (await MeusConvites(cenario.Formando)).Convites.Single().Id;
-        var outro = await fabrica.NovoMembro(cenario.Turma.FormaturaId, PapelNaFormatura.Formando, Ct);
+        var outro = await fabrica.FormandoComAdesao(cenario.Turma.FormaturaId);
 
         var resposta = await outro.Cliente.PutAsJsonAsync(
             $"{Convites}/{conviteId}/convidado",

@@ -55,6 +55,17 @@ public static class Politicas
     public const string MembroDaFormatura = nameof(MembroDaFormatura);
 
     /// <summary>
+    /// <see cref="MembroDaFormatura"/> sem a exigência de adesão: o que o formando precisa para chegar ao aceite.
+    /// </summary>
+    /// <remarks>
+    /// Desde a Sprint 47 (D18) o piso exige que o formando tenha aderido ao termo publicado. Esta é a exceção, e a
+    /// lista é curta de propósito: o termo vigente, o código e o aceite, e o próprio cadastro (que a adesão exige).
+    /// O resto que o formando sem adesão alcança está em <see cref="TitularDoProprioHistorico"/> e
+    /// <see cref="Autenticado"/> — a moldura, o extrato, os documentos legais.
+    /// </remarks>
+    public const string MembroAntesDaAdesao = nameof(MembroAntesDaAdesao);
+
+    /// <summary>
     /// <see cref="MembroDaFormatura"/> aceitando também quem foi <b>desligado</b> da turma. Vai só
     /// nas leituras do que é do próprio titular.
     /// </summary>
@@ -177,7 +188,12 @@ public static class Politicas
             .AddPolicy(SomentePresidente, politica => politica.RequireAuthenticatedUser().ExigirPapel())
             .AddPolicy(Tesouraria, politica => politica.RequireAuthenticatedUser().ExigirPapel(PapelNaFormatura.Tesoureiro))
             .AddPolicy(Gestao, politica => politica.RequireAuthenticatedUser().ExigirPapel(PapelNaFormatura.Tesoureiro, PapelNaFormatura.Comissao))
-            .AddPolicy(MembroDaFormatura, politica => politica.RequireAuthenticatedUser().ExigirPapel([.. PapelNaFormatura.Todos]))
+            .AddPolicy(
+                MembroDaFormatura,
+                politica =>
+                    politica.RequireAuthenticatedUser().ExigirPapel([.. PapelNaFormatura.Todos]).AddRequirements(new AdesaoNaFormaturaRequirement())
+            )
+            .AddPolicy(MembroAntesDaAdesao, politica => politica.RequireAuthenticatedUser().ExigirPapel([.. PapelNaFormatura.Todos]))
             .AddPolicy(
                 TitularDoProprioHistorico,
                 politica =>
@@ -196,6 +212,7 @@ public static class Politicas
             porModulo.AddPolicy(ExigeModulo(modulo), politica => politica.AddRequirements(new PlanoComModuloRequirement(modulo)));
 
         services.AddScoped<IAuthorizationHandler, PapelNaFormaturaHandler>();
+        services.AddScoped<IAuthorizationHandler, AdesaoNaFormaturaHandler>();
         services.AddScoped<IAuthorizationHandler, FormaturaEmStatusHandler>();
         services.AddScoped<IAuthorizationHandler, PlanoComModuloHandler>();
 

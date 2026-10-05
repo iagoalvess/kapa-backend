@@ -49,13 +49,26 @@ public static partial class AdesaoDeTeste
     /// <param name="fabrica">API de teste, para ler o e-mail que trouxe o código.</param>
     /// <param name="cliente">Cliente do membro.</param>
     /// <param name="codigo">Código a enviar; ausente, o que chegou no e-mail.</param>
-    public static async Task<(HttpResponseMessage Resposta, string? Hash)> Aderir(ApiFactory fabrica, HttpClient cliente, string? codigo = null)
+    /// <param name="pacotes">A cesta; ausente, o primeiro pacote do catálogo.</param>
+    public static async Task<(HttpResponseMessage Resposta, string? Hash)> Aderir(
+        ApiFactory fabrica,
+        HttpClient cliente,
+        string? codigo = null,
+        IReadOnlyList<Guid>? pacotes = null
+    )
     {
-        var conteudo = await cliente.GetFromJsonAsync<ConteudoParaAdesaoDTO>("/api/v1/adesoes/termos/vigente", Json, Ct);
-        var corpo = new AderirRequestDTO(conteudo!.HashDoConteudo, codigo ?? await PedirCodigo(fabrica, cliente));
+        var catalogo = (await cliente.GetFromJsonAsync<ConteudoParaAdesaoDTO>("/api/v1/adesoes/termos/vigente", Json, Ct))!.Catalogo;
+        IReadOnlyList<Guid> cesta = pacotes ?? (catalogo.Count > 0 ? [catalogo[0].Id] : []);
+        var conteudo = await cliente.GetFromJsonAsync<ConteudoParaAdesaoDTO>(Termo(cesta), Json, Ct);
+        var corpo = new AderirRequestDTO(conteudo!.HashDoConteudo, codigo ?? await PedirCodigo(fabrica, cliente), cesta);
 
         return (await cliente.PostAsJsonAsync("/api/v1/adesoes", corpo, Json, Ct), conteudo.HashDoConteudo);
     }
+
+    /// <summary>A rota do termo vigente com a cesta na query — é ela que dá o hash do que se aceita.</summary>
+    /// <param name="pacotes">Pacotes escolhidos.</param>
+    public static string Termo(IEnumerable<Guid> pacotes) =>
+        "/api/v1/adesoes/termos/vigente" + (pacotes.Any() ? "?" + string.Join("&", pacotes.Select(id => $"pacotes={id}")) : string.Empty);
 
     /// <summary>Pede o código do aceite e o lê do e-mail que entrou na fila.</summary>
     /// <param name="fabrica">API de teste, para ler a fila de e-mail.</param>

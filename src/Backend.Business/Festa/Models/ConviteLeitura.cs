@@ -148,8 +148,8 @@ public enum OrigemDoConvite
     /// <summary>Pago num pedido de convite extra.</summary>
     Comprado,
 
-    /// <summary>Da cota gratuita do formando (Sprint 30).</summary>
-    Cota,
+    /// <summary>Concedido por um pacote da cesta do formando (Sprint 47, D14).</summary>
+    Pacote,
 
     /// <summary>Da turma, emitido pela Gestão.</summary>
     Cortesia,
@@ -172,6 +172,9 @@ public enum SituacaoNaPortaria
 
     /// <summary>Não vale mais — estorno, cancelamento, transferência ou reemissão.</summary>
     Revogado,
+
+    /// <summary>Do pacote de quem tem parcela em atraso além da carência: não entra até regularizar ou a comissão liberar (D24).</summary>
+    Preso,
 }
 
 /// <summary>A entrada de um convite: quando, e por quem.</summary>
@@ -188,7 +191,7 @@ public sealed record EntradaNaPortaria(Guid CheckInId, DateTime ValidadoEm, stri
 /// <param name="NomeDoConvidado">Titular.</param>
 /// <param name="Documento">Documento mascarado.</param>
 /// <param name="ConvidadoDe">Nome do formando dono; nulo na cortesia.</param>
-/// <param name="Origem">Comprado, cota ou cortesia.</param>
+/// <param name="Origem">Comprado, do pacote, da loja ou cortesia.</param>
 /// <param name="Situacao">O que a portaria faz com ele.</param>
 /// <param name="MotivoDaRevogacao">Por que não vale, quando não vale.</param>
 /// <param name="Entrada">A entrada ativa, se houver.</param>
@@ -324,4 +327,11 @@ public sealed record ConviteDoVinculo(ConviteDoEvento Convite, DateTime? Validad
 /// <param name="ConvidadoDe">Nome do dono; nulo na cortesia.</param>
 /// <param name="Entrada">A entrada ativa, se houver.</param>
 /// <param name="EntrouSemRedeDuasVezes">Se há tentativa repetida sem rede registrada.</param>
-public sealed record ConviteGravadoNaPortaria(ConviteDoEvento Convite, string? ConvidadoDe, EntradaNaPortaria? Entrada, bool EntrouSemRedeDuasVezes);
+/// <param name="Preso">Convite de pacote cujo dono tem parcela vencida além da carência, sem liberação da comissão (D24).</param>
+public sealed record ConviteGravadoNaPortaria(
+    ConviteDoEvento Convite,
+    string? ConvidadoDe,
+    EntradaNaPortaria? Entrada,
+    bool EntrouSemRedeDuasVezes,
+    bool Preso = false
+);

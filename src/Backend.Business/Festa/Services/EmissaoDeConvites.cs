@@ -39,8 +39,11 @@ public sealed class EmissaoDeConvites(
     /// <summary>O motivo do convite que sobrou depois de o pedido diminuir ou cair.</summary>
     public const string MotivoDoCancelamento = "pedido cancelado";
 
-    /// <summary>O motivo do convite de cota de quem saiu da turma (Sprint 30, decisão 5).</summary>
+    /// <summary>O motivo do convite do pacote de quem saiu da turma (Sprint 30, decisão 5).</summary>
     public const string MotivoDaSaida = "formando saiu da turma";
+
+    /// <summary>O motivo do convite de um pacote que a comissão cancelou a pedido do formando (Sprint 48, D41).</summary>
+    public const string MotivoDoPacoteCancelado = "pacote cancelado";
 
     /// <summary>A festa da agenda, se já dá para imprimir convite dela; senão, 409 <c>festa.evento_incompleto</c>.</summary>
     public async Task<Result<EventoDoConvite>> Festa(CancellationToken ct = default) => Completo(await agenda.ObterDoTipo(TipoDeEvento.Festa, ct));
@@ -123,22 +126,25 @@ public sealed class EmissaoDeConvites(
     }
 
     /// <summary>
-    /// Emite a cota que falta nos eventos com cota aberta — a turma inteira, ou só quem acabou de entrar (P1).
+    /// Emite os convites que os pacotes concedem e ainda faltam — a turma inteira, ou só quem acabou de aderir
+    /// (Sprint 47, D14/D24).
     /// </summary>
     /// <remarks>
-    /// Turma sem cota aberta não emite nada, e a instrução é a mesma: quem chama na entrada da turma não
-    /// precisa saber se a colação já abriu.
+    /// Substitui a cota uniforme da Sprint 30 (D15): "Festa 15" emite 15 convites da festa, e quem não contratou nada
+    /// não recebe nada (D17). Evento ainda sem data, hora ou local não emite; quem chama de novo quando a agenda fica
+    /// completa é a agenda. O convite nasce valendo, mas preso enquanto o dono tiver parcela em atraso — a trava é lida
+    /// na portaria, não gravada aqui.
     /// </remarks>
     /// <param name="formaturaId">Turma.</param>
     /// <param name="vinculoId">Só este vínculo; nulo é a turma inteira.</param>
     /// <returns>Quantos convites nasceram agora.</returns>
-    public async Task<int> EmitirDaCota(Guid formaturaId, Guid? vinculoId, CancellationToken ct = default)
+    public async Task<int> EmitirDosPacotes(Guid formaturaId, Guid? vinculoId, CancellationToken ct = default)
     {
-        var emitidos = await convites.EmitirDaCota(formaturaId, vinculoId, await Prefixo(formaturaId, ct), ct);
+        var emitidos = await convites.EmitirDosPacotes(formaturaId, vinculoId, await Prefixo(formaturaId, ct), ct);
 
         if (emitidos > 0)
             logger.LogInformation(
-                "Formatura {FormaturaId}: {Emitidos} convites de cota emitidos (vínculo {VinculoId}).",
+                "Formatura {FormaturaId}: {Emitidos} convites de pacote emitidos (vínculo {VinculoId}).",
                 formaturaId,
                 emitidos,
                 vinculoId
@@ -147,16 +153,56 @@ public sealed class EmissaoDeConvites(
         return emitidos;
     }
 
-    /// <summary>Revoga os convites de cota de quem saiu da turma, sob a trava das linhas (decisão 5).</summary>
+    /// <summary>Emite o que falta à turma da sessão — a agenda chama ao salvar a festa ou a colação.</summary>
+    /// <returns>Quantos convites nasceram agora.</returns>
+    public Task<int> EmitirDosPacotesDaTurma(CancellationToken ct = default) =>
+        EmitirDosPacotes(
+            formaturaAtual.Id ?? throw new InvalidOperationException("Emissão de convite sem formatura selecionada na sessão."),
+            null,
+            ct
+        );
+
+    /// <summary>Revoga os convites de pacote de quem saiu da turma, sob a trava das linhas (Sprint 30, decisão 5).</summary>
     /// <param name="vinculoId">Quem saiu.</param>
     /// <returns>Quantos foram revogados agora.</returns>
-    public async Task<int> RevogarDaCota(Guid vinculoId, CancellationToken ct = default)
+    public async Task<int> RevogarDosPacotes(Guid vinculoId, CancellationToken ct = default)
     {
         var agora = DateTime.UtcNow;
-        var revogados = (await convites.TravarDaCota(vinculoId, ct)).Count(convite => convite.Revogar(MotivoDaSaida, agora));
+        var revogados = (await convites.TravarDosPacotes(vinculoId, ct)).Count(convite => convite.Revogar(MotivoDaSaida, agora));
 
         if (revogados > 0)
-            logger.LogInformation("Vínculo {VinculoId}: {Revogados} convites de cota revogados.", vinculoId, revogados);
+            logger.LogInformation("Vínculo {VinculoId}: {Revogados} convites de pacote revogados.", vinculoId, revogados);
+
+        return revogados;
+    }
+
+    /// <summary>
+    /// Revoga os convites de pacote além do que a cesta ainda concede — o pacote saiu dela (Sprint 48, D41).
+    /// </summary>
+    /// <remarks>
+    /// Mesma regra de posição do pedido: ficam os de sequencial até o que a cesta concede em cada evento. O que já
+    /// entrou na portaria não se revoga — a comissão não aprova o cancelamento do consumido (D25), e se aprovou, a
+    /// entrada já aconteceu.
+    /// </remarks>
+    /// <param name="vinculoId">Formando.</param>
+    /// <param name="festa">Convites da festa que a cesta ainda concede.</param>
+    /// <param name="colacao">Convites da colação que a cesta ainda concede.</param>
+    /// <returns>Quantos foram revogados agora.</returns>
+    public async Task<int> RevogarAlemDaCesta(Guid vinculoId, int festa, int colacao, CancellationToken ct = default)
+    {
+        var daFesta = (await agenda.ObterDoTipo(TipoDeEvento.Festa, ct))?.Id;
+        var travados = await convites.TravarDosPacotes(vinculoId, ct);
+        var comEntrada = await convites.ListarComEntrada([.. travados.Select(convite => convite.Id)], ct);
+        var agora = DateTime.UtcNow;
+
+        var revogados = travados.Count(convite =>
+            !comEntrada.Contains(convite.Id)
+            && convite.Sequencial > (convite.EventoId == daFesta ? festa : colacao)
+            && convite.Revogar(MotivoDoPacoteCancelado, agora)
+        );
+
+        if (revogados > 0)
+            logger.LogInformation("Vínculo {VinculoId}: {Revogados} convites de pacote cancelado revogados.", vinculoId, revogados);
 
         return revogados;
     }

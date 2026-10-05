@@ -1,6 +1,7 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Loja.Models;
 using Backend.Data.Context;
 using Microsoft.EntityFrameworkCore;
 
@@ -235,6 +236,9 @@ public sealed class PedidoRepository(AppDbContext db) : IPedidoRepository
                 db.Parcelas.Where(parcela => parcela.VinculoId == pedido.VinculoId && parcela.ItemDeCobrancaId == pedido.ItemDeCobrancaId)
                     .Sum(parcela => (long?)parcela.ValorPagoEmCentavos)
                 ?? 0,
+            CancelamentoSolicitado = db.SolicitacoesDeCancelamento.Any(s =>
+                s.VinculoId == pedido.VinculoId && s.ItemDeCobrancaId == pedido.ItemDeCobrancaId && s.Status == StatusDoPedidoDeCancelamento.Aberto
+            ),
         };
 
     /// <summary>Item, situação, quitação e busca pelo nome de quem pediu.</summary>
@@ -275,7 +279,10 @@ public sealed class PedidoRepository(AppDbContext db) : IPedidoRepository
             linha.Item.ValorEmCentavos * linha.Pedido.Quantidade,
             linha.PagoEmCentavos,
             linha.Pedido.Status,
-            linha.Pedido.PedidoEm
+            linha.Pedido.PedidoEm,
+            linha.Pedido.Observacao,
+            linha.Item.CancelavelAte,
+            linha.CancelamentoSolicitado
         ));
 }
 
@@ -299,4 +306,7 @@ internal sealed class LinhaDePedido
 
     /// <summary>O que já entrou pelas parcelas deste pedido.</summary>
     public long PagoEmCentavos { get; init; }
+
+    /// <summary>Há solicitação de cancelamento esperando a comissão (Sprint 48, D8).</summary>
+    public bool CancelamentoSolicitado { get; init; }
 }

@@ -28,12 +28,18 @@ namespace Backend.Api.Controllers.V1.Cobrancas;
 /// </remarks>
 /// <param name="cobrancaService">Regras do plano.</param>
 /// <param name="parcelas">A consulta das parcelas da turma.</param>
+/// <param name="lancamentos">O lançamento avulso no vínculo de um formando (Sprint 48).</param>
+/// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
 [ExigeModulo(Modulo.Cobrancas)]
 [Route("api/v{version:apiVersion}/cobrancas")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class CobrancaController(ICobrancaService cobrancaService, IConsultaDeParcelasService parcelas, IUsuarioAtual usuarioAtual)
-    : MainController
+public sealed class CobrancaController(
+    ICobrancaService cobrancaService,
+    IConsultaDeParcelasService parcelas,
+    ILancamentoAvulsoService lancamentos,
+    IUsuarioAtual usuarioAtual
+) : MainController
 {
     /// <summary>Nome da rota do detalhe do plano, para o <c>Location</c> da criação.</summary>
     public const string RotaDoPlano = "PlanoDeCobrancaPorId";
@@ -108,12 +114,15 @@ public sealed class CobrancaController(ICobrancaService cobrancaService, IConsul
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> AdicionarItem(Guid id, [FromBody] ItemDeCobrancaRequestDTO requisicao, CancellationToken ct)
     {
-        var rateio = requisicao.AplicarAQuemJaAderiu ? new RateioExtraordinario(requisicao.OrigemDaDecisao ?? string.Empty) : null;
+        var rateio = requisicao.AplicarAQuemJaAderiu ? new RateioExtraordinario(requisicao.OrigemDaDecisao ?? string.Empty, requisicao.Alvo) : null;
 
-        return Responder(ParaDTO(await cobrancaService.AdicionarItem(id, requisicao.Adapt<DadosDoItem>(), rateio, ct)));
+        return Responder(ParaDTO(await cobrancaService.AdicionarItem(id, requisicao.ParaPacote(), rateio, ct)));
     }
 
-    /// <summary>Altera um item. Com parcela gerada, só valor e descrição — e o valor novo vale só para o que não venceu.</summary>
+    /// <summary>
+    /// Altera um item. Com parcela gerada, só valor e descrição; o valor novo vale para quem aderir depois e, com
+    /// <c>aplicar_aos_atuais</c>, também no que ainda não venceu de quem já aderiu (Sprint 48, D21).
+    /// </summary>
     /// <param name="id">Plano.</param>
     /// <param name="itemId">Item.</param>
     /// <param name="requisicao">Dados novos.</param>
@@ -126,7 +135,76 @@ public sealed class CobrancaController(ICobrancaService cobrancaService, IConsul
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> AlterarItem(Guid id, Guid itemId, [FromBody] ItemDeCobrancaRequestDTO requisicao, CancellationToken ct) =>
-        Responder(ParaDTO(await cobrancaService.AlterarItem(id, itemId, requisicao.Adapt<DadosDoItem>(), usuarioAtual.Id, ct)));
+        Responder(ParaDTO(await cobrancaService.AlterarItem(id, itemId, requisicao.ParaPacote(), usuarioAtual.Id, requisicao.AplicarAosAtuais, ct)));
+
+    /// <summary>
+    /// Quantos de quem já aderiu o preço novo alcançaria e quanto a soma do que devem muda — a pergunta "aplicar também
+    /// a quem já aderiu?" (D21), sem gravar nada.
+    /// </summary>
+    /// <param name="id">Plano.</param>
+    /// <param name="itemId">Item.</param>
+    /// <param name="valorEmCentavos">Preço novo.</param>
+    [HttpGet("planos/{id:guid}/itens/{itemId:guid}/alcance-do-preco")]
+    [Authorize(Policy = Politicas.Tesouraria)]
+    [ProducesResponseType(typeof(AlcanceDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SimularPreco(Guid id, Guid itemId, [FromQuery] long valorEmCentavos, CancellationToken ct) =>
+        Responder((await cobrancaService.SimularPreco(id, itemId, valorEmCentavos, ct)).Map(alcance => alcance.Adapt<AlcanceDTO>()));
+
+    /// <summary>Quantos formandos o rateio alcançaria hoje e o total — a conta antes de confirmar (D19).</summary>
+    /// <param name="id">Plano.</param>
+    /// <param name="alvo">Pacotes de quem paga; ausente é todos os que já aderiram.</param>
+    /// <param name="valorEmCentavos">Valor por formando.</param>
+    [HttpGet("planos/{id:guid}/alcance-do-rateio")]
+    [Authorize(Policy = Politicas.Tesouraria)]
+    [ProducesResponseType(typeof(AlcanceDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SimularRateio(Guid id, [FromQuery] Guid[]? alvo, [FromQuery] long valorEmCentavos, CancellationToken ct) =>
+        Responder((await cobrancaService.SimularRateio(id, alvo ?? [], valorEmCentavos, ct)).Map(alcance => alcance.Adapt<AlcanceDTO>()));
+
+    /// <summary>Os lançamentos avulsos da turma, do mais novo para o mais antigo (Sprint 48, D23).</summary>
+    [HttpGet("avulsas")]
+    [Authorize(Policy = Politicas.Tesouraria)]
+    [ProducesResponseType(typeof(IEnumerable<LancamentoDTO>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ListarAvulsas(CancellationToken ct) =>
+        Responder((await lancamentos.Listar(ct)).Map(lista => lista.Select(lancamento => lancamento.Adapt<LancamentoDTO>())));
+
+    /// <summary>
+    /// Lança um valor no vínculo de um formando — cobrança ou crédito —, que vira parcela como qualquer outra (D23).
+    /// </summary>
+    /// <remarks>
+    /// Formando sem adesão, 409 <c>cobranca.lancamento_sem_adesao</c>; turma sem plano vigente, 409
+    /// <c>cobranca.sem_plano_vigente</c>. Desfazer é encerrar o item.
+    /// </remarks>
+    /// <param name="requisicao">Formando, descrição, valor, parcelas e primeiro vencimento.</param>
+    [HttpPost("avulsas")]
+    [Authorize(Policy = Politicas.Tesouraria)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [ProducesResponseType(typeof(LancamentoDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> LancarAvulsa([FromBody] LancamentoAvulsoRequestDTO requisicao, CancellationToken ct) =>
+        Responder(
+            (
+                await lancamentos.Lancar(
+                    FormaturaId,
+                    new LancamentoAvulso(
+                        requisicao.UsuarioId,
+                        requisicao.Descricao ?? string.Empty,
+                        requisicao.ValorEmCentavos,
+                        requisicao.NumeroDeParcelas,
+                        requisicao.PrimeiroVencimento
+                    ),
+                    usuarioAtual.Id,
+                    ct
+                )
+            ).Map(lancamento => lancamento.Adapt<LancamentoDTO>())
+        );
 
     /// <summary>Remove um item que nunca gerou parcela. Em uso, 409 <c>cobranca.item_em_uso</c>: encerre-o.</summary>
     /// <param name="id">Plano.</param>

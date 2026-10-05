@@ -95,3 +95,28 @@ public sealed class AdesaoDoFormandoMapping : IEntityTypeConfiguration<AdesaoDoF
         builder.HasOne<TermoDaFormatura>().WithMany().HasForeignKey(a => a.TermoId).OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+/// <summary>Mapeamento dos aditivos da adesão (Sprint 48, D38).</summary>
+/// <remarks>Append-only como a adesão: o gatilho <c>recusar_alteracao()</c> vem na migration.</remarks>
+public sealed class AditivoDaAdesaoMapping : IEntityTypeConfiguration<AditivoDaAdesao>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<AditivoDaAdesao> builder)
+    {
+        builder.ToTable("aditivos_da_adesao");
+
+        builder.HasKey(a => a.Id);
+
+        builder.Property(a => a.HashDoConteudo).IsRequired().HasMaxLength(64);
+        builder.Property(a => a.EnderecoIp).IsRequired().HasMaxLength(45);
+        builder.Property(a => a.UserAgent).IsRequired().HasMaxLength(512);
+        builder.Property(a => a.EmailDoAceite).IsRequired().HasMaxLength(256);
+        builder.Property(a => a.Conteudo).IsRequired();
+
+        builder.HasIndex(a => a.VinculoId);
+
+        builder.HasOne<Formatura>().WithMany().HasForeignKey(a => a.FormaturaId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<VinculoDeFormatura>().WithMany().HasForeignKey(a => a.VinculoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AdesaoDoFormando>().WithMany().HasForeignKey(a => a.AdesaoId).OnDelete(DeleteBehavior.Restrict);
+    }
+}

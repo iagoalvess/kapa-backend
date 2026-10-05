@@ -85,7 +85,7 @@ public sealed class PedidoEndpointsTests(ApiFactory fabrica)
         var comPrazoVencido = await CriarItem(turma.Presidente.Cliente, Convite(prazo: DataUtils.Hoje().AddDays(-1)));
         var encerrado = await CriarItem(turma.Presidente.Cliente, Convite());
         (await turma.Presidente.Cliente.PostAsync($"{Opcionais}/{encerrado.Id}/encerrar", null, Ct)).EnsureSuccessStatusCode();
-        var formando = await fabrica.NovoMembro(turma.FormaturaId, PapelNaFormatura.Formando, Ct);
+        var formando = await fabrica.FormandoComAdesao(turma.FormaturaId);
 
         var vitrine = await formando.Cliente.GetFromJsonAsync<List<OpcionalDTO>>(Opcionais, Json, Ct);
 
@@ -283,6 +283,7 @@ public sealed class PedidoEndpointsTests(ApiFactory fabrica)
         (await contexto.Parcelas.CountAsync(p => p.ItemDeCobrancaId == item.Id && p.Status == StatusDaParcela.Aberta, Ct)).ShouldBe(4);
     }
 
+    /// <summary>Sprint 48, D8: quem cancela é a tesouraria; o formando, ao pedir, só abre a solicitação.</summary>
     [Fact]
     public async Task Cancelar_devolve_o_estoque_e_cancelar_de_novo_nao_devolve_outra_vez()
     {
@@ -291,8 +292,11 @@ public sealed class PedidoEndpointsTests(ApiFactory fabrica)
         var formando = await Formando(turma.FormaturaId);
         var pedido = await Pedir(formando, item.Id, 3);
 
-        (await formando.Cliente.PostAsync($"{Pedidos}/{pedido.Id}/cancelar", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await formando.Cliente.PostAsync($"{Pedidos}/{pedido.Id}/cancelar", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var solicitado = await formando.Cliente.PostAsync($"{Pedidos}/{pedido.Id}/cancelar", null, Ct);
+        solicitado.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await solicitado.Content.ReadFromJsonAsync<PedidoDTO>(Json, Ct))!.CancelamentoSolicitado.ShouldBeTrue();
+        (await turma.Presidente.Cliente.PostAsync($"{Pedidos}/{pedido.Id}/cancelar", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await turma.Presidente.Cliente.PostAsync($"{Pedidos}/{pedido.Id}/cancelar", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         await using var contexto = fabrica.ContextoDe(turma.FormaturaId);
         (await contexto.ItensDeCobranca.SingleAsync(i => i.Id == item.Id, Ct)).Reservados.ShouldBe(0);
@@ -315,18 +319,25 @@ public sealed class PedidoEndpointsTests(ApiFactory fabrica)
         vitrine!.Single(i => i.Id == item.Id).AbertoAPedido.ShouldBeFalse();
     }
 
-    /// <summary>Quem não aceitou o termo não passa a dever por um caminho lateral (decisão 4).</summary>
+    /// <summary>
+    /// Quem não aceitou o termo não passa a dever por um caminho lateral (decisão 4). O formando nem chega ao pedido:
+    /// o gate de adesão o barra antes (Sprint 47, D18); a comissão passa pelo gate, e é o pedido que a recusa.
+    /// </summary>
     [Fact]
     public async Task Quem_nao_aderiu_recebe_pedido_sem_adesao()
     {
         var turma = await TurmaComPlano();
         var item = await CriarItem(turma.Presidente.Cliente, Convite());
         var formando = await fabrica.NovoMembro(turma.FormaturaId, PapelNaFormatura.Formando, Ct);
+        var comissao = await fabrica.NovoMembro(turma.FormaturaId, PapelNaFormatura.Comissao, Ct);
 
-        var resposta = await formando.Cliente.PostAsJsonAsync(Pedidos, new PedidoRequestDTO(item.Id, 1), Json, Ct);
+        var doFormando = await formando.Cliente.PostAsJsonAsync(Pedidos, new PedidoRequestDTO(item.Id, 1), Json, Ct);
+        var daComissao = await comissao.Cliente.PostAsJsonAsync(Pedidos, new PedidoRequestDTO(item.Id, 1), Json, Ct);
 
-        resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await resposta.Codigo(Ct)).ShouldBe("cobranca.pedido_sem_adesao");
+        doFormando.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await doFormando.Codigo(Ct)).ShouldBe("adesao.pendente");
+        daComissao.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await daComissao.Codigo(Ct)).ShouldBe("cobranca.pedido_sem_adesao");
     }
 
     /// <summary>O pedido de outro responde 404, nunca 403.</summary>

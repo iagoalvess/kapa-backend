@@ -38,6 +38,7 @@ namespace Backend.Business.Cobrancas.Services;
 /// <param name="emissao">Os convites da festa que o pedido de convite extra paga (Sprint 21).</param>
 /// <param name="donosDeMesa">As mesas que o pedido de mesa dá direito a ter (Sprint 27).</param>
 /// <param name="valoresADevolver">O crédito e o parcial das parcelas canceladas, na lista "a devolver" (Sprint 42).</param>
+/// <param name="abertura">A solicitação de cancelamento do formando (Sprint 48, D8).</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class PedidoService(
@@ -50,6 +51,7 @@ public sealed class PedidoService(
     EmissaoDeConvites emissao,
     DonosDeMesa donosDeMesa,
     ValoresADevolver valoresADevolver,
+    AberturaDeSolicitacao abertura,
     IUnitOfWork unitOfWork,
     ILogger<PedidoService> logger
 ) : IPedidoService, IQuitacaoDePedidos
@@ -90,7 +92,7 @@ public sealed class PedidoService(
             return Erro.Conflito("cobranca.pedido_sem_adesao", "Aceite o termo da turma antes de pedir: é ele que cria a sua conta de cobrança.");
 
         return await unitOfWork.EmTransacaoAsync(
-            async token => await Escrever(membro.VinculoId, dados.ItemDeCobrancaId, dados.Quantidade, dados.Parcelas ?? 1, token),
+            async token => await Escrever(membro.VinculoId, dados.ItemDeCobrancaId, dados.Quantidade, dados.Parcelas ?? 1, token, dados.Observacao),
             ct
         );
     }
@@ -125,8 +127,12 @@ public sealed class PedidoService(
 
     /// <inheritdoc />
     /// <remarks>
+    /// Quem não é da tesouraria não cancela: abre a solicitação à comissão (Sprint 48, D8), mesmo sem nada pago, e as
+    /// parcelas do pedido ficam suspensas até a resposta.
+    /// <para>
     /// O crédito tem teto no que o formando já pagou naquele pedido: sem ele, um valor digitado a mais
     /// virava parcela negativa enorme, e as somas do caixa e dos relatórios estouravam.
+    /// </para>
     /// <para>
     /// Com parcela paga (P9), o pedido encolhe para o que o dinheiro já pago cobre, e só o excedente
     /// volta ao estoque. Com crédito, a tesouraria está devolvendo o valor — aí o pedido inteiro cai.
@@ -153,11 +159,14 @@ public sealed class PedidoService(
         if (dados.CreditoEmCentavos > 0 && !daTesouraria)
             return Erro.Proibido("cobranca.credito_da_tesouraria", "Só a tesouraria lança crédito de um pedido já pago.");
 
+        if (!daTesouraria)
+            return membro is null ? NaoEncontrado : await SolicitarCancelamento(pedidoId, membro.VinculoId, dados.Motivo, usuarioId, ct);
+
         return await unitOfWork.EmTransacaoAsync(
             async token =>
             {
                 var pedido = await pedidoRepository.ObterParaEdicao(pedidoId, token);
-                if (pedido is null || (!daTesouraria && pedido.VinculoId != membro?.VinculoId))
+                if (pedido is null)
                     return Result.Falha<PedidoResumo>(NaoEncontrado);
 
                 if (!pedido.Confirmado)
@@ -169,8 +178,9 @@ public sealed class PedidoService(
 
                 var parcelas = await pedidoRepository.ListarParcelasParaEdicao(pedido, token);
                 var pago = parcelas.Sum(parcela => parcela.ValorPagoEmCentavos ?? 0);
+                var credito = dados.TudoADevolver ? pago : dados.CreditoEmCentavos;
 
-                if (dados.CreditoEmCentavos > pago)
+                if (credito > pago)
                     return Result.Falha<PedidoResumo>(
                         Erro.Validacao(
                             "cobranca.credito_acima_do_pago",
@@ -179,16 +189,10 @@ public sealed class PedidoService(
                         )
                     );
 
-                if (pago > 0 && !daTesouraria)
-                    return Result.Falha<PedidoResumo>(
-                        Erro.Conflito(
-                            "cobranca.pedido_com_parcela_paga",
-                            "Este pedido já tem parcela paga. Fale com a tesouraria: o cancelamento agora é dela."
-                        )
-                    );
-
                 var mantidas =
-                    dados.CreditoEmCentavos > 0 || item.ValorEmCentavos <= 0 ? 0 : (int)Math.Min(pedido.Quantidade, pago / item.ValorEmCentavos);
+                    credito > 0 || dados.TudoADevolver || item.ValorEmCentavos <= 0
+                        ? 0
+                        : (int)Math.Min(pedido.Quantidade, pago / item.ValorEmCentavos);
 
                 var hoje = DataUtils.Hoje();
                 var devolvidas = pedido.Cancelar(mantidas);
@@ -202,8 +206,8 @@ public sealed class PedidoService(
 
                 await emissao.RevogarDoPedido(pedido.Id, pedido.Confirmado ? pedido.Quantidade : 0, EmissaoDeConvites.MotivoDoCancelamento, token);
 
-                if (dados.CreditoEmCentavos > 0)
-                    await valoresADevolver.RegistrarCredito(pedido, dados.CreditoEmCentavos, token);
+                if (credito > 0)
+                    await valoresADevolver.RegistrarCredito(pedido, credito, token);
                 else
                     await valoresADevolver.RegistrarParciais(canceladasAgora, token);
 
@@ -219,7 +223,7 @@ public sealed class PedidoService(
                         unidadesDevolvidas = devolvidas,
                         parcelasCanceladas = canceladas,
                         pagoEmCentavos = pago,
-                        creditoEmCentavos = dados.CreditoEmCentavos,
+                        creditoEmCentavos = credito,
                         pelaTesouraria = daTesouraria,
                     },
                     token
@@ -240,6 +244,33 @@ public sealed class PedidoService(
             ct
         );
     }
+
+    /// <summary>A solicitação de cancelamento do dono do pedido (Sprint 48, D8), sob a trava do item.</summary>
+    /// <param name="pedidoId">Pedido.</param>
+    /// <param name="vinculoId">Quem pede — o pedido de outro responde 404.</param>
+    /// <param name="motivo">Por que, se disse.</param>
+    /// <param name="usuarioId">Quem pede, para a trilha.</param>
+    private Task<Result<PedidoResumo>> SolicitarCancelamento(Guid pedidoId, Guid vinculoId, string? motivo, Guid usuarioId, CancellationToken ct) =>
+        unitOfWork.EmTransacaoAsync(
+            async token =>
+            {
+                var pedido = await pedidoRepository.ObterParaEdicao(pedidoId, token);
+                if (pedido is null || pedido.VinculoId != vinculoId)
+                    return Result.Falha<PedidoResumo>(NaoEncontrado);
+
+                if (!pedido.Confirmado || await pedidoRepository.TravarItem(pedido.ItemDeCobrancaId, token) is not { } item)
+                    return await Resumir(pedido.Id, token);
+
+                var aberta = await abertura.Abrir(vinculoId, item, pedido.Id, motivo, usuarioId, token);
+                if (aberta.Falhou)
+                    return Result.Falha<PedidoResumo>(aberta.Erros);
+
+                await unitOfWork.SalvarAsync(token);
+
+                return await Resumir(pedido.Id, token);
+            },
+            ct
+        );
 
     /// <inheritdoc />
     /// <remarks>
@@ -315,7 +346,15 @@ public sealed class PedidoService(
     /// Em quantas vezes, no pedido novo (ou que volta de um cancelamento); nulo vem do <c>PUT</c>, que
     /// só muda a quantidade. O pedido de pé mantém a divisão que tem, e o bloco do aumento sai com ela.
     /// </param>
-    private async Task<Result<PedidoResumo>> Escrever(Guid vinculoId, Guid itemId, int quantidade, int? parcelas, CancellationToken ct)
+    /// <param name="observacao">O detalhe livre do pedido (D26); nulo mantém o que havia.</param>
+    private async Task<Result<PedidoResumo>> Escrever(
+        Guid vinculoId,
+        Guid itemId,
+        int quantidade,
+        int? parcelas,
+        CancellationToken ct,
+        string? observacao = null
+    )
     {
         var item = await pedidoRepository.TravarItem(itemId, ct);
         if (item is null)
@@ -336,6 +375,12 @@ public sealed class PedidoService(
         var delta = quantidade - atual;
         var hoje = DataUtils.Hoje();
 
+        if (
+            delta > 0
+            && ItemDeCobranca.PassaDoLimite(UltimaDoPedido(item, parcelas ?? pedido?.Parcelas ?? 1, hoje), item.UltimoVencimento) is { } tarde
+        )
+            return Result.Falha<PedidoResumo>(tarde);
+
         IReadOnlyList<Parcela> aCancelar = delta < 0 && pedido is not null ? await pedidoRepository.ListarParcelasParaEdicao(pedido, ct) : [];
 
         if (aCancelar.Any(parcela => parcela.ValorPagoEmCentavos > 0))
@@ -349,12 +394,13 @@ public sealed class PedidoService(
 
         if (pedido is null)
         {
-            pedido = Pedido.Novo(vinculoId, itemId, quantidade, parcelas ?? 1);
+            pedido = Pedido.Novo(vinculoId, itemId, quantidade, parcelas ?? 1, observacao);
             await pedidoRepository.Adicionar(pedido, ct);
         }
         else
         {
             pedido.Ajustar(quantidade, parcelas);
+            pedido.Observar(observacao);
         }
 
         foreach (var parcela in aCancelar)
@@ -414,6 +460,16 @@ public sealed class PedidoService(
             ct
         );
     }
+
+    /// <summary>
+    /// O vencimento da última parcela que o pedido geraria hoje — o pedido começa depois do item, e é por isso que a
+    /// conferência do teto na criação do opcional não basta (D28).
+    /// </summary>
+    /// <param name="item">Item opcional.</param>
+    /// <param name="parcelas">Divisão do pedido.</param>
+    /// <param name="hoje">Dia do pedido.</param>
+    private static DateOnly UltimaDoPedido(ItemDeCobranca item, int parcelas, DateOnly hoje) =>
+        GradeDeParcelas.Vencimento(PrimeiroMes(item, hoje).AddMonths(parcelas - 1), item.DiaDeVencimento);
 
     /// <summary>O mês do primeiro vencimento do pedido: o do item, ou o próximo que ainda acontece.</summary>
     /// <param name="item">Item opcional.</param>

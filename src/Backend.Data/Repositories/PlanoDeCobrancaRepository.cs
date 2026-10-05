@@ -50,4 +50,61 @@ public sealed class PlanoDeCobrancaRepository(AppDbContext db) : IPlanoDeCobranc
 
     /// <inheritdoc />
     public void RemoverItem(ItemDeCobranca item) => db.ItensDeCobranca.Remove(item);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Guid>> ListarCesta(Guid vinculoId, CancellationToken ct = default) =>
+        await db.EscolhasDaCesta.AsNoTracking().Where(e => e.VinculoId == vinculoId).Select(e => e.ItemDeCobrancaId).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public Task AdicionarEscolhas(IEnumerable<EscolhaDaCesta> escolhas, CancellationToken ct = default) =>
+        db.EscolhasDaCesta.AddRangeAsync(escolhas, ct);
+
+    /// <inheritdoc />
+    public Task<EscolhaDaCesta?> ObterEscolhaParaEdicao(Guid vinculoId, Guid itemId, CancellationToken ct = default) =>
+        db.EscolhasDaCesta.FirstOrDefaultAsync(e => e.VinculoId == vinculoId && e.ItemDeCobrancaId == itemId, ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<EscolhaDaCesta>> ListarEscolhas(Guid vinculoId, CancellationToken ct = default) =>
+        await db.EscolhasDaCesta.AsNoTracking().Where(e => e.VinculoId == vinculoId).ToListAsync(ct);
+
+    /// <inheritdoc />
+    public void RemoverEscolha(EscolhaDaCesta escolha) => db.EscolhasDaCesta.Remove(escolha);
+
+    /// <inheritdoc />
+    /// <remarks>O nome sai da mesma regra das parcelas: o civil do cadastro quando houver, senão o da conta.</remarks>
+    public async Task<IReadOnlyList<LancamentoResumo>> ListarLancamentos(CancellationToken ct = default)
+    {
+        var linhas = await (
+            from item in db.ItensDeCobranca.AsNoTracking()
+            join vinculo in db.Vinculos.AsNoTracking() on item.VinculoDoLancamento equals (Guid?)vinculo.Id
+            join usuario in db.Users.AsNoTracking() on vinculo.UsuarioId equals usuario.Id
+            join perfil in db.PerfisDeFormandos.AsNoTracking() on vinculo.Id equals perfil.VinculoId into perfis
+            from perfil in perfis.DefaultIfEmpty()
+            orderby item.CriadoEm descending, item.Id
+            select new
+            {
+                Item = item,
+                UsuarioId = usuario.Id,
+                Nome = perfil != null && perfil.NomeCompleto != null ? perfil.NomeCompleto : usuario.Nome,
+                Pago = db.Parcelas.Where(p => p.ItemDeCobrancaId == item.Id).Sum(p => (long?)p.ValorPagoEmCentavos) ?? 0,
+            }
+        ).ToListAsync(ct);
+
+        return
+        [
+            .. linhas.Select(linha => new LancamentoResumo(
+                linha.Item.Id,
+                linha.Item.PlanoId,
+                linha.UsuarioId,
+                linha.Nome,
+                linha.Item.Descricao,
+                linha.Item.ValorEmCentavos,
+                linha.Item.NumeroDeParcelas,
+                GradeDeParcelas.Vencimento(linha.Item.PrimeiroMes, linha.Item.DiaDeVencimento),
+                linha.Item.CriadoEm,
+                linha.Item.EncerradoEm,
+                linha.Pago
+            )),
+        ];
+    }
 }

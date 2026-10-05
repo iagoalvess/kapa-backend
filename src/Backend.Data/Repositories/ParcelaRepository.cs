@@ -40,16 +40,32 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
             .CountAsync(ct);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<Guid>> ListarVinculosAtivosComParcela(Guid planoId, CancellationToken ct = default) =>
-        await db
+    /// <remarks>
+    /// O alvo lê a cesta (<c>escolhas_da_cesta</c>), e não as parcelas: quem tem Festa 15 e foi para a Festa 20 pelo
+    /// aditivo tem parcela das duas, mas só a escolha atual diz que ele está na festa.
+    /// </remarks>
+    public async Task<IReadOnlyList<Guid>> ListarVinculosAtivosComParcela(
+        Guid planoId,
+        IReadOnlyCollection<Guid>? alvo = null,
+        CancellationToken ct = default
+    )
+    {
+        var consulta = db
             .Parcelas.AsNoTracking()
             .Where(p =>
                 db.ItensDeCobranca.Any(i => i.Id == p.ItemDeCobrancaId && i.PlanoId == planoId)
                 && db.Vinculos.Any(v => v.Id == p.VinculoId && v.Ativo)
-            )
-            .Select(p => p.VinculoId)
-            .Distinct()
-            .ToListAsync(ct);
+            );
+
+        if (alvo is { Count: > 0 })
+            consulta = consulta.Where(p => db.EscolhasDaCesta.Any(e => e.VinculoId == p.VinculoId && alvo.Contains(e.ItemDeCobrancaId)));
+
+        return await consulta.Select(p => p.VinculoId).Distinct().ToListAsync(ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Parcela>> ListarDoVinculoNoItemParaEdicao(Guid vinculoId, Guid itemId, CancellationToken ct = default) =>
+        await db.Parcelas.Where(p => p.VinculoId == vinculoId && p.ItemDeCobrancaId == itemId).OrderBy(p => p.Numero).ToListAsync(ct);
 
     /// <inheritdoc />
     public Task<bool> ExisteDoItem(Guid itemId, CancellationToken ct = default) => db.Parcelas.AnyAsync(p => p.ItemDeCobrancaId == itemId, ct);
@@ -137,6 +153,7 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
                     p.VinculoId == vinculoId
                     && p.Status == StatusDaParcela.Aberta
                     && p.Vencimento < hoje
+                    && !(p.SuspensaAte >= hoje)
                     && !db.Informes.Any(i => i.ParcelaId == p.Id && i.Status == StatusDoInforme.Pendente),
                 ct
             );
@@ -145,11 +162,12 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
     /// <remarks>
     /// Agrupa pelo status gravado e por "venceu antes de hoje", e só junta as duas coisas depois: a
     /// vencida não é coluna, e o <c>GROUP BY</c> numa expressão condicional sobre enum não traduz bem.
+    /// A suspensa (Sprint 48, D12) não conta como vencida.
     /// </remarks>
     public async Task<IReadOnlyList<ContagemDeParcelas>> Contar(FiltroDeParcelas filtro, DateOnly hoje, CancellationToken ct = default)
     {
         var grupos = await Filtrar(Linhas(), filtro with { Status = null }, hoje)
-            .GroupBy(linha => new { linha.Parcela.Status, Vencida = linha.Parcela.Vencimento < hoje })
+            .GroupBy(linha => new { linha.Parcela.Status, Vencida = linha.Parcela.Vencimento < hoje && !(linha.Parcela.SuspensaAte >= hoje) })
             .Select(grupo => new
             {
                 grupo.Key.Status,
@@ -311,21 +329,25 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
             linha.Parcela.PagoEm,
             null,
             linha.RecebimentoId,
-            linha.PeloMercadoPago
+            linha.PeloMercadoPago,
+            linha.Parcela.SuspensaAte
         ));
 
     /// <summary>A situação de cada linha no dia, pela mesma regra da entidade.</summary>
     /// <param name="parcelas">Parcelas lidas.</param>
     /// <param name="hoje">Dia de referência.</param>
     internal static IReadOnlyList<ParcelaResumo> NoDia(IEnumerable<ParcelaResumo> parcelas, DateOnly hoje) =>
-        [.. parcelas.Select(parcela => parcela with { Status = Parcela.StatusNoDia(parcela.Status, parcela.Vencimento, hoje) })];
+        [.. parcelas.Select(parcela => parcela with { Status = Parcela.StatusNoDia(parcela.Status, parcela.Vencimento, hoje, parcela.SuspensaAte) })];
 
     private IQueryable<LinhaDeParcela> Linhas() => Linhas(db);
 
     /// <summary>
     /// Formando, período, busca e situação.
     /// </summary>
-    /// <remarks>"Vencida" não é coluna: o filtro divide as abertas pelo dia de hoje.</remarks>
+    /// <remarks>
+    /// "Vencida" não é coluna: o filtro divide as abertas pelo dia de hoje — e a suspensa (D12) fica entre as abertas,
+    /// como a linha a mostra.
+    /// </remarks>
     private static IQueryable<LinhaDeParcela> Filtrar(IQueryable<LinhaDeParcela> consulta, FiltroDeParcelas filtro, DateOnly hoje)
     {
         if (filtro.UsuarioId is { } usuarioId)
@@ -343,8 +365,12 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
         return filtro.Status switch
         {
             null => consulta,
-            StatusDaParcela.Aberta => consulta.Where(linha => linha.Parcela.Status == StatusDaParcela.Aberta && linha.Parcela.Vencimento >= hoje),
-            StatusDaParcela.Vencida => consulta.Where(linha => linha.Parcela.Status == StatusDaParcela.Aberta && linha.Parcela.Vencimento < hoje),
+            StatusDaParcela.Aberta => consulta.Where(linha =>
+                linha.Parcela.Status == StatusDaParcela.Aberta && (linha.Parcela.Vencimento >= hoje || linha.Parcela.SuspensaAte >= hoje)
+            ),
+            StatusDaParcela.Vencida => consulta.Where(linha =>
+                linha.Parcela.Status == StatusDaParcela.Aberta && linha.Parcela.Vencimento < hoje && !(linha.Parcela.SuspensaAte >= hoje)
+            ),
             var status => consulta.Where(linha => linha.Parcela.Status == status),
         };
     }

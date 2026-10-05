@@ -3,12 +3,15 @@ using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Models;
 using Backend.Business.Adesoes.Services;
 using Backend.Business.Adesoes.Validators;
+using Backend.Business.Agenda.Interfaces;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common;
 using Backend.Business.Common.Datas;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
+using Backend.Business.Festa.Interfaces;
+using Backend.Business.Festa.Services;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Interfaces;
@@ -56,6 +59,7 @@ public sealed class AdesaoServiceTests
         null
     );
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IConviteDoEventoRepository _convites = Substitute.For<IConviteDoEventoRepository>();
 
     private readonly VersaoDoTermo _termo = new(Guid.CreateVersion7(), 1, "# Termo\n\nTexto do termo.", DateTime.UtcNow);
     private readonly PlanoDeCobranca _plano = PlanoVigente();
@@ -70,7 +74,18 @@ public sealed class AdesaoServiceTests
         _perfis.ObterMembro(FormaturaId, UsuarioId, Arg.Any<CancellationToken>()).Returns(membro);
         _perfis.ObterTitular(FormaturaId, UsuarioId, Arg.Any<CancellationToken>()).Returns(membro);
         _perfis.ObterDoVinculo(VinculoId, Arg.Any<CancellationToken>()).Returns(Perfil());
-        _geracao.Gerar(VinculoId, Arg.Any<PlanoDeCobranca>(), Arg.Any<CancellationToken>()).Returns(Result.Ok(24));
+        _geracao
+            .Gerar(VinculoId, Arg.Any<PlanoDeCobranca>(), Arg.Any<IReadOnlyCollection<ItemDeCobranca>>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(24));
+        _planos.ListarCesta(VinculoId, Arg.Any<CancellationToken>()).Returns([]);
+        _formaturas
+            .ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>())
+            .Returns(
+                new FormaturaDetalhe(FormaturaId, "Medicina 2027.1", "UFPR", "Medicina", 2027, 1, null, null, StatusDaFormatura.Ativa, null, true)
+            );
+        _unitOfWork
+            .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<int>>>>(), Arg.Any<CancellationToken>())
+            .Returns(chamada => chamada.Arg<Func<CancellationToken, Task<Result<int>>>>()(Ct));
 
         _userManager.FindByIdAsync(UsuarioId.ToString()).Returns(new Usuario { Id = UsuarioId, Email = "ana@kapa.dev" });
         _userManager
@@ -89,6 +104,13 @@ public sealed class AdesaoServiceTests
             _formaturas,
             _geracao,
             new EmailsDeAdesao(_email, Options.Create(new AplicacaoSettings())),
+            new EmissaoDeConvites(
+                _convites,
+                Substitute.For<IEventoDaTurmaRepository>(),
+                _formaturas,
+                Substitute.For<IFormaturaAtual>(),
+                NullLogger<EmissaoDeConvites>.Instance
+            ),
             _userManager,
             new AderirAoTermoValidator(),
             _unitOfWork,
@@ -99,10 +121,22 @@ public sealed class AdesaoServiceTests
     {
         var plano = new PlanoDeCobranca { Nome = "Plano 2027" };
         plano.Itens.Add(ItemDeCobranca.Novo(plano.Id, new DadosDoItem(TipoDeCobranca.Mensalidade, null, 840_000, 24, 10, new DateOnly(2027, 3, 1))));
+        plano.Itens.Add(Faixa(plano, "10 pessoas", 300_000, 10));
+        plano.Itens.Add(Faixa(plano, "15 pessoas", 420_000, 15));
         plano.Vigorar(DateTime.UtcNow);
 
         return plano;
     }
+
+    /// <summary>Uma faixa do grupo "Festa", que concede um convite por pessoa.</summary>
+    private static ItemDeCobranca Faixa(PlanoDeCobranca plano, string descricao, long valor, int convites) =>
+        ItemDeCobranca.NovoPacote(
+            plano.Id,
+            new DadosDoPacote(new DadosDoItem(TipoDeCobranca.Festa, descricao, valor, 10, 10, new DateOnly(2027, 3, 1)), "Festa", convites)
+        );
+
+    /// <summary>A cesta padrão dos testes: só o primeiro pacote, a mensalidade.</summary>
+    private IReadOnlyList<ItemDeCobranca> Cesta => [_plano.Itens[0]];
 
     private static PerfilDoFormando Perfil(string? nome = "Ana Souza", string? cpf = "52998224725", DateOnly? nascimento = null)
     {
@@ -114,10 +148,16 @@ public sealed class AdesaoServiceTests
         return perfil;
     }
 
-    private string HashCerto => AdesaoDoFormando.CalcularHash(_termo.Conteudo, SnapshotDoPlano.De(_plano, DataUtils.Hoje()).ParaJson());
+    private string HashCerto => AdesaoDoFormando.CalcularHash(_termo.Conteudo, SnapshotDoPlano.De(_plano, Cesta, DataUtils.Hoje()).ParaJson());
 
-    private Task<Result<AdesaoDetalhe>> Aderir(string? hash = null, string codigo = CodigoCerto) =>
-        Servico.Aderir(FormaturaId, UsuarioId, new AderirAoTermo(hash ?? HashCerto, codigo), Origem, Ct);
+    private Task<Result<AdesaoDetalhe>> Aderir(string? hash = null, string codigo = CodigoCerto, IReadOnlyList<Guid>? pacotes = null) =>
+        Servico.Aderir(
+            FormaturaId,
+            UsuarioId,
+            new AderirAoTermo(hash ?? HashCerto, codigo, pacotes ?? [.. Cesta.Select(item => item.Id)]),
+            Origem,
+            Ct
+        );
 
     [Fact]
     public async Task Aceite_grava_prova_plano_congelado_parcelas_e_email_num_so_commit()
@@ -144,9 +184,68 @@ public sealed class AdesaoServiceTests
                 ),
                 Ct
             );
-        await _geracao.Received(1).Gerar(VinculoId, _plano, Ct);
+        await _geracao
+            .Received(1)
+            .Gerar(VinculoId, _plano, Arg.Is<IReadOnlyCollection<ItemDeCobranca>>(cesta => cesta.Single() == _plano.Itens[0]), Ct);
+        await _planos
+            .Received(1)
+            .AdicionarEscolhas(Arg.Is<IEnumerable<EscolhaDaCesta>>(escolhas => escolhas.Single().ItemDeCobrancaId == _plano.Itens[0].Id), Ct);
         await _email.Received(1).Enfileirar(Arg.Is<NovoEmail>(e => e.Para == "ana@kapa.dev"), Ct);
         await _unitOfWork.Received(1).SalvarAsync(Ct);
+    }
+
+    /// <summary>
+    /// A cesta é o que se cobra: a faixa da festa que ninguém escolheu não vira parcela, e o snapshot congela o pacote
+    /// escolhido com o que ele concede (Sprint 47, D14/D16).
+    /// </summary>
+    [Fact]
+    public async Task So_a_cesta_escolhida_entra_no_snapshot_e_nas_parcelas()
+    {
+        // Arrange
+        var festa15 = _plano.Itens[2];
+        var hash = AdesaoDoFormando.CalcularHash(_termo.Conteudo, SnapshotDoPlano.De(_plano, [festa15], DataUtils.Hoje()).ParaJson());
+
+        // Act
+        var resultado = await Aderir(hash, pacotes: [festa15.Id]);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        var plano = resultado.Valor.Plano;
+        plano.TotalEmCentavos.ShouldBe(420_000);
+        plano.Cesta.ShouldNotBeNull().ShouldHaveSingleItem().ConvitesDaFesta.ShouldBe(15);
+        await _geracao.Received(1).Gerar(VinculoId, _plano, Arg.Is<IReadOnlyCollection<ItemDeCobranca>>(cesta => cesta.Single() == festa15), Ct);
+        await _convites.Received(1).EmitirDosPacotes(FormaturaId, VinculoId, Arg.Any<string>(), Ct);
+    }
+
+    [Fact]
+    public async Task Cesta_vazia_e_recusada_sem_gravar_nada()
+    {
+        (await Aderir(pacotes: [])).PrimeiroErro.Codigo.ShouldBe("adesao.cesta_sem_escolha");
+
+        await NadaFoiGravado();
+    }
+
+    [Fact]
+    public async Task Duas_faixas_do_mesmo_grupo_sao_recusadas()
+    {
+        (await Aderir(pacotes: [_plano.Itens[1].Id, _plano.Itens[2].Id])).PrimeiroErro.Codigo.ShouldBe("cobranca.faixa_invalida");
+
+        await NadaFoiGravado();
+    }
+
+    /// <summary>A re-adesão a uma versão nova mantém a cesta contratada, mesmo que a tela mande outra (D4).</summary>
+    [Fact]
+    public async Task Readesao_mantem_a_cesta_contratada_e_nao_grava_escolha_nova()
+    {
+        // Arrange
+        _planos.ListarCesta(VinculoId, Arg.Any<CancellationToken>()).Returns([_plano.Itens[0].Id]);
+
+        // Act
+        var resultado = await Aderir(pacotes: [_plano.Itens[1].Id]);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        await _planos.DidNotReceiveWithAnyArgs().AdicionarEscolhas(default!, Ct);
     }
 
     [Fact]
@@ -288,7 +387,7 @@ public sealed class AdesaoServiceTests
     public async Task Geracao_recusada_nao_salva_a_adesao()
     {
         _geracao
-            .Gerar(VinculoId, Arg.Any<PlanoDeCobranca>(), Arg.Any<CancellationToken>())
+            .Gerar(VinculoId, Arg.Any<PlanoDeCobranca>(), Arg.Any<IReadOnlyCollection<ItemDeCobranca>>(), Arg.Any<CancellationToken>())
             .Returns(Result.Falha<int>(Erro.Conflito("cobranca.sem_plano_vigente", "Sem plano.")));
 
         (await Aderir()).Falhou.ShouldBeTrue();
@@ -356,7 +455,7 @@ public sealed class AdesaoServiceTests
                 AceitoEm = DateTime.UtcNow,
                 NomeCompleto = "Bruno Lima",
                 Cpf = "11144477735",
-                PlanoAceito = SnapshotDoPlano.De(_plano, DataUtils.Hoje()).ParaJson(),
+                PlanoAceito = SnapshotDoPlano.De(_plano, Cesta, DataUtils.Hoje()).ParaJson(),
             },
             _termo.Conteudo
         );
@@ -368,7 +467,7 @@ public sealed class AdesaoServiceTests
     private async Task NadaFoiGravado()
     {
         await _adesoes.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
-        await _geracao.DidNotReceiveWithAnyArgs().Gerar(default, default!, Ct);
+        await _geracao.DidNotReceiveWithAnyArgs().Gerar(default, default!, default!, Ct);
         await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
     }
 }

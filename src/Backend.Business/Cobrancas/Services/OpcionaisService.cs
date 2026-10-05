@@ -35,7 +35,6 @@ namespace Backend.Business.Cobrancas.Services;
 /// <param name="pedidoRepository">Pedidos, para saber se o item pode ser excluído.</param>
 /// <param name="parcelaRepository">Parcelas, para saber se a grade ainda pode mudar.</param>
 /// <param name="itemDaFestaRepository">Itens da festa, para validar o vínculo da decisão 11.</param>
-/// <param name="agenda">A festa, para a grade do convite extra não passar do fechamento da lista (Sprint 21, P2.1).</param>
 /// <param name="cobrancaService">O encerramento do item, que é o mesmo do plano.</param>
 /// <param name="mercadoPago">Se a turma conectou o Mercado Pago — a loja pública exige (Sprint 26).</param>
 /// <param name="validator">Forma do item opcional.</param>
@@ -47,7 +46,6 @@ public sealed class OpcionaisService(
     IPedidoRepository pedidoRepository,
     IParcelaRepository parcelaRepository,
     IItemDaFestaRepository itemDaFestaRepository,
-    IEventoDaTurmaRepository agenda,
     ICobrancaService cobrancaService,
     EmissaoNoMercadoPago mercadoPago,
     IValidator<DadosDoOpcional> validator,
@@ -97,8 +95,8 @@ public sealed class OpcionaisService(
         if (vinculo is not null)
             return Result.Falha<ItemDeCobrancaDetalhe>(vinculo);
 
-        if (await GradeDepoisDaFesta(dados.Item, ct) is { } tarde)
-            return tarde;
+        if (ItemDeCobranca.PassaDoLimite(ItemDeCobranca.UltimaParcelaDoTeto(dados.Item), dados.UltimoVencimento) is { } tarde)
+            return Result.Falha<ItemDeCobrancaDetalhe>(tarde);
 
         if (await LojaSemMercadoPago(dados, ct) is { } semMercadoPago)
             return semMercadoPago;
@@ -132,8 +130,8 @@ public sealed class OpcionaisService(
         if (vinculo is not null)
             return Result.Falha<ItemDeCobrancaDetalhe>(vinculo);
 
-        if (await GradeDepoisDaFesta(dados.Item, ct) is { } tarde)
-            return tarde;
+        if (ItemDeCobranca.PassaDoLimite(ItemDeCobranca.UltimaParcelaDoTeto(dados.Item), dados.UltimoVencimento) is { } tarde)
+            return Result.Falha<ItemDeCobrancaDetalhe>(tarde);
 
         if (item.ModoDeVenda != dados.ModoDeVenda && await LojaSemMercadoPago(dados, ct) is { } semMercadoPago)
             return semMercadoPago;
@@ -167,37 +165,6 @@ public sealed class OpcionaisService(
         await unitOfWork.SalvarAsync(ct);
 
         return ItemDeCobrancaDetalhe.De(item, emUso);
-    }
-
-    /// <summary>
-    /// Recusa o convite extra cuja última parcela vence depois do fechamento da lista (Sprint 21, P2.1).
-    /// </summary>
-    /// <remarks>
-    /// O convite só sai quitado (P2): parcela vencendo depois da festa é convite saindo depois da festa, e
-    /// nenhum provedor de pagamento resolve isso. Vale para o <b>teto</b> de parcelas — é até ele que o
-    /// formando pode escolher. Sem festa na agenda não há o que conferir; se a data mudar depois, quem
-    /// avisa é a agenda.
-    /// </remarks>
-    /// <param name="item">Tipo, parcelas, dia e primeiro mês.</param>
-    private async Task<Erro?> GradeDepoisDaFesta(DadosDoItem item, CancellationToken ct)
-    {
-        if (item.Tipo != TipoDeCobranca.ConviteExtra || await agenda.ObterDoTipo(TipoDeEvento.Festa, ct) is not { } festa)
-            return null;
-
-        var ultima = GradeDeParcelas.Vencimento(
-            GradeDeParcelas.PrimeiroDoMes(item.PrimeiroMes).AddMonths(item.NumeroDeParcelas - 1),
-            item.DiaDeVencimento
-        );
-        var diaDoFechamento = DateOnly.FromDateTime(DataUtils.ParaExibicao(EmissaoDeConvites.ParaConvite(festa).FechamentoEmUtc));
-
-        return ultima <= diaDoFechamento
-            ? null
-            : Erro.Validacao(
-                "cobranca.grade_depois_da_festa",
-                $"A última parcela venceria em {ultima.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}, depois do fechamento da lista de "
-                    + $"convidados ({diaDoFechamento.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}, 24 h antes da festa). Diminua as parcelas ou comece antes.",
-                campo: "numero_de_parcelas"
-            );
     }
 
     /// <summary>
@@ -309,7 +276,8 @@ public sealed class OpcionaisService(
             item.Disponivel,
             item.AberturaDeVendas,
             item.ItemDaFestaId,
-            item.AbertoAPedido(agora)
+            item.AbertoAPedido(agora),
+            item.UltimoVencimento
         );
 
     /// <summary>O que muda preço ou condição do que se vende — o corpo do <c>antes</c> e do <c>depois</c>.</summary>
@@ -329,5 +297,6 @@ public sealed class OpcionaisService(
             item.ItemDaFestaId,
             item.ModoDeVenda,
             item.PrecoPublicoEmCentavos,
+            item.UltimoVencimento,
         };
 }

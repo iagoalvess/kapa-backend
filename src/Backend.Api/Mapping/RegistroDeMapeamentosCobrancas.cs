@@ -24,5 +24,8 @@ public sealed class RegistroDeMapeamentosCobrancas : IRegister
         config.NewConfig<ValorDoDia, ValorDoDiaDTO>();
         config.NewConfig<SomaDeParcelas, SomaDeParcelasDTO>();
         config.NewConfig<ResumoDeParcelas, ResumoDeParcelasDTO>();
+        config.NewConfig<Alcance, AlcanceDTO>();
+        config.NewConfig<LancamentoResumo, LancamentoDTO>();
+        config.NewConfig<ResumoDaSolicitacao, SolicitacaoDeCancelamentoDTO>();
     }
 }

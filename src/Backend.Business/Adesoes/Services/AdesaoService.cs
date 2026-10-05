@@ -2,8 +2,10 @@ using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Models;
 using Backend.Business.Cobrancas.Interfaces;
+using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
 using Backend.Business.Common.Texto;
+using Backend.Business.Festa.Services;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Interfaces;
@@ -20,8 +22,8 @@ namespace Backend.Business.Adesoes.Services;
 /// A adesão do formando ao termo da turma e o acompanhamento que a comissão faz dela.
 /// </summary>
 /// <remarks>
-/// Aderir é o <b>único</b> caminho que gera parcela: o aceite, o snapshot do plano, as parcelas e o
-/// e-mail entram num só <c>SalvarAsync</c> — ou fica tudo, ou nada. Um caminho alternativo de gerar
+/// Aderir é o <b>único</b> caminho que gera parcela: o aceite, o snapshot do plano com a cesta, as escolhas, as
+/// parcelas, o e-mail e os convites dos pacotes entram numa transação só — ou fica tudo, ou nada. Um caminho alternativo de gerar
 /// parcela é como aparece formando devendo sem nunca ter aderido.
 /// <para>Log só com ids: a adesão tem nome e CPF.</para>
 /// </remarks>
@@ -31,6 +33,7 @@ namespace Backend.Business.Adesoes.Services;
 /// <param name="formaturaRepository">Nome da turma, para os e-mails.</param>
 /// <param name="geracaoDeParcelas">Parcelas do plano no nome do formando.</param>
 /// <param name="emails">E-mails da adesão.</param>
+/// <param name="convites">Os convites que os pacotes da cesta concedem, emitidos na adesão (Sprint 47, D24).</param>
 /// <param name="userManager">Contas: gera e confere o código de confirmação do aceite.</param>
 /// <param name="validator">Forma do pedido de aceite.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
@@ -42,6 +45,7 @@ public sealed class AdesaoService(
     IFormaturaRepository formaturaRepository,
     IGeracaoDeParcelasService geracaoDeParcelas,
     EmailsDeAdesao emails,
+    EmissaoDeConvites convites,
     UserManager<Usuario> userManager,
     IValidator<AderirAoTermo> validator,
     IUnitOfWork unitOfWork,
@@ -131,14 +135,19 @@ public sealed class AdesaoService(
         if (await adesaoRepository.JaAderiu(membro.VinculoId, termo.Id, ct))
             return JaAderiu;
 
-        var snapshot = SnapshotDoPlano.De(plano, DataUtils.Hoje());
+        var contratada = await planoRepository.ListarCesta(membro.VinculoId, ct);
+        var cesta = plano.CestaDe(contratada, dados.Pacotes);
+        if (cesta.Falhou)
+            return Result.Falha<AdesaoDetalhe>(cesta.Erros);
+
+        var snapshot = SnapshotDoPlano.De(plano, cesta.Valor, DataUtils.Hoje());
         var planoJson = snapshot.ParaJson();
         var hash = AdesaoDoFormando.CalcularHash(termo.Conteudo, planoJson);
 
         if (!string.Equals(hash, dados.HashDoConteudo, StringComparison.Ordinal))
             return Erro.Conflito(
                 "adesao.termo_desatualizado",
-                "O termo ou o plano mudou enquanto você lia. Confira a versão atual antes de aceitar."
+                "O termo, o catálogo ou a sua escolha mudou enquanto você lia. Confira a versão atual antes de aceitar."
             );
 
         var perfil = await perfilRepository.ObterDoVinculo(membro.VinculoId, ct);
@@ -177,23 +186,43 @@ public sealed class AdesaoService(
             PlanoAceito = planoJson,
         };
 
-        await adesaoRepository.Adicionar(adesao, ct);
-
-        var parcelas = await geracaoDeParcelas.Gerar(membro.VinculoId, plano, ct);
-        if (parcelas.Falhou)
-            return Result.Falha<AdesaoDetalhe>(parcelas.Erros);
-
         var formatura = await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct);
-        await emails.Confirmacao(membro.Email, formatura?.Nome ?? string.Empty, termo.Versao, snapshot, ct);
 
-        await unitOfWork.SalvarAsync(ct);
+        var gravada = await unitOfWork.EmTransacaoAsync(
+            async token =>
+            {
+                await adesaoRepository.Adicionar(adesao, token);
+
+                if (contratada.Count == 0)
+                    await planoRepository.AdicionarEscolhas(
+                        cesta.Valor.Select(pacote =>
+                            EscolhaDaCesta.Nova(membro.VinculoId, pacote.Id, dados.Observacoes?.FirstOrDefault(o => o.PacoteId == pacote.Id)?.Texto)
+                        ),
+                        token
+                    );
+
+                var geradas = await geracaoDeParcelas.Gerar(membro.VinculoId, plano, cesta.Valor, token);
+                if (geradas.Falhou)
+                    return geradas;
+
+                await emails.Confirmacao(membro.Email, formatura?.Nome ?? string.Empty, termo.Versao, snapshot, token);
+                await unitOfWork.SalvarAsync(token);
+
+                await convites.EmitirDosPacotes(formaturaId, membro.VinculoId, token);
+
+                return geradas;
+            },
+            ct
+        );
+        if (gravada.Falhou)
+            return Result.Falha<AdesaoDetalhe>(gravada.Erros);
 
         logger.LogInformation(
             "Adesão {AdesaoId} do vínculo {VinculoId} à versão {Versao}; {Parcelas} parcelas geradas.",
             adesao.Id,
             membro.VinculoId,
             termo.Versao,
-            parcelas.Valor
+            gravada.Valor
         );
 
         return Detalhar(new AdesaoComTermo(adesao, termo.Conteudo));
@@ -366,7 +395,7 @@ public sealed class AdesaoService(
     /// reconhecer a própria caixa de entrada, pouco para quem só tem a tela na frente.
     /// </summary>
     /// <param name="email">E-mail da conta.</param>
-    private static string MascararEmail(string email)
+    public static string MascararEmail(string email)
     {
         var arroba = email.IndexOf('@', StringComparison.Ordinal);
         if (arroba <= 0)

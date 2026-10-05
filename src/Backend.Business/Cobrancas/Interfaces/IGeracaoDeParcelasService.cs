@@ -14,7 +14,7 @@ namespace Backend.Business.Cobrancas.Interfaces;
 public interface IGeracaoDeParcelasService
 {
     /// <summary>
-    /// Marca para inclusão as parcelas do plano que o vínculo ainda não tem.
+    /// Marca para inclusão as parcelas da cesta e dos rateios que o vínculo ainda não tem.
     /// </summary>
     /// <remarks>
     /// Recebe o plano, e não o busca: é o mesmo que a adesão congelou no snapshot, então o que o
@@ -24,8 +24,9 @@ public interface IGeracaoDeParcelasService
     /// </remarks>
     /// <param name="vinculoId">Vínculo de quem adere.</param>
     /// <param name="plano">Plano vigente, com os itens.</param>
+    /// <param name="cesta">Os pacotes que o formando escolheu (Sprint 47) — o que não está aqui não vira parcela dele.</param>
     /// <returns>Quantas parcelas foram marcadas.</returns>
-    Task<Result<int>> Gerar(Guid vinculoId, PlanoDeCobranca plano, CancellationToken ct = default);
+    Task<Result<int>> Gerar(Guid vinculoId, PlanoDeCobranca plano, IReadOnlyCollection<ItemDeCobranca> cesta, CancellationToken ct = default);
 
     /// <summary>
     /// Marca a grade de <b>um</b> item no nome de vários vínculos — o rateio extraordinário.

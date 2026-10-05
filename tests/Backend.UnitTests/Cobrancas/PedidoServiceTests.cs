@@ -15,6 +15,7 @@ using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Pagamentos.Interfaces;
+using Backend.Business.Pagamentos.Models;
 using Backend.Business.Pagamentos.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -51,6 +52,10 @@ public sealed class PedidoServiceTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
     private readonly IMesaRepository _mesas = Substitute.For<IMesaRepository>();
+
+    private readonly ISolicitacaoDeCancelamentoRepository _solicitacoes = Substitute.For<ISolicitacaoDeCancelamentoRepository>();
+
+    private readonly IValorADevolverRepository _aDevolver = Substitute.For<IValorADevolverRepository>();
 
     private readonly List<Parcela> _gravadas = [];
 
@@ -89,7 +94,8 @@ public sealed class PedidoServiceTests
             Substitute.For<IEventoRepository>(),
             Emissao(),
             new DonosDeMesa(_mesas, NullLogger<DonosDeMesa>.Instance),
-            new ValoresADevolver(Substitute.For<IValorADevolverRepository>()),
+            new ValoresADevolver(_aDevolver),
+            new AberturaDeSolicitacao(_solicitacoes, _parcelas, Substitute.For<IEventoRepository>()),
             _unitOfWork,
             NullLogger<PedidoService>.Instance
         );
@@ -339,5 +345,85 @@ public sealed class PedidoServiceTests
         resultado.PrimeiroErro.Codigo.ShouldBe("cobranca.estoque_esgotado");
         _gravadas.ShouldBeEmpty();
         item.Reservados.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// Sprint 48, D8: o formando não cancela sozinho, nem sem nada pago — abre a solicitação, e as parcelas do pedido
+    /// saem da régua até o fim do prazo de resposta (D12).
+    /// </summary>
+    [Fact]
+    public async Task Formando_que_cancela_abre_solicitacao_e_suspende_as_parcelas()
+    {
+        // Arrange
+        var item = Convite();
+        var pedido = Pedido.Novo(VinculoId, item.Id, 1);
+        Preparar(item, pedido);
+        _pedidos.ObterParaEdicao(pedido.Id, Arg.Any<CancellationToken>()).Returns(pedido);
+        var aberta = Parcela.Nova(VinculoId, item.Id, new ParcelaPrevista(1, Hoje.AddMonths(1), 18_000));
+        _parcelas.ListarDoVinculoNoItemParaEdicao(VinculoId, item.Id, Arg.Any<CancellationToken>()).Returns([aberta]);
+
+        // Act
+        var resultado = await Servico.Cancelar(pedido.Id, FormaturaId, UsuarioId, new CancelamentoDePedido(Motivo: "mudei de ideia"), Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        pedido.Confirmado.ShouldBeTrue();
+        aberta.Status.ShouldBe(StatusDaParcela.Aberta);
+        aberta.SuspensaAte.ShouldBe(Hoje.AddDays(SolicitacaoDeCancelamento.DiasParaResponder));
+        await _solicitacoes
+            .Received(1)
+            .Adicionar(Arg.Is<SolicitacaoDeCancelamento>(s => s.PedidoId == pedido.Id && s.Motivo == "mudei de ideia"), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Passado o "cancelável até" do item, nem a solicitação abre (D36).</summary>
+    [Fact]
+    public async Task Solicitacao_depois_do_prazo_de_cancelamento_e_recusada()
+    {
+        // Arrange
+        var item = ItemDeCobranca.NovoOpcional(
+            Guid.CreateVersion7(),
+            new DadosDoOpcional(new DadosDoItem(TipoDeCobranca.Beca, "Beca", 18_000, 1, 10, Hoje.AddMonths(1)), CancelavelAte: Hoje.AddDays(-1))
+        );
+        var pedido = Pedido.Novo(VinculoId, item.Id, 1);
+        Preparar(item, pedido);
+        _pedidos.ObterParaEdicao(pedido.Id, Arg.Any<CancellationToken>()).Returns(pedido);
+
+        // Act
+        var resultado = await Servico.Cancelar(pedido.Id, FormaturaId, UsuarioId, new CancelamentoDePedido(), Ct);
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("cobranca.cancelamento_fora_do_prazo");
+        await _solicitacoes.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+    }
+
+    /// <summary>
+    /// A aprovação da solicitação (D9) é o cancelamento da tesouraria com todo o pago como crédito: o pedido cai inteiro,
+    /// e não encolhe para o que o pago cobria (P9).
+    /// </summary>
+    [Fact]
+    public async Task Tudo_a_devolver_cancela_o_pedido_inteiro_e_leva_o_pago_para_a_lista()
+    {
+        // Arrange
+        _perfis
+            .ObterTitular(FormaturaId, UsuarioId, Arg.Any<CancellationToken>())
+            .Returns(new MembroDoPerfil(VinculoId, UsuarioId, "Ana Souza", "ana@turma.dev", PapelNaFormatura.Tesoureiro));
+        var item = Convite();
+        var pedido = Pedido.Novo(VinculoId, item.Id, 2);
+        Preparar(item, pedido);
+        _pedidos.ObterParaEdicao(pedido.Id, Arg.Any<CancellationToken>()).Returns(pedido);
+        item.Reservar(2, 2, DateTime.UtcNow);
+        var paga = Parcela.Nova(VinculoId, item.Id, new ParcelaPrevista(1, Hoje.AddMonths(1), 18_000));
+        paga.Pagar(18_000, Hoje, 18_000);
+        _gravadas.Add(paga);
+        _gravadas.Add(Parcela.Nova(VinculoId, item.Id, new ParcelaPrevista(2, Hoje.AddMonths(2), 18_000)));
+
+        // Act
+        var resultado = await Servico.Cancelar(pedido.Id, FormaturaId, UsuarioId, new CancelamentoDePedido(TudoADevolver: true), Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        pedido.Confirmado.ShouldBeFalse();
+        item.Reservados.ShouldBe(0);
+        await _aDevolver.Received(1).Adicionar(Arg.Is<ValorADevolver>(v => v.ValorEmCentavos == 18_000), Arg.Any<CancellationToken>());
     }
 }

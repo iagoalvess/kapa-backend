@@ -42,7 +42,7 @@ public sealed class GeracaoDeParcelasServiceTests
         _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([]);
 
         // Act
-        var resultado = await Servico.Gerar(VinculoId, plano, Ct);
+        var resultado = await Servico.Gerar(VinculoId, plano, plano.Pacotes(), Ct);
 
         // Assert
         resultado.Valor.ShouldBe(25);
@@ -65,7 +65,7 @@ public sealed class GeracaoDeParcelasServiceTests
         _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([.. Enumerable.Range(1, 24)]);
 
         // Act
-        var resultado = await Servico.Gerar(VinculoId, plano, Ct);
+        var resultado = await Servico.Gerar(VinculoId, plano, plano.Pacotes(), Ct);
 
         // Assert
         resultado.Valor.ShouldBe(0);
@@ -80,7 +80,7 @@ public sealed class GeracaoDeParcelasServiceTests
         _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([.. Enumerable.Range(1, 20)]);
 
         // Act
-        await Servico.Gerar(VinculoId, plano, Ct);
+        await Servico.Gerar(VinculoId, plano, plano.Pacotes(), Ct);
 
         // Assert
         await _parcelas
@@ -168,7 +168,7 @@ public sealed class GeracaoDeParcelasServiceTests
         _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([]);
 
         // Act
-        var resultado = await Servico.Gerar(VinculoId, plano, Ct);
+        var resultado = await Servico.Gerar(VinculoId, plano, plano.Pacotes(), Ct);
 
         // Assert — só as 24 da mensalidade.
         resultado.Valor.ShouldBe(24);
@@ -176,11 +176,28 @@ public sealed class GeracaoDeParcelasServiceTests
         await _parcelas.Received(1).Adicionar(Arg.Is<IReadOnlyList<Parcela>>(parcelas => parcelas.All(p => p.ItemDeCobrancaId != opcional)), Ct);
     }
 
+    /// <summary>O pacote que o formando não pôs na cesta não vira parcela dele (Sprint 47, D16).</summary>
+    [Fact]
+    public async Task Pacote_fora_da_cesta_nao_gera_parcela()
+    {
+        // Arrange
+        var plano = Plano(true, Mensalidade, new DadosDoItem(TipoDeCobranca.FotoEAlbum, "Foto", 80_000, 4, 10, DataUtils.Hoje().AddMonths(1)));
+        var foto = plano.Itens[1];
+        _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([]);
+
+        // Act
+        var resultado = await Servico.Gerar(VinculoId, plano, [foto], Ct);
+
+        // Assert
+        resultado.Valor.ShouldBe(4);
+        await _parcelas.Received(1).Adicionar(Arg.Is<IReadOnlyList<Parcela>>(parcelas => parcelas.All(p => p.ItemDeCobrancaId == foto.Id)), Ct);
+    }
+
     [Fact]
     public async Task Plano_em_montagem_nao_gera_parcela()
     {
         // Act
-        var resultado = await Servico.Gerar(VinculoId, Plano(false, Mensalidade), Ct);
+        var resultado = await Servico.Gerar(VinculoId, Plano(false, Mensalidade), [], Ct);
 
         // Assert
         resultado.PrimeiroErro.Codigo.ShouldBe("cobranca.sem_plano_vigente");

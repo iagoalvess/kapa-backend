@@ -234,12 +234,15 @@ public static class DependenciasBusiness
         services.AddScoped<PedidoService>();
         services.AddScoped<IPedidoService>(sp => sp.GetRequiredService<PedidoService>());
         services.AddScoped<IQuitacaoDePedidos>(sp => sp.GetRequiredService<PedidoService>());
+        services.AddScoped<AberturaDeSolicitacao>();
+        services.AddScoped<ISolicitacaoDeCancelamentoService, SolicitacaoDeCancelamentoService>();
+        services.AddScoped<ILancamentoAvulsoService, LancamentoAvulsoService>();
         services.AddScoped<EmissaoDeConvites>();
         services.AddScoped<EmailsDoConvite>();
         services.AddScoped<IConviteDoEventoService, ConviteDoEventoService>();
         services.AddScoped<IGestaoDeConvitesService, GestaoDeConvitesService>();
         services.AddScoped<IPortariaService, Portaria>();
-        services.AddScoped<ICotaDoEventoService, CotaDoEventoService>();
+        services.AddScoped<IPainelDeConvitesService, PainelDeConvitesService>();
         services.AddScoped<IMesaService, MesaService>();
         services.AddScoped<DonosDeMesa>();
         services.AddSingleton<CodigoDoConvite>();
@@ -252,6 +255,7 @@ public static class DependenciasBusiness
         services.AddSingleton<LinkDaCompra>();
         services.AddScoped<ITermoService, TermoService>();
         services.AddScoped<IAdesaoService, AdesaoService>();
+        services.AddScoped<IAditivoService, AditivoService>();
         services.AddScoped<EmailsDeAdesao>();
         services.AddScoped<IResumoDoTermoService, ResumoDoTermoService>();
         services.AddSingleton<IModeloDeLinguagem>(sp => new ClienteDeModelo(

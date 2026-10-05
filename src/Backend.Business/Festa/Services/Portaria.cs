@@ -115,6 +115,9 @@ public sealed class Portaria(
         if (!convite.Valido)
             return ErrosDoConvite.Revogado(convite.MotivoDaRevogacao);
 
+        if (gravado.Preso)
+            return ErrosDoConvite.Preso;
+
         if (!convite.Nomeado)
             return ErrosDoConvite.SemTitular;
 
@@ -191,7 +194,7 @@ public sealed class Portaria(
 
         foreach (var entrada in entradas)
         {
-            if (await Ler(entrada.Codigo, ct) is not { Convite.Valido: true } gravado)
+            if (await Ler(entrada.Codigo, ct) is not { Convite.Valido: true, Preso: false } gravado)
             {
                 recusadas++;
                 continue;
@@ -235,6 +238,7 @@ public sealed class Portaria(
         var situacao =
             !convite.Valido ? SituacaoNaPortaria.Revogado
             : gravado.Entrada is not null ? SituacaoNaPortaria.Validado
+            : gravado.Preso ? SituacaoNaPortaria.Preso
             : !convite.Nomeado ? SituacaoNaPortaria.SemTitular
             : SituacaoNaPortaria.Valido;
         return new ConviteNaPortaria(
@@ -289,17 +293,17 @@ public sealed class Portaria(
         codigos.ParaPortaria(texto) is { } codigo ? await convites.ObterNaPortaria(codigo, ct) : null;
 
     /// <summary>
-    /// O que entra na lista: tudo, menos o convite de cota que chegou sem nome ao fechamento (Sprint 30, P1).
+    /// O que entra na lista: tudo, menos o convite de pacote que chegou sem nome ao fechamento (Sprint 30, P1).
     /// </summary>
     /// <remarks>
-    /// O convite comprado sem titular continua — é pendência da Gestão (P5). O de cota não: quem não
-    /// nomeou até o fechamento não usou a cota, e ele deixa de ser linha na porta (P4).
+    /// O convite comprado sem titular continua — é pendência da Gestão (P5). O do pacote não: quem não
+    /// nomeou até o fechamento não usou o convite, e ele deixa de ser linha na porta (P4).
     /// </remarks>
     private static IEnumerable<ConviteGravadoNaPortaria> NaLista(IEnumerable<ConviteGravadoNaPortaria> linhas, EventoDoConvite evento)
     {
         var fechada = !evento.ListaAberta(DateTime.UtcNow);
 
-        return linhas.Where(linha => !(fechada && linha.Convite.Origem is OrigemDoConvite.Cota && !linha.Convite.Nomeado));
+        return linhas.Where(linha => !(fechada && linha.Convite.Origem is OrigemDoConvite.Pacote && !linha.Convite.Nomeado));
     }
 
     /// <summary>O evento informado, ou o evento único do tipo.</summary>

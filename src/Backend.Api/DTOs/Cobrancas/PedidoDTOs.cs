@@ -1,4 +1,5 @@
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Loja.Models;
 
 namespace Backend.Api.DTOs.Cobrancas;
 
@@ -29,6 +30,11 @@ namespace Backend.Api.DTOs.Cobrancas;
 /// conectado (409 <c>loja.sem_mercado_pago</c>). As portas são exclusivas.
 /// </param>
 /// <param name="PrecoPublicoEmCentavos">Preço de uma unidade na loja; ausente, o mesmo do formando.</param>
+/// <param name="UltimoVencimento">
+/// Até quando a última parcela pode vencer — o teto do item e a divisão de cada pedido (Sprint 47, D28); ausente, nada
+/// é conferido. Passou, 400 <c>cobranca.ultima_parcela_depois_do_limite</c>.
+/// </param>
+/// <param name="CancelavelAte">Último dia para o formando pedir o cancelamento do pedido; ausente, sem trava (Sprint 48, D36).</param>
 public sealed record OpcionalRequestDTO(
     TipoDeCobranca Tipo,
     string? Descricao,
@@ -42,7 +48,9 @@ public sealed record OpcionalRequestDTO(
     DateTime? AberturaDeVendas,
     Guid? ItemDaFestaId,
     ModoDeVenda ModoDeVenda = ModoDeVenda.AoFormando,
-    long? PrecoPublicoEmCentavos = null
+    long? PrecoPublicoEmCentavos = null,
+    DateOnly? UltimoVencimento = null,
+    DateOnly? CancelavelAte = null
 )
 {
     /// <summary>O corpo como o service o recebe.</summary>
@@ -55,7 +63,9 @@ public sealed record OpcionalRequestDTO(
             AberturaDeVendas,
             ItemDaFestaId,
             ModoDeVenda,
-            PrecoPublicoEmCentavos
+            PrecoPublicoEmCentavos,
+            UltimoVencimento,
+            CancelavelAte
         );
 }
 
@@ -79,6 +89,7 @@ public sealed record OpcionalRequestDTO(
 /// <param name="AberturaDeVendas">A partir de quando se pode pedir.</param>
 /// <param name="ItemDaFestaId">O item da festa que este item vende, se houver.</param>
 /// <param name="AbertoAPedido">Se o botão aparece hoje; falso mostra a data da abertura.</param>
+/// <param name="UltimoVencimento">Até quando a última parcela do pedido pode vencer — a prévia avisa antes do pedido ser recusado.</param>
 public sealed record OpcionalDTO(
     Guid Id,
     TipoDeCobranca Tipo,
@@ -94,7 +105,8 @@ public sealed record OpcionalDTO(
     int? Disponivel,
     DateTime? AberturaDeVendas,
     Guid? ItemDaFestaId,
-    bool AbertoAPedido
+    bool AbertoAPedido,
+    DateOnly? UltimoVencimento
 );
 
 /// <summary>Corpo de um pedido.</summary>
@@ -104,7 +116,8 @@ public sealed record OpcionalDTO(
 /// Em quantas vezes pagar, de 1 até o <c>numero_de_parcelas</c> do item; ausente é à vista. Acima do
 /// teto, 400 <c>cobranca.parcelas_acima_do_teto</c>. Só vale no pedido novo — o de pé mantém a dele.
 /// </param>
-public sealed record PedidoRequestDTO(Guid ItemDeCobrancaId, int Quantidade, int? Parcelas = null);
+/// <param name="Observacao">Detalhe livre — tamanho da beca, nome no convite (Sprint 48, D26). Até 300 caracteres.</param>
+public sealed record PedidoRequestDTO(Guid ItemDeCobrancaId, int Quantidade, int? Parcelas = null, string? Observacao = null);
 
 /// <summary>Corpo da mudança de quantidade.</summary>
 /// <param name="Quantidade">Quantidade <b>absoluta</b>. Diminuir com parcela paga devolve 409 <c>cobranca.pedido_com_parcela_paga</c>.</param>
@@ -116,7 +129,8 @@ public sealed record QuantidadeDoPedidoRequestDTO(int Quantidade);
 /// próprio pedido, que abate o que ele ainda deve. Ausente ou zero: sem crédito, e o pedido encolhe
 /// para o que o pagamento já cobria.
 /// </param>
-public sealed record CancelarPedidoRequestDTO(long CreditoEmCentavos = 0);
+/// <param name="Motivo">Por que o formando pede o cancelamento — só vale na solicitação dele (Sprint 48, D8).</param>
+public sealed record CancelarPedidoRequestDTO(long CreditoEmCentavos = 0, string? Motivo = null);
 
 /// <summary>Um pedido, como o formando e a Gestão o veem.</summary>
 /// <param name="Id">Identificador.</param>
@@ -132,6 +146,9 @@ public sealed record CancelarPedidoRequestDTO(long CreditoEmCentavos = 0);
 /// <param name="Quitado">Se o pago alcançou o total.</param>
 /// <param name="Status"><c>Confirmado</c> ou <c>Cancelado</c>.</param>
 /// <param name="PedidoEm">Quando foi pedido, em UTC.</param>
+/// <param name="Observacao">O detalhe livre de quem pediu (Sprint 48, D26).</param>
+/// <param name="CancelavelAte">Último dia para pedir o cancelamento; nulo, sem trava (D36).</param>
+/// <param name="CancelamentoSolicitado">Há solicitação de cancelamento esperando a comissão (D8).</param>
 public sealed record PedidoDTO(
     Guid Id,
     Guid ItemDeCobrancaId,
@@ -145,7 +162,10 @@ public sealed record PedidoDTO(
     long PagoEmCentavos,
     bool Quitado,
     StatusDoPedido Status,
-    DateTime PedidoEm
+    DateTime PedidoEm,
+    string? Observacao,
+    DateOnly? CancelavelAte,
+    bool CancelamentoSolicitado
 );
 
 /// <summary>A conta aberta de um item na faixa da tela de Pedidos.</summary>
@@ -169,5 +189,48 @@ public sealed record ResumoDoItemPedidoDTO(
     int? Estoque,
     int? Disponivel,
     long TotalEmCentavos,
+    long PagoEmCentavos
+);
+
+/// <summary>Corpo da solicitação de cancelamento do formando (Sprint 48, D8).</summary>
+/// <param name="ItemDeCobrancaId">O pacote da cesta ou o item do pedido.</param>
+/// <param name="Motivo">Por que, se quiser dizer. Até 300 caracteres.</param>
+public sealed record SolicitacaoDeCancelamentoRequestDTO(Guid ItemDeCobrancaId, string? Motivo);
+
+/// <summary>Corpo da recusa de uma solicitação.</summary>
+/// <param name="Motivo">Por que a comissão recusou — o formando lê. Obrigatório, até 300 caracteres.</param>
+public sealed record RecusaDaSolicitacaoRequestDTO(string? Motivo);
+
+/// <summary>Uma solicitação de cancelamento, como o formando e a comissão a veem.</summary>
+/// <param name="Id">Identificador.</param>
+/// <param name="UsuarioId">Quem pediu.</param>
+/// <param name="Nome">Nome civil do cadastro, ou o da conta.</param>
+/// <param name="ItemDeCobrancaId">O pacote ou o item do pedido.</param>
+/// <param name="Tipo">Tipo do item.</param>
+/// <param name="Descricao">Descrição do item, se houver.</param>
+/// <param name="Grupo">Grupo de faixas do pacote, se houver.</param>
+/// <param name="PedidoId">O pedido avulso; nulo é pacote da cesta.</param>
+/// <param name="Motivo">Por que o formando pediu.</param>
+/// <param name="PedidoEm">Quando pediu, em UTC.</param>
+/// <param name="RespostaAte">Último dia do prazo de resposta — e da suspensão das parcelas (D37).</param>
+/// <param name="Status"><c>Aberto</c>, <c>Aprovado</c> ou <c>Recusado</c>.</param>
+/// <param name="MotivoDaResposta">O motivo da recusa.</param>
+/// <param name="RespondidoEm">Quando a comissão respondeu, em UTC.</param>
+/// <param name="PagoEmCentavos">O que já entrou pelas parcelas do item — o que vai para "a devolver" se aprovar (D9).</param>
+public sealed record SolicitacaoDeCancelamentoDTO(
+    Guid Id,
+    Guid UsuarioId,
+    string Nome,
+    Guid ItemDeCobrancaId,
+    TipoDeCobranca Tipo,
+    string? Descricao,
+    string? Grupo,
+    Guid? PedidoId,
+    string? Motivo,
+    DateTime PedidoEm,
+    DateOnly RespostaAte,
+    StatusDoPedidoDeCancelamento Status,
+    string? MotivoDaResposta,
+    DateTime? RespondidoEm,
     long PagoEmCentavos
 );

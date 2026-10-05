@@ -78,6 +78,10 @@ public interface IAdesaoRepository
     /// <param name="adesao">Adesão.</param>
     Task Adicionar(AdesaoDoFormando adesao, CancellationToken ct = default);
 
+    /// <summary>Marca o aditivo novo para inclusão, na transação das parcelas dele (Sprint 48, D38).</summary>
+    /// <param name="aditivo">Aditivo.</param>
+    Task AdicionarAditivo(AditivoDaAdesao aditivo, CancellationToken ct = default);
+
     /// <summary>A adesão mais recente do vínculo, com o texto aceito; nula se ele nunca aderiu.</summary>
     /// <param name="vinculoId">Vínculo.</param>
     Task<AdesaoComTermo?> ObterUltimaDoVinculo(Guid vinculoId, CancellationToken ct = default);

@@ -2,10 +2,12 @@ using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Models;
 using Backend.Business.Cobrancas.Interfaces;
+using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common.Datas;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
 using Backend.Business.Eventos.Services;
+using Backend.Business.Formandos.Interfaces;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
@@ -19,7 +21,8 @@ namespace Backend.Business.Adesoes.Services;
 /// mesmo tempo — fica com o índice único <c>(formatura_id, versao)</c>, que recusa a segunda.
 /// </remarks>
 /// <param name="adesaoRepository">Termos e adesões.</param>
-/// <param name="planoRepository">Plano vigente.</param>
+/// <param name="planoRepository">Plano vigente e a cesta já contratada.</param>
+/// <param name="perfilRepository">O vínculo de quem lê, para a cesta que ele já contratou.</param>
 /// <param name="validator">Forma do texto.</param>
 /// <param name="eventos">Trilha de auditoria.</param>
 /// <param name="formaturaAtual">Turma da sessão — o termo é novo, e o contexto só carimba a dele no commit.</param>
@@ -28,6 +31,7 @@ namespace Backend.Business.Adesoes.Services;
 public sealed class TermoService(
     IAdesaoRepository adesaoRepository,
     IPlanoDeCobrancaRepository planoRepository,
+    IPerfilRepository perfilRepository,
     IValidator<PublicarTermo> validator,
     IEventoRepository eventos,
     IFormaturaAtual formaturaAtual,
@@ -94,21 +98,57 @@ public sealed class TermoService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// O plano é congelado agora, como seria no aceite: o hash devolvido é o mesmo que a adesão vai
-    /// recalcular. Se o termo ou o plano mudar enquanto o formando lê, os dois deixam de bater.
+    /// O plano é congelado agora com a cesta pedida, como seria no aceite: o hash devolvido é o mesmo que a adesão vai
+    /// recalcular. Se o termo, o catálogo ou a escolha mudarem enquanto o formando lê, os dois deixam de bater — e a
+    /// tela pede este conteúdo de novo a cada pacote marcado.
+    /// <para>
+    /// Quem já contratou uma cesta numa versão anterior do termo a mantém (D4): a escolha da tela é ignorada.
+    /// </para>
     /// <para>
     /// O resumo por IA vem junto e fica <b>fora</b> do hash (Sprint 24, decisão 2): ele chegar depois
     /// não devolve <c>adesao.termo_desatualizado</c> a quem está com a tela aberta.
     /// </para>
     /// </remarks>
-    public async Task<Result<ConteudoParaAdesao>> ObterParaAdesao(CancellationToken ct = default)
+    public async Task<Result<ConteudoParaAdesao>> ObterParaAdesao(
+        Guid formaturaId,
+        Guid usuarioId,
+        IReadOnlyCollection<Guid> pacotes,
+        CancellationToken ct = default
+    )
     {
         var termo = await adesaoRepository.ObterTermoVigente(ct);
-        var plano = await planoRepository.ObterVigente(ct) is { } vigente ? SnapshotDoPlano.De(vigente, DataUtils.Hoje()) : null;
-        var hash = termo is null || plano is null ? null : AdesaoDoFormando.CalcularHash(termo.Conteudo, plano.ParaJson());
-
+        var vigente = await planoRepository.ObterVigente(ct);
         var resumo = termo is null ? null : await adesaoRepository.ObterResumo(termo.Id, ct);
 
-        return new ConteudoParaAdesao(termo, plano, hash, resumo);
+        if (vigente is null)
+            return new ConteudoParaAdesao(termo, null, null, resumo, [], []);
+
+        var membro = await perfilRepository.ObterMembro(formaturaId, usuarioId, ct);
+        IReadOnlyList<Guid> contratada = membro is null ? [] : await planoRepository.ListarCesta(membro.VinculoId, ct);
+
+        var cesta = vigente.CestaDe(contratada, pacotes);
+        if (cesta.Falhou)
+            return Result.Falha<ConteudoParaAdesao>(cesta.Erros);
+
+        var hoje = DataUtils.Hoje();
+        var plano = SnapshotDoPlano.De(vigente, cesta.Valor, hoje);
+        var hash = termo is null ? null : AdesaoDoFormando.CalcularHash(termo.Conteudo, plano.ParaJson());
+
+        return new ConteudoParaAdesao(termo, plano, hash, resumo, [.. vigente.Pacotes().Select(pacote => NoCatalogo(pacote, hoje))], contratada);
     }
+
+    /// <summary>O pacote como o formando o vê, com as parcelas que restam a quem adere hoje.</summary>
+    /// <param name="pacote">Pacote do catálogo.</param>
+    /// <param name="hoje">Dia de referência.</param>
+    private static PacoteDoCatalogo NoCatalogo(ItemDeCobranca pacote, DateOnly hoje) =>
+        new(
+            pacote.Id,
+            pacote.Grupo,
+            pacote.Tipo,
+            pacote.Descricao,
+            pacote.ValorEmCentavos,
+            GradeDeParcelas.DeQuemAdereEm(pacote.ParaDados(), hoje).Count,
+            pacote.ConvitesDaFesta,
+            pacote.ConvitesDaColacao
+        );
 }

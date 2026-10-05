@@ -52,6 +52,7 @@ public sealed class PlanoDeCobrancaServiceTests
             _geracao,
             new DadosDoPlanoValidator(),
             new DadosDoItemValidator(),
+            new DadosDoPacoteValidator(),
             new RateioExtraordinarioValidator(),
             new SimularPlanoValidator(),
             _eventos,
@@ -102,7 +103,13 @@ public sealed class PlanoDeCobrancaServiceTests
         EmUso();
 
         // Act
-        var resultado = await Servico.AlterarItem(_plano.Id, _mensalidade.Id, Mensalidade() with { NumeroDeParcelas = 12 }, Autor, Ct);
+        var resultado = await Servico.AlterarItem(
+            _plano.Id,
+            _mensalidade.Id,
+            new DadosDoPacote(Mensalidade() with { NumeroDeParcelas = 12 }),
+            Autor,
+            ct: Ct
+        );
 
         // Assert
         resultado.PrimeiroErro.Codigo.ShouldBe("cobranca.item_em_uso");
@@ -110,8 +117,8 @@ public sealed class PlanoDeCobrancaServiceTests
     }
 
     /// <summary>
-    /// O que já venceu fica como está e conta como comprometido; o que sobra do total novo se
-    /// redistribui pelo que ainda não venceu, com o resto na primeira.
+    /// O que já venceu fica como está; a mudança de preço se redistribui pelo que ainda não venceu, com o resto na
+    /// primeira.
     /// </summary>
     [Fact]
     public async Task Alterar_valor_de_item_em_uso_redistribui_o_que_falta_pelas_parcelas_futuras()
@@ -126,7 +133,14 @@ public sealed class PlanoDeCobrancaServiceTests
         _parcelas.ListarDoItemParaEdicao(_mensalidade.Id, Arg.Any<CancellationToken>()).Returns([vencida, primeiraFutura, segundaFutura]);
 
         // Act
-        var resultado = await Servico.AlterarItem(_plano.Id, _mensalidade.Id, Mensalidade(valor: 115_001), Autor, Ct);
+        var resultado = await Servico.AlterarItem(
+            _plano.Id,
+            _mensalidade.Id,
+            new DadosDoPacote(Mensalidade(valor: 850_001)),
+            Autor,
+            aplicarAosAtuais: true,
+            Ct
+        );
 
         // Assert
         resultado.Sucesso.ShouldBeTrue();
@@ -137,8 +151,8 @@ public sealed class PlanoDeCobrancaServiceTests
     }
 
     /// <summary>
-    /// Quem aderiu depois tem menos parcelas que o item, e não pode acabar pagando menos que a turma:
-    /// a redistribuição é por formando, não pela grade do item.
+    /// Quem aderiu depois tem menos parcelas que o item, e recebe o mesmo aumento que a turma: a redistribuição é por
+    /// formando, não pela grade do item.
     /// </summary>
     [Fact]
     public async Task Repactuacao_de_quem_aderiu_depois_nao_o_deixa_pagando_menos()
@@ -153,18 +167,79 @@ public sealed class PlanoDeCobrancaServiceTests
         _parcelas.ListarDoItemParaEdicao(_mensalidade.Id, Arg.Any<CancellationToken>()).Returns([doCedo, doTarde]);
 
         // Act
-        await Servico.AlterarItem(_plano.Id, _mensalidade.Id, Mensalidade(valor: 100_000), Autor, Ct);
+        await Servico.AlterarItem(_plano.Id, _mensalidade.Id, new DadosDoPacote(Mensalidade(valor: 905_000)), Autor, aplicarAosAtuais: true, Ct);
 
         // Assert
         doCedo.ValorOriginalEmCentavos.ShouldBe(100_000);
         doTarde.ValorOriginalEmCentavos.ShouldBe(100_000);
     }
 
+    /// <summary>
+    /// Sprint 48, D21: o preço novo vale para quem aderir depois; quem já aderiu fica com o contrato, salvo se a
+    /// tesouraria marcar.
+    /// </summary>
+    [Fact]
+    public async Task Alterar_valor_sem_marcar_nao_repactua_quem_ja_aderiu()
+    {
+        // Arrange
+        EmUso();
+        var futura = Parcela.Nova(Guid.CreateVersion7(), _mensalidade.Id, new ParcelaPrevista(1, DataUtils.Hoje().AddMonths(1), 35_000));
+        _parcelas.ListarDoItemParaEdicao(_mensalidade.Id, Arg.Any<CancellationToken>()).Returns([futura]);
+
+        // Act
+        var resultado = await Servico.AlterarItem(_plano.Id, _mensalidade.Id, new DadosDoPacote(Mensalidade(valor: 900_000)), Autor, ct: Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        _mensalidade.ValorEmCentavos.ShouldBe(900_000);
+        futura.ValorOriginalEmCentavos.ShouldBe(35_000);
+    }
+
+    /// <summary>
+    /// Quem subiu de faixa pelo aditivo deve neste item só a diferença; a repactuação soma a mudança de preço ao que ele
+    /// devia, e não o leva ao preço cheio (Sprint 48, D38).
+    /// </summary>
+    [Fact]
+    public async Task Repactuacao_soma_o_delta_ao_que_cada_um_devia()
+    {
+        // Arrange
+        EmUso();
+        var hoje = DataUtils.Hoje();
+        var doAditivo = Parcela.Nova(Guid.CreateVersion7(), _mensalidade.Id, new ParcelaPrevista(1, hoje.AddMonths(1), 60_000));
+        _parcelas.ListarDoItemParaEdicao(_mensalidade.Id, Arg.Any<CancellationToken>()).Returns([doAditivo]);
+
+        // Act
+        await Servico.AlterarItem(_plano.Id, _mensalidade.Id, new DadosDoPacote(Mensalidade(valor: 850_000)), Autor, aplicarAosAtuais: true, Ct);
+
+        // Assert
+        doAditivo.ValorOriginalEmCentavos.ShouldBe(70_000);
+    }
+
+    /// <summary>A pergunta do D21 mostra quantos e quanto, sem mexer em nada.</summary>
+    [Fact]
+    public async Task Simular_preco_conta_formandos_e_total_sem_alterar()
+    {
+        // Arrange
+        var hoje = DataUtils.Hoje();
+        var ana = Parcela.Nova(Guid.CreateVersion7(), _mensalidade.Id, new ParcelaPrevista(1, hoje.AddMonths(1), 35_000));
+        var bruno = Parcela.Nova(Guid.CreateVersion7(), _mensalidade.Id, new ParcelaPrevista(1, hoje.AddMonths(1), 35_000));
+        var paga = Parcela.Nova(Guid.CreateVersion7(), _mensalidade.Id, new ParcelaPrevista(1, hoje.AddMonths(-1), 35_000));
+        _parcelas.ListarDoItemParaEdicao(_mensalidade.Id, Arg.Any<CancellationToken>()).Returns([ana, bruno, paga]);
+
+        // Act
+        var resultado = await Servico.SimularPreco(_plano.Id, _mensalidade.Id, 850_000, Ct);
+
+        // Assert
+        resultado.Valor.ShouldBe(new Alcance(2, 2, 20_000));
+        ana.ValorOriginalEmCentavos.ShouldBe(35_000);
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
+    }
+
     [Fact]
     public async Task Alterar_item_sem_parcela_nao_consulta_parcelas_para_repactuar()
     {
         // Act
-        await Servico.AlterarItem(_plano.Id, _mensalidade.Id, Mensalidade() with { NumeroDeParcelas = 12 }, Autor, Ct);
+        await Servico.AlterarItem(_plano.Id, _mensalidade.Id, new DadosDoPacote(Mensalidade() with { NumeroDeParcelas = 12 }), Autor, ct: Ct);
 
         // Assert
         _mensalidade.NumeroDeParcelas.ShouldBe(12);
@@ -187,25 +262,33 @@ public sealed class PlanoDeCobrancaServiceTests
         futura.Status.ShouldBe(StatusDaParcela.Cancelada);
     }
 
+    /// <summary>Quem já escolheu o pacote tem os convites emitidos por estes números (Sprint 47).</summary>
     [Fact]
-    public async Task Segunda_adesao_devolve_conflito()
+    public async Task Pacote_em_uso_nao_muda_os_beneficios()
     {
         // Arrange
-        _plano.Itens.Add(ItemDeCobranca.Novo(_plano.Id, Mensalidade(20_000) with { Tipo = TipoDeCobranca.Adesao, NumeroDeParcelas = 1 }));
+        EmUso();
 
         // Act
-        var resultado = await Servico.AdicionarItem(
-            _plano.Id,
-            Mensalidade(20_000) with
-            {
-                Tipo = TipoDeCobranca.Adesao,
-                NumeroDeParcelas = 1,
-            },
-            ct: Ct
-        );
+        var resultado = await Servico.AlterarItem(_plano.Id, _mensalidade.Id, new DadosDoPacote(Mensalidade(), ConvitesDaFesta: 5), Autor, ct: Ct);
 
         // Assert
-        resultado.PrimeiroErro.Codigo.ShouldBe("cobranca.adesao_duplicada");
+        resultado.PrimeiroErro.Codigo.ShouldBe("cobranca.item_em_uso");
+        _mensalidade.ConvitesDaFesta.ShouldBe(0);
+    }
+
+    /// <summary>A última parcela do teto não passa do último vencimento que a comissão definiu (D28).</summary>
+    [Fact]
+    public async Task Pacote_cuja_grade_passa_do_ultimo_vencimento_e_recusado()
+    {
+        // Arrange
+        var dados = new DadosDoPacote(Mensalidade() with { Tipo = TipoDeCobranca.Festa }, "Festa", 10, UltimoVencimento: new DateOnly(2027, 1, 31));
+
+        // Act
+        var resultado = await Servico.AdicionarItem(_plano.Id, dados, ct: Ct);
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("cobranca.ultima_parcela_depois_do_limite");
         await _planos.DidNotReceiveWithAnyArgs().AdicionarItem(default!, Ct);
     }
 
@@ -213,7 +296,11 @@ public sealed class PlanoDeCobrancaServiceTests
     public async Task Item_invalido_devolve_os_erros_de_forma_juntos()
     {
         // Act
-        var resultado = await Servico.AdicionarItem(_plano.Id, Mensalidade(0) with { NumeroDeParcelas = 0, DiaDeVencimento = 32 }, ct: Ct);
+        var resultado = await Servico.AdicionarItem(
+            _plano.Id,
+            new DadosDoPacote(Mensalidade(0) with { NumeroDeParcelas = 0, DiaDeVencimento = 32 }),
+            ct: Ct
+        );
 
         // Assert
         resultado.Erros.Select(erro => erro.Campo).ShouldBe(["valor_em_centavos", "numero_de_parcelas", "dia_de_vencimento"], ignoreOrder: true);
@@ -223,11 +310,11 @@ public sealed class PlanoDeCobrancaServiceTests
     public async Task Item_comum_nao_alcanca_quem_ja_aderiu()
     {
         // Act
-        await Servico.AdicionarItem(_plano.Id, Rateavel(), ct: Ct);
+        await Servico.AdicionarItem(_plano.Id, new DadosDoPacote(Mensalidade() with { Tipo = TipoDeCobranca.FotoEAlbum }), ct: Ct);
 
         // Assert
         await _geracao.DidNotReceiveWithAnyArgs().GerarDoItem(default!, default!, Ct);
-        await _parcelas.DidNotReceiveWithAnyArgs().ListarVinculosAtivosComParcela(default, Ct);
+        await _parcelas.DidNotReceiveWithAnyArgs().ListarVinculosAtivosComParcela(default, default, Ct);
     }
 
     [Fact]
@@ -235,11 +322,11 @@ public sealed class PlanoDeCobrancaServiceTests
     {
         // Arrange
         Guid[] aderentes = [Guid.CreateVersion7(), Guid.CreateVersion7()];
-        _parcelas.ListarVinculosAtivosComParcela(_plano.Id, Arg.Any<CancellationToken>()).Returns(aderentes);
+        _parcelas.ListarVinculosAtivosComParcela(_plano.Id, Arg.Any<IReadOnlyCollection<Guid>?>(), Arg.Any<CancellationToken>()).Returns(aderentes);
         _geracao.GerarDoItem(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<ItemDeCobranca>(), Arg.Any<CancellationToken>()).Returns(2);
 
         // Act
-        var resultado = await Servico.AdicionarItem(_plano.Id, Rateavel(), new RateioExtraordinario(" assembleia de 12/10 "), Ct);
+        var resultado = await Servico.AdicionarItem(_plano.Id, new DadosDoPacote(Rateavel()), new RateioExtraordinario(" assembleia de 12/10 "), Ct);
 
         // Assert
         var incluido = resultado.Valor.Itens.Single(item => item.ValorEmCentavos == 10_000);
@@ -248,11 +335,51 @@ public sealed class PlanoDeCobrancaServiceTests
         await _unitOfWork.Received(1).SalvarAsync(Ct);
     }
 
+    /// <summary>D19: o custo da festa só alcança quem tem a festa na cesta — o alvo vai à consulta e fica no item.</summary>
+    [Fact]
+    public async Task Rateio_com_alvo_so_alcanca_quem_tem_o_pacote()
+    {
+        // Arrange
+        var festa = ItemDeCobranca.NovoPacote(_plano.Id, new DadosDoPacote(Mensalidade() with { Tipo = TipoDeCobranca.Festa }, "Festa"));
+        _plano.Itens.Add(festa);
+        Guid[] daFesta = [Guid.CreateVersion7()];
+        _parcelas
+            .ListarVinculosAtivosComParcela(
+                _plano.Id,
+                Arg.Is<IReadOnlyCollection<Guid>?>(alvo => alvo!.Single() == festa.Id),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(daFesta);
+
+        // Act
+        var resultado = await Servico.AdicionarItem(_plano.Id, new DadosDoPacote(Rateavel()), new RateioExtraordinario("assembleia", [festa.Id]), Ct);
+
+        // Assert
+        resultado.Valor.Itens.Single(item => item.ValorEmCentavos == 10_000).AlvoDoRateio.ShouldBe([festa.Id]);
+        await _geracao.Received(1).GerarDoItem(daFesta, Arg.Any<ItemDeCobranca>(), Ct);
+    }
+
+    [Fact]
+    public async Task Rateio_com_alvo_fora_do_catalogo_e_recusado()
+    {
+        // Act
+        var resultado = await Servico.AdicionarItem(
+            _plano.Id,
+            new DadosDoPacote(Rateavel()),
+            new RateioExtraordinario("assembleia", [Guid.CreateVersion7()]),
+            Ct
+        );
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("cobranca.alvo_invalido");
+        await _geracao.DidNotReceiveWithAnyArgs().GerarDoItem(default!, default!, Ct);
+    }
+
     [Fact]
     public async Task Rateio_sem_origem_nao_cobra_ninguem()
     {
         // Act
-        var resultado = await Servico.AdicionarItem(_plano.Id, Rateavel(), new RateioExtraordinario("  "), Ct);
+        var resultado = await Servico.AdicionarItem(_plano.Id, new DadosDoPacote(Rateavel()), new RateioExtraordinario("  "), Ct);
 
         // Assert
         resultado.PrimeiroErro.Codigo.ShouldBe("cobranca.origem_obrigatoria");
@@ -266,10 +393,7 @@ public sealed class PlanoDeCobrancaServiceTests
         // Act
         var resultado = await Servico.AdicionarItem(
             _plano.Id,
-            Rateavel() with
-            {
-                PrimeiroMes = DataUtils.Hoje().AddMonths(-1),
-            },
+            new DadosDoPacote(Rateavel() with { PrimeiroMes = DataUtils.Hoje().AddMonths(-1) }),
             new RateioExtraordinario("assembleia de 12/10"),
             Ct
         );
@@ -286,10 +410,7 @@ public sealed class PlanoDeCobrancaServiceTests
         // Act
         var resultado = await Servico.AdicionarItem(
             _plano.Id,
-            Rateavel() with
-            {
-                PrimeiroMes = DataUtils.Hoje(),
-            },
+            new DadosDoPacote(Rateavel() with { PrimeiroMes = DataUtils.Hoje() }),
             new RateioExtraordinario("assembleia de 12/10"),
             Ct
         );

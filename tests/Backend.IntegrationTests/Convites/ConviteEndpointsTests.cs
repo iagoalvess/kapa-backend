@@ -37,7 +37,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [InlineData(PapelNaFormatura.Formando, HttpStatusCode.Forbidden)]
     public async Task Criar_e_listar_seguem_a_politica_de_gestao(string papel, HttpStatusCode esperado)
     {
-        var membro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), papel, Ct);
+        var membro = await fabrica.NovoMembro(await fabrica.CriarFormaturaQueConvida(Ct), papel, Ct);
 
         var criacao = await membro.Cliente.PostAsJsonAsync(Gestao, new CriarConviteRequestDTO(null, null), Ct);
         var listagem = await membro.Cliente.GetAsync(Gestao, Ct);
@@ -49,7 +49,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [Fact]
     public async Task Comissao_convidando_para_tesoureiro_recebe_403()
     {
-        var comissao = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Comissao, Ct);
+        var comissao = await fabrica.NovoMembro(await fabrica.CriarFormaturaQueConvida(Ct), PapelNaFormatura.Comissao, Ct);
 
         var resposta = await comissao.Cliente.PostAsJsonAsync(Gestao, new CriarConviteRequestDTO("ana@exemplo.com", PapelNaFormatura.Tesoureiro), Ct);
 
@@ -149,7 +149,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [Fact]
     public async Task O_banco_guarda_so_o_sha256_do_token_do_nominal()
     {
-        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
+        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormaturaQueConvida(Ct), PapelNaFormatura.Presidente, Ct);
 
         var criado = await Criar(presidente, new CriarConviteRequestDTO("fulano@testes.local", null));
         var token = TokenDo(criado);
@@ -165,7 +165,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [Fact]
     public async Task Consulta_anonima_devolve_so_turma_instituicao_e_papel()
     {
-        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
+        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormaturaQueConvida(Ct), PapelNaFormatura.Presidente, Ct);
         var token = TokenDo(await Criar(presidente, new CriarConviteRequestDTO(null, null)));
 
         var resposta = await fabrica.CreateClient().GetAsync($"{Publico}/{token}", Ct);
@@ -185,7 +185,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [Fact]
     public async Task Inexistente_expirado_revogado_e_esgotado_devolvem_a_mesma_resposta()
     {
-        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var formaturaId = await fabrica.CriarFormaturaQueConvida(Ct);
         var expirado = await Semear(formaturaId, c => c.ExpiraEm = DateTime.UtcNow.AddMinutes(-1));
         var revogado = await Semear(formaturaId, c => c.Revogar(DateTime.UtcNow));
         var esgotado = await Semear(
@@ -221,7 +221,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     {
         for (var rodada = 0; rodada < 5; rodada++)
         {
-            var formaturaId = await fabrica.CriarFormatura(Ct);
+            var formaturaId = await fabrica.CriarFormaturaQueConvida(Ct);
             var token = await Semear(formaturaId, c => c.UsosMaximos = 1);
             var a = await ClienteNovo();
             var b = await ClienteNovo();
@@ -241,7 +241,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [Fact]
     public async Task Aceite_usa_o_papel_do_convite_e_ignora_o_do_corpo()
     {
-        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var formaturaId = await fabrica.CriarFormaturaQueConvida(Ct);
         var token = await Semear(formaturaId, _ => { });
         var cliente = await ClienteNovo();
 
@@ -260,7 +260,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [Fact]
     public async Task Aceite_devolve_sessao_com_formatura_e_papel_e_registra_o_aceite()
     {
-        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var formaturaId = await fabrica.CriarFormaturaQueConvida(Ct);
         var token = await Semear(formaturaId, c => c.Papel = PapelNaFormatura.Comissao);
         var cliente = await ClienteNovo();
 
@@ -282,7 +282,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [Fact]
     public async Task Aceitar_duas_vezes_devolve_409_sem_vinculo_duplicado()
     {
-        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var formaturaId = await fabrica.CriarFormaturaQueConvida(Ct);
         var token = await Semear(formaturaId, _ => { });
         var cliente = await ClienteNovo();
 
@@ -298,7 +298,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [Fact]
     public async Task Nominal_aceito_por_outro_email_devolve_403()
     {
-        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var formaturaId = await fabrica.CriarFormaturaQueConvida(Ct);
         var token = await Semear(formaturaId, c => c.Email = "convidado@testes.local");
         var cliente = await ClienteNovo();
 
@@ -312,7 +312,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     public async Task Nominal_aceito_pelo_email_convidado_entra()
     {
         var email = $"convidado-{Guid.CreateVersion7():N}@testes.local";
-        var token = await Semear(await fabrica.CriarFormatura(Ct), c => c.Email = email.ToUpperInvariant());
+        var token = await Semear(await fabrica.CriarFormaturaQueConvida(Ct), c => c.Email = email.ToUpperInvariant());
         var cliente = fabrica.CreateClient();
         cliente.ComToken((await cliente.RegistrarComEmail(email, Ct)).AccessToken);
         await fabrica.ConfirmarEmail(email, Ct);
@@ -325,7 +325,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     public async Task Nominal_sem_email_confirmado_devolve_403()
     {
         var email = $"convidado-{Guid.CreateVersion7():N}@testes.local";
-        var token = await Semear(await fabrica.CriarFormatura(Ct), c => c.Email = email);
+        var token = await Semear(await fabrica.CriarFormaturaQueConvida(Ct), c => c.Email = email);
         var cliente = fabrica.CreateClient();
         cliente.ComToken((await cliente.RegistrarComEmail(email, Ct)).AccessToken);
 
@@ -338,7 +338,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [Fact]
     public async Task Revogar_derruba_o_link_na_hora()
     {
-        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
+        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormaturaQueConvida(Ct), PapelNaFormatura.Presidente, Ct);
         var criado = await Criar(presidente, new CriarConviteRequestDTO(null, null));
 
         (await presidente.Cliente.DeleteAsync($"{Gestao}/{criado.Id}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -352,7 +352,7 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [Fact]
     public async Task Link_novo_revoga_o_anterior_e_a_listagem_mostra_o_vigente()
     {
-        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
+        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormaturaQueConvida(Ct), PapelNaFormatura.Presidente, Ct);
         var primeiro = await Criar(presidente, new CriarConviteRequestDTO(null, null));
         var nominal = await Criar(presidente, new CriarConviteRequestDTO("fulano@testes.local", null));
 
@@ -373,8 +373,8 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
     [Fact]
     public async Task Revogar_convite_de_outra_formatura_responde_404()
     {
-        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
-        var deOutra = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
+        var presidente = await fabrica.NovoMembro(await fabrica.CriarFormaturaQueConvida(Ct), PapelNaFormatura.Presidente, Ct);
+        var deOutra = await fabrica.NovoMembro(await fabrica.CriarFormaturaQueConvida(Ct), PapelNaFormatura.Presidente, Ct);
         var alheio = await Criar(deOutra, new CriarConviteRequestDTO(null, null));
 
         var resposta = await presidente.Cliente.DeleteAsync($"{Gestao}/{alheio.Id}", Ct);

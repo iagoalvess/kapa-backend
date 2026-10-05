@@ -11,7 +11,7 @@ namespace Backend.Business.Festa.Models;
 /// campo de tipo (decisão 14):
 /// <list type="bullet">
 /// <item>comprado — <see cref="PedidoId"/> e <see cref="VinculoId"/> preenchidos, nasce na quitação;</item>
-/// <item>cota da colação — só <see cref="VinculoId"/> (Sprint 30);</item>
+/// <item>do pacote — só <see cref="VinculoId"/>: concedido pela cesta do formando (Sprint 47, D14);</item>
 /// <item>vendido na loja — só <see cref="CompraId"/> (Sprint 26), nasce na confirmação do pagamento;</item>
 /// <item>cortesia — os três nulos: é convidado da turma, emitido pela Gestão.</item>
 /// </list>
@@ -35,7 +35,7 @@ public class ConviteDoEvento : EntidadeDaFormatura
     /// <summary>Formando dono do convite. Nulo na cortesia.</summary>
     public Guid? VinculoId { get; private set; }
 
-    /// <summary>Pedido que pagou por ele. Nulo na cota e na cortesia.</summary>
+    /// <summary>Pedido que pagou por ele. Nulo no do pacote e na cortesia.</summary>
     public Guid? PedidoId { get; private set; }
 
     /// <summary>A compra da loja pública que pagou por ele (Sprint 26). Nula nas outras origens.</summary>
@@ -77,11 +77,20 @@ public class ConviteDoEvento : EntidadeDaFormatura
     /// <summary>Se ainda vale.</summary>
     public bool Valido => RevogadoEm is null;
 
+    /// <summary>
+    /// Quando a comissão soltou o convite do pacote preso por atraso (Sprint 47, D24). Nulo: a trava vale.
+    /// </summary>
+    /// <remarks>
+    /// A trava não é gravada: é lida na portaria, das parcelas do dono. O que se grava é só a exceção da comissão —
+    /// regularizar o pagamento solta o convite sem ninguém precisar lembrar.
+    /// </remarks>
+    public DateTime? LiberadoEm { get; private set; }
+
     /// <summary>De onde veio o direito, lido das colunas (decisão 14).</summary>
     public OrigemDoConvite Origem =>
         PedidoId is not null ? OrigemDoConvite.Comprado
         : CompraId is not null ? OrigemDoConvite.Loja
-        : VinculoId is not null ? OrigemDoConvite.Cota
+        : VinculoId is not null ? OrigemDoConvite.Pacote
         : OrigemDoConvite.Cortesia;
 
     /// <summary>Se já tem titular: nome e documento.</summary>
@@ -155,6 +164,10 @@ public class ConviteDoEvento : EntidadeDaFormatura
         NumeroDoDocumento = convidado.NumeroDoDocumento;
         EmailDoConvidado = string.IsNullOrWhiteSpace(convidado.Email) ? null : convidado.Email.Trim();
     }
+
+    /// <summary>Solta o convite preso por atraso. Liberar de novo não muda a hora.</summary>
+    /// <param name="agora">Instante, em UTC.</param>
+    public void Liberar(DateTime agora) => LiberadoEm ??= agora;
 
     /// <summary>Tira a validade do convite. Revogar de novo não muda o motivo nem a hora.</summary>
     /// <param name="motivo">O que a portaria vai ler.</param>

@@ -53,28 +53,35 @@ public enum TipoDeCobranca
     /// <summary>Uma mesa inteira na festa ou no jantar.</summary>
     Mesa,
 
-    /// <summary>Um lugar a mais no jantar ou na festa.</summary>
-    Acompanhante,
-
     /// <summary>Anel de formatura, pingente.</summary>
     Joia,
 
     /// <summary>O opcional que não cabe nos outros — o <see cref="Avulsa"/> dos opcionais, sem valor negativo.</summary>
     Outro,
+
+    /// <summary>A festa de formatura — o pacote cuja faixa diz quantas pessoas vão (Sprint 47, D32).</summary>
+    Festa,
+
+    /// <summary>A colação de grau — o pacote que concede os convites dela (Sprint 47).</summary>
+    Colacao,
 }
 
 /// <summary>Que tipo cabe onde: o plano cobra a turma inteira, o opcional só quem pede.</summary>
 public static class TiposDeCobranca
 {
-    /// <summary>Os tipos de um item do plano.</summary>
-    public static readonly IReadOnlySet<TipoDeCobranca> DoPlano = new HashSet<TipoDeCobranca>
-    {
-        TipoDeCobranca.Mensalidade,
-        TipoDeCobranca.Adesao,
-        TipoDeCobranca.Rifa,
-        TipoDeCobranca.ConviteExtra,
-        TipoDeCobranca.Avulsa,
-    };
+    /// <summary>
+    /// Os tipos de um rateio extraordinário — o item que alcança quem já aderiu: todos. A assembleia pode ratear a
+    /// festa, a colação ou um avulso, inclusive negativo (a bolsa).
+    /// </summary>
+    public static readonly IReadOnlySet<TipoDeCobranca> DosRateios = Enum.GetValues<TipoDeCobranca>().ToHashSet();
+
+    /// <summary>
+    /// Os tipos de um pacote do catálogo (Sprint 47): todos, menos o <see cref="TipoDeCobranca.Avulsa"/> — o pacote é
+    /// o que o formando escolhe comprar, e o avulso é o gancho do valor negativo.
+    /// </summary>
+    public static readonly IReadOnlySet<TipoDeCobranca> DosPacotes = Enum.GetValues<TipoDeCobranca>()
+        .Where(tipo => tipo != TipoDeCobranca.Avulsa)
+        .ToHashSet();
 
     /// <summary>Os tipos de um item opcional. O convite extra é dos dois: a turma o vende nos dois jeitos.</summary>
     public static readonly IReadOnlySet<TipoDeCobranca> DosOpcionais = new HashSet<TipoDeCobranca>
@@ -86,7 +93,6 @@ public static class TiposDeCobranca
         TipoDeCobranca.Vestuario,
         TipoDeCobranca.Kit,
         TipoDeCobranca.Mesa,
-        TipoDeCobranca.Acompanhante,
         TipoDeCobranca.Joia,
         TipoDeCobranca.Outro,
     };
@@ -108,6 +114,7 @@ public static class RotuloDoItem
                 TipoDeCobranca.FotoEAlbum => "Foto e álbum",
                 TipoDeCobranca.Vestuario => "Vestuário",
                 TipoDeCobranca.Joia => "Joia",
+                TipoDeCobranca.Colacao => "Colação",
                 _ => tipo.ToString(),
             };
 }

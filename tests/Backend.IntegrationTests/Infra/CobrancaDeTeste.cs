@@ -28,9 +28,24 @@ public static class CobrancaDeTeste
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    /// <summary>Uma turma ativa com uma mensalidade vigente e o termo publicado.</summary>
+    /// <summary>Uma turma ativa com uma mensalidade no catálogo vigente e o termo publicado.</summary>
+    /// <remarks>A mensalidade é um pacote como outro qualquer (Sprint 47): quem adere pelo helper a põe na cesta.</remarks>
     /// <param name="fabrica">API de teste.</param>
-    public static async Task<TurmaDeTeste> TurmaComPlano(this ApiFactory fabrica)
+    public static async Task<TurmaDeTeste> TurmaComPlano(this ApiFactory fabrica) =>
+        (
+            await fabrica.TurmaComCatalogo(
+                new ItemDeCobrancaRequestDTO(TipoDeCobranca.Mensalidade, null, 240_000, 12, 10, DataUtils.Hoje().AddMonths(1))
+            )
+        ).Turma;
+
+    /// <summary>Uma turma ativa com os pacotes informados no catálogo vigente e o termo publicado.</summary>
+    /// <param name="fabrica">API de teste.</param>
+    /// <param name="pacotes">Os pacotes, na ordem do catálogo.</param>
+    /// <returns>A turma e o id de cada pacote, na mesma ordem.</returns>
+    public static async Task<(TurmaDeTeste Turma, IReadOnlyList<Guid> Pacotes)> TurmaComCatalogo(
+        this ApiFactory fabrica,
+        params ItemDeCobrancaRequestDTO[] pacotes
+    )
     {
         var formaturaId = await fabrica.CriarFormatura(Ct);
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
@@ -42,28 +57,30 @@ public static class CobrancaDeTeste
             Ct
         );
         var plano = (await criacao.Content.ReadFromJsonAsync<PlanoDeCobrancaDTO>(Json, Ct))!;
-        (
-            await presidente.Cliente.PostAsJsonAsync(
-                $"/api/v1/cobrancas/planos/{plano.Id}/itens",
-                new ItemDeCobrancaRequestDTO(TipoDeCobranca.Mensalidade, null, 240_000, 12, 10, DataUtils.Hoje().AddMonths(1)),
-                Json,
-                Ct
-            )
-        ).EnsureSuccessStatusCode();
+        var ids = new List<Guid>();
+
+        foreach (var pacote in pacotes)
+        {
+            var incluido = await presidente.Cliente.PostAsJsonAsync($"/api/v1/cobrancas/planos/{plano.Id}/itens", pacote, Json, Ct);
+            incluido.EnsureSuccessStatusCode();
+            ids.Add((await incluido.Content.ReadFromJsonAsync<PlanoDeCobrancaDTO>(Json, Ct))!.Itens[^1].Id);
+        }
+
         (await presidente.Cliente.PostAsync($"/api/v1/cobrancas/planos/{plano.Id}/vigorar", null, Ct)).EnsureSuccessStatusCode();
         (await presidente.Cliente.PostAsJsonAsync("/api/v1/adesoes/termos", new PublicarTermoRequestDTO(Termo), Json, Ct)).EnsureSuccessStatusCode();
 
-        return new TurmaDeTeste(formaturaId, presidente);
+        return (new TurmaDeTeste(formaturaId, presidente), ids);
     }
 
     /// <summary>Um formando com adesão assinada — o único que pode pedir.</summary>
     /// <param name="fabrica">API de teste.</param>
     /// <param name="formaturaId">Turma.</param>
-    public static async Task<MembroDeTeste> FormandoComAdesao(this ApiFactory fabrica, Guid formaturaId)
+    /// <param name="pacotes">A cesta; vazia, o primeiro pacote do catálogo.</param>
+    public static async Task<MembroDeTeste> FormandoComAdesao(this ApiFactory fabrica, Guid formaturaId, params Guid[] pacotes)
     {
         var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
         await PreencherCadastro(formando.Cliente, NovoCpf());
-        (await Aderir(fabrica, formando.Cliente)).Resposta.StatusCode.ShouldBe(HttpStatusCode.Created);
+        (await Aderir(fabrica, formando.Cliente, pacotes: pacotes.Length > 0 ? pacotes : null)).Resposta.StatusCode.ShouldBe(HttpStatusCode.Created);
 
         return formando;
     }

@@ -267,12 +267,7 @@ public sealed class ItemDaFestaService(
     /// <param name="dados">Dados do item.</param>
     /// <param name="usuarioId">Quem envia o contrato.</param>
     /// <param name="contrato">Arquivo anexado aqui, se houver.</param>
-    private async Task<Result<DadosDoItemDaFesta>> ComContrato(
-        DadosDoItemDaFesta dados,
-        Guid usuarioId,
-        NovoArquivo? contrato,
-        CancellationToken ct
-    )
+    private async Task<Result<DadosDoItemDaFesta>> ComContrato(DadosDoItemDaFesta dados, Guid usuarioId, NovoArquivo? contrato, CancellationToken ct)
     {
         if (contrato is null)
         {
@@ -290,9 +285,7 @@ public sealed class ItemDaFestaService(
             ct
         );
 
-        return documento.Falhou
-            ? Result.Falha<DadosDoItemDaFesta>(documento.Erros)
-            : dados with { DocumentoId = documento.Valor.Id };
+        return documento.Falhou ? Result.Falha<DadosDoItemDaFesta>(documento.Erros) : dados with { DocumentoId = documento.Valor.Id };
     }
 
     /// <summary>Turma da sessão, que abre o acervo onde o contrato nasce. Ausente é escrita sem turma.</summary>

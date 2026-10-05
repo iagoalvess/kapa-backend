@@ -160,23 +160,30 @@ public sealed class NotificacaoRepository(AppDbContext db) : INotificacaoReposit
     /// </summary>
     /// <remarks>
     /// O informe pendente é descontado <b>na consulta</b> (decisão 1): deixar isso para um <c>if</c>
-    /// depois é confiar em alguém lembrar dele no próximo caminho que selecionar parcela para cobrar.
+    /// depois é confiar em alguém lembrar dele no próximo caminho que selecionar parcela para cobrar. Pelo mesmo
+    /// motivo, a suspensa por solicitação de cancelamento (Sprint 48, D12) e o crédito (valor negativo, D23) saem aqui.
     /// </remarks>
-    private IQueryable<LinhaCobravel> Cobraveis() =>
-        from devedor in ParcelaRepository.Devedores(db)
-        join item in db.ItensDeCobranca.AsNoTracking() on devedor.Parcela.ItemDeCobrancaId equals item.Id
-        where
-            devedor.Parcela.Status == StatusDaParcela.Aberta
-            && devedor.Email != null
-            && db.Vinculos.Any(vinculo => vinculo.Id == devedor.Parcela.VinculoId && vinculo.Ativo)
-            && !db.Informes.Any(informe => informe.ParcelaId == devedor.Parcela.Id && informe.Status == StatusDoInforme.Pendente)
-        select new LinhaCobravel
-        {
-            Parcela = devedor.Parcela,
-            Nome = devedor.Nome,
-            Email = devedor.Email!,
-            Descricao = item.Descricao,
-        };
+    private IQueryable<LinhaCobravel> Cobraveis()
+    {
+        var hoje = DataUtils.Hoje();
+
+        return from devedor in ParcelaRepository.Devedores(db)
+            join item in db.ItensDeCobranca.AsNoTracking() on devedor.Parcela.ItemDeCobrancaId equals item.Id
+            where
+                devedor.Parcela.Status == StatusDaParcela.Aberta
+                && devedor.Parcela.ValorOriginalEmCentavos > 0
+                && !(devedor.Parcela.SuspensaAte >= hoje)
+                && devedor.Email != null
+                && db.Vinculos.Any(vinculo => vinculo.Id == devedor.Parcela.VinculoId && vinculo.Ativo)
+                && !db.Informes.Any(informe => informe.ParcelaId == devedor.Parcela.Id && informe.Status == StatusDoInforme.Pendente)
+            select new LinhaCobravel
+            {
+                Parcela = devedor.Parcela,
+                Nome = devedor.Nome,
+                Email = devedor.Email!,
+                Descricao = item.Descricao,
+            };
+    }
 
     /// <summary>
     /// A linha no modelo de leitura — o último passo da consulta.

@@ -69,7 +69,12 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
         var formando = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Formando, Ct);
 
         var conteudo = await formando.Cliente.GetFromJsonAsync<ConteudoParaAdesaoDTO>($"{Rota}/termos/vigente", Json, Ct);
-        var aceite = await formando.Cliente.PostAsJsonAsync(Rota, new AderirRequestDTO(new string('a', 64), "123456"), Json, Ct);
+        var aceite = await formando.Cliente.PostAsJsonAsync(
+            Rota,
+            new AderirRequestDTO(new string('a', 64), "123456", [Guid.CreateVersion7()]),
+            Json,
+            Ct
+        );
 
         conteudo!.Termo.ShouldBeNull();
         conteudo.Plano.ShouldBeNull();
@@ -128,10 +133,11 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
         var turma = await TurmaPronta();
         var formando = await fabrica.NovoMembro(turma.FormaturaId, PapelNaFormatura.Formando, Ct);
         await PreencherCadastro(formando.Cliente, NovoCpf());
+        var lido = await formando.Cliente.GetFromJsonAsync<ConteudoParaAdesaoDTO>($"{Rota}/termos/vigente", Json, Ct);
 
         var resposta = await formando.Cliente.PostAsJsonAsync(
             Rota,
-            new AderirRequestDTO(new string('0', 64), await PedirCodigo(fabrica, formando.Cliente)),
+            new AderirRequestDTO(new string('0', 64), await PedirCodigo(fabrica, formando.Cliente), [lido!.Catalogo[0].Id]),
             Json,
             Ct
         );
@@ -149,11 +155,13 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
         var formando = await fabrica.NovoMembro(turma.FormaturaId, PapelNaFormatura.Formando, Ct);
         await PreencherCadastro(formando.Cliente, NovoCpf());
         var lido = await formando.Cliente.GetFromJsonAsync<ConteudoParaAdesaoDTO>($"{Rota}/termos/vigente", Json, Ct);
+        var cesta = lido!.Catalogo.Select(pacote => pacote.Id).Take(1).ToList();
+        lido = await formando.Cliente.GetFromJsonAsync<ConteudoParaAdesaoDTO>(Termo(cesta), Json, Ct);
         await Publicar(turma.Presidente.Cliente, $"{TermoV1}\n\nCláusula nova.");
 
         var resposta = await formando.Cliente.PostAsJsonAsync(
             Rota,
-            new AderirRequestDTO(lido!.HashDoConteudo, await PedirCodigo(fabrica, formando.Cliente)),
+            new AderirRequestDTO(lido!.HashDoConteudo, await PedirCodigo(fabrica, formando.Cliente), cesta),
             Json,
             Ct
         );

@@ -243,8 +243,9 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
         atual!.Itens.ShouldHaveSingleItem();
     }
 
+    /// <summary>Pacote novo entra no catálogo de quem aderir depois; quem já aderiu não muda de cesta (Sprint 47).</summary>
     [Fact]
-    public async Task Item_comum_em_plano_vigente_nao_cobra_quem_ja_aderiu()
+    public async Task Pacote_novo_em_plano_vigente_nao_cobra_quem_ja_aderiu()
     {
         var formaturaId = await fabrica.CriarFormatura(Ct);
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
@@ -257,6 +258,7 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
             $"{Rota}/planos/{plano.Id}/itens",
             Rateio(origem: null) with
             {
+                Tipo = TipoDeCobranca.FotoEAlbum,
                 AplicarAQuemJaAderiu = false,
             },
             Json,
@@ -264,8 +266,9 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
         );
 
         resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var item = (await resposta.Content.ReadFromJsonAsync<PlanoDeCobrancaDTO>(Json, Ct))!.Itens.Single(i => i.Tipo == TipoDeCobranca.Avulsa);
+        var item = (await resposta.Content.ReadFromJsonAsync<PlanoDeCobrancaDTO>(Json, Ct))!.Itens.Single(i => i.Tipo == TipoDeCobranca.FotoEAlbum);
         item.OrigemDaDecisao.ShouldBeNull();
+        item.Pacote.ShouldBeTrue();
         item.EmUso.ShouldBeFalse();
     }
 
@@ -294,8 +297,8 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
     }
 
     /// <summary>
-    /// Mudar o valor vale só para o futuro: a vencida e a paga ficam com o valor antigo, e o que sobra
-    /// do total novo se redistribui pelas que ainda não venceram.
+    /// Mudar o valor de quem já aderiu (marcado, Sprint 48 D21) vale só para o futuro: a vencida e a paga ficam com o
+    /// valor antigo, e o que sobra do total novo se redistribui pelas que ainda não venceram.
     /// </summary>
     /// <remarks>
     /// A vencida é envelhecida no banco, e não pelo plano começar no passado: desde 17/09/2026 a
@@ -322,7 +325,10 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
 
         var alteracao = await presidente.Cliente.PutAsJsonAsync(
             $"{Rota}/planos/{plano.Id}/itens/{plano.Itens[0].Id}",
-            Mensalidade(valor: 240_000, parcelas: 12, dia: 1, primeiroMes: inicio),
+            Mensalidade(valor: 240_000, parcelas: 12, dia: 1, primeiroMes: inicio) with
+            {
+                AplicarAosAtuais = true,
+            },
             Json,
             Ct
         );
@@ -404,17 +410,25 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
         peloBanco.SqlState.ShouldBe(PostgresErrorCodes.UniqueViolation);
     }
 
+    /// <summary>O avulso é o gancho do valor negativo, não um pacote que alguém escolhe (Sprint 47).</summary>
     [Fact]
-    public async Task Segunda_adesao_no_plano_devolve_409()
+    public async Task Pacote_avulso_e_recusado()
     {
         var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
-        var adesao = new ItemDeCobrancaRequestDTO(TipoDeCobranca.Adesao, null, 50_000, 1, 10, new DateOnly(2030, 1, 1));
-        var plano = await CriarPlano(presidente.Cliente, adesao);
+        var plano = await CriarPlano(presidente.Cliente, Mensalidade());
 
-        var resposta = await presidente.Cliente.PostAsJsonAsync($"{Rota}/planos/{plano.Id}/itens", adesao, Json, Ct);
+        var resposta = await presidente.Cliente.PostAsJsonAsync(
+            $"{Rota}/planos/{plano.Id}/itens",
+            Rateio(origem: null) with
+            {
+                AplicarAQuemJaAderiu = false,
+            },
+            Json,
+            Ct
+        );
 
-        resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await resposta.Codigo(Ct)).ShouldBe("cobranca.adesao_duplicada");
+        resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await resposta.Codigo(Ct)).ShouldBe("cobranca.tipo_invalido");
     }
 
     /// <summary>Plano e parcelas herdam o isolamento: outra turma não os enxerga nem pelo id.</summary>
@@ -466,7 +480,7 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
 
         await using var contexto = fabrica.ContextoDe(formaturaId);
         var plano = await new PlanoDeCobrancaRepository(contexto).ObterVigente(Ct);
-        var resultado = await new GeracaoDeParcelasService(new ParcelaRepository(contexto)).Gerar(vinculoId, plano!, Ct);
+        var resultado = await new GeracaoDeParcelasService(new ParcelaRepository(contexto)).Gerar(vinculoId, plano!, plano!.Pacotes(), Ct);
         await new UnitOfWork(contexto).SalvarAsync(Ct);
 
         return resultado.Valor;

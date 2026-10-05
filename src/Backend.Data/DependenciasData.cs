@@ -161,6 +161,7 @@ public static class DependenciasData
         services.AddScoped<IPlanoDeCobrancaRepository, PlanoDeCobrancaRepository>();
         services.AddScoped<IParcelaRepository, ParcelaRepository>();
         services.AddScoped<IPedidoRepository, PedidoRepository>();
+        services.AddScoped<ISolicitacaoDeCancelamentoRepository, SolicitacaoDeCancelamentoRepository>();
         services.AddScoped<IConviteDoEventoRepository, ConviteDoEventoRepository>();
         services.AddScoped<ICompraDeConviteRepository, CompraDeConviteRepository>();
         services.AddScoped<IPendenciasDaTurmaRepository, PendenciasDaTurmaRepository>();

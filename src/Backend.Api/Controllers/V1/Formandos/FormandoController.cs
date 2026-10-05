@@ -33,7 +33,7 @@ public sealed class FormandoController(IPerfilService perfilService, IUsuarioAtu
 {
     /// <summary>O próprio cadastro, vazio se ainda não foi preenchido.</summary>
     [HttpGet("eu")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.MembroAntesDaAdesao)]
     [ProducesResponseType(typeof(PerfilDoFormandoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ObterMeu(CancellationToken ct) =>
@@ -42,7 +42,7 @@ public sealed class FormandoController(IPerfilService perfilService, IUsuarioAtu
     /// <summary>Altera o próprio cadastro, seção por seção.</summary>
     /// <param name="requisicao">Seções a gravar; a ausente fica como está.</param>
     [HttpPut("eu")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.MembroAntesDaAdesao)]
     [Authorize(Policy = Politicas.ExigeFormaturaAberta)]
     [RegistrarEvento("perfil.atualizado")]
     [ProducesResponseType(typeof(PerfilDoFormandoDTO), StatusCodes.Status200OK)]
@@ -58,7 +58,7 @@ public sealed class FormandoController(IPerfilService perfilService, IUsuarioAtu
     /// <summary>Troca a própria foto. JPEG, PNG ou WebP de até 5 MB; sai em até 512×512.</summary>
     /// <param name="foto">Imagem enviada como <c>multipart/form-data</c>.</param>
     [HttpPost("eu/foto")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.MembroAntesDaAdesao)]
     [Authorize(Policy = Politicas.ExigeFormaturaAberta)]
     [RegistrarEvento("perfil.foto_enviada")]
     [ProducesResponseType(typeof(PerfilDoFormandoDTO), StatusCodes.Status200OK)]

@@ -35,12 +35,7 @@ public interface IItemDaFestaService
     /// <param name="dados">Título, categoria, o que inclui, rateio e valor.</param>
     /// <param name="usuarioId">Quem cria — dono do contrato enviado, se vier arquivo.</param>
     /// <param name="contrato">Contrato novo, se a comissão o anexou aqui; ausente, vale o <c>DocumentoId</c>.</param>
-    Task<Result<ItemDaFestaResumo>> Criar(
-        DadosDoItemDaFesta dados,
-        Guid usuarioId,
-        NovoArquivo? contrato,
-        CancellationToken ct = default
-    );
+    Task<Result<ItemDaFestaResumo>> Criar(DadosDoItemDaFesta dados, Guid usuarioId, NovoArquivo? contrato, CancellationToken ct = default);
 
     /// <summary>Corrige um item.</summary>
     /// <param name="id">Item.</param>

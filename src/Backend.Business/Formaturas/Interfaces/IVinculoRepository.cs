@@ -39,6 +39,14 @@ public interface IVinculoRepository
     Task<string?> ObterPapelAtivo(Guid usuarioId, Guid formaturaId, CancellationToken ct = default);
 
     /// <summary>
+    /// Se o usuário é formando ativo da turma, a turma já publicou o termo e ele ainda não aderiu — quem o gate de
+    /// adesão barra (Sprint 47, D18).
+    /// </summary>
+    /// <param name="usuarioId">Usuário autenticado.</param>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    Task<bool> FormandoSemAdesao(Guid usuarioId, Guid formaturaId, CancellationToken ct = default);
+
+    /// <summary>
     /// O vínculo do usuário na formatura aceitando o <b>desligado</b>; nulo para quem foi removido ou
     /// nunca pertenceu a ela.
     /// </summary>

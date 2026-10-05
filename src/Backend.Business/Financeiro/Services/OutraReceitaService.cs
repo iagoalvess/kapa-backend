@@ -237,13 +237,7 @@ public sealed class OutraReceitaService(
     /// <param name="titulo">Descrição da receita, que nomeia o documento enviado aqui.</param>
     /// <param name="usuarioId">Quem envia o comprovante.</param>
     /// <param name="comprovante">Arquivo anexado aqui, se houver.</param>
-    private async Task<Result<Guid?>> ComComprovante(
-        Guid? documentoId,
-        string titulo,
-        Guid usuarioId,
-        NovoArquivo? comprovante,
-        CancellationToken ct
-    )
+    private async Task<Result<Guid?>> ComComprovante(Guid? documentoId, string titulo, Guid usuarioId, NovoArquivo? comprovante, CancellationToken ct)
     {
         if (comprovante is null)
         {

@@ -67,11 +67,15 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
     /// <summary>O termo vigente, o plano vigente e o hash dos dois — o que a tela exibe antes do aceite.</summary>
     /// <remarks>Sem termo publicado ou sem plano vigente, a parte que falta vem ausente, e o hash também.</remarks>
     [HttpGet("termos/vigente", Name = RotaDoTermoVigente)]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.MembroAntesDaAdesao)]
     [ProducesResponseType(typeof(ConteudoParaAdesaoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> ObterParaAdesao(CancellationToken ct) =>
-        Responder((await termoService.ObterParaAdesao(ct)).Map(conteudo => conteudo.Adapt<ConteudoParaAdesaoDTO>()));
+    public async Task<IActionResult> ObterParaAdesao([FromQuery] Guid[]? pacotes, CancellationToken ct) =>
+        Responder(
+            (await termoService.ObterParaAdesao(FormaturaId, usuarioAtual.Id, pacotes ?? [], ct)).Map(conteudo =>
+                conteudo.Adapt<ConteudoParaAdesaoDTO>()
+            )
+        );
 
     /// <summary>Envia ao e-mail da conta o código de seis dígitos que o aceite pede.</summary>
     /// <remarks>
@@ -80,7 +84,7 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
     /// o e-mail mascarado, para a tela dizer em que caixa de entrada olhar.
     /// </remarks>
     [HttpPost("codigo")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.MembroAntesDaAdesao)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [EnableRateLimiting(RateLimitConfig.Codigo)]
     [RegistrarEvento("adesao.codigo_solicitado")]
@@ -103,7 +107,7 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
     /// </remarks>
     /// <param name="requisicao">Hash do conteúdo exibido e o código recebido por e-mail.</param>
     [HttpPost]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
+    [Authorize(Policy = Politicas.MembroAntesDaAdesao)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [EnableRateLimiting(RateLimitConfig.Codigo)]
     [RegistrarEvento("adesao.aceite_registrado")]
@@ -116,7 +120,12 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
         var resultado = await adesaoService.Aderir(
             FormaturaId,
             usuarioAtual.Id,
-            new AderirAoTermo(requisicao.HashDoConteudo ?? string.Empty, requisicao.Codigo ?? string.Empty),
+            new AderirAoTermo(
+                requisicao.HashDoConteudo ?? string.Empty,
+                requisicao.Codigo ?? string.Empty,
+                requisicao.Pacotes ?? [],
+                requisicao.Observacoes?.Select(observacao => new ObservacaoDoPacote(observacao.PacoteId, observacao.Texto)).ToList()
+            ),
             usuarioAtual.Origem,
             ct
         );

@@ -109,37 +109,32 @@ public interface IGestaoDeConvitesService
 }
 
 /// <summary>
-/// A cota de convites de um evento: cada formando ativo recebe N convites, sem pedido e sem dinheiro.
+/// O painel de convites de um evento: a conta de lugares sobre os benefícios dos pacotes e quem está preso por atraso.
 /// </summary>
 /// <remarks>
-/// Da Gestão. A colação desde a Sprint 30 e a festa desde 01/10/2026 — o mesmo número por evento e a
-/// Sprint 21 faz o resto (decisões 1 e 2): o convite de cota é o mesmo convite, com <c>PedidoId</c>
-/// nulo. Só festa e colação têm convite; outro tipo responde 400 <c>festa.evento_sem_convite</c>.
+/// Da Gestão. Substitui a cota uniforme da Sprint 30 (Sprint 47, D15): o convite vem do pacote, e a emissão é
+/// automática — na adesão e quando a agenda completa o evento. Só festa e colação têm convite; outro tipo responde
+/// 400 <c>festa.evento_sem_convite</c>.
 /// </remarks>
-public interface ICotaDoEventoService
+public interface IPainelDeConvitesService
 {
-    /// <summary>O painel da cota do evento: o número, a capacidade e a conta aberta.</summary>
+    /// <summary>O painel do evento: capacidade, a conta de lugares e os formandos com convite preso.</summary>
     /// <param name="tipo">Festa ou colação.</param>
-    Task<Result<PainelDaCota>> Obter(TipoDeEvento tipo, CancellationToken ct = default);
+    Task<Result<PainelDeConvites>> Obter(TipoDeEvento tipo, CancellationToken ct = default);
+
+    /// <summary>Grava a capacidade do local — passar dela avisa no painel, mas salva (Sprint 30, decisão 3).</summary>
+    /// <param name="tipo">Festa ou colação.</param>
+    /// <param name="dados">Lugares.</param>
+    Task<Result<PainelDeConvites>> DefinirCapacidade(TipoDeEvento tipo, DadosDaCapacidade dados, CancellationToken ct = default);
 
     /// <summary>
-    /// Grava a cota e a capacidade — passar da capacidade avisa no painel, mas salva (decisão 3).
+    /// Solta os convites de pacote de um formando presos por atraso, em todos os eventos (Sprint 47, D24).
     /// </summary>
-    /// <remarks>Depois de aberta, a cota só sobe: 409 <c>festa.cota_ja_aberta</c>.</remarks>
-    /// <param name="tipo">Festa ou colação.</param>
-    /// <param name="dados">Cota por formando e capacidade.</param>
-    Task<Result<PainelDaCota>> Definir(TipoDeEvento tipo, DadosDaCota dados, CancellationToken ct = default);
-
-    /// <summary>
-    /// Abre — ou reabre — a cota: emite o que falta a cada formando ativo, numa instrução (P1).
-    /// </summary>
-    /// <remarks>
-    /// Reabrir não duplica: quem já tem a cota não ganha nada, e quem entrou depois recebe a dele. Sem
-    /// cota, 409 <c>festa.cota_nao_configurada</c>; sem hora e local, 409 <c>festa.evento_incompleto</c>.
-    /// </remarks>
-    /// <param name="tipo">Festa ou colação.</param>
-    /// <param name="usuarioId">Quem abre, para a auditoria.</param>
-    Task<Result<PainelDaCota>> Abrir(TipoDeEvento tipo, Guid usuarioId, CancellationToken ct = default);
+    /// <remarks>Decisão da comissão, auditada. Os convites voltam a valer na portaria com o mesmo código.</remarks>
+    /// <param name="vinculoId">O formando.</param>
+    /// <param name="usuarioId">Quem libera, para a auditoria.</param>
+    /// <returns>Quantos convites foram liberados agora.</returns>
+    Task<Result<int>> Liberar(Guid vinculoId, Guid usuarioId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -240,28 +235,32 @@ public interface IConviteDoEventoRepository
     Task<IReadOnlyList<ConviteDoVinculo>> ListarDaCompra(Guid compraId, CancellationToken ct = default);
 
     /// <summary>
-    /// Emite a cota que falta a cada vínculo ativo, em todo evento com a cota aberta — idempotente, pelo
-    /// índice único (Sprint 30, P1).
+    /// Emite os convites que os pacotes das cestas concedem e ainda faltam, nos eventos completos — idempotente, pelo
+    /// índice único (Sprint 47, D14/D24).
     /// </summary>
     /// <remarks>
-    /// Uma instrução para a turma inteira: <c>INSERT … SELECT</c> dos vínculos ativos cruzados com
-    /// <c>generate_series(1, cota)</c>, <c>ON CONFLICT DO NOTHING</c>. Quem já tem a cota não ganha nada;
-    /// quem entrou depois recebe a dele. Leva a formatura explícita porque a entrada na turma chama isto
-    /// antes de a sessão ser dela.
+    /// Uma instrução: <c>INSERT … SELECT</c> das cestas dos vínculos ativos, somando os benefícios por evento e
+    /// cruzando com <c>generate_series(1, soma)</c>, <c>ON CONFLICT DO NOTHING</c>. Quem já tem os convites não ganha
+    /// nada; quem aderiu depois recebe os dele. Evento sem data, hora ou local, ou cancelado, fica de fora.
     /// </remarks>
     /// <param name="formaturaId">Turma.</param>
-    /// <param name="vinculoId">Só este vínculo — a entrada na turma; nulo é a turma inteira.</param>
+    /// <param name="vinculoId">Só este vínculo — a adesão; nulo é a turma inteira.</param>
     /// <param name="prefixo">Prefixo da turma, para os códigos.</param>
     /// <returns>Quantos convites nasceram agora.</returns>
-    Task<int> EmitirDaCota(Guid formaturaId, Guid? vinculoId, string prefixo, CancellationToken ct = default);
+    Task<int> EmitirDosPacotes(Guid formaturaId, Guid? vinculoId, string prefixo, CancellationToken ct = default);
 
-    /// <summary>Os convites de cota válidos do vínculo, travados até o fim da transação — para revogar na saída.</summary>
+    /// <summary>Os convites de pacote válidos do vínculo, travados até o fim da transação — para revogar na saída ou liberar.</summary>
     /// <param name="vinculoId">Dono.</param>
-    Task<IReadOnlyList<ConviteDoEvento>> TravarDaCota(Guid vinculoId, CancellationToken ct = default);
+    Task<IReadOnlyList<ConviteDoEvento>> TravarDosPacotes(Guid vinculoId, CancellationToken ct = default);
 
-    /// <summary>A conta do painel da cota: formandos ativos, convites de cota e cortesias do evento.</summary>
+    /// <summary>A conta do painel: formandos ativos, benefícios das cestas, convites emitidos, extras e cortesias.</summary>
     /// <param name="eventoId">Evento.</param>
-    Task<ContagemDaCota> ContarDaCota(Guid eventoId, CancellationToken ct = default);
+    /// <param name="tipo">Festa ou colação — diz qual benefício do pacote conta.</param>
+    Task<ContagemDoEvento> ContarDoPainel(Guid eventoId, TipoDeEvento tipo, CancellationToken ct = default);
+
+    /// <summary>Os formandos com convite de pacote preso por atraso no evento, por nome (D24).</summary>
+    /// <param name="eventoId">Evento.</param>
+    Task<IReadOnlyList<FormandoComConvitePreso>> ListarPresos(Guid eventoId, CancellationToken ct = default);
 
     /// <summary>Os convites válidos de um pedido, travados até o fim da transação (decisão 15).</summary>
     /// <param name="pedidoId">Pedido.</param>

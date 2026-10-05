@@ -39,6 +39,7 @@ public sealed class PlanoDeCobrancaService(
     IGeracaoDeParcelasService geracaoDeParcelas,
     IValidator<DadosDoPlano> planoValidator,
     IValidator<DadosDoItem> itemValidator,
+    IValidator<DadosDoPacote> pacoteValidator,
     IValidator<RateioExtraordinario> rateioValidator,
     IValidator<SimularPlano> simulacaoValidator,
     IEventoRepository eventos,
@@ -106,23 +107,17 @@ public sealed class PlanoDeCobrancaService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// Sem <paramref name="rateio"/>, vale a regra normal: a parcela nasce na adesão, então o item
-    /// alcança só quem aderir depois — e a tela avisa quantos ficam de fora.
-    /// <para>
-    /// Com ele, o item é um <b>rateio extraordinário</b> (revisão de 17/09/2026 da decisão 8 da
-    /// Sprint 7): a grade também é gravada para cada vínculo ativo que já aderiu, na mesma
-    /// transação. O primeiro vencimento não pode ser passado nesse caso — a parcela nasceria
-    /// vencida, com multa e juros de um atraso que a pessoa não teve como cometer.
-    /// </para>
+    /// Sem rateio, o item é um <b>pacote</b> do catálogo (Sprint 47, D31): só cobra quem o põe na cesta. Com rateio, é
+    /// o item da assembleia, que alcança quem já aderiu e quem aderir depois.
     /// </remarks>
     public async Task<Result<PlanoDeCobrancaDetalhe>> AdicionarItem(
         Guid planoId,
-        DadosDoItem dados,
+        DadosDoPacote dados,
         RateioExtraordinario? rateio = null,
         CancellationToken ct = default
     )
     {
-        var validacao = itemValidator.Validar(dados);
+        var validacao = rateio is null ? pacoteValidator.Validar(dados) : itemValidator.Validar(dados.Item);
         if (validacao.Falhou)
             return Result.Falha<PlanoDeCobrancaDetalhe>(validacao.Erros);
 
@@ -132,23 +127,28 @@ public sealed class PlanoDeCobrancaService(
             if (formaDoRateio.Falhou)
                 return Result.Falha<PlanoDeCobrancaDetalhe>(formaDoRateio.Erros);
 
-            if (GradeDeParcelas.PrimeiroDoMes(dados.PrimeiroMes) < GradeDeParcelas.PrimeiroDoMes(DataUtils.Hoje()))
+            if (GradeDeParcelas.PrimeiroDoMes(dados.Item.PrimeiroMes) < GradeDeParcelas.PrimeiroDoMes(DataUtils.Hoje()))
                 return Erro.Validacao(
                     "cobranca.rateio_retroativo",
                     "O rateio não pode começar num mês que já passou: a parcela nasceria vencida, com multa e juros.",
                     campo: "primeiro_mes"
                 );
         }
+        else if (ItemDeCobranca.PassaDoLimite(ItemDeCobranca.UltimaParcelaDoTeto(dados.Item), dados.UltimoVencimento) is { } tarde)
+        {
+            return tarde;
+        }
 
         var plano = await planoRepository.ObterParaEdicao(planoId, ct);
         if (plano is null)
             return PlanoNaoEncontrado;
 
-        var aceita = plano.AceitaItem(dados.Tipo);
-        if (aceita.Falhou)
-            return Result.Falha<PlanoDeCobrancaDetalhe>(aceita.Erros);
+        if (rateio?.Alvo is { Count: > 0 } alvo && !alvo.All(id => plano.Pacotes().Any(pacote => pacote.Id == id)))
+            return Erro.Validacao("cobranca.alvo_invalido", "Um dos pacotes do alvo não está no catálogo da turma.", campo: "alvo");
 
-        var item = ItemDeCobranca.Novo(plano.Id, dados, rateio?.OrigemDaDecisao);
+        var item = rateio is null
+            ? ItemDeCobranca.NovoPacote(plano.Id, dados)
+            : ItemDeCobranca.Novo(plano.Id, dados.Item, rateio.OrigemDaDecisao, rateio.Alvo);
         plano.Itens.Add(item);
 
         await planoRepository.AdicionarItem(item, ct);
@@ -167,23 +167,19 @@ public sealed class PlanoDeCobrancaService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// Com parcela gerada, a grade nova é calculada e cada parcela aberta que ainda não venceu recebe
-    /// o valor da mesma posição nela. Paga e vencida ficam como estão — por isso, depois de uma
-    /// mudança, a soma das parcelas de um formando pode não ser o total novo do item: é a mudança
-    /// valendo só para o futuro.
+    /// Com parcela gerada, o pacote não muda de grade nem de benefícios: quem o escolheu tem os convites emitidos por
+    /// estes números (Sprint 47). O preço muda no catálogo; quem já aderiu só é repactuado — no que ainda não venceu —
+    /// se a tesouraria marcar (Sprint 48, D21). Até a 48, repactuava sempre, e furava o snapshot de quem tinha aderido.
     /// </remarks>
     public async Task<Result<PlanoDeCobrancaDetalhe>> AlterarItem(
         Guid planoId,
         Guid itemId,
-        DadosDoItem dados,
+        DadosDoPacote dados,
         Guid autorId,
+        bool aplicarAosAtuais = false,
         CancellationToken ct = default
     )
     {
-        var validacao = itemValidator.Validar(dados);
-        if (validacao.Falhou)
-            return Result.Falha<PlanoDeCobrancaDetalhe>(validacao.Erros);
-
         var plano = await planoRepository.ObterParaEdicao(planoId, ct);
         if (plano is null)
             return PlanoNaoEncontrado;
@@ -192,26 +188,32 @@ public sealed class PlanoDeCobrancaService(
         if (item is null)
             return ItemNaoEncontrado;
 
+        var validacao = item.Pacote ? pacoteValidator.Validar(dados) : itemValidator.Validar(dados.Item);
+        if (validacao.Falhou)
+            return Result.Falha<PlanoDeCobrancaDetalhe>(validacao.Erros);
+
         if (item.EncerradoEm is not null)
             return Erro.Conflito("cobranca.item_encerrado", "Este item foi encerrado e não muda mais.");
 
-        var aceita = plano.AceitaItem(dados.Tipo, exceto: item);
-        if (aceita.Falhou)
-            return Result.Falha<PlanoDeCobrancaDetalhe>(aceita.Erros);
-
         var emUso = await parcelaRepository.ExisteDoItem(item.Id, ct);
-        if (emUso && item.MudaAGrade(dados))
+        if (emUso && (item.MudaAGrade(dados.Item) || (item.Pacote && item.MudaOsBeneficios(dados))))
             return Erro.Conflito(
                 "cobranca.item_em_uso",
                 "Este item já gerou parcelas: só o valor e a descrição podem mudar. Para mudar o resto, encerre-o e inclua outro."
             );
 
+        if (item.Pacote && ItemDeCobranca.PassaDoLimite(ItemDeCobranca.UltimaParcelaDoTeto(dados.Item), dados.UltimoVencimento) is { } tarde)
+            return tarde;
+
         var antes = Retrato(item);
+        var precoAnterior = item.ValorEmCentavos;
 
-        item.Aplicar(dados);
+        if (item.Pacote)
+            item.AplicarDadosDoPacote(dados);
+        else
+            item.Aplicar(dados.Item);
 
-        if (emUso)
-            await Repactuar(item, ct);
+        var repactuadas = emUso && aplicarAosAtuais ? await Repactuar(item, item.ValorEmCentavos - precoAnterior, ct) : 0;
 
         await eventos.Auditar(
             NomesDeAuditoria.ItemAlterado,
@@ -222,6 +224,8 @@ public sealed class PlanoDeCobrancaService(
                 itemId,
                 antes,
                 depois = Retrato(item),
+                aplicadoAQuemJaAderiu = aplicarAosAtuais,
+                parcelasRepactuadas = repactuadas,
             },
             ct
         );
@@ -229,6 +233,41 @@ public sealed class PlanoDeCobrancaService(
         await unitOfWork.SalvarAsync(ct);
 
         return await Detalhar(plano, ct);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>A mesma conta da repactuação, sem marcar nada: o que a tela mostra é o que o "aplicar" faria.</remarks>
+    public async Task<Result<Alcance>> SimularPreco(Guid planoId, Guid itemId, long valorEmCentavos, CancellationToken ct = default)
+    {
+        if (await planoRepository.Obter(planoId, ct) is not { } plano)
+            return PlanoNaoEncontrado;
+
+        if (plano.Itens.Find(i => i.Id == itemId) is not { } item)
+            return ItemNaoEncontrado;
+
+        var hoje = DataUtils.Hoje();
+        var doItem = await parcelaRepository.ListarDoItemParaEdicao(item.Id, ct);
+        var mudancas = Repactuacao(valorEmCentavos - item.ValorEmCentavos, valorEmCentavos >= 0, doItem, hoje)
+            .Where(mudanca => mudanca.Valor != mudanca.Parcela.ValorOriginalEmCentavos)
+            .ToList();
+
+        return new Alcance(
+            mudancas.Select(mudanca => mudanca.Parcela.VinculoId).Distinct().Count(),
+            mudancas.Count,
+            mudancas.Sum(mudanca => mudanca.Valor - mudanca.Parcela.ValorOriginalEmCentavos)
+        );
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Quem o <see cref="Ratear"/> alcançaria hoje — a mesma consulta. O rateio não conta parcelas: são as do item.</remarks>
+    public async Task<Result<Alcance>> SimularRateio(Guid planoId, IReadOnlyList<Guid> alvo, long valorEmCentavos, CancellationToken ct = default)
+    {
+        if (await planoRepository.Obter(planoId, ct) is null)
+            return PlanoNaoEncontrado;
+
+        var formandos = (await parcelaRepository.ListarVinculosAtivosComParcela(planoId, alvo, ct)).Count;
+
+        return new Alcance(formandos, 0, valorEmCentavos * formandos);
     }
 
     /// <summary>
@@ -249,6 +288,12 @@ public sealed class PlanoDeCobrancaService(
             item.NumeroDeParcelas,
             item.DiaDeVencimento,
             item.PrimeiroMes,
+            item.Grupo,
+            item.ConvitesDaFesta,
+            item.ConvitesDaColacao,
+            item.UltimoVencimento,
+            item.CancelavelAte,
+            item.AlvoDoRateio,
         };
 
     /// <inheritdoc />
@@ -354,7 +399,7 @@ public sealed class PlanoDeCobrancaService(
         if (plano is null)
             return PlanoNaoEncontrado;
 
-        var parcelas = GradeDeParcelas.DoFormando(pedido.Itens ?? plano.DadosDosItensAtivos());
+        var parcelas = GradeDeParcelas.DoFormando(pedido.Itens ?? [.. plano.Pacotes().Select(pacote => pacote.ParaDados())]);
         var totalPorFormando = parcelas.Sum(parcela => parcela.ValorEmCentavos);
         var formandos = (await vinculoRepository.ContarMembros(formaturaId, ct)).Where(c => c.Ativo).Sum(c => c.Quantidade);
 
@@ -410,11 +455,12 @@ public sealed class PlanoDeCobrancaService(
     /// <remarks>
     /// Vínculo ativo, e por isso a contagem aqui pode ser menor que o <c>FormandosComParcela</c> que
     /// a tela mostrou: quem saiu da turma continua devendo o que já devia, e não recebe cobrança nova.
+    /// Com alvo, só quem tem um dos pacotes dele na cesta (Sprint 48, D19): o custo da festa só alcança quem vai à festa.
     /// </remarks>
     /// <param name="item">Item recém-incluído, ainda não salvo.</param>
     private async Task<Result> Ratear(ItemDeCobranca item, CancellationToken ct)
     {
-        var vinculos = await parcelaRepository.ListarVinculosAtivosComParcela(item.PlanoId, ct);
+        var vinculos = await parcelaRepository.ListarVinculosAtivosComParcela(item.PlanoId, item.AlvoDoRateio, ct);
 
         var geradas = await geracaoDeParcelas.GerarDoItem(vinculos, item, ct);
         if (geradas.Falhou)
@@ -431,26 +477,43 @@ public sealed class PlanoDeCobrancaService(
     }
 
     /// <summary>
-    /// Leva o valor novo do item às parcelas abertas que ainda não venceram, formando a formando.
+    /// Leva a mudança de preço do item às parcelas abertas que ainda não venceram, formando a formando.
     /// </summary>
-    /// <remarks>
-    /// Por vínculo, e não pela grade do item: quem aderiu depois do começo do plano tem menos
-    /// parcelas que ele (<c>GradeDeParcelas.DeQuemAdereEm</c>), e copiar o valor da posição
-    /// correspondente faria essa pessoa pagar menos que o resto da turma.
-    /// <para>
-    /// O que já venceu, foi pago ou foi cancelado fica como está e conta como <i>comprometido</i>; o
-    /// que sobra do total novo se redistribui pelas parcelas que ainda não venceram. Cancelada não
-    /// entra no comprometido — ela não é devida. <c>ponytail:</c> se o valor novo for menor do que o
-    /// formando já pagou, as futuras vão a zero em vez de negativo, e a soma dele fica acima do total
-    /// novo; devolver dinheiro é decisão de gente, não de repactuação.
-    /// </para>
-    /// </remarks>
-    private async Task Repactuar(ItemDeCobranca item, CancellationToken ct)
+    /// <param name="item">Item já com o preço novo.</param>
+    /// <param name="delta">Preço novo menos o anterior.</param>
+    /// <returns>Quantas parcelas mudaram de valor.</returns>
+    private async Task<int> Repactuar(ItemDeCobranca item, long delta, CancellationToken ct)
     {
         var hoje = DataUtils.Hoje();
-        var repactuadas = 0;
+        var doItem = await parcelaRepository.ListarDoItemParaEdicao(item.Id, ct);
+        var repactuadas = Repactuacao(delta, item.ValorEmCentavos >= 0, doItem, hoje)
+            .Count(mudanca => mudanca.Parcela.Repactuar(mudanca.Valor, hoje));
 
-        foreach (var doVinculo in (await parcelaRepository.ListarDoItemParaEdicao(item.Id, ct)).GroupBy(parcela => parcela.VinculoId))
+        logger.LogInformation("Item {ItemId} alterado; {Repactuadas} parcelas futuras com valor novo.", item.Id, repactuadas);
+
+        return repactuadas;
+    }
+
+    /// <summary>
+    /// O valor novo de cada parcela aberta que ainda não venceu, para a mudança de preço caber nelas.
+    /// </summary>
+    /// <remarks>
+    /// Por vínculo, e não pela grade do item: quem aderiu depois do começo do plano tem menos parcelas que ele
+    /// (<c>GradeDeParcelas.DeQuemAdereEm</c>), e quem subiu de faixa pelo aditivo (Sprint 48, D38) deve só a
+    /// diferença neste item. Por isso a conta é pela <b>mudança</b> de preço, e não pelo preço novo: cada um passa a
+    /// dever o que devia mais o delta, redistribuído pelas parcelas que ainda não venceram.
+    /// <para>
+    /// O que já venceu, foi pago ou foi cancelado fica como está. <c>ponytail:</c> se o desconto for maior que o que
+    /// falta pagar, as futuras vão a zero em vez de negativo; devolver dinheiro é decisão de gente, não de repactuação.
+    /// </para>
+    /// </remarks>
+    /// <param name="delta">Preço novo menos o anterior.</param>
+    /// <param name="positivo">O item cobra (e não credita): o piso das futuras é zero.</param>
+    /// <param name="doItem">Todas as parcelas do item, de todos os vínculos.</param>
+    /// <param name="hoje">Dia de referência.</param>
+    private static IEnumerable<(Parcela Parcela, long Valor)> Repactuacao(long delta, bool positivo, IEnumerable<Parcela> doItem, DateOnly hoje)
+    {
+        foreach (var doVinculo in doItem.GroupBy(parcela => parcela.VinculoId))
         {
             var futuras = doVinculo
                 .Where(parcela => parcela.StatusEm(hoje) == StatusDaParcela.Aberta)
@@ -459,17 +522,12 @@ public sealed class PlanoDeCobrancaService(
             if (futuras.Count == 0)
                 continue;
 
-            var comprometido = doVinculo
-                .Where(parcela => !futuras.Contains(parcela) && parcela.Status != StatusDaParcela.Cancelada)
-                .Sum(parcela => parcela.ValorOriginalEmCentavos);
+            var restante = futuras.Sum(parcela => parcela.ValorOriginalEmCentavos) + delta;
+            var valores = GradeDeParcelas.Distribuir(positivo ? Math.Max(0, restante) : Math.Min(0, restante), futuras.Count);
 
-            var restante = item.ValorEmCentavos - comprometido;
-            var valores = GradeDeParcelas.Distribuir(item.ValorEmCentavos >= 0 ? Math.Max(0, restante) : Math.Min(0, restante), futuras.Count);
-
-            repactuadas += futuras.Where((parcela, posicao) => parcela.Repactuar(valores[posicao], hoje)).Count();
+            for (var posicao = 0; posicao < futuras.Count; posicao++)
+                yield return (futuras[posicao], valores[posicao]);
         }
-
-        logger.LogInformation("Item {ItemId} alterado; {Repactuadas} parcelas futuras com valor novo.", item.Id, repactuadas);
     }
 
     /// <summary>Monta o detalhe do plano, com os itens em ordem de criação e os que já estão em uso.</summary>
@@ -493,7 +551,8 @@ public sealed class PlanoDeCobrancaService(
             plano.DiasMinimosParaDesconto,
             [
                 .. plano
-                    .Itens.OrderBy(item => item.CriadoEm)
+                    .Itens.Where(item => item.VinculoDoLancamento is null)
+                    .OrderBy(item => item.CriadoEm)
                     .ThenBy(item => item.Id)
                     .Select(item => ItemDeCobrancaDetalhe.De(item, emUso.Contains(item.Id))),
             ],

@@ -1,3 +1,5 @@
+using Backend.Business.Cobrancas.Models;
+
 namespace Backend.Business.Adesoes.Models;
 
 /// <summary>Uma versão do termo, com o texto.</summary>
@@ -29,12 +31,51 @@ public sealed record PublicarTermo(string Conteudo);
 /// Resumo do termo vigente gerado por IA (Sprint 24), se já existir. Fora do hash: aparecer depois não
 /// invalida o que está na tela.
 /// </param>
-public sealed record ConteudoParaAdesao(VersaoDoTermo? Termo, SnapshotDoPlano? Plano, string? HashDoConteudo, string? Resumo);
+/// <param name="Catalogo">Os pacotes à venda, de onde o formando monta a cesta (Sprint 47).</param>
+/// <param name="CestaContratada">
+/// Os pacotes que o formando já contratou numa adesão anterior: a re-adesão a uma versão nova do termo mantém a mesma
+/// cesta, e mudá-la é a Sprint 48. Vazia para quem nunca aderiu.
+/// </param>
+public sealed record ConteudoParaAdesao(
+    VersaoDoTermo? Termo,
+    SnapshotDoPlano? Plano,
+    string? HashDoConteudo,
+    string? Resumo,
+    IReadOnlyList<PacoteDoCatalogo> Catalogo,
+    IReadOnlyList<Guid> CestaContratada
+);
+
+/// <summary>Um pacote como o formando o vê na adesão.</summary>
+/// <param name="Id">Pacote.</param>
+/// <param name="Grupo">Grupo de faixas ("Festa"); nulo é pacote avulso.</param>
+/// <param name="Tipo">Categoria.</param>
+/// <param name="Descricao">Nome na tela, se houver.</param>
+/// <param name="ValorEmCentavos">Preço total.</param>
+/// <param name="NumeroDeParcelas">Em quantas parcelas quem adere hoje paga — menos que o item, para quem chega tarde.</param>
+/// <param name="ConvitesDaFesta">Convites da festa que o pacote concede.</param>
+/// <param name="ConvitesDaColacao">Convites da colação que o pacote concede.</param>
+public sealed record PacoteDoCatalogo(
+    Guid Id,
+    string? Grupo,
+    TipoDeCobranca Tipo,
+    string? Descricao,
+    long ValorEmCentavos,
+    int NumeroDeParcelas,
+    int ConvitesDaFesta,
+    int ConvitesDaColacao
+);
 
 /// <summary>Pedido de aceite.</summary>
 /// <param name="HashDoConteudo">O hash do conteúdo que a tela exibiu, como veio de <see cref="ConteudoParaAdesao"/>.</param>
 /// <param name="Codigo">Os seis dígitos enviados ao e-mail da conta, pedidos antes do aceite.</param>
-public sealed record AderirAoTermo(string HashDoConteudo, string Codigo);
+/// <param name="Pacotes">A cesta: os pacotes escolhidos no catálogo (Sprint 47). Ao menos um (D33).</param>
+/// <param name="Observacoes">O detalhe livre de cada pacote — fora do hash (Sprint 48, D40).</param>
+public sealed record AderirAoTermo(
+    string HashDoConteudo,
+    string Codigo,
+    IReadOnlyList<Guid> Pacotes,
+    IReadOnlyList<ObservacaoDoPacote>? Observacoes = null
+);
 
 /// <summary>Para onde foi o código de confirmação, para a tela dizer em que caixa de entrada olhar.</summary>
 /// <param name="Email">E-mail da conta, mascarado — a tela confirma o destino sem expor o endereço inteiro.</param>
@@ -82,7 +123,23 @@ public sealed record AdesaoComTermo(AdesaoDoFormando Adesao, string ConteudoDoTe
 /// <param name="AdesaoId">Adesão mais recente, se houver — é o que abre o PDF.</param>
 /// <param name="Versao">Versão aceita na adesão mais recente.</param>
 /// <param name="AceitoEm">Momento dela, em UTC.</param>
-public sealed record SituacaoDeAdesao(Guid UsuarioId, string Nome, string Email, string Papel, Guid? AdesaoId, int? Versao, DateTime? AceitoEm);
+/// <param name="Cesta">Os pacotes da cesta, com o detalhe livre de cada um (Sprint 48, D40).</param>
+public sealed record SituacaoDeAdesao(
+    Guid UsuarioId,
+    string Nome,
+    string Email,
+    string Papel,
+    Guid? AdesaoId,
+    int? Versao,
+    DateTime? AceitoEm,
+    IReadOnlyList<PacoteEscolhido>? Cesta = null
+);
+
+/// <summary>Um pacote na cesta de um formando, como a Gestão o lê no painel de adesões (D40).</summary>
+/// <param name="ItemDeCobrancaId">Pacote.</param>
+/// <param name="Rotulo">"Festa — Festa 15", ou o nome do pacote avulso.</param>
+/// <param name="Observacao">O detalhe livre que o formando escreveu, se escreveu.</param>
+public sealed record PacoteEscolhido(Guid ItemDeCobrancaId, string Rotulo, string? Observacao);
 
 /// <summary>Filtros do painel de adesões.</summary>
 /// <param name="Aderiu">Só quem aderiu (<c>true</c>), só quem falta (<c>false</c>) ou todos (nulo).</param>

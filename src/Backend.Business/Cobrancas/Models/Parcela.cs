@@ -58,6 +58,16 @@ public class Parcela : EntidadeDaFormatura
     /// <summary>Dia em que a parcela foi quitada. Só quando o pago alcançou o devido.</summary>
     public DateOnly? PagoEm { get; private set; }
 
+    /// <summary>
+    /// Até quando a parcela está fora da régua e da inadimplência — o prazo de resposta de uma solicitação de
+    /// cancelamento (Sprint 48, D12/D37). Nulo, ou no passado: cobra normalmente.
+    /// </summary>
+    /// <remarks>
+    /// Data, e não marca: vencido o prazo sem resposta, a cobrança volta sozinha, sem job. É coluna, e não
+    /// subconsulta na solicitação, porque as agregações por situação (<c>GROUP BY</c>) não traduzem subconsulta.
+    /// </remarks>
+    public DateOnly? SuspensaAte { get; private set; }
+
     /// <summary>Cria a parcela de um vínculo a partir de uma linha da grade.</summary>
     /// <param name="vinculoId">Quem deve.</param>
     /// <param name="itemId">Item de origem.</param>
@@ -77,11 +87,27 @@ public class Parcela : EntidadeDaFormatura
     public StatusDaParcela StatusEm(DateOnly hoje) => StatusNoDia(Status, Vencimento, hoje);
 
     /// <summary>A mesma regra de <see cref="StatusEm"/>, para quem leu só as colunas.</summary>
+    /// <remarks>
+    /// Na leitura, a suspensa continua aberta (D12): a tela não pode chamar de vencida o que a régua e a
+    /// inadimplência deixaram de contar. Quem decide (repactuar, cancelar) usa <see cref="StatusEm"/>, sem ela.
+    /// </remarks>
     /// <param name="gravado">Status gravado.</param>
     /// <param name="vencimento">Dia do vencimento.</param>
     /// <param name="hoje">Dia de referência.</param>
-    public static StatusDaParcela StatusNoDia(StatusDaParcela gravado, DateOnly vencimento, DateOnly hoje) =>
-        gravado == StatusDaParcela.Aberta && vencimento < hoje ? StatusDaParcela.Vencida : gravado;
+    /// <param name="suspensaAte">Até quando a parcela está suspensa, se estiver.</param>
+    public static StatusDaParcela StatusNoDia(StatusDaParcela gravado, DateOnly vencimento, DateOnly hoje, DateOnly? suspensaAte = null) =>
+        gravado == StatusDaParcela.Aberta && vencimento < hoje && !(suspensaAte >= hoje) ? StatusDaParcela.Vencida : gravado;
+
+    /// <summary>Tira a parcela aberta da régua e da inadimplência até o dia informado (D12). Paga ou cancelada não muda.</summary>
+    /// <param name="ate">Último dia da suspensão — o prazo de resposta da comissão.</param>
+    public void Suspender(DateOnly ate)
+    {
+        if (Status == StatusDaParcela.Aberta)
+            SuspensaAte = ate;
+    }
+
+    /// <summary>A comissão respondeu: a cobrança volta no mesmo dia.</summary>
+    public void Retomar() => SuspensaAte = null;
 
     /// <summary>
     /// Aplica o valor novo do item, se a parcela ainda não venceu.
@@ -202,6 +228,25 @@ public class Parcela : EntidadeDaFormatura
             return false;
 
         Status = StatusDaParcela.Cancelada;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Deixa de ser devida em qualquer situação, inclusive paga: a comissão aprovou o cancelamento do pacote (D8).
+    /// </summary>
+    /// <remarks>
+    /// O que já entrou continua no <see cref="ValorPagoEmCentavos"/>, e quem chama o leva à lista "a devolver" (D9) —
+    /// é a mesma forma da cancelada com pagamento parcial (Sprint 42, F2), e o estorno dela já funciona.
+    /// </remarks>
+    /// <returns>Se mudou agora.</returns>
+    public bool Desfazer()
+    {
+        if (Status == StatusDaParcela.Cancelada)
+            return false;
+
+        Status = StatusDaParcela.Cancelada;
+        SuspensaAte = null;
 
         return true;
     }

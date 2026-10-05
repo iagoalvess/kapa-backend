@@ -1,6 +1,7 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Models;
+using Backend.Business.Cobrancas.Models;
 using Backend.Business.Formaturas.Models;
 using Backend.Data.Context;
 using Backend.Data.Criptografia;
@@ -95,6 +96,9 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
     }
 
     /// <inheritdoc />
+    public async Task AdicionarAditivo(AditivoDaAdesao aditivo, CancellationToken ct = default) => await db.AditivosDaAdesao.AddAsync(aditivo, ct);
+
+    /// <inheritdoc />
     public async Task Adicionar(AdesaoDoFormando adesao, CancellationToken ct = default)
     {
         var entrada = await db.Adesoes.AddAsync(adesao, ct);
@@ -135,6 +139,7 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
             where vinculo.FormaturaId == formaturaId && vinculo.Ativo
             select new
             {
+                VinculoId = vinculo.Id,
                 UsuarioId = usuario.Id,
                 Nome = perfil != null && perfil.NomeCompleto != null ? perfil.NomeCompleto : usuario.Nome,
                 Email = usuario.Email ?? string.Empty,
@@ -178,22 +183,52 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
             _ => consulta.OrderBy(linha => linha.Nome),
         };
 
-        var itens = await ordenada
-            .ThenBy(linha => linha.UsuarioId)
-            .Skip(paginacao.Pular)
-            .Take(paginacao.Tamanho)
-            .Select(linha => new SituacaoDeAdesao(
-                linha.UsuarioId,
-                linha.Nome,
-                linha.Email,
-                linha.Papel,
-                linha.AdesaoId,
-                linha.Versao,
-                linha.AceitoEm
-            ))
-            .ToListAsync(ct);
+        var itens = await ordenada.ThenBy(linha => linha.UsuarioId).Skip(paginacao.Pular).Take(paginacao.Tamanho).ToListAsync(ct);
 
-        return new PaginaDe<SituacaoDeAdesao>(itens, paginacao.Pagina, paginacao.Tamanho, total);
+        var vinculos = itens.Select(linha => linha.VinculoId).ToList();
+        var escolhas = await (
+            from escolha in db.EscolhasDaCesta.AsNoTracking()
+            join item in db.ItensDeCobranca.AsNoTracking() on escolha.ItemDeCobrancaId equals item.Id
+            where vinculos.Contains(escolha.VinculoId)
+            orderby item.CriadoEm, item.Id
+            select new
+            {
+                escolha.VinculoId,
+                item.Id,
+                item.Grupo,
+                item.Tipo,
+                item.Descricao,
+                escolha.Observacao,
+            }
+        ).ToListAsync(ct);
+        var cestas = escolhas.ToLookup(escolha => escolha.VinculoId);
+
+        return new PaginaDe<SituacaoDeAdesao>(
+            [
+                .. itens.Select(linha => new SituacaoDeAdesao(
+                    linha.UsuarioId,
+                    linha.Nome,
+                    linha.Email,
+                    linha.Papel,
+                    linha.AdesaoId,
+                    linha.Versao,
+                    linha.AceitoEm,
+                    [
+                        .. cestas[linha.VinculoId]
+                            .Select(escolha => new PacoteEscolhido(
+                                escolha.Id,
+                                escolha.Grupo is null
+                                    ? RotuloDoItem.De(escolha.Tipo, escolha.Descricao)
+                                    : $"{escolha.Grupo} — {RotuloDoItem.De(escolha.Tipo, escolha.Descricao)}",
+                                escolha.Observacao
+                            )),
+                    ]
+                )),
+            ],
+            paginacao.Pagina,
+            paginacao.Tamanho,
+            total
+        );
     }
 
     /// <inheritdoc />

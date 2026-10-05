@@ -31,7 +31,7 @@ public sealed class PlanoDaTurmaTests(ApiFactory fabrica)
     public static TheoryData<string> RotasDaFesta =>
         [
             "/api/v1/festa/portaria",
-            "/api/v1/festa/cota",
+            "/api/v1/festa/painel-de-convites",
             "/api/v1/festa/convites/resumo",
             "/api/v1/festa/convites/meus",
             "/api/v1/loja/compras/resumo",

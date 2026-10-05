@@ -72,6 +72,24 @@ public sealed class EmailsDeAdesao(IEmailService emailService, IOptions<Aplicaca
             ct
         );
 
+    /// <summary>O código que confirma o aceite de um aditivo — a cesta que cresce depois da adesão (Sprint 48, D38).</summary>
+    /// <param name="email">Conta de quem aceita.</param>
+    /// <param name="formatura">Nome da turma.</param>
+    /// <param name="codigo">Seis dígitos.</param>
+    /// <param name="minutos">Validade prometida.</param>
+    public Task CodigoDoAditivo(string email, string formatura, string codigo, int minutos, CancellationToken ct = default) =>
+        Enfileirar(
+            email,
+            $"{codigo} é o seu código do aditivo — {formatura}",
+            "Código para mudar a sua cesta",
+            $"Use o código <strong>{ModeloDeEmail.Texto(codigo)}</strong> para confirmar o aditivo à sua adesão em "
+                + $"<strong>{ModeloDeEmail.Texto(formatura)}</strong>. Ele vale por poucos minutos — conte com {minutos}. "
+                + "Se não foi você quem pediu, ignore esta mensagem — sem o código, nada muda.",
+            "Voltar ao termo",
+            Mascote.Celular,
+            ct
+        );
+
     /// <summary>Lembrete da comissão para quem ainda não aderiu à versão vigente.</summary>
     /// <param name="email">Membro lembrado.</param>
     /// <param name="formatura">Nome da turma.</param>

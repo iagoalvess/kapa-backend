@@ -1,7 +1,10 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Backend.Api.DTOs.Auth;
+using Backend.Business.Adesoes.Models;
 using Backend.Business.Assinaturas.Models;
+using Backend.Business.Cobrancas.Models;
+using Backend.Business.Common.Datas;
 using Backend.Business.Formaturas.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -57,6 +60,41 @@ public static class FormaturaDeTeste
     /// <summary>Cria uma formatura ativa e contratada, sem membros.</summary>
     /// <param name="fabrica">API de teste.</param>
     public static Task<Guid> CriarFormatura(this ApiFactory fabrica, CancellationToken ct) => fabrica.CriarFormatura(StatusDaFormatura.Ativa, ct);
+
+    /// <summary>
+    /// Uma formatura ativa e contratada que já pode convidar formandos: termo publicado e catálogo vigente com um
+    /// pacote (Sprint 47, D34).
+    /// </summary>
+    /// <remarks>Gravados direto no banco: quem usa isto testa o convite, não a montagem do plano.</remarks>
+    /// <param name="fabrica">API de teste.</param>
+    public static async Task<Guid> CriarFormaturaQueConvida(this ApiFactory fabrica, CancellationToken ct)
+    {
+        var formaturaId = await fabrica.CriarFormatura(ct);
+
+        await using var contexto = fabrica.ContextoDe(formaturaId);
+        var plano = new PlanoDeCobranca { Nome = "Plano 2027" };
+        plano.Itens.Add(
+            ItemDeCobranca.NovoPacote(
+                plano.Id,
+                new DadosDoPacote(new DadosDoItem(TipoDeCobranca.Festa, "Festa", 300_000, 10, 10, DataUtils.Hoje().AddMonths(1)))
+            )
+        );
+        plano.Vigorar(DateTime.UtcNow);
+        contexto.PlanosDeCobranca.Add(plano);
+        contexto.ItensDeCobranca.AddRange(plano.Itens);
+        contexto.TermosDeAdesao.Add(
+            new TermoDaFormatura
+            {
+                Versao = 1,
+                Conteudo = "# Termo da turma",
+                VigenteDesde = DateTime.UtcNow,
+            }
+        );
+
+        await contexto.SaveChangesAsync(ct);
+
+        return formaturaId;
+    }
 
     /// <summary>Cria uma formatura no status pedido, sem membros.</summary>
     /// <remarks>

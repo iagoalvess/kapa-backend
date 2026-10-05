@@ -33,6 +33,26 @@ public sealed record DadosDoItem(
     DateOnly PrimeiroMes
 );
 
+/// <summary>Um pacote do catálogo, como a tesouraria o informa (Sprint 47).</summary>
+/// <remarks>
+/// Compõe <see cref="DadosDoItem"/> em vez de repetir os campos, como <c>DadosDoOpcional</c>: o item é congelado no
+/// snapshot da adesão e não cresce.
+/// </remarks>
+/// <param name="Item">Tipo, descrição, preço total e grade.</param>
+/// <param name="Grupo">Grupo de faixas ("Festa"); nulo é pacote avulso.</param>
+/// <param name="ConvitesDaFesta">Convites da festa que o pacote concede.</param>
+/// <param name="ConvitesDaColacao">Convites da colação que o pacote concede.</param>
+/// <param name="UltimoVencimento">Até quando a última parcela pode vencer; nulo não confere (D28).</param>
+/// <param name="CancelavelAte">Último dia em que o formando pode pedir o cancelamento; nulo, sem trava (Sprint 48, D36).</param>
+public sealed record DadosDoPacote(
+    DadosDoItem Item,
+    string? Grupo = null,
+    int ConvitesDaFesta = 0,
+    int ConvitesDaColacao = 0,
+    DateOnly? UltimoVencimento = null,
+    DateOnly? CancelavelAte = null
+);
+
 /// <summary>
 /// A marca que faz um item novo alcançar também quem já aderiu — o rateio extraordinário.
 /// </summary>
@@ -47,7 +67,24 @@ public sealed record DadosDoItem(
 /// </para>
 /// </remarks>
 /// <param name="OrigemDaDecisao">Onde a turma decidiu: "assembleia de 12/10".</param>
-public sealed record RateioExtraordinario(string OrigemDaDecisao);
+/// <param name="Alvo">
+/// Os pacotes de quem paga — "Festa" é as faixas do grupo (Sprint 48, D19). Vazio ou nulo: todos os que já aderiram.
+/// </param>
+public sealed record RateioExtraordinario(string OrigemDaDecisao, IReadOnlyList<Guid>? Alvo = null);
+
+/// <summary>Quantos formandos uma operação alcança e quanto muda — a pergunta antes de confirmar (D19, D21).</summary>
+/// <param name="Formandos">Quantos formandos.</param>
+/// <param name="Parcelas">Quantas parcelas mudam ou nascem.</param>
+/// <param name="TotalEmCentavos">Quanto a soma do que eles devem muda, em centavos.</param>
+public sealed record Alcance(int Formandos, int Parcelas, long TotalEmCentavos);
+
+/// <summary>Um valor que a tesouraria lança no vínculo de um formando (Sprint 48, D23).</summary>
+/// <param name="UsuarioId">O formando — o mesmo id que a lista de parcelas usa.</param>
+/// <param name="Descricao">O que é: "multa da mesa quebrada", "bolsa da comissão".</param>
+/// <param name="ValorEmCentavos">Total, em centavos. Negativo credita (bolsa, desconto).</param>
+/// <param name="NumeroDeParcelas">Em quantas vezes, mensal (D42).</param>
+/// <param name="PrimeiroVencimento">Dia da primeira parcela; as seguintes vencem no mesmo dia dos meses seguintes.</param>
+public sealed record LancamentoAvulso(Guid UsuarioId, string Descricao, long ValorEmCentavos, int NumeroDeParcelas, DateOnly PrimeiroVencimento);
 
 /// <summary>Plano na lista da turma.</summary>
 /// <param name="Id">Identificador.</param>
@@ -105,6 +142,13 @@ public sealed record PlanoDeCobrancaDetalhe(
 /// <param name="ItemDaFestaId">O item da festa que este item vende (decisão 11).</param>
 /// <param name="ModoDeVenda">Vitrine do formando ou loja pública (Sprint 26).</param>
 /// <param name="PrecoPublicoEmCentavos">Preço na loja, se diferente do do formando.</param>
+/// <param name="Pacote">Pacote do catálogo: só cobra quem o escolhe na adesão (Sprint 47).</param>
+/// <param name="Grupo">Grupo de faixas do pacote; nulo é pacote avulso.</param>
+/// <param name="ConvitesDaFesta">Convites da festa que o pacote concede.</param>
+/// <param name="ConvitesDaColacao">Convites da colação que o pacote concede.</param>
+/// <param name="UltimoVencimento">Até quando a última parcela pode vencer (D28).</param>
+/// <param name="CancelavelAte">Último dia para o formando pedir o cancelamento (Sprint 48, D36).</param>
+/// <param name="AlvoDoRateio">Os pacotes de quem o rateio cobrou; vazio é todos (D19).</param>
 public sealed record ItemDeCobrancaDetalhe(
     Guid Id,
     TipoDeCobranca Tipo,
@@ -124,7 +168,14 @@ public sealed record ItemDeCobrancaDetalhe(
     DateTime? AberturaDeVendas = null,
     Guid? ItemDaFestaId = null,
     ModoDeVenda ModoDeVenda = ModoDeVenda.AoFormando,
-    long? PrecoPublicoEmCentavos = null
+    long? PrecoPublicoEmCentavos = null,
+    bool Pacote = false,
+    string? Grupo = null,
+    int ConvitesDaFesta = 0,
+    int ConvitesDaColacao = 0,
+    DateOnly? UltimoVencimento = null,
+    DateOnly? CancelavelAte = null,
+    IReadOnlyList<Guid>? AlvoDoRateio = null
 )
 {
     /// <summary>
@@ -153,7 +204,14 @@ public sealed record ItemDeCobrancaDetalhe(
             item.AberturaDeVendas,
             item.ItemDaFestaId,
             item.ModoDeVenda,
-            item.PrecoPublicoEmCentavos
+            item.PrecoPublicoEmCentavos,
+            item.Pacote,
+            item.Grupo,
+            item.ConvitesDaFesta,
+            item.ConvitesDaColacao,
+            item.UltimoVencimento,
+            item.CancelavelAte,
+            item.AlvoDoRateio
         );
 }
 
@@ -219,6 +277,10 @@ public sealed record FiltroDeParcelas(
 /// Alguma baixa que vale veio do Mercado Pago (Sprint 42, decisão 4): o estorno à mão avisa que o Kapa só desfaz o
 /// registro, e que a devolução no painel é da comissão.
 /// </param>
+/// <param name="SuspensaAte">
+/// Até quando a parcela está fora da régua e da inadimplência — há solicitação de cancelamento esperando a comissão
+/// (Sprint 48, D12).
+/// </param>
 public sealed record ParcelaResumo(
     Guid Id,
     Guid VinculoId,
@@ -237,7 +299,8 @@ public sealed record ParcelaResumo(
     DateOnly? PagoEm = null,
     ValorDoDia? ValorDoDia = null,
     Guid? RecebimentoId = null,
-    bool PeloMercadoPago = false
+    bool PeloMercadoPago = false,
+    DateOnly? SuspensaAte = null
 )
 {
     /// <summary>Se ainda se deve: aberta ou vencida.</summary>
@@ -294,4 +357,30 @@ public sealed record ResumoDeParcelas(
     SomaDeParcelas Paga,
     SomaDeParcelas Cancelada,
     long VencidoAtualizadoEmCentavos
+);
+
+/// <summary>Um lançamento avulso no vínculo de um formando, na lista da tesouraria (Sprint 48, D23).</summary>
+/// <param name="ItemDeCobrancaId">O item do lançamento — é por ele que se encerra.</param>
+/// <param name="PlanoId">O plano em que nasceu.</param>
+/// <param name="UsuarioId">O formando.</param>
+/// <param name="Nome">Nome civil do cadastro, ou o da conta.</param>
+/// <param name="Descricao">O que é.</param>
+/// <param name="ValorEmCentavos">Total; negativo é crédito.</param>
+/// <param name="NumeroDeParcelas">Em quantas vezes.</param>
+/// <param name="PrimeiroVencimento">Dia da primeira parcela.</param>
+/// <param name="LancadoEm">Quando foi lançado, em UTC.</param>
+/// <param name="EncerradoEm">Quando foi encerrado, se foi.</param>
+/// <param name="PagoEmCentavos">O que já entrou pelas parcelas dele.</param>
+public sealed record LancamentoResumo(
+    Guid ItemDeCobrancaId,
+    Guid PlanoId,
+    Guid UsuarioId,
+    string Nome,
+    string? Descricao,
+    long ValorEmCentavos,
+    int NumeroDeParcelas,
+    DateOnly PrimeiroVencimento,
+    DateTime LancadoEm,
+    DateOnly? EncerradoEm,
+    long PagoEmCentavos
 );

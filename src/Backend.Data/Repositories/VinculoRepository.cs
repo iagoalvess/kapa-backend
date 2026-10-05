@@ -70,6 +70,22 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
             .FirstOrDefaultAsync(ct);
 
     /// <inheritdoc />
+    /// <remarks>Uma consulta: o vínculo ativo de papel Formando, a existência do termo e a da adesão, por <c>EXISTS</c>.</remarks>
+    public Task<bool> FormandoSemAdesao(Guid usuarioId, Guid formaturaId, CancellationToken ct = default) =>
+        db
+            .Vinculos.AsNoTracking()
+            .AnyAsync(
+                v =>
+                    v.UsuarioId == usuarioId
+                    && v.FormaturaId == formaturaId
+                    && v.Ativo
+                    && v.Papel == PapelNaFormatura.Formando
+                    && db.TermosDeAdesao.Any(t => t.FormaturaId == formaturaId)
+                    && !db.Adesoes.Any(a => a.VinculoId == v.Id),
+                ct
+            );
+
+    /// <inheritdoc />
     public Task<VinculoAtivo?> ObterDoTitular(Guid usuarioId, Guid formaturaId, CancellationToken ct = default) =>
         db
             .Vinculos.AsNoTracking()

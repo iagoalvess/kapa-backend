@@ -41,6 +41,7 @@ public sealed class RelatorioRepository(AppDbContext db) : IRelatorioRepository
     /// denominador puxa o índice da turma para baixo para sempre, e o número que a turma vê é o
     /// número em que ela confia. A parcela cancelada já sai sozinha, pelo status.
     /// </para>
+    /// <para>A aberta suspensa por solicitação de cancelamento (Sprint 48, D12) também sai, enquanto o prazo corre.</para>
     /// </remarks>
     public async Task<Adimplencia> Adimplencia(DateOnly hoje, CancellationToken ct = default)
     {
@@ -48,7 +49,7 @@ public sealed class RelatorioRepository(AppDbContext db) : IRelatorioRepository
             .Parcelas.AsNoTracking()
             .Where(p =>
                 p.Vencimento <= hoje
-                && (p.Status == StatusDaParcela.Aberta || p.Status == StatusDaParcela.Paga)
+                && (p.Status == StatusDaParcela.Paga || (p.Status == StatusDaParcela.Aberta && !(p.SuspensaAte >= hoje)))
                 && db.Vinculos.Any(v => v.Id == p.VinculoId && v.Ativo)
             )
             .GroupBy(p => p.Status == StatusDaParcela.Paga)

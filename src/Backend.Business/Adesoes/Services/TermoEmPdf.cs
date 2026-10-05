@@ -29,6 +29,8 @@ public static partial class TermoEmPdf
     private static readonly (float, bool)[] ColunasDosItens = [(36, false), (19, true), (14, true), (18, true), (13, true)];
 
     /// <summary>Proporção das colunas da grade: posição, item, vencimento, valor.</summary>
+    private static readonly (float, bool)[] ColunasDaCesta = [(45, false), (20, true), (35, false)];
+
     private static readonly (float, bool)[] ColunasDaGrade = [(14, false), (37, false), (22, true), (27, true)];
 
     /// <summary>Monta o PDF.</summary>
@@ -49,6 +51,7 @@ public static partial class TermoEmPdf
             $"Versão {registro.Versao} do termo da turma, aceita por {registro.NomeCompleto} em {Data(aceitoEm)} às {Hora(aceitoEm)}."
         );
 
+        QuadroDeEscolhas(pdf, plano);
         ResumoFinanceiro(pdf, plano);
         Markdown(pdf.Secao("Termo"), adesao.ConteudoDoTermo);
 
@@ -64,7 +67,7 @@ public static partial class TermoEmPdf
             pdf.Paragrafo($"Confirmado por código enviado a: {registro.EmailDoAceite}");
 
         pdf.Paragrafo($"Navegador: {registro.UserAgent}", discreto: true)
-            .Paragrafo($"SHA-256 do termo e do plano aceitos: {registro.HashDoConteudo}", discreto: true);
+            .Paragrafo($"Código de verificação do termo e do plano aceitos: {registro.HashDoConteudo}", discreto: true);
 
         return pdf.Gerar($"Termo de adesão · versão {registro.Versao} · adesão {registro.Id}");
     }
@@ -105,6 +108,28 @@ public static partial class TermoEmPdf
                         Data(parcela.Vencimento),
                         FormatosBrasileiros.Reais(parcela.ValorEmCentavos),
                     }
+                )
+            );
+    }
+
+    /// <summary>
+    /// O anexo do termo: os pacotes que esta pessoa contratou e o que cada um concede (Sprint 47, D3).
+    /// </summary>
+    /// <remarks>Adesão anterior à cesta não tem o quadro, e a seção não aparece.</remarks>
+    /// <param name="pdf">Documento em montagem.</param>
+    /// <param name="plano">Snapshot aceito.</param>
+    private static void QuadroDeEscolhas(DocumentoPdf pdf, SnapshotDoPlano plano)
+    {
+        if (plano.Cesta is not { Count: > 0 } cesta)
+            return;
+
+        pdf.Secao("Quadro de escolhas")
+            .Paragrafo("Os pacotes contratados por quem assina, que fazem parte deste termo.")
+            .Tabela(
+                ColunasDaCesta,
+                ["Pacote", "Preço", "Concede"],
+                cesta.Select(pacote =>
+                    new[] { pacote.Rotulo(), FormatosBrasileiros.Reais(pacote.ValorEmCentavos), pacote.BeneficiosPorExtenso() ?? "—" }
                 )
             );
     }

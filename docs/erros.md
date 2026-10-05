@@ -61,12 +61,19 @@ nossa, e o `trace_id` é o que o resolve.
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
+| <a id="adesao.aditivo_desatualizado"></a>`adesao.aditivo_desatualizado` | 409 | O catálogo ou a cesta mudou entre a prévia e o aceite do aditivo. Peça a prévia de novo (Sprint 48, D38). |
+| <a id="adesao.aditivo_sem_adesao"></a>`adesao.aditivo_sem_adesao` | 409 | Aditivo é mudança de uma adesão: o formando ainda não aderiu ao termo. |
+| <a id="adesao.aditivo_sem_pacote"></a>`adesao.aditivo_sem_pacote` | 400 | O aditivo veio sem pacote. Escolha ao menos um para acrescentar. |
+| <a id="adesao.aditivo_so_acrescenta"></a>`adesao.aditivo_so_acrescenta` | 409 | O pacote escolhido não custa mais que a faixa que ele substituiria: o aditivo só acrescenta (D38). Descer de faixa ou tirar um pacote é solicitação de cancelamento. |
 | <a id="adesao.cadastro_incompleto"></a>`adesao.cadastro_incompleto` | 409 | Para aderir, informe no seu cadastro o nome completo, o CPF e a data de nascimento. |
+| <a id="adesao.cesta_sem_escolha"></a>`adesao.cesta_sem_escolha` | 400 | Escolha ao menos um pacote para aderir (Sprint 47, D33). |
 | <a id="adesao.codigo_invalido"></a>`adesao.codigo_invalido` | 409 | O código não confere ou já expirou. Peça um código novo e use o mais recente que chegou no seu e-mail. |
 | <a id="adesao.cpf_em_uso"></a>`adesao.cpf_em_uso` | 409 | Este CPF já está na adesão de outra pessoa da turma. Confira o seu cadastro ou fale com a comissão. |
 | <a id="adesao.ja_aderiu"></a>`adesao.ja_aderiu` | 409 | Você já aderiu a esta versão do termo. |
 | <a id="adesao.menor_de_idade"></a>`adesao.menor_de_idade` | 409 | Quem tem menos de 18 anos adere com a comissão, junto com o responsável legal, e não pela plataforma. |
 | <a id="adesao.nao_encontrada"></a>`adesao.nao_encontrada` | 404 | Adesão não encontrada. |
+| <a id="adesao.pacote_ja_contratado"></a>`adesao.pacote_ja_contratado` | 400 | O pacote escolhido no aditivo já está na cesta do formando. |
+| <a id="adesao.pendente"></a>`adesao.pendente` | 403 | O formando ainda não aderiu ao termo publicado da turma: só Meu termo e Meu cadastro respondem até o aceite (Sprint 47, D18). |
 | <a id="adesao.resumo_descartado"></a>`adesao.resumo_descartado` | 400 | O modelo *{modelo}* devolveu *{n}* caracteres. Só no job do worker que gera o resumo do termo por IA; não chega à API. |
 | <a id="adesao.sem_plano_vigente"></a>`adesao.sem_plano_vigente` | 409 | A turma ainda não tem plano de cobrança em vigor. |
 | <a id="adesao.sem_termo_publicado"></a>`adesao.sem_termo_publicado` | 409 | A comissão ainda não publicou o termo de adesão da turma. |
@@ -134,15 +141,18 @@ nossa, e o `trace_id` é o que o resolve.
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
-| <a id="cobranca.adesao_duplicada"></a>`cobranca.adesao_duplicada` | 409 | Este plano já tem uma taxa de adesão. |
+| <a id="cobranca.alvo_invalido"></a>`cobranca.alvo_invalido` | 400 | Um dos pacotes do alvo do rateio não está no catálogo da turma (Sprint 48, D19). |
 | <a id="cobranca.antecedencia_obrigatoria"></a>`cobranca.antecedencia_obrigatoria` | 400 | Diga com quantos dias de antecedência o desconto vale — senão ele sai para quem pagar um dia antes. |
+| <a id="cobranca.cancelamento_fora_do_prazo"></a>`cobranca.cancelamento_fora_do_prazo` | 409 | Passou o "cancelável até" do item: o formando não abre mais solicitação de cancelamento (Sprint 48, D36). |
+| <a id="cobranca.cesta_duplicada"></a>`cobranca.cesta_duplicada` | 400 | O mesmo pacote foi escolhido duas vezes. |
 | <a id="cobranca.credito_acima_do_pago"></a>`cobranca.credito_acima_do_pago` | 400 | O crédito não pode passar do que o formando já pagou neste pedido. |
 | <a id="cobranca.credito_da_tesouraria"></a>`cobranca.credito_da_tesouraria` | 403 | Só a tesouraria lança crédito de um pedido já pago. |
 | <a id="cobranca.credito_invalido"></a>`cobranca.credito_invalido` | 400 | O crédito não pode ser negativo. |
 | <a id="cobranca.dia_invalido"></a>`cobranca.dia_invalido` | 400 | O vencimento vai do dia 1 ao 31. |
 | <a id="cobranca.estoque_esgotado"></a>`cobranca.estoque_esgotado` | 409 | Não há mais unidades deste item disponíveis. |
 | <a id="cobranca.estoque_menor_que_reservado"></a>`cobranca.estoque_menor_que_reservado` | 409 | Já foram pedidas … unidades deste item. Cancele pedidos antes de reduzir o estoque. |
-| <a id="cobranca.grade_depois_da_festa"></a>`cobranca.grade_depois_da_festa` | 400 | A última parcela do convite extra venceria depois do fechamento da lista de convidados, 24 h antes da festa (Sprint 21, P2.1). |
+| <a id="cobranca.faixa_invalida"></a>`cobranca.faixa_invalida` | 400 | Duas faixas do mesmo grupo na cesta ("Festa 10" e "Festa 15"): escolha só uma (Sprint 47, D32). |
+| <a id="cobranca.formando_nao_encontrado"></a>`cobranca.formando_nao_encontrado` | 404 | O formando do lançamento avulso não é membro ativo desta turma. |
 | <a id="cobranca.item_com_pedido"></a>`cobranca.item_com_pedido` | 409 | Este item já foi pedido por alguém e não pode ser excluído. Encerre-o: ele para de aceitar pedidos e o que já foi pedido fica. |
 | <a id="cobranca.item_da_festa_invalido"></a>`cobranca.item_da_festa_invalido` | 400 | Escolha um item da festa que exista, esteja de pé e seja rateado por formando. |
 | <a id="cobranca.item_da_loja"></a>`cobranca.item_da_loja` | 409 | Este item é vendido pela loja da turma. Compre pelo link da loja (Sprint 26, P8). |
@@ -150,8 +160,14 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="cobranca.item_encerrado"></a>`cobranca.item_encerrado` | 409 | Este item não está mais à venda. |
 | <a id="cobranca.item_nao_e_opcional"></a>`cobranca.item_nao_e_opcional` | 400 | Este item é do plano da turma e não se pede — ele já está no seu extrato. |
 | <a id="cobranca.item_nao_encontrado"></a>`cobranca.item_nao_encontrado` | 404 | Item opcional não encontrado. |
+| <a id="cobranca.lancamento_retroativo"></a>`cobranca.lancamento_retroativo` | 400 | O primeiro vencimento do lançamento avulso está no passado: a parcela nasceria vencida (Sprint 48, D23). |
+| <a id="cobranca.lancamento_sem_adesao"></a>`cobranca.lancamento_sem_adesao` | 409 | O formando ainda não aderiu ao termo: sem a adesão, não há regra de atraso para o lançamento avulso. |
 | <a id="cobranca.limite_do_item_excedido"></a>`cobranca.limite_do_item_excedido` | 409 | Cada formando pode pedir no máximo … unidades deste item. |
+| <a id="cobranca.motivo_da_recusa"></a>`cobranca.motivo_da_recusa` | 400 | Recusar uma solicitação de cancelamento exige o motivo, em até 300 caracteres — o formando o lê. |
+| <a id="cobranca.motivo_longo"></a>`cobranca.motivo_longo` | 400 | O motivo da solicitação de cancelamento passou de 300 caracteres. |
+| <a id="cobranca.nada_a_cancelar"></a>`cobranca.nada_a_cancelar` | 404 | O item não está na cesta nem nos pedidos confirmados do formando: rateio e lançamento avulso não se cancelam por solicitação. |
 | <a id="cobranca.origem_obrigatoria"></a>`cobranca.origem_obrigatoria` | 400 | Informe onde a turma decidiu esta cobrança — a assembleia e a data. |
+| <a id="cobranca.pacote_invalido"></a>`cobranca.pacote_invalido` | 400 | Um dos pacotes escolhidos não está mais no catálogo da turma. |
 | <a id="cobranca.parcelas_acima_do_teto"></a>`cobranca.parcelas_acima_do_teto` | 400 | Este item pode ser pago em até …×. |
 | <a id="cobranca.pedido_com_parcela_paga"></a>`cobranca.pedido_com_parcela_paga` | 409 | Este pedido já tem parcela paga. Fale com a tesouraria: o cancelamento agora é dela. |
 | <a id="cobranca.pedido_fora_do_prazo"></a>`cobranca.pedido_fora_do_prazo` | 409 | O prazo para pedir este item já passou. |
@@ -164,7 +180,10 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="cobranca.prazo_antes_da_abertura"></a>`cobranca.prazo_antes_da_abertura` | 400 | O prazo para pedir não pode ser anterior à abertura das vendas. |
 | <a id="cobranca.rateio_retroativo"></a>`cobranca.rateio_retroativo` | 400 | O rateio não pode começar num mês que já passou: a parcela nasceria vencida, com multa e juros. |
 | <a id="cobranca.sem_plano_vigente"></a>`cobranca.sem_plano_vigente` | 409 | A turma ainda não tem plano de cobrança em vigor. |
+| <a id="cobranca.solicitacao_ja_respondida"></a>`cobranca.solicitacao_ja_respondida` | 409 | A solicitação de cancelamento já foi aprovada ou recusada. |
+| <a id="cobranca.solicitacao_nao_encontrada"></a>`cobranca.solicitacao_nao_encontrada` | 404 | Solicitação de cancelamento não encontrada nesta turma. |
 | <a id="cobranca.tipo_invalido"></a>`cobranca.tipo_invalido` | 400 | Este tipo de cobrança não cabe aqui. |
+| <a id="cobranca.ultima_parcela_depois_do_limite"></a>`cobranca.ultima_parcela_depois_do_limite` | 400 | A última parcela venceria depois do último vencimento que a comissão definiu para o item (Sprint 47, D28) — no cadastro do pacote ou do opcional, e na divisão de cada pedido. |
 | <a id="cobranca.valor_invalido"></a>`cobranca.valor_invalido` | 400 | Informe um valor maior que zero. |
 | <a id="cobranca.venda_nao_aberta"></a>`cobranca.venda_nao_aberta` | 409 | As vendas deste item ainda não abriram. |
 
@@ -200,6 +219,7 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="convite.nao_encontrado"></a>`convite.nao_encontrado` | 404 | Convite não encontrado nesta formatura. |
 | <a id="convite.papel_invalido"></a>`convite.papel_invalido` | 400 | Papel inválido. Use Presidente, Tesoureiro, Comissao ou Formando. |
 | <a id="convite.papel_restrito"></a>`convite.papel_restrito` | 403 | Só o Presidente convida para a comissão e a tesouraria. |
+| <a id="convite.sem_termo_ou_plano"></a>`convite.sem_termo_ou_plano` | 409 | Convite de formando antes de a turma publicar o termo e pôr o plano em vigor (Sprint 47, D34). |
 | <a id="convite.vinculo_removido"></a>`convite.vinculo_removido` | 403 | Você foi removido desta formatura. Para voltar, peça à comissão um convite pessoal. |
 
 ### erro
@@ -223,10 +243,9 @@ Não vem do domínio: é o `GlobalExceptionHandler`, a rede de segurança para e
 | Código | Status | Quando acontece |
 | --- | --- | --- |
 | <a id="festa.convite_nao_encontrado"></a>`festa.convite_nao_encontrado` | 404 | Convite não encontrado. Genérico de propósito: código inexistente, assinatura adulterada, convite revogado, convite ainda "a definir" (sem convidado, não há ingresso) e convite de outra turma respondem igual na página pública. |
+| <a id="festa.convite_preso"></a>`festa.convite_preso` | 409 | Convite de pacote preso: o formando tem parcela vencida além da carência. Volta a valer ao regularizar ou quando a comissão libera (Sprint 47, D24). |
 | <a id="festa.convite_revogado"></a>`festa.convite_revogado` | 409 | O convite foi revogado (estorno, cancelamento, transferência ou reemissão); a mensagem traz o motivo. |
 | <a id="festa.convite_sem_titular"></a>`festa.convite_sem_titular` | 409 | O convite ainda não tem nome e documento do convidado — não entra como anônimo (P5). |
-| <a id="festa.cota_ja_aberta"></a>`festa.cota_ja_aberta` | 409 | Os convites já foram emitidos com *{n}* por formando. Depois de aberta, a cota só aumenta. |
-| <a id="festa.cota_nao_configurada"></a>`festa.cota_nao_configurada` | 409 | Defina quantos convites cada formando recebe antes de abrir a cota. |
 | <a id="festa.disputa_encerrada"></a>`festa.disputa_encerrada` | 409 | Este item já foi contratado ou cancelado: a escolha da turma já aconteceu. |
 | <a id="festa.documento_nao_encontrado"></a>`festa.documento_nao_encontrado` | 400 | Documento não encontrado no acervo, ou visível apenas para a comissão. |
 | <a id="festa.documento_obrigatorio"></a>`festa.documento_obrigatorio` | 400 | Depois do fechamento da lista, o convite precisa de nome e documento. |

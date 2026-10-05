@@ -151,8 +151,8 @@ public static class NomesDeAuditoria
     /// <summary>Código de um convite revogado e trocado por outro, pela Gestão (Sprint 21, P5).</summary>
     public const string ConviteReemitido = "festa.convite_reemitido";
 
-    /// <summary>Cota de convites da colação aberta ou reaberta pela Gestão (Sprint 30).</summary>
-    public const string CotaAberta = "festa.cota_aberta";
+    /// <summary>Convites de pacote presos por atraso soltos pela comissão (Sprint 47, D24).</summary>
+    public const string ConvitesDesbloqueados = "festa.convites_desbloqueados";
 
     /// <summary>Entrada desfeita na portaria: alguém que já tinha entrado volta a poder entrar (Sprint 21, decisão 6).</summary>
     public const string EntradaDesfeita = "festa.entrada_desfeita";
@@ -165,6 +165,24 @@ public static class NomesDeAuditoria
 
     /// <summary>Pedido de cancelamento do comprador recusado pela Gestão, com motivo (Sprint 38, P1).</summary>
     public const string PedidoDeCancelamentoRecusado = "loja.pedido_de_cancelamento_recusado";
+
+    /// <summary>O formando pediu o cancelamento de um pacote ou pedido; as parcelas ficam suspensas (Sprint 48, D8/D12).</summary>
+    public const string CancelamentoSolicitado = "cobranca.cancelamento_solicitado";
+
+    /// <summary>A comissão aprovou a solicitação: o pacote ou o pedido caiu, e o pago foi para "a devolver" (D9).</summary>
+    public const string CancelamentoAprovado = "cobranca.cancelamento_aprovado";
+
+    /// <summary>A comissão recusou a solicitação, com motivo; a cobrança volta.</summary>
+    public const string CancelamentoRecusado = "cobranca.cancelamento_recusado";
+
+    /// <summary>
+    /// A tesouraria lançou uma cobrança ou um crédito no vínculo de um formando (D23) — dinheiro que entra ou sai da
+    /// conta de uma pessoa só, pela mão de alguém.
+    /// </summary>
+    public const string LancamentoAvulso = "cobranca.lancamento_avulso";
+
+    /// <summary>O formando aceitou um aditivo: a cesta cresceu, com parcelas novas (D38).</summary>
+    public const string AditivoAceito = "adesao.aditivo_aceito";
 
     /// <summary>Todos os nomes auditáveis.</summary>
     public static readonly IReadOnlyList<string> Todos =
@@ -194,10 +212,15 @@ public static class NomesDeAuditoria
         ConvidadoAlterado,
         ConviteReemitido,
         EntradaDesfeita,
-        CotaAberta,
+        ConvitesDesbloqueados,
         CompraCancelada,
         CompraDevolvida,
         PedidoDeCancelamentoRecusado,
+        CancelamentoSolicitado,
+        CancelamentoAprovado,
+        CancelamentoRecusado,
+        LancamentoAvulso,
+        AditivoAceito,
         TermoPublicado,
         DespesaCancelada,
         OutraReceitaCancelada,

@@ -121,8 +121,8 @@ public sealed class MembroService(
     /// <inheritdoc />
     /// <remarks>
     /// Desativar, nunca apagar: parcelas, pagamentos e adesão continuam apontando para o vínculo.
-    /// Prestação de contas de formatura é consultada meses depois da festa. Os convites da cota da
-    /// colação caem junto: quem saiu da turma não leva ninguém (Sprint 30, decisão 5).
+    /// Prestação de contas de formatura é consultada meses depois da festa. Os convites dos pacotes
+    /// caem junto: quem saiu da turma não leva ninguém (Sprint 30, decisão 5).
     /// </remarks>
     public Task<Result> Remover(Guid formaturaId, Guid usuarioId, Guid autorId, CancellationToken ct = default) =>
         unitOfWork.EmTransacaoAsync(
@@ -138,7 +138,7 @@ public sealed class MembroService(
                     return Result.Falha(UltimoPresidente);
 
                 vinculo.Ativo = false;
-                var convitesRevogados = await convites.RevogarDaCota(vinculo.Id, token);
+                var convitesRevogados = await convites.RevogarDosPacotes(vinculo.Id, token);
 
                 await eventos.Auditar(
                     NomesDeAuditoria.MembroRemovido,
@@ -191,7 +191,7 @@ public sealed class MembroService(
     /// não o move (decisão 5) — mas lê-lo depois faria a soma depender da ordem das operações.
     /// </para>
     /// <para>
-    /// Os convites da cota da colação são revogados com motivo (Sprint 30, decisão 5); os comprados
+    /// Os convites dos pacotes são revogados com motivo (Sprint 30, decisão 5); os comprados
     /// seguem o pedido, que o desligamento não toca.
     /// </para>
     /// </remarks>
@@ -232,7 +232,7 @@ public sealed class MembroService(
                 var aDevolver = await valoresADevolver.RegistrarParciais(canceladas, token);
 
                 vinculo.Desligar(dados.Motivo, dados.Detalhe, DateTime.UtcNow);
-                var convitesRevogados = await convites.RevogarDaCota(vinculo.Id, token);
+                var convitesRevogados = await convites.RevogarDosPacotes(vinculo.Id, token);
 
                 await eventos.Auditar(
                     NomesDeAuditoria.FormandoDesligado,

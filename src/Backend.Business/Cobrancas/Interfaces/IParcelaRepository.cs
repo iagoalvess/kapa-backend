@@ -30,7 +30,15 @@ public interface IParcelaRepository
     /// tela avisar: aqui nasce dívida, e quem saiu da turma não recebe cobrança nova.
     /// </remarks>
     /// <param name="planoId">Plano.</param>
-    Task<IReadOnlyList<Guid>> ListarVinculosAtivosComParcela(Guid planoId, CancellationToken ct = default);
+    /// <param name="alvo">
+    /// Só quem tem algum destes pacotes na cesta — o rateio escopado (Sprint 48, D19). Nulo ou vazio: todos.
+    /// </param>
+    Task<IReadOnlyList<Guid>> ListarVinculosAtivosComParcela(Guid planoId, IReadOnlyCollection<Guid>? alvo = null, CancellationToken ct = default);
+
+    /// <summary>As parcelas de um vínculo num item — o recorte do pedido e do pacote da cesta —, rastreadas.</summary>
+    /// <param name="vinculoId">Formando.</param>
+    /// <param name="itemId">Item.</param>
+    Task<IReadOnlyList<Parcela>> ListarDoVinculoNoItemParaEdicao(Guid vinculoId, Guid itemId, CancellationToken ct = default);
 
     /// <summary>Se o item já gerou alguma parcela.</summary>
     /// <param name="itemId">Item.</param>

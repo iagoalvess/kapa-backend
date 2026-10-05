@@ -24,9 +24,15 @@ public sealed class TermoEmPdfTests
             PercentualDeJurosAoMes = 100,
         };
         plano.Itens.Add(ItemDeCobranca.Novo(plano.Id, new DadosDoItem(TipoDeCobranca.Mensalidade, null, 840_000, 24, 10, new DateOnly(2027, 3, 1))));
+        plano.Itens.Add(
+            ItemDeCobranca.NovoPacote(
+                plano.Id,
+                new DadosDoPacote(new DadosDoItem(TipoDeCobranca.Festa, "15 pessoas", 420_000, 10, 10, new DateOnly(2027, 3, 1)), "Festa", 15, 2)
+            )
+        );
         plano.Vigorar(DateTime.UtcNow);
 
-        return SnapshotDoPlano.De(plano, DataUtils.Hoje());
+        return SnapshotDoPlano.De(plano, plano.Pacotes(), DataUtils.Hoje());
     }
 
     private static AdesaoComTermo Adesao(string cpf = "52998224725") =>
@@ -57,8 +63,9 @@ public sealed class TermoEmPdfTests
         var lido = SnapshotDoPlano.Ler(json.Replace("{\"versaoDoEsquema\"", "{\"campoDoFuturo\":1,\"versaoDoEsquema\"", StringComparison.Ordinal));
 
         lido.ParaJson().ShouldBe(json);
-        lido.Parcelas.Count.ShouldBe(24);
-        lido.TotalEmCentavos.ShouldBe(840_000);
+        lido.Parcelas.Count.ShouldBe(34);
+        lido.TotalEmCentavos.ShouldBe(1_260_000);
+        lido.Cesta.ShouldNotBeNull().Count.ShouldBe(2);
         json.ShouldContain("\"tipo\":\"Mensalidade\"");
     }
 
@@ -89,7 +96,9 @@ public sealed class TermoEmPdfTests
 
         texto.ShouldStartWith("%PDF-1.4");
         texto.ShouldEndWith("%%EOF\n");
-        texto.ShouldContain("(Total: R$ 8.400,00 em 24 parcelas.)");
+        texto.ShouldContain("(Total: R$ 12.600,00 em 34 parcelas.)");
+        texto.ShouldContain("(Quadro de escolhas)");
+        texto.ShouldContain("(15 convites da festa e 2 da cola\\347\\343o)");
         texto.ShouldContain("multa de 2% e juros de 1% ao m\\352s");
         texto.ShouldContain("(Do objeto)");
         texto.ShouldContain("(A turma contrata a formatura.)");

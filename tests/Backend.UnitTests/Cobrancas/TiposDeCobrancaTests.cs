@@ -6,22 +6,30 @@ using Shouldly;
 namespace Backend.UnitTests.Cobrancas;
 
 /// <summary>
-/// Que tipo cabe onde: o plano cobra a turma inteira, o opcional só quem pede — e o convite extra é
-/// dos dois.
+/// Que tipo cabe onde: o pacote é o que o formando escolhe, o rateio cobra quem já aderiu, o opcional só quem pede
+/// (Sprint 47).
 /// </summary>
 public sealed class TiposDeCobrancaTests
 {
     private static DadosDoItem Item(TipoDeCobranca tipo) => new(tipo, null, 18_000, 1, 10, DataUtils.Hoje().AddMonths(1));
 
-    [Theory]
-    [InlineData(TipoDeCobranca.Mesa)]
-    [InlineData(TipoDeCobranca.FotoEAlbum)]
-    [InlineData(TipoDeCobranca.Outro)]
-    public void Tipo_de_opcional_e_recusado_no_plano(TipoDeCobranca tipo)
+    /// <summary>O avulso é o gancho do valor negativo: no rateio cabe, como pacote não (Sprint 47).</summary>
+    [Fact]
+    public void Avulso_cabe_no_rateio_mas_nao_no_pacote()
     {
-        var resultado = new DadosDoItemValidator().Validate(Item(tipo));
+        new DadosDoItemValidator().Validate(Item(TipoDeCobranca.Avulsa)).IsValid.ShouldBeTrue();
+        new DadosDoPacoteValidator()
+            .Validate(new DadosDoPacote(Item(TipoDeCobranca.Avulsa)))
+            .Errors.ShouldContain(erro => erro.ErrorCode == "cobranca.tipo_invalido");
+    }
 
-        resultado.Errors.ShouldContain(erro => erro.ErrorCode == "cobranca.tipo_invalido");
+    [Theory]
+    [InlineData(TipoDeCobranca.Festa)]
+    [InlineData(TipoDeCobranca.Colacao)]
+    [InlineData(TipoDeCobranca.FotoEAlbum)]
+    public void Festa_colacao_e_foto_sao_pacotes_validos(TipoDeCobranca tipo)
+    {
+        new DadosDoPacoteValidator().Validate(new DadosDoPacote(Item(tipo), "Grupo", 10, 2)).IsValid.ShouldBeTrue();
     }
 
     [Theory]

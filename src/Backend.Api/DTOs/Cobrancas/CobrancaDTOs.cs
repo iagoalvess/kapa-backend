@@ -21,8 +21,8 @@ public sealed record PlanoDeCobrancaRequestDTO(
     int DiasMinimosParaDesconto
 );
 
-/// <summary>Corpo de inclusão e alteração de um item.</summary>
-/// <param name="Tipo"><c>Mensalidade</c>, <c>Adesao</c>, <c>Rifa</c>, <c>ConviteExtra</c> ou <c>Avulsa</c>.</param>
+/// <summary>Corpo de inclusão e alteração de um pacote do catálogo — ou, com rateio, do item da assembleia.</summary>
+/// <param name="Tipo">Categoria do pacote (<c>Festa</c>, <c>Colacao</c>, <c>FotoEAlbum</c>…); no rateio, <c>Mensalidade</c>, <c>Adesao</c>, <c>Rifa</c>, <c>ConviteExtra</c> ou <c>Avulsa</c>.</param>
 /// <param name="Descricao">Nome na tela; ausente, vale o tipo.</param>
 /// <param name="ValorEmCentavos">Valor <b>total</b> por formando, em centavos — <c>840000</c> é R$ 8.400,00. Negativo só em <c>Avulsa</c>.</param>
 /// <param name="NumeroDeParcelas">Em quantas vezes, de 1 a 120.</param>
@@ -34,6 +34,22 @@ public sealed record PlanoDeCobrancaRequestDTO(
 /// <b>inclusão</b> — a alteração e a simulação ignoram.
 /// </param>
 /// <param name="OrigemDaDecisao">Onde a turma decidiu: "assembleia de 12/10". Até 200 caracteres.</param>
+/// <param name="Grupo">Grupo de faixas do pacote ("Festa"); ausente, pacote avulso. Na cesta, uma faixa por grupo.</param>
+/// <param name="ConvitesDaFesta">Convites da festa que o pacote concede, de 0 a 100.</param>
+/// <param name="ConvitesDaColacao">Convites da colação que o pacote concede, de 0 a 100.</param>
+/// <param name="UltimoVencimento">
+/// Até quando a última parcela pode vencer, <c>aaaa-mm-dd</c>; ausente, nada é conferido. Passou, 400
+/// <c>cobranca.ultima_parcela_depois_do_limite</c>.
+/// </param>
+/// <param name="Alvo">
+/// No rateio, os pacotes de quem paga — as faixas de "Festa", o pacote "Foto" (Sprint 48, D19). Ausente ou vazio: todos
+/// os que já aderiram. Pacote fora do catálogo, 400 <c>cobranca.alvo_invalido</c>. Só na inclusão.
+/// </param>
+/// <param name="CancelavelAte">Último dia para o formando pedir o cancelamento do pacote, <c>aaaa-mm-dd</c>; ausente, sem trava (D36).</param>
+/// <param name="AplicarAosAtuais">
+/// Na alteração do preço de um item em uso: repactua também quem já aderiu, no que ainda não venceu (D21). Ausente, o
+/// preço novo vale só para quem aderir depois.
+/// </param>
 public sealed record ItemDeCobrancaRequestDTO(
     TipoDeCobranca Tipo,
     string? Descricao,
@@ -42,8 +58,27 @@ public sealed record ItemDeCobrancaRequestDTO(
     int DiaDeVencimento,
     DateOnly PrimeiroMes,
     bool AplicarAQuemJaAderiu = false,
-    string? OrigemDaDecisao = null
-);
+    string? OrigemDaDecisao = null,
+    string? Grupo = null,
+    int ConvitesDaFesta = 0,
+    int ConvitesDaColacao = 0,
+    DateOnly? UltimoVencimento = null,
+    IReadOnlyList<Guid>? Alvo = null,
+    DateOnly? CancelavelAte = null,
+    bool AplicarAosAtuais = false
+)
+{
+    /// <summary>O corpo como o service o recebe.</summary>
+    public DadosDoPacote ParaPacote() =>
+        new(
+            new DadosDoItem(Tipo, Descricao, ValorEmCentavos, NumeroDeParcelas, DiaDeVencimento, PrimeiroMes),
+            Grupo,
+            ConvitesDaFesta,
+            ConvitesDaColacao,
+            UltimoVencimento,
+            CancelavelAte
+        );
+}
 
 /// <summary>Corpo da simulação.</summary>
 /// <param name="Itens">Itens a simular, gravados ou não. Ausente, simula os itens gravados do plano.</param>
@@ -102,6 +137,13 @@ public sealed record PlanoDeCobrancaDTO(
 /// <param name="ItemDaFestaId">O item da festa que este item vende.</param>
 /// <param name="ModoDeVenda"><c>AoFormando</c> ou <c>Publica</c> (a loja, Sprint 26).</param>
 /// <param name="PrecoPublicoEmCentavos">Preço na loja, se diferente do do formando.</param>
+/// <param name="Pacote">Pacote do catálogo: só cobra quem o escolhe na adesão (Sprint 47).</param>
+/// <param name="Grupo">Grupo de faixas do pacote; nulo é pacote avulso.</param>
+/// <param name="ConvitesDaFesta">Convites da festa que o pacote concede.</param>
+/// <param name="ConvitesDaColacao">Convites da colação que o pacote concede.</param>
+/// <param name="UltimoVencimento">Até quando a última parcela pode vencer; nulo não confere.</param>
+/// <param name="CancelavelAte">Último dia para o formando pedir o cancelamento; nulo, sem trava (Sprint 48, D36).</param>
+/// <param name="AlvoDoRateio">Os pacotes de quem o rateio cobrou; vazio é todos (D19).</param>
 public sealed record ItemDeCobrancaDTO(
     Guid Id,
     TipoDeCobranca Tipo,
@@ -121,7 +163,14 @@ public sealed record ItemDeCobrancaDTO(
     DateTime? AberturaDeVendas,
     Guid? ItemDaFestaId,
     ModoDeVenda ModoDeVenda,
-    long? PrecoPublicoEmCentavos
+    long? PrecoPublicoEmCentavos,
+    bool Pacote,
+    string? Grupo,
+    int ConvitesDaFesta,
+    int ConvitesDaColacao,
+    DateOnly? UltimoVencimento,
+    DateOnly? CancelavelAte,
+    IReadOnlyList<Guid> AlvoDoRateio
 );
 
 /// <summary>Uma parcela da simulação.</summary>
@@ -158,6 +207,10 @@ public sealed record SimulacaoDoPlanoDTO(IReadOnlyList<ParcelaSimuladaDTO> Parce
 /// <param name="ValorDoDia">O valor de hoje, com a conta aberta — só na aberta e na vencida.</param>
 /// <param name="RecebimentoId">A última baixa que vale — o recibo abre em <c>/recebimentos/{id}/recibo</c>. Nula sem baixa.</param>
 /// <param name="PeloMercadoPago">Alguma baixa que vale veio do Mercado Pago — o estorno à mão só desfaz o registro (Sprint 42).</param>
+/// <param name="SuspensaAte">
+/// Até quando a parcela está fora da régua e da inadimplência: há solicitação de cancelamento esperando a comissão
+/// (Sprint 48, D12). Nula, cobra normalmente.
+/// </param>
 public sealed record ParcelaDTO(
     Guid Id,
     Guid UsuarioId,
@@ -175,7 +228,8 @@ public sealed record ParcelaDTO(
     DateOnly? PagoEm,
     ValorDoDiaDTO? ValorDoDia,
     Guid? RecebimentoId,
-    bool PeloMercadoPago
+    bool PeloMercadoPago,
+    DateOnly? SuspensaAte
 );
 
 /// <summary>O valor de uma parcela num dia, com a conta aberta — o que o formando vê ao tocar na parcela vencida.</summary>
@@ -215,4 +269,53 @@ public sealed record ResumoDeParcelasDTO(
     SomaDeParcelasDTO Paga,
     SomaDeParcelasDTO Cancelada,
     long VencidoAtualizadoEmCentavos
+);
+
+/// <summary>Quantos formandos uma operação alcança e quanto muda — a pergunta antes de confirmar (Sprint 48, D19/D21).</summary>
+/// <param name="Formandos">Quantos formandos.</param>
+/// <param name="Parcelas">Quantas parcelas mudam; zero no rateio, que nasce com a grade do item.</param>
+/// <param name="TotalEmCentavos">Quanto a soma do que eles devem muda, em centavos.</param>
+public sealed record AlcanceDTO(int Formandos, int Parcelas, long TotalEmCentavos);
+
+/// <summary>Corpo do lançamento avulso no vínculo de um formando (Sprint 48, D23/D42).</summary>
+/// <param name="UsuarioId">O formando.</param>
+/// <param name="Descricao">O que é: "multa da mesa quebrada", "bolsa da comissão". Até 120 caracteres.</param>
+/// <param name="ValorEmCentavos">Total, em centavos. Positivo cobra; negativo credita (bolsa, desconto).</param>
+/// <param name="NumeroDeParcelas">Em quantas vezes, de 1 a 120, mensal.</param>
+/// <param name="PrimeiroVencimento">
+/// Dia da primeira parcela, <c>aaaa-mm-dd</c>; as seguintes vencem no mesmo dia dos meses seguintes. No passado, 400
+/// <c>cobranca.lancamento_retroativo</c>.
+/// </param>
+public sealed record LancamentoAvulsoRequestDTO(
+    Guid UsuarioId,
+    string? Descricao,
+    long ValorEmCentavos,
+    int NumeroDeParcelas,
+    DateOnly PrimeiroVencimento
+);
+
+/// <summary>Um lançamento avulso, na lista da tesouraria.</summary>
+/// <param name="ItemDeCobrancaId">O item do lançamento — encerrá-lo é <c>POST /cobrancas/planos/{plano_id}/itens/{id}/encerrar</c>.</param>
+/// <param name="PlanoId">O plano em que nasceu.</param>
+/// <param name="UsuarioId">O formando.</param>
+/// <param name="Nome">Nome civil do cadastro, ou o da conta.</param>
+/// <param name="Descricao">O que é.</param>
+/// <param name="ValorEmCentavos">Total; negativo é crédito.</param>
+/// <param name="NumeroDeParcelas">Em quantas vezes.</param>
+/// <param name="PrimeiroVencimento">Dia da primeira parcela.</param>
+/// <param name="LancadoEm">Quando foi lançado, em UTC.</param>
+/// <param name="EncerradoEm">Quando foi encerrado, se foi.</param>
+/// <param name="PagoEmCentavos">O que já entrou pelas parcelas dele.</param>
+public sealed record LancamentoDTO(
+    Guid ItemDeCobrancaId,
+    Guid PlanoId,
+    Guid UsuarioId,
+    string Nome,
+    string? Descricao,
+    long ValorEmCentavos,
+    int NumeroDeParcelas,
+    DateOnly PrimeiroVencimento,
+    DateTime LancadoEm,
+    DateOnly? EncerradoEm,
+    long PagoEmCentavos
 );

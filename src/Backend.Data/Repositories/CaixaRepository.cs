@@ -48,7 +48,7 @@ public sealed class CaixaRepository(AppDbContext db) : ICaixaRepository
         var grupos = await db
             .Parcelas.AsNoTracking()
             .Where(p => p.Status == StatusDaParcela.Aberta)
-            .GroupBy(p => p.Vencimento < hoje)
+            .GroupBy(p => p.Vencimento < hoje && !(p.SuspensaAte >= hoje))
             .Select(grupo => new { Atrasada = grupo.Key, Valor = grupo.Sum(p => p.ValorOriginalEmCentavos - (p.ValorPagoEmCentavos ?? 0)) })
             .ToListAsync(ct);
 
