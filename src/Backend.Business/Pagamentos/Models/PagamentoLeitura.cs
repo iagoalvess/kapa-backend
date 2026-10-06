@@ -79,6 +79,11 @@ public sealed record ResultadoDaConferencia(int Confirmados, int Ignorados);
 /// <param name="Parcelas">Todas as parcelas, por vencimento.</param>
 public sealed record ExtratoDoFormando(long EmAbertoEmCentavos, ParcelaResumo? Proxima, IReadOnlyList<ParcelaResumo> Parcelas);
 
+/// <summary>As duas parcelas que o Início mostra, sem o extrato.</summary>
+/// <param name="Proxima">A primeira a pagar — a mesma <see cref="ExtratoDoFormando.Proxima"/> do extrato.</param>
+/// <param name="Seguinte">A que vem depois dela, pela mesma regra; nula quando não há.</param>
+public sealed record ProximasParcelas(ParcelaResumo? Proxima, ParcelaResumo? Seguinte);
+
 /// <summary>O PIX pronto para pagar, montado na hora e não gravado.</summary>
 /// <remarks>
 /// O titular, o documento e a conferência vão ao lado do QR (Sprint 22, decisão 7): é a última

@@ -64,10 +64,16 @@ public sealed class AuthController(IAuthService authService, IUsuarioAtual usuar
     }
 
     /// <summary>Autentica por e-mail e senha.</summary>
+    /// <remarks>
+    /// Administrador e presidente não recebem a sessão aqui: 202 com o desafio, e o código de seis dígitos vai ao
+    /// e-mail da conta (login em duas etapas, revisão de segurança de 05/10/2026). A sessão sai em
+    /// <c>POST login/codigo</c>.
+    /// </remarks>
     /// <param name="requisicao">Credenciais.</param>
     [HttpPost("login")]
     [EnableRateLimiting(RateLimitConfig.Entrada)]
     [ProducesResponseType(typeof(TokenResponseDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(CodigoDeEntradaDTO), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -75,8 +81,39 @@ public sealed class AuthController(IAuthService authService, IUsuarioAtual usuar
     {
         var resultado = await authService.Autenticar(new Credenciais(requisicao.Email, requisicao.Senha), IpDeOrigem, ct);
 
-        return ResponderComSessao(resultado);
+        if (resultado is { Sucesso: true, Valor.Codigo: { } codigo })
+            return Accepted(new CodigoDeEntradaDTO(codigo.Desafio, codigo.EnviadoPara, codigo.MinutosDeValidade));
+
+        return ResponderComSessao(resultado.Map(entrada => entrada.Sessao!));
     }
+
+    /// <summary>O segundo passo do login: troca o desafio e o código do e-mail pela sessão.</summary>
+    /// <remarks>
+    /// 401 <c>auth.codigo_incorreto</c> com código errado ou vencido; <c>auth.codigo_bloqueado</c> depois de cinco
+    /// erros na conta, por quinze minutos; <c>auth.desafio_invalido</c> com o desafio vencido ou adulterado.
+    /// </remarks>
+    /// <param name="requisicao">O desafio e o código.</param>
+    [HttpPost("login/codigo")]
+    [EnableRateLimiting(RateLimitConfig.Entrada)]
+    [ProducesResponseType(typeof(TokenResponseDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ConfirmarCodigo([FromBody] CodigoDeEntradaRequestDTO requisicao, CancellationToken ct) =>
+        ResponderComSessao(await authService.ConfirmarCodigo(requisicao.Desafio, requisicao.Codigo, IpDeOrigem, ct));
+
+    /// <summary>Manda o código do login de novo.</summary>
+    /// <param name="requisicao">O desafio do login.</param>
+    [HttpPost("login/codigo/reenviar")]
+    [EnableRateLimiting(RateLimitConfig.Entrada)]
+    [ProducesResponseType(typeof(CodigoDeEntradaDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ReenviarCodigo([FromBody] ReenvioDoCodigoRequestDTO requisicao, CancellationToken ct) =>
+        Responder(
+            (await authService.ReenviarCodigo(requisicao.Desafio, ct)).Map(codigo => new CodigoDeEntradaDTO(
+                codigo.Desafio,
+                codigo.EnviadoPara,
+                codigo.MinutosDeValidade
+            ))
+        );
 
     /// <summary>
     /// Troca um refresh token válido por um par novo.

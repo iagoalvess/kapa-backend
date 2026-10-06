@@ -12,6 +12,21 @@ namespace Backend.Api.DTOs.Auth;
 /// <param name="Senha">Senha.</param>
 public sealed record LoginRequestDTO(string Email, string Senha);
 
+/// <summary>O segundo passo do login: o código foi ao e-mail (202 do login).</summary>
+/// <param name="Desafio">Devolva junto do código em <c>POST auth/login/codigo</c>.</param>
+/// <param name="EnviadoPara">O e-mail, mascarado.</param>
+/// <param name="MinutosDeValidade">Por quanto tempo o código vale.</param>
+public sealed record CodigoDeEntradaDTO(string Desafio, string EnviadoPara, int MinutosDeValidade);
+
+/// <summary>O código do e-mail, com o desafio do login.</summary>
+/// <param name="Desafio">O que o login devolveu.</param>
+/// <param name="Codigo">Os seis dígitos.</param>
+public sealed record CodigoDeEntradaRequestDTO(string? Desafio, string? Codigo);
+
+/// <summary>O desafio do login, para mandar o código de novo.</summary>
+/// <param name="Desafio">O que o login devolveu.</param>
+public sealed record ReenvioDoCodigoRequestDTO(string? Desafio);
+
 /// <summary>Corpo do pedido de criação de conta.</summary>
 /// <param name="Nome">Nome de exibição.</param>
 /// <param name="Email">E-mail, que também é o login.</param>

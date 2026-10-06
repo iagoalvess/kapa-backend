@@ -172,6 +172,12 @@ public sealed record AdesaoDTO(
 /// <param name="MenorDeIdade">Se a data de nascimento dá menos de 18 anos hoje — aí a adesão é com a comissão.</param>
 public sealed record MinhaAdesaoDTO(AdesaoDTO? Adesao, IReadOnlyList<string> Pendencias, bool MenorDeIdade);
 
+/// <summary>O que a guarda de adesão e o ponto do menu precisam saber, sem o termo nem a adesão.</summary>
+/// <param name="TermoPublicado">A turma publicou o termo — com ele, o formando que não aderiu fica barrado.</param>
+/// <param name="PlanoVigente">Há plano de cobrança vigente; sem ele, o termo ainda não pode ser aceito.</param>
+/// <param name="Aderiu">O próprio membro aderiu a alguma versão do termo.</param>
+public sealed record SituacaoDaMinhaAdesaoDTO(bool TermoPublicado, bool PlanoVigente, bool Aderiu);
+
 /// <summary>Um membro no painel de adesões.</summary>
 /// <param name="UsuarioId">Membro.</param>
 /// <param name="Nome">Nome civil, ou o da conta.</param>

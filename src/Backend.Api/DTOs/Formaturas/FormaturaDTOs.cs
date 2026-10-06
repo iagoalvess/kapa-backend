@@ -67,3 +67,21 @@ public sealed record FormaturaDetalheDTO(
     DateTime? EncerradaEm,
     bool JaContratou
 );
+
+/// <summary>Os passos da comissão até a turma estar rodando — o bloco "Primeiros passos" do Início.</summary>
+/// <param name="ComissaoMontada">Mais de uma pessoa ativa na gestão. Opcional: não entra em <paramref name="Concluidos"/>.</param>
+/// <param name="PlanoDeCobrancaEmVigor">Há plano de cobrança vigente.</param>
+/// <param name="TermoPublicado">O termo de adesão tem versão publicada.</param>
+/// <param name="RecebimentosConfigurados">Cobrança automática, transferência, dinheiro ou PIX de titular conferido.</param>
+/// <param name="PlanoContratado">A turma já contratou um plano — o mesmo <c>ja_contratou</c> da formatura.</param>
+/// <param name="FormandosNaTurma">Há ao menos um formando ativo.</param>
+/// <param name="Concluidos">Todos os passos obrigatórios feitos: o bloco não aparece.</param>
+public sealed record PrimeirosPassosDTO(
+    bool ComissaoMontada,
+    bool PlanoDeCobrancaEmVigor,
+    bool TermoPublicado,
+    bool RecebimentosConfigurados,
+    bool PlanoContratado,
+    bool FormandosNaTurma,
+    bool Concluidos
+);

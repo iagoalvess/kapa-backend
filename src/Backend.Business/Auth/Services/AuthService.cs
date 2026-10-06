@@ -1,12 +1,15 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Adesoes.Services;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
 using Backend.Business.Auth.Settings;
+using Backend.Business.Common;
 using Backend.Business.Common.Texto;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
 using Backend.Business.Eventos.Services;
 using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Formaturas.Models;
 using Backend.Business.Legal.Interfaces;
 using Backend.Business.Legal.Models;
 using Backend.Business.Marketing.Interfaces;
@@ -34,6 +37,8 @@ namespace Backend.Business.Auth.Services;
 /// <param name="contaOptions">Regras do ciclo de vida da conta.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="eventos">Trilha de auditoria — o bloqueio por tentativas fica nela.</param>
+/// <param name="tentativas">Erros de senha por conta e origem, e de código por conta.</param>
+/// <param name="confirmacao">A assinatura do desafio entre os dois passos do login.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class AuthService(
     UserManager<Usuario> userManager,
@@ -49,10 +54,35 @@ public sealed class AuthService(
     IUnitOfWork unitOfWork,
     IEventoRepository eventos,
     TentativasDeSenha tentativas,
+    ConfirmacaoPorEmail confirmacao,
     ILogger<AuthService> logger
 ) : IAuthService
 {
     private static readonly Erro CredenciaisInvalidas = Erro.NaoAutenticado("auth.credenciais_invalidas", "E-mail ou senha incorretos.");
+
+    /// <summary>Finalidade do código no provedor do Identity: o do login não serve para a adesão, e vice-versa.</summary>
+    public const string FinalidadeDoCodigo = "entrada";
+
+    /// <summary>Finalidade do desafio assinado que liga os dois passos do login.</summary>
+    public const string FinalidadeDoDesafio = "auth.entrada";
+
+    /// <summary>O piso da janela do código do Identity, como na adesão.</summary>
+    public const int MinutosDeValidadeDoCodigo = 3;
+
+    private static readonly Erro DesafioInvalido = Erro.NaoAutenticado(
+        "auth.desafio_invalido",
+        "Esta tentativa de entrada expirou. Digite seu e-mail e senha de novo."
+    );
+
+    private static readonly Erro CodigoIncorreto = Erro.NaoAutenticado(
+        "auth.codigo_incorreto",
+        "Código incorreto ou vencido. Confira o e-mail ou peça outro."
+    );
+
+    private static readonly Erro CodigoBloqueado = Erro.NaoAutenticado(
+        "auth.codigo_bloqueado",
+        "Muitas tentativas com código errado. Espere 15 minutos e entre de novo."
+    );
 
     private static readonly Erro SessaoInvalida = Erro.NaoAutenticado("auth.sessao_invalida", "Sessão expirada. Faça login novamente.");
 
@@ -92,11 +122,11 @@ public sealed class AuthService(
     /// para o bloqueio que já estiver gravado, mas ninguém de fora tranca mais a conta de outra pessoa.
     /// </para>
     /// </remarks>
-    public async Task<Result<ParDeTokens>> Autenticar(Credenciais credenciais, string? ipDeOrigem, CancellationToken ct = default)
+    public async Task<Result<Entrada>> Autenticar(Credenciais credenciais, string? ipDeOrigem, CancellationToken ct = default)
     {
         var validacao = credenciaisValidator.Validar(credenciais);
         if (validacao.Falhou)
-            return Result.Falha<ParDeTokens>(validacao.Erros);
+            return Result.Falha<Entrada>(validacao.Erros);
 
         var emailMascarado = TextoUtils.MascararEmail(credenciais.Email);
 
@@ -151,8 +181,99 @@ public sealed class AuthService(
 
         tentativas.Limpar(credenciais.Email, ipDeOrigem);
 
+        if (await ExigeCodigo(usuario, ct))
+            return new Entrada(null, await EnviarCodigo(usuario, ct));
+
+        return (await EmitirSessao(usuario, ipDeOrigem, formaturaId: null, papel: null, substituido: null, desligadoEm: null, ct)).Map(
+            sessao => new Entrada(sessao, null)
+        );
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Código errado conta por <b>conta</b>, de qualquer origem: chegar aqui já exige a senha, então trancar a conta
+    /// não é mais o abuso que o <see cref="TentativasDeSenha"/> por origem evita na senha — é o que segura quem tem a
+    /// senha e tenta adivinhar seis dígitos de vários IPs. Cinco erros fecham o passo por quinze minutos.
+    /// </remarks>
+    public async Task<Result<ParDeTokens>> ConfirmarCodigo(string? desafio, string? codigo, string? ipDeOrigem, CancellationToken ct = default)
+    {
+        if (confirmacao.Ler<DesafioDeEntrada>(FinalidadeDoDesafio, desafio, DateTime.UtcNow) is not { } lido)
+            return DesafioInvalido;
+
+        var chave = ChaveDasTentativasDoCodigo(lido.UsuarioId);
+
+        if (tentativas.Bloqueada(chave, null))
+            return CodigoBloqueado;
+
+        var usuario = await userManager.FindByIdAsync(lido.UsuarioId.ToString());
+        if (usuario is null || !usuario.Ativo)
+            return DesafioInvalido;
+
+        if (
+            string.IsNullOrWhiteSpace(codigo)
+            || !await userManager.VerifyUserTokenAsync(usuario, TokenOptions.DefaultEmailProvider, FinalidadeDoCodigo, codigo.Trim())
+        )
+        {
+            logger.LogWarning("Código de acesso incorreto para o usuário {UsuarioId} vindo de {Ip}.", usuario.Id, ipDeOrigem ?? "desconhecido");
+
+            if (tentativas.RegistrarFalha(chave, null))
+            {
+                await eventos.Auditar(NomesDeAuditoria.BloqueioPorTentativas, usuario.Id, new { etapa = "codigo", origem = ipDeOrigem }, ct);
+                await unitOfWork.SalvarAsync(ct);
+            }
+
+            return CodigoIncorreto;
+        }
+
+        tentativas.Limpar(chave, null);
+
         return await EmitirSessao(usuario, ipDeOrigem, formaturaId: null, papel: null, substituido: null, desligadoEm: null, ct);
     }
+
+    /// <inheritdoc />
+    public async Task<Result<CodigoDeEntrada>> ReenviarCodigo(string? desafio, CancellationToken ct = default)
+    {
+        if (confirmacao.Ler<DesafioDeEntrada>(FinalidadeDoDesafio, desafio, DateTime.UtcNow) is not { } lido)
+            return DesafioInvalido;
+
+        var usuario = await userManager.FindByIdAsync(lido.UsuarioId.ToString());
+        if (usuario is null || !usuario.Ativo)
+            return DesafioInvalido;
+
+        return await EnviarCodigo(usuario, ct);
+    }
+
+    /// <summary>
+    /// Administrador e presidente entram com código (revisão de segurança de 05/10/2026): são as contas que trocam
+    /// para onde vai o dinheiro da turma e que veem todas as turmas.
+    /// </summary>
+    /// <remarks>Presidente desligado não conta: na turma da qual saiu ele não preside mais nada.</remarks>
+    private async Task<bool> ExigeCodigo(Usuario usuario, CancellationToken ct) =>
+        await userManager.IsInRoleAsync(usuario, PerfisPadrao.Administrador)
+        || (await vinculoRepository.ListarDoUsuario(usuario.Id, ct)).Any(f => f.Papel == PapelNaFormatura.Presidente && f.DesligadoEm is null);
+
+    /// <summary>Gera o código, enfileira o e-mail e devolve o desafio que liga o segundo passo a este login.</summary>
+    /// <remarks>
+    /// O código é o do provedor de e-mail do Identity, como o da adesão: preso ao carimbo de segurança, então trocar a
+    /// senha mata o código em aberto. Pedir de novo dentro da mesma janela devolve o mesmo código.
+    /// </remarks>
+    private async Task<CodigoDeEntrada> EnviarCodigo(Usuario usuario, CancellationToken ct)
+    {
+        var codigo = await userManager.GenerateUserTokenAsync(usuario, TokenOptions.DefaultEmailProvider, FinalidadeDoCodigo);
+
+        await emailsDeConta.EnfileirarCodigoDeEntrada(usuario, codigo, MinutosDeValidadeDoCodigo, ct);
+        await unitOfWork.SalvarAsync(ct);
+
+        logger.LogInformation("Código de acesso enviado ao usuário {UsuarioId}.", usuario.Id);
+
+        return new CodigoDeEntrada(
+            confirmacao.Assinar(FinalidadeDoDesafio, new DesafioDeEntrada(usuario.Id), DateTime.UtcNow),
+            AdesaoService.MascararEmail(usuario.Email!),
+            MinutosDeValidadeDoCodigo
+        );
+    }
+
+    private static string ChaveDasTentativasDoCodigo(Guid usuarioId) => $"codigo:{usuarioId:N}";
 
     /// <inheritdoc />
     /// <remarks>

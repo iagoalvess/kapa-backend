@@ -61,6 +61,78 @@ public sealed class EmailsDeRecebimento(IEmailService emailService, IOptions<Apl
     }
 
     /// <summary>
+    /// O link para quem pediu a troca dos meios confirmar — sem ele, a troca não vale (revisão de 05/10/2026).
+    /// </summary>
+    /// <remarks>
+    /// Traz o depois por extenso, e o que deixa de valer antes dele, como o aviso à comissão: quem recebe sem ter
+    /// pedido precisa ver para onde o dinheiro iria, e a instrução é não clicar e trocar a senha.
+    /// </remarks>
+    /// <param name="email">E-mail da conta de quem pediu.</param>
+    /// <param name="formatura">Nome da turma.</param>
+    /// <param name="antes">Os meios como estão; nulo no primeiro cadastro.</param>
+    /// <param name="depois">Os meios pedidos.</param>
+    /// <param name="token">O token do link.</param>
+    public Task ConfirmarTroca(string email, string formatura, MeiosDaConta? antes, MeiosDaConta depois, string token, CancellationToken ct = default)
+    {
+        var saiu = antes is null ? string.Empty : Saidas(antes, depois);
+        var minutos = (int)ConfirmacaoPorEmail.Validade.TotalMinutes;
+
+        var mensagem =
+            $"Você pediu para mudar como <strong>{ModeloDeEmail.Texto(formatura)}</strong> recebe. A mudança só vale depois que você confirmar.<br><br>"
+            + (saiu.Length == 0 ? string.Empty : $"<strong>Deixa de valer:</strong><br>{saiu}<br><br>")
+            + $"<strong>A turma passa a receber assim:</strong><br>{Linhas(depois)}<br><br>"
+            + $"O link vale {minutos} minutos. <strong>Se não foi você, não clique</strong>: troque sua senha agora e avise a comissão — "
+            + "alguém entrou na sua conta e tentou desviar o dinheiro da turma.";
+
+        return emailService.Enfileirar(
+            new NovoEmail(
+                email,
+                $"Confirme a troca da conta de recebimento — {formatura} — {_aplicacao.Nome}",
+                ModeloDeEmail.Montar(
+                    _aplicacao,
+                    "Confirme a troca da conta de recebimento",
+                    mensagem,
+                    "Confirmar a troca",
+                    _aplicacao.MontarUrl(RotasDoFront.ConfirmarMeios, [new("token", token)]),
+                    Mascote.Lupa
+                )
+            ),
+            ct
+        );
+    }
+
+    /// <summary>
+    /// O link de autorização do Mercado Pago, que agora vai pelo e-mail de quem clicou em Conectar em vez de abrir
+    /// direto no navegador (revisão de 05/10/2026).
+    /// </summary>
+    /// <remarks>
+    /// Conectar uma conta é trocar para onde vai o PIX automático e a loja pública: mesmo peso da troca de chave,
+    /// mesma exigência — a caixa de e-mail além da sessão.
+    /// </remarks>
+    /// <param name="email">E-mail da conta de quem clicou.</param>
+    /// <param name="formatura">Nome da turma.</param>
+    /// <param name="url">A página de autorização do Mercado Pago, com o <c>state</c> assinado.</param>
+    public Task AutorizarMercadoPago(string email, string formatura, string url, CancellationToken ct = default) =>
+        emailService.Enfileirar(
+            new NovoEmail(
+                email,
+                $"Conecte o Mercado Pago da turma — {formatura} — {_aplicacao.Nome}",
+                ModeloDeEmail.Montar(
+                    _aplicacao,
+                    "Conecte o Mercado Pago da turma",
+                    $"Você pediu para conectar uma conta do Mercado Pago a <strong>{ModeloDeEmail.Texto(formatura)}</strong>. "
+                        + "Depois de conectada, o PIX automático e a loja pública caem nessa conta.<br><br>"
+                        + "Entre com a conta <strong>da turma</strong> e autorize. O link vale 15 minutos.<br><br>"
+                        + "<strong>Se não foi você, não clique</strong>: troque sua senha agora e avise a comissão.",
+                    "Autorizar no Mercado Pago",
+                    url,
+                    Mascote.Lupa
+                )
+            ),
+            ct
+        );
+
+    /// <summary>
     /// O Mercado Pago da turma foi conectado, trocado ou desconectado (Sprint 25, P3).
     /// </summary>
     /// <remarks>

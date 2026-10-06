@@ -136,6 +136,11 @@ public sealed class FormaturaService(
         await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct) is { } detalhe ? detalhe : ErrosDeFormatura.FormaturaNaoEncontrada;
 
     /// <inheritdoc />
+    /// <remarks>Uma consulta só, de perguntas de sim ou não: o Início não paga pelas cinco telas de onde os passos vêm.</remarks>
+    public async Task<Result<PrimeirosPassos>> ObterPrimeirosPassos(CancellationToken ct = default) =>
+        Result.Ok(await pendencias.ConferirPrimeirosPassos(ct));
+
+    /// <inheritdoc />
     /// <remarks>Só a turma ativa edita. Suspensa, encerrada e descartada, não.</remarks>
     public async Task<Result<FormaturaDetalhe>> Atualizar(Guid formaturaId, DadosDaFormatura dados, CancellationToken ct = default)
     {

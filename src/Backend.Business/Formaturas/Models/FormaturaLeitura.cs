@@ -157,6 +157,17 @@ public sealed record ContagemDeMembros(string Papel, bool Ativo, bool Desligado,
 /// <param name="Papel">Papel pretendido. Ver <see cref="PapelNaFormatura"/>.</param>
 public sealed record AlterarPapel(string Papel);
 
+/// <summary>O que a troca de papel deu: aplicada, ou — para Presidente — esperando o link do e-mail de quem pediu.</summary>
+/// <param name="ConfirmacaoEnviadaPara">O e-mail, mascarado, que recebeu o link; nulo quando a troca já valeu.</param>
+public sealed record AlteracaoDePapel(string? ConfirmacaoEnviadaPara);
+
+/// <summary>A promoção a Presidente esperando confirmação — o que viaja assinado no link do e-mail.</summary>
+/// <param name="FormaturaId">Turma.</param>
+/// <param name="AutorId">Quem pediu, e só ele confirma.</param>
+/// <param name="UsuarioId">Quem vira Presidente.</param>
+/// <param name="Antes">Impressão digital do vínculo no pedido: gravado de novo desde então, o link morre.</param>
+public sealed record PromocaoAPresidente(Guid FormaturaId, Guid AutorId, Guid UsuarioId, string Antes);
+
 /// <summary>
 /// O que o desligamento vai mexer, somado antes de a comissão confirmar.
 /// </summary>

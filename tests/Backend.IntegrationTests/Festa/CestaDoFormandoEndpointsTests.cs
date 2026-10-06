@@ -283,6 +283,168 @@ public sealed class CestaDoFormandoEndpointsTests(ApiFactory fabrica)
         (await resposta.Codigo(Ct)).ShouldBe("cobranca.ultima_parcela_depois_do_limite");
     }
 
+    /// <summary>D6 e D16: quem não vai à festa contrata só foto e colação, deve só os dois e recebe só o convite da colação.</summary>
+    [Fact]
+    public async Task Cesta_de_foto_e_colacao_deve_os_dois_e_recebe_so_a_colacao()
+    {
+        // Arrange
+        var catalogo = await Montar();
+        var carla = await fabrica.FormandoComAdesao(catalogo.Turma.FormaturaId, catalogo.Foto, catalogo.Colacao);
+
+        // Act
+        await CriarEvento(catalogo.Turma.Presidente, TipoDeEvento.Festa, TimeSpan.FromDays(60));
+        await CriarEvento(catalogo.Turma.Presidente, TipoDeEvento.Colacao, TimeSpan.FromDays(30));
+
+        // Assert
+        var cesta = (await carla.Cliente.GetFromJsonAsync<MinhaAdesaoDTO>("/api/v1/adesoes/eu", Json, Ct))!.Adesao!.Plano.Cesta;
+        cesta.ShouldNotBeNull().Select(pacote => pacote.ItemId).ShouldBe([catalogo.Foto, catalogo.Colacao], ignoreOrder: true);
+        cesta.Sum(pacote => pacote.ConvitesDaFesta).ShouldBe(0);
+        (await Devido(catalogo, carla)).ShouldBe(80_000 + 30_000);
+        (await Meus(carla, TipoDeEvento.Colacao)).Convites.Count().ShouldBe(3);
+        (await Meus(carla, TipoDeEvento.Festa)).Convites.ShouldBeEmpty();
+    }
+
+    /// <summary>D4: o avulso comprado depois vira pedido — o snapshot, o hash do aceite e a cesta ficam como foram assinados.</summary>
+    [Fact]
+    public async Task Pedido_depois_da_adesao_nao_altera_snapshot_hash_nem_cesta()
+    {
+        // Arrange
+        var catalogo = await Montar();
+        var ana = await fabrica.FormandoComAdesao(catalogo.Turma.FormaturaId, catalogo.Festa10);
+        var itemId = await CriarConviteExtra(catalogo);
+        var antes = await Assinado(catalogo, ana);
+        var minhaAntes = await ana.Cliente.GetStringAsync("/api/v1/adesoes/eu", Ct);
+
+        // Act
+        var pedido = await ana.Cliente.PostAsJsonAsync("/api/v1/pedidos", new PedidoRequestDTO(itemId, 2, 1), Json, Ct);
+
+        // Assert
+        pedido.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var depois = await Assinado(catalogo, ana);
+        depois.Hash.ShouldBe(antes.Hash);
+        depois.Snapshot.ShouldBe(antes.Snapshot);
+        depois.Escolhas.ShouldBe(antes.Escolhas);
+        (await ana.Cliente.GetStringAsync("/api/v1/adesoes/eu", Ct)).ShouldBe(minhaAntes);
+        (await Devido(catalogo, ana)).ShouldBe(300_000 + 2 * 18_000);
+    }
+
+    /// <summary>A cesta está dentro do hash: quem leu o termo com uma faixa não aceita com outra usando o mesmo hash.</summary>
+    [Fact]
+    public async Task Aceitar_com_cesta_diferente_da_lida_e_recusado()
+    {
+        // Arrange
+        var catalogo = await Montar();
+        var formando = await fabrica.NovoMembro(catalogo.Turma.FormaturaId, PapelNaFormatura.Formando, Ct);
+        await PreencherCadastro(formando.Cliente, NovoCpf());
+        var lido = (await formando.Cliente.GetFromJsonAsync<ConteudoParaAdesaoDTO>(Termo([catalogo.Festa10]), Json, Ct))!.HashDoConteudo;
+        var outro = (await formando.Cliente.GetFromJsonAsync<ConteudoParaAdesaoDTO>(Termo([catalogo.Festa15]), Json, Ct))!.HashDoConteudo;
+        var codigo = await PedirCodigo(fabrica, formando.Cliente);
+
+        // Act
+        var resposta = await formando.Cliente.PostAsJsonAsync("/api/v1/adesoes", new AderirRequestDTO(lido, codigo, [catalogo.Festa15]), Json, Ct);
+
+        // Assert
+        outro.ShouldNotBe(lido);
+        resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await resposta.Codigo(Ct)).ShouldBe("adesao.termo_desatualizado");
+        (await formando.Cliente.GetFromJsonAsync<MinhaAdesaoDTO>("/api/v1/adesoes/eu", Json, Ct))!.Adesao.ShouldBeNull();
+    }
+
+    /// <summary>D17: sem pacote, sem benefício — quem não aderiu não recebe nada, e quem aderiu sem a colação não recebe a colação.</summary>
+    [Fact]
+    public async Task Sem_adesao_ou_sem_o_pacote_nao_ha_convite()
+    {
+        // Arrange
+        var catalogo = await Montar();
+        var semAdesao = await fabrica.NovoMembro(catalogo.Turma.FormaturaId, PapelNaFormatura.Formando, Ct);
+        await PreencherCadastro(semAdesao.Cliente, NovoCpf());
+        var soFesta = await fabrica.FormandoComAdesao(catalogo.Turma.FormaturaId, catalogo.Festa10);
+
+        // Act
+        await CriarEvento(catalogo.Turma.Presidente, TipoDeEvento.Festa, TimeSpan.FromDays(60));
+        await CriarEvento(catalogo.Turma.Presidente, TipoDeEvento.Colacao, TimeSpan.FromDays(30));
+        var comColacao = await fabrica.FormandoComAdesao(catalogo.Turma.FormaturaId, catalogo.Foto, catalogo.Colacao);
+
+        // Assert
+        (await ConvitesNoBanco(catalogo, semAdesao)).ShouldBeEmpty();
+        (await Meus(soFesta, TipoDeEvento.Colacao)).Convites.ShouldBeEmpty();
+        (await Meus(soFesta, TipoDeEvento.Festa)).Convites.Count().ShouldBe(10);
+        (await Meus(comColacao, TipoDeEvento.Colacao)).Convites.Count().ShouldBe(3);
+    }
+
+    /// <summary>D15: o convite extra comprado em pedido entra na conta de lugares ao lado dos benefícios e das cortesias.</summary>
+    [Fact]
+    public async Task Painel_soma_beneficios_extras_e_cortesias()
+    {
+        // Arrange
+        var catalogo = await Montar();
+        var gestao = catalogo.Turma.Presidente.Cliente;
+        await CriarEvento(catalogo.Turma.Presidente, TipoDeEvento.Festa, TimeSpan.FromDays(60));
+        var ana = await fabrica.FormandoComAdesao(catalogo.Turma.FormaturaId, catalogo.Festa15);
+        var itemId = await CriarConviteExtra(catalogo);
+        var pedido = await ana.Cliente.PostAsJsonAsync("/api/v1/pedidos", new PedidoRequestDTO(itemId, 2, 1), Json, Ct);
+        pedido.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var pedidoId = (await pedido.Content.ReadFromJsonAsync<PedidoDTO>(Json, Ct))!.Id;
+
+        // Act
+        var liberacao = await gestao.PostAsJsonAsync($"{Convites}/liberar", new LiberacaoRequestDTO(pedidoId, "Paga na porta"), Json, Ct);
+        var cortesia = await gestao.PostAsJsonAsync(
+            $"{Convites}/cortesias",
+            new CortesiaRequestDTO("Prof. Carlos", null, null, null, "Paraninfo"),
+            Json,
+            Ct
+        );
+
+        // Assert
+        liberacao.StatusCode.ShouldBe(HttpStatusCode.OK);
+        cortesia.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var painel = await Obter(catalogo);
+        painel.Beneficios.ShouldBe(15);
+        painel.Extras.ShouldBe(2);
+        painel.Cortesias.ShouldBe(1);
+        painel.Lugares.ShouldBe(15 + 2 + 1);
+    }
+
+    /// <summary>D24 com carência: vencida dentro dela o convite entra; um dia além, fica preso na portaria.</summary>
+    [Fact]
+    public async Task Convite_so_fica_preso_quando_o_atraso_passa_da_carencia()
+    {
+        // Arrange
+        const int carencia = 5;
+        var catalogo = await Montar();
+        var festaId = await CriarEvento(catalogo.Turma.Presidente, TipoDeEvento.Festa, TimeSpan.FromHours(1));
+        var ana = await fabrica.FormandoComAdesao(catalogo.Turma.FormaturaId, catalogo.Festa10);
+        var gestao = catalogo.Turma.Presidente.Cliente;
+        var convites = (await Meus(ana, TipoDeEvento.Festa)).Convites.Take(2).ToList();
+        foreach (var convite in convites)
+            (
+                await gestao.PutAsJsonAsync(
+                    $"{Convites}/{convite.Id}/convidado",
+                    new ConvidadoRequestDTO("Tia Rosa", TipoDeDocumento.Rg, "7654321", null),
+                    Json,
+                    Ct
+                )
+            ).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await using (var contexto = fabrica.ContextoDe(catalogo.Turma.FormaturaId))
+            await contexto
+                .PlanosDeCobranca.Where(p => p.Status == StatusDoPlano.Vigente)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.CarenciaEmDias, carencia), Ct);
+
+        // Act
+        await VencerParcelas(catalogo, ana, dias: carencia);
+        var dentro = await CheckIn(gestao, convites[0].Codigo, festaId);
+        var presosDentro = (await Obter(catalogo)).Presos;
+        await VencerParcelas(catalogo, ana, dias: carencia + 1);
+        var alem = await CheckIn(gestao, convites[1].Codigo, festaId);
+
+        // Assert
+        dentro.StatusCode.ShouldBe(HttpStatusCode.OK);
+        presosDentro.ShouldBeEmpty();
+        alem.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await alem.Codigo(Ct)).ShouldBe("festa.convite_preso");
+        (await Obter(catalogo)).Presos.ShouldHaveSingleItem();
+    }
+
     private async Task<Catalogo> Montar()
     {
         var (turma, pacotes) = await fabrica.TurmaComCatalogo(
@@ -335,12 +497,53 @@ public sealed class CestaDoFormandoEndpointsTests(ApiFactory fabrica)
         return await contexto.Parcelas.Where(p => p.VinculoId == vinculoId).SumAsync(p => p.ValorOriginalEmCentavos, Ct);
     }
 
-    /// <summary>Joga as parcelas do formando para antes de ontem — o atraso que prende o convite.</summary>
-    private async Task VencerParcelas(Catalogo catalogo, MembroDeTeste formando)
+    /// <summary>O que o formando assinou: hash e snapshot da adesão, e as escolhas da cesta gravadas.</summary>
+    private sealed record Assinatura(string Hash, string Snapshot, IReadOnlyList<string> Escolhas);
+
+    private async Task<Assinatura> Assinado(Catalogo catalogo, MembroDeTeste formando)
     {
         await using var contexto = fabrica.ContextoDe(catalogo.Turma.FormaturaId);
         var vinculoId = await contexto.Vinculos.Where(v => v.UsuarioId == formando.UsuarioId).Select(v => v.Id).SingleAsync(Ct);
-        var vencimento = DataUtils.Hoje().AddDays(-2);
+        var adesao = await contexto.Adesoes.AsNoTracking().SingleAsync(a => a.VinculoId == vinculoId, Ct);
+        var escolhas = await contexto
+            .EscolhasDaCesta.AsNoTracking()
+            .Where(e => e.VinculoId == vinculoId)
+            .OrderBy(e => e.ItemDeCobrancaId)
+            .Select(e => $"{e.Id}:{e.ItemDeCobrancaId}:{e.Observacao}")
+            .ToListAsync(Ct);
+
+        return new Assinatura(adesao.HashDoConteudo, adesao.PlanoAceito, escolhas);
+    }
+
+    /// <summary>Todos os convites gravados para o vínculo do membro, de qualquer evento — revogados inclusive.</summary>
+    private async Task<List<ConviteDoEvento>> ConvitesNoBanco(Catalogo catalogo, MembroDeTeste membro)
+    {
+        await using var contexto = fabrica.ContextoDe(catalogo.Turma.FormaturaId);
+        var vinculoId = await contexto.Vinculos.Where(v => v.UsuarioId == membro.UsuarioId).Select(v => v.Id).SingleAsync(Ct);
+
+        return await contexto.ConvitesDoEvento.Where(c => c.VinculoId == vinculoId).ToListAsync(Ct);
+    }
+
+    /// <summary>"Convite extra, R$ 180" como opcional do plano vigente — o avulso que vira pedido.</summary>
+    private static async Task<Guid> CriarConviteExtra(Catalogo catalogo)
+    {
+        var criacao = await catalogo.Turma.Presidente.Cliente.PostAsJsonAsync(
+            "/api/v1/cobrancas/opcionais",
+            new OpcionalRequestDTO(TipoDeCobranca.ConviteExtra, "Convite extra", 18_000, 1, 10, MesQueVem, null, null, null, null, null),
+            Json,
+            Ct
+        );
+        criacao.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        return (await criacao.Content.ReadFromJsonAsync<ItemDeCobrancaDTO>(Json, Ct))!.Id;
+    }
+
+    /// <summary>Joga as parcelas do formando para <paramref name="dias"/> atrás — o atraso que prende o convite.</summary>
+    private async Task VencerParcelas(Catalogo catalogo, MembroDeTeste formando, int dias = 2)
+    {
+        await using var contexto = fabrica.ContextoDe(catalogo.Turma.FormaturaId);
+        var vinculoId = await contexto.Vinculos.Where(v => v.UsuarioId == formando.UsuarioId).Select(v => v.Id).SingleAsync(Ct);
+        var vencimento = DataUtils.Hoje().AddDays(-dias);
 
         await contexto.Database.ExecuteSqlAsync($"UPDATE parcelas SET vencimento = {vencimento} WHERE vinculo_id = {vinculoId}", Ct);
     }

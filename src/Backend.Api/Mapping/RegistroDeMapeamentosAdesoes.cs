@@ -23,6 +23,7 @@ public sealed class RegistroDeMapeamentosAdesoes : IRegister
         config.NewConfig<CodigoEnviado, CodigoEnviadoDTO>();
         config.NewConfig<AdesaoDetalhe, AdesaoDTO>();
         config.NewConfig<MinhaAdesao, MinhaAdesaoDTO>();
+        config.NewConfig<SituacaoDaMinhaAdesao, SituacaoDaMinhaAdesaoDTO>();
         config.NewConfig<SituacaoDeAdesao, SituacaoDeAdesaoDTO>();
         config.NewConfig<ResumoDeAdesoes, ResumoDeAdesoesDTO>();
         config.NewConfig<PacoteEscolhido, PacoteEscolhidoDTO>();

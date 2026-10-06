@@ -42,7 +42,7 @@ public interface IAssinaturaService
     /// <param name="planoCodigo">Plano novo, do mesmo ciclo.</param>
     /// <param name="emailDoPagador">Quem paga a diferença.</param>
     /// <returns>A página da diferença, na subida; nula na descida.</returns>
-    Task<Result<ResultadoDaTroca>> TrocarPlano(Guid formaturaId, string planoCodigo, string? emailDoPagador, CancellationToken ct = default);
+    Task<Result<ResultadoDaTroca>> TrocarPlano(Guid formaturaId, string? planoCodigo, string? emailDoPagador, CancellationToken ct = default);
 
     /// <summary>
     /// Troca o meio da assinatura ativa (P5): a recorrência antiga é cancelada e a nova começa no próximo vencimento,

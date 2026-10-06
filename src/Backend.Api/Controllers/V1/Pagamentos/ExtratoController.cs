@@ -36,6 +36,18 @@ public sealed class ExtratoController(IPagamentoService pagamentoService, IUsuar
     public async Task<IActionResult> ObterExtrato(CancellationToken ct) =>
         Responder((await pagamentoService.ObterExtrato(FormaturaId, usuarioAtual.Id, ct)).Map(extrato => extrato.Adapt<ExtratoDTO>()));
 
+    /// <summary>A próxima parcela a pagar e a seguinte — o bloco "Sua parcela" do Início.</summary>
+    /// <remarks>
+    /// Existe para o Início não pedir o extrato inteiro, que passa de dezenas de parcelas, para mostrar duas. Aceita o
+    /// desligado, como o extrato: a dívida mantida na saída continua sendo dele (P5).
+    /// </remarks>
+    [HttpGet("eu/proximas")]
+    [Authorize(Policy = Politicas.TitularDoProprioHistorico)]
+    [ProducesResponseType(typeof(ProximasParcelasDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ObterProximas(CancellationToken ct) =>
+        Responder((await pagamentoService.ObterProximas(FormaturaId, usuarioAtual.Id, ct)).Map(proximas => proximas.Adapt<ProximasParcelasDTO>()));
+
     /// <summary>Quantas parcelas próprias venceram sem aviso de pagamento — o selo do menu.</summary>
     /// <remarks>
     /// Existe para não pedir o extrato inteiro em toda tela do app: o selo é um número, e o extrato

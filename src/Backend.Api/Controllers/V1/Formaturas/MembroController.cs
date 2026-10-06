@@ -76,12 +76,16 @@ public sealed class MembroController(IMembroService membroService, IUsuarioAtual
     }
 
     /// <summary>Altera o papel de um membro ativo.</summary>
+    /// <remarks>
+    /// Para Presidente, só pede: <c>confirmacao_enviada_para</c> vem preenchido e a promoção vale quando quem pediu
+    /// abrir o link do e-mail (<c>POST presidente/confirmar</c>). Os demais papéis valem na hora, com o campo nulo.
+    /// </remarks>
     /// <param name="usuarioId">Membro a alterar.</param>
     /// <param name="requisicao">Papel novo.</param>
     [HttpPut("{usuarioId:guid}/papel")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(AlteracaoDePapelDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -90,8 +94,21 @@ public sealed class MembroController(IMembroService membroService, IUsuarioAtual
     {
         var resultado = await membroService.AlterarPapel(FormaturaId, usuarioId, new AlterarPapel(requisicao.Papel), usuarioAtual.Id, ct);
 
-        return Responder(resultado);
+        return Responder(resultado.Map(alteracao => new AlteracaoDePapelDTO(alteracao.ConfirmacaoEnviadaPara)));
     }
+
+    /// <summary>Aplica a promoção a Presidente pedida na troca de papel, pelo link que chegou ao e-mail de quem pediu.</summary>
+    /// <remarks>400 <c>formatura.confirmacao_invalida</c> se o link venceu, já foi usado ou é de outra pessoa.</remarks>
+    /// <param name="requisicao">O token do link.</param>
+    [HttpPost("presidente/confirmar")]
+    [Authorize(Policy = Politicas.SomentePresidente)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ConfirmarPresidente([FromBody] ConfirmacaoDePresidenteDTO requisicao, CancellationToken ct) =>
+        Responder(await membroService.ConfirmarPresidente(FormaturaId, usuarioAtual.Id, requisicao.Token, ct));
 
     /// <summary>Desativa o vínculo de um membro. O histórico financeiro dele permanece.</summary>
     /// <param name="usuarioId">Membro a remover.</param>

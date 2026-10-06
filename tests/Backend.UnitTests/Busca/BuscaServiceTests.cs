@@ -1,3 +1,5 @@
+using Backend.Business.Assinaturas.Interfaces;
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Busca.Interfaces;
 using Backend.Business.Busca.Models;
 using Backend.Business.Busca.Services;
@@ -20,11 +22,19 @@ public sealed class BuscaServiceTests
 
     private static readonly Guid Usuario = Guid.CreateVersion7();
 
-    private static readonly QuemBusca Presidente = new(Turma, "Presidente");
+    private static readonly Plano Premium = new() { Modulos = [Modulo.Membros, Modulo.Mural] };
 
     private readonly IBuscaRepository _repositorio = Substitute.For<IBuscaRepository>();
 
     private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
+
+    private readonly IAssinaturaRepository _assinaturas = Substitute.For<IAssinaturaRepository>();
+
+    public BuscaServiceTests() => _assinaturas.ObterPlanoDosModulosDeTodasAsFormaturas(Turma, Arg.Any<CancellationToken>()).Returns(Premium);
+
+    /// <summary>Quem busca, com o papel e os módulos do plano.</summary>
+    private static QuemBusca Quem(string papel) =>
+        Arg.Is<QuemBusca>(quem => quem.FormaturaId == Turma && quem.Papel == papel && quem.Modulos.SequenceEqual(Premium.Modulos));
 
     [Theory]
     [InlineData(null)]
@@ -34,7 +44,7 @@ public sealed class BuscaServiceTests
     [InlineData(" an ")]
     public async Task Termo_curto_nao_chega_ao_banco(string? termo)
     {
-        var service = new BuscaService(_repositorio, _vinculos);
+        var service = new BuscaService(_repositorio, _vinculos, _assinaturas);
 
         var resultado = await service.Buscar(Turma, Usuario, termo, TestContext.Current.CancellationToken);
 
@@ -53,14 +63,14 @@ public sealed class BuscaServiceTests
     public async Task Termo_vai_ao_banco_sem_os_espacos_de_quem_digitou()
     {
         _vinculos.ObterPapelAtivo(Usuario, Turma, Arg.Any<CancellationToken>()).Returns("Presidente");
-        _repositorio.Buscar(Presidente, "ana", Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(BuscaNaTurma.Nada);
+        _repositorio.Buscar(Arg.Any<QuemBusca>(), "ana", Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(BuscaNaTurma.Nada);
 
-        var service = new BuscaService(_repositorio, _vinculos);
+        var service = new BuscaService(_repositorio, _vinculos, _assinaturas);
 
         var resultado = await service.Buscar(Turma, Usuario, "  ana  ", TestContext.Current.CancellationToken);
 
         resultado.Sucesso.ShouldBeTrue();
-        await _repositorio.Received(1).Buscar(Presidente, "ana", Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _repositorio.Received(1).Buscar(Quem("Presidente"), "ana", Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>O papel vem do vínculo: o rebaixado deixa de ver membros na hora, não quando o token vence.</summary>
@@ -70,10 +80,10 @@ public sealed class BuscaServiceTests
         _vinculos.ObterPapelAtivo(Usuario, Turma, Arg.Any<CancellationToken>()).Returns("Formando");
         _repositorio.Buscar(Arg.Any<QuemBusca>(), "ana", Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(BuscaNaTurma.Nada);
 
-        var service = new BuscaService(_repositorio, _vinculos);
+        var service = new BuscaService(_repositorio, _vinculos, _assinaturas);
 
         await service.Buscar(Turma, Usuario, "ana", TestContext.Current.CancellationToken);
 
-        await _repositorio.Received(1).Buscar(new QuemBusca(Turma, "Formando"), "ana", Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _repositorio.Received(1).Buscar(Quem("Formando"), "ana", Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 }

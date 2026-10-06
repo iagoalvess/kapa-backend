@@ -16,6 +16,11 @@ public sealed record ExtratoDTO(long EmAbertoEmCentavos, ParcelaDTO? Proxima, IR
 /// <param name="VencidasSemAviso">Parcelas vencidas em que o formando ainda não avisou o pagamento.</param>
 public sealed record PendenciasDoExtratoDTO(int VencidasSemAviso);
 
+/// <summary>As duas parcelas do Início, sem o extrato.</summary>
+/// <param name="Proxima">A primeira a pagar — a mesma <c>proxima</c> do extrato. Nula: a pessoa está em dia.</param>
+/// <param name="Seguinte">A que vem depois dela, pela mesma regra; nula quando não há.</param>
+public sealed record ProximasParcelasDTO(ParcelaDTO? Proxima, ParcelaDTO? Seguinte);
+
 /// <summary>O PIX pronto para pagar.</summary>
 /// <param name="CopiaECola">O BR Code — a tela desenha o QR a partir dele, no navegador.</param>
 /// <param name="Chave">Chave da comissão.</param>

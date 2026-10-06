@@ -46,9 +46,9 @@ public sealed record CartaoParaPagar(string ChavePublica, long ValorEmCentavos, 
 /// <param name="Provedor">A conexão, ou nulo.</param>
 public sealed record ProvedorDaTurma(ProvedorConectado? Provedor);
 
-/// <summary>Para onde o navegador do presidente vai para autorizar o Kapa no Mercado Pago.</summary>
-/// <param name="Url">A página de autorização, com o <c>state</c> assinado.</param>
-public sealed record AutorizacaoDoProvedor(string Url);
+/// <summary>O link de autorização do Mercado Pago foi para o e-mail de quem clicou em Conectar.</summary>
+/// <param name="EnviadaPara">O e-mail, mascarado.</param>
+public sealed record AutorizacaoDoProvedor(string EnviadaPara);
 
 /// <summary>O PIX do Mercado Pago da turma pronto para a tela do formando.</summary>
 /// <param name="CopiaECola">O BR Code, que a tela transforma em QR.</param>

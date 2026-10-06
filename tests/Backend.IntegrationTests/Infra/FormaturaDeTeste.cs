@@ -170,6 +170,20 @@ public static class FormaturaDeTeste
         await contexto.SaveChangesAsync(ct);
     }
 
+    /// <summary>Vence a assinatura e suspende a turma, como o worker faz no fim da vigência paga.</summary>
+    /// <param name="fabrica">API de teste.</param>
+    /// <param name="formaturaId">Turma contratada.</param>
+    public static async Task SuspenderPorVencimento(this ApiFactory fabrica, Guid formaturaId, CancellationToken ct)
+    {
+        await fabrica.VencerAssinatura(formaturaId, ct);
+        await using var contexto = fabrica.ContextoDe(formaturaId);
+
+        var formatura = await contexto.Formaturas.SingleAsync(f => f.Id == formaturaId, ct);
+        formatura.Transicionar(StatusDaFormatura.Suspensa).Sucesso.ShouldBeTrue();
+
+        await contexto.SaveChangesAsync(ct);
+    }
+
     /// <summary>Registra uma conta nova, vincula à formatura com o papel e seleciona a formatura.</summary>
     /// <param name="fabrica">API de teste.</param>
     /// <param name="formaturaId">Formatura do vínculo.</param>

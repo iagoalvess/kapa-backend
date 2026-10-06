@@ -14,10 +14,23 @@ public interface IAuthService
     /// <param name="origem">IP e navegador do solicitante, gravados no consentimento e na sessão.</param>
     Task<Result<ParDeTokens>> Registrar(RegistrarUsuario dados, OrigemDoAceite origem, CancellationToken ct = default);
 
-    /// <summary>Autentica por e-mail e senha.</summary>
+    /// <summary>
+    /// Autentica por e-mail e senha. Para administrador e presidente, a sessão só sai com o código mandado ao e-mail
+    /// (<see cref="ConfirmarCodigo"/>).
+    /// </summary>
     /// <param name="credenciais">E-mail e senha.</param>
     /// <param name="ipDeOrigem">IP do solicitante, registrado para auditoria.</param>
-    Task<Result<ParDeTokens>> Autenticar(Credenciais credenciais, string? ipDeOrigem, CancellationToken ct = default);
+    Task<Result<Entrada>> Autenticar(Credenciais credenciais, string? ipDeOrigem, CancellationToken ct = default);
+
+    /// <summary>O segundo passo do login: o código do e-mail troca o desafio pela sessão.</summary>
+    /// <param name="desafio">O desafio devolvido pelo login.</param>
+    /// <param name="codigo">Os seis dígitos.</param>
+    /// <param name="ipDeOrigem">IP do solicitante, registrado na sessão.</param>
+    Task<Result<ParDeTokens>> ConfirmarCodigo(string? desafio, string? codigo, string? ipDeOrigem, CancellationToken ct = default);
+
+    /// <summary>Manda o código de novo, para o mesmo desafio.</summary>
+    /// <param name="desafio">O desafio devolvido pelo login.</param>
+    Task<Result<CodigoDeEntrada>> ReenviarCodigo(string? desafio, CancellationToken ct = default);
 
     /// <summary>
     /// Troca um refresh token válido por um par novo, rotacionando o antigo.

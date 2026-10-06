@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Busca.Interfaces;
 using Backend.Business.Busca.Models;
 using Backend.Business.Formaturas.Interfaces;
@@ -15,7 +16,9 @@ namespace Backend.Business.Busca.Services;
 /// </remarks>
 /// <param name="buscaRepository">As consultas.</param>
 /// <param name="vinculoRepository">O papel de quem pergunta, lido do vínculo ativo.</param>
-public sealed class BuscaService(IBuscaRepository buscaRepository, IVinculoRepository vinculoRepository) : IBuscaService
+/// <param name="assinaturaRepository">Os módulos do plano da turma, que recortam os grupos.</param>
+public sealed class BuscaService(IBuscaRepository buscaRepository, IVinculoRepository vinculoRepository, IAssinaturaRepository assinaturaRepository)
+    : IBuscaService
 {
     /// <summary>A partir de quantos caracteres a busca vale a ida ao banco.</summary>
     public const int TamanhoMinimo = 3;
@@ -34,6 +37,8 @@ public sealed class BuscaService(IBuscaRepository buscaRepository, IVinculoRepos
         if (await vinculoRepository.ObterPapelAtivo(usuarioId, formaturaId, ct) is not { } papel)
             return Result.Ok(BuscaNaTurma.Nada);
 
-        return Result.Ok(await buscaRepository.Buscar(new QuemBusca(formaturaId, papel), limpo, PorGrupo, ct));
+        var modulos = (await assinaturaRepository.ObterPlanoDosModulosDeTodasAsFormaturas(formaturaId, ct))?.Modulos ?? [];
+
+        return Result.Ok(await buscaRepository.Buscar(new QuemBusca(formaturaId, papel, modulos), limpo, PorGrupo, ct));
     }
 }

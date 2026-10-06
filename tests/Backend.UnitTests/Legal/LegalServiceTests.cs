@@ -3,6 +3,7 @@ using Backend.Business.Legal.Interfaces;
 using Backend.Business.Legal.Models;
 using Backend.Business.Legal.Services;
 using Backend.Business.Legal.Validators;
+using Backend.Business.Usuarios.Models;
 using NSubstitute;
 using Shouldly;
 
@@ -28,9 +29,21 @@ public sealed class LegalServiceTests
         Vigentes(Documento(TipoDeDocumento.TermosDeUso, "2"), Documento(TipoDeDocumento.PoliticaDePrivacidade, "1"));
         Historico(Aceite(TipoDeDocumento.TermosDeUso, "1"), Aceite(TipoDeDocumento.PoliticaDePrivacidade, "1"));
 
-        var aceites = (await Servico.ObterMeusAceites(Guid.CreateVersion7(), Ct)).Valor;
+        var aceites = (await Servico.ObterMeusAceites(Guid.CreateVersion7(), [], Ct)).Valor;
 
         aceites.Pendencias.ShouldBe([new AceitePendente(TipoDeDocumento.TermosDeUso, "2")]);
+    }
+
+    /// <summary>O administrador opera o Kapa, não usa o produto: não tem o que aceitar.</summary>
+    [Fact]
+    public async Task Administrador_nao_tem_pendencia()
+    {
+        Vigentes(Documento(TipoDeDocumento.TermosDeUso, "1"), Documento(TipoDeDocumento.PoliticaDePrivacidade, "1"));
+        Historico();
+
+        var aceites = (await Servico.ObterMeusAceites(Guid.CreateVersion7(), [PerfisPadrao.Administrador], Ct)).Valor;
+
+        aceites.Pendencias.ShouldBeEmpty();
     }
 
     /// <summary>Vale a linha mais recente: aceite seguido de revogação é pendência.</summary>
@@ -40,7 +53,7 @@ public sealed class LegalServiceTests
         Vigentes(Documento(TipoDeDocumento.PoliticaDePrivacidade, "1"));
         Historico(Aceite(TipoDeDocumento.PoliticaDePrivacidade, "1", revogado: true), Aceite(TipoDeDocumento.PoliticaDePrivacidade, "1"));
 
-        var aceites = (await Servico.ObterMeusAceites(Guid.CreateVersion7(), Ct)).Valor;
+        var aceites = (await Servico.ObterMeusAceites(Guid.CreateVersion7(), [], Ct)).Valor;
 
         aceites.Pendencias.Count.ShouldBe(1);
     }
@@ -51,7 +64,7 @@ public sealed class LegalServiceTests
         Vigentes(Documento(TipoDeDocumento.PoliticaDePrivacidade, "1"));
         Historico(Aceite(TipoDeDocumento.PoliticaDePrivacidade, "1"), Aceite(TipoDeDocumento.PoliticaDePrivacidade, "1", revogado: true));
 
-        var aceites = (await Servico.ObterMeusAceites(Guid.CreateVersion7(), Ct)).Valor;
+        var aceites = (await Servico.ObterMeusAceites(Guid.CreateVersion7(), [], Ct)).Valor;
 
         aceites.Pendencias.ShouldBeEmpty();
     }

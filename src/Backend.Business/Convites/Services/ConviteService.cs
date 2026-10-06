@@ -72,6 +72,16 @@ public sealed class ConviteService(
 
     private static readonly Erro JaVinculado = Erro.Conflito("convite.ja_vinculado", "Você já participa desta formatura.");
 
+    /// <summary>
+    /// Presidente não entra por convite (revisão de segurança de 05/10/2026): entra como comissão e é promovido, e a
+    /// promoção é confirmada no e-mail de quem promove. Pelo convite, a senha do presidente bastava para criar outro.
+    /// </summary>
+    private static readonly Erro PresidentePorPromocao = Erro.Validacao(
+        "convite.presidente_por_promocao",
+        "Convide como Comissão. Depois que a pessoa entrar, promova a Presidente na tela de membros — a promoção é confirmada no seu e-mail.",
+        campo: "papel"
+    );
+
     private static readonly Erro PapelRestrito = Erro.Proibido("convite.papel_restrito", "Só o Presidente convida para a comissão e a tesouraria.");
 
     /// <inheritdoc />
@@ -96,6 +106,9 @@ public sealed class ConviteService(
             return Result.Falha<ConviteCriado>(validacao.Erros);
 
         var papel = dados.Papel ?? PapelNaFormatura.Formando;
+
+        if (papel == PapelNaFormatura.Presidente)
+            return PresidentePorPromocao;
 
         if (!await PodeTratarDoPapel(papel, usuarioId, formaturaId, ct))
             return PapelRestrito;
@@ -226,7 +239,7 @@ public sealed class ConviteService(
 
         var utilizavel = await ObterUtilizavel(token, agora, ct);
 
-        if (utilizavel is null)
+        if (utilizavel is null || utilizavel.Value.Convite.Papel == PapelNaFormatura.Presidente)
             return Invalido;
 
         var convite = utilizavel.Value.Convite;

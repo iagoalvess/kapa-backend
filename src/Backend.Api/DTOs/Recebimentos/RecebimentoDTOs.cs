@@ -46,6 +46,17 @@ public sealed record ContaDeRecebimentoDTO(MeiosDaContaDTO Meios, DateTime Atual
 /// <param name="Conta">A conta gravada.</param>
 public sealed record ContaDeRecebimentoDaTurmaDTO(ContaDeRecebimentoDTO? Conta);
 
+/// <summary>O que a gravação dos meios deu.</summary>
+/// <param name="Conta">A conta como está agora; nula se ainda não há conta.</param>
+/// <param name="ConfirmacaoEnviadaPara">
+/// Mascarado, o e-mail que recebeu o link: a troca do PIX ou da transferência só vale depois dele. Nulo: já valeu.
+/// </param>
+public sealed record GravacaoDaContaDTO(ContaDeRecebimentoDTO? Conta, string? ConfirmacaoEnviadaPara);
+
+/// <summary>O token do link de confirmação que chegou por e-mail.</summary>
+/// <param name="Token">Como veio no link.</param>
+public sealed record ConfirmacaoPorEmailDTO(string? Token);
+
 /// <summary>O PIX de teste.</summary>
 /// <param name="CopiaECola">O BR Code — a tela desenha o QR a partir dele, no navegador.</param>
 /// <param name="ValorEmCentavos">Valor do teste.</param>
@@ -85,6 +96,6 @@ public sealed record ConfiguracaoDoCartaoRequestDTO(bool? Ligado, int? TaxaRepas
 /// <param name="Provedor">A conexão, ou nula.</param>
 public sealed record ProvedorDaTurmaDTO(ProvedorConectadoDTO? Provedor);
 
-/// <summary>Para onde mandar o navegador do presidente autorizar o Kapa.</summary>
-/// <param name="Url">A página de autorização do Mercado Pago.</param>
-public sealed record AutorizacaoDoProvedorDTO(string Url);
+/// <summary>O link de autorização foi para o e-mail de quem clicou.</summary>
+/// <param name="EnviadaPara">O e-mail, mascarado.</param>
+public sealed record AutorizacaoDoProvedorDTO(string EnviadaPara);

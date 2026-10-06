@@ -110,6 +110,18 @@ public sealed record AdesaoDetalhe(
 /// <param name="MenorDeIdade">Se a data de nascimento informada dá menos de 18 anos hoje.</param>
 public sealed record MinhaAdesao(AdesaoDetalhe? Adesao, IReadOnlyList<string> Pendencias, bool MenorDeIdade);
 
+/// <summary>
+/// Só o que a guarda de adesão e o ponto do menu perguntam: há termo, há plano, e eu já aderi?
+/// </summary>
+/// <remarks>
+/// Existe para não baixar <see cref="MinhaAdesao"/> e o termo vigente inteiros — texto, plano simulado, catálogo —
+/// em toda tela só para decidir para onde a pessoa vai.
+/// </remarks>
+/// <param name="TermoPublicado">A turma tem versão publicada do termo — é o que o gate da API exige (Sprint 47, D18).</param>
+/// <param name="PlanoVigente">Há plano de cobrança vigente: sem ele, o termo ainda não pode ser aceito.</param>
+/// <param name="Aderiu">O próprio vínculo aderiu a alguma versão do termo.</param>
+public sealed record SituacaoDaMinhaAdesao(bool TermoPublicado, bool PlanoVigente, bool Aderiu);
+
 /// <summary>A adesão gravada, com o texto da versão aceita — o que a leitura e o PDF precisam.</summary>
 /// <param name="Adesao">Registro da adesão.</param>
 /// <param name="ConteudoDoTermo">Markdown da versão aceita.</param>

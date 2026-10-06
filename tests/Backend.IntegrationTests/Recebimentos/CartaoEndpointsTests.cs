@@ -228,9 +228,8 @@ public sealed class CartaoEndpointsTests(ApiFactory fabrica)
         var presidente = Cliente(api, turma.Presidente.Cliente);
         var anonimo = Cliente(api, null);
 
-        await presidente.CadastrarChavePix(Ct);
-        var autorizacao = await Ler<AutorizacaoDoProvedorDTO>(await presidente.PostAsync($"{Conta}/autorizacao", null, Ct));
-        var state = HttpUtility.ParseQueryString(new Uri(autorizacao.Url).Query)["state"];
+        await presidente.CadastrarChavePix(fabrica, Ct);
+        var state = HttpUtility.ParseQueryString(new Uri(await presidente.UrlDeAutorizacao(fabrica, Ct)).Query)["state"];
         var retorno = await anonimo.GetAsync($"/api/v1/mercado-pago/retorno?code=codigo&state={Uri.EscapeDataString(state!)}", Ct);
         retorno.Headers.Location!.ToString().ShouldContain("mercado_pago=conectado");
         (await presidente.PutAsJsonAsync($"{Conta}/cobranca", new ModoDeCobrancaRequestDTO(true), Json, Ct)).EnsureSuccessStatusCode();

@@ -326,7 +326,7 @@ public sealed class PainelDeSuporteTests(ApiFactory fabrica)
     private async Task<(HttpClient Cliente, Guid Id)> SuporteComId()
     {
         var cliente = fabrica.CreateClient();
-        var tokens = await cliente.AutenticarComoAdministrador(Ct);
+        var tokens = await cliente.AutenticarComoAdministrador(fabrica, Ct);
 
         return (cliente.ComToken(tokens.AccessToken), FormaturaDeTeste.IdDoUsuario(tokens.AccessToken));
     }

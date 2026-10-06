@@ -1,8 +1,12 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Adesoes.Services;
+using Backend.Business.Common;
 using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Eventos.Models;
 using Backend.Business.Eventos.Services;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Formaturas.Models;
 using Backend.Business.Recebimentos.Interfaces;
 using Backend.Business.Recebimentos.Models;
 using FluentValidation;
@@ -33,6 +37,7 @@ namespace Backend.Business.Recebimentos.Services;
 /// <param name="emails">Aviso da troca.</param>
 /// <param name="eventos">Auditoria.</param>
 /// <param name="validator">Forma dos meios.</param>
+/// <param name="confirmacao">O link da confirmação por e-mail.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class ContaDeRecebimentoService(
@@ -44,6 +49,7 @@ public sealed class ContaDeRecebimentoService(
     EmailsDeRecebimento emails,
     IEventoRepository eventos,
     IValidator<MeiosDaConta> validator,
+    ConfirmacaoPorEmail confirmacao,
     IUnitOfWork unitOfWork,
     ILogger<ContaDeRecebimentoService> logger
 ) : IContaDeRecebimentoService
@@ -53,6 +59,12 @@ public sealed class ContaDeRecebimentoService(
 
     /// <summary>Evento da troca, com o antes e o depois — lido pela trilha de auditoria (Sprint 14).</summary>
     public const string EventoDeTroca = "recebimento.conta_alterada";
+
+    /// <summary>Evento do pedido de troca que espera o link do e-mail — fica na trilha mesmo se nunca for confirmado.</summary>
+    public const string EventoDeTrocaPedida = NomesDeAuditoria.TrocaDaContaPedida;
+
+    /// <summary>A finalidade do link de confirmação da troca.</summary>
+    public const string FinalidadeDaTroca = "recebimento.troca";
 
     /// <summary>
     /// Os meios que um evento de cadastro ou de troca deixou gravados no <c>depois</c>.
@@ -88,6 +100,13 @@ public sealed class ContaDeRecebimentoService(
         "Com o Mercado Pago conectado, a chave PIX continua na conta: é por ela que o formando paga quando o Mercado Pago não responde."
     );
 
+    private static readonly Erro SemMudanca = Erro.Conflito("recebimento.conta_sem_mudanca", "Estes dados são os mesmos da conta atual.");
+
+    private static readonly Erro LinkInvalido = Erro.Validacao(
+        "recebimento.confirmacao_invalida",
+        "Este link de confirmação venceu, já foi usado ou é de outra pessoa. Peça a troca de novo na tela da conta."
+    );
+
     private static readonly Erro SemConta = Erro.NaoEncontrado("recebimento.sem_conta", "A turma ainda não cadastrou a conta de recebimento.");
 
     /// <inheritdoc />
@@ -96,24 +115,116 @@ public sealed class ContaDeRecebimentoService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// O e-mail sai só na troca: na primeira gravação não há o que desviar. Gravar os mesmos dados de
-    /// novo é recusado — senão o clique duplo desfaria a conferência e mandaria o aviso à toa.
+    /// Mudar o PIX ou a conta de transferência — o primeiro cadastro inclusive — não vale na hora: o link vai ao
+    /// e-mail de quem pediu, e só ele, com a sessão aberta, confirma (<see cref="Confirmar"/>). Sem isso, a senha
+    /// ou o cookie roubados do presidente bastavam para a turma inteira pagar na conta de outro no mesmo segundo
+    /// (revisão de segurança de 05/10/2026). Mexer só no dinheiro vale na hora, pelo mesmo motivo de não avisar a
+    /// turma: não muda para onde vai nada.
+    /// <para>
+    /// Gravar os mesmos dados de novo é recusado — senão o clique duplo desfaria a conferência e mandaria o aviso à toa.
+    /// </para>
     /// </remarks>
-    public async Task<Result<ContaDeRecebimentoDetalhe>> Gravar(Guid formaturaId, Guid usuarioId, MeiosDaConta meios, CancellationToken ct = default)
+    public async Task<Result<GravacaoDaConta>> Gravar(Guid formaturaId, Guid usuarioId, MeiosDaConta meios, CancellationToken ct = default)
     {
         var validacao = validator.Validar(meios);
         if (validacao.Falhou)
-            return Result.Falha<ContaDeRecebimentoDetalhe>(validacao.Erros);
+            return Result.Falha<GravacaoDaConta>(validacao.Erros);
 
         if (meios.Pix is null && await provedor.ObterCredencial(ct) is not null)
             return ChavePixComProvedor;
 
         var conta = await contaRepository.ObterParaEdicao(ct);
+        var antes = conta?.ParaMeios();
+        var depois = ContaDeRecebimento.Normalizar(meios);
 
+        if (antes == depois)
+            return SemMudanca;
+
+        if (antes?.Pix == depois.Pix && antes?.Transferencia == depois.Transferencia)
+            return (await Aplicar(formaturaId, usuarioId, conta, depois, ct)).Map(detalhe => new GravacaoDaConta(detalhe, null));
+
+        var membro = await perfilRepository.ObterMembro(formaturaId, usuarioId, ct);
+        if (membro is null)
+            return ErrosDeFormatura.MembroNaoEncontrado;
+
+        var token = confirmacao.Assinar(FinalidadeDaTroca, new TrocaDosMeios(formaturaId, usuarioId, Estado(conta), depois), DateTime.UtcNow);
+        var turma = (await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct))?.Nome ?? string.Empty;
+
+        await emails.ConfirmarTroca(membro.Email, turma, antes, depois, token, ct);
+        await eventos.Auditar(
+            EventoDeTrocaPedida,
+            usuarioId,
+            new
+            {
+                formaturaId,
+                antes,
+                depois,
+            },
+            ct
+        );
+        await unitOfWork.SalvarAsync(ct);
+
+        logger.LogWarning("Troca da conta de recebimento pedida por {UsuarioId}; espera a confirmação por e-mail.", usuarioId);
+
+        return new GravacaoDaConta(conta is null ? null : await contaRepository.ObterDetalhe(ct), AdesaoService.MascararEmail(membro.Email));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// O link só vale para quem pediu, na turma em que pediu, e enquanto a conta estiver como estava no pedido —
+    /// aplicado uma vez, o "antes" mudou e o mesmo link morre. A forma é conferida de novo: o Mercado Pago pode ter
+    /// sido conectado no meio do caminho.
+    /// </remarks>
+    public async Task<Result<ContaDeRecebimentoDetalhe>> Confirmar(Guid formaturaId, Guid usuarioId, string? token, CancellationToken ct = default)
+    {
+        if (
+            confirmacao.Ler<TrocaDosMeios>(FinalidadeDaTroca, token, DateTime.UtcNow) is not { } troca
+            || troca.FormaturaId != formaturaId
+            || troca.UsuarioId != usuarioId
+        )
+            return LinkInvalido;
+
+        var conta = await contaRepository.ObterParaEdicao(ct);
+        if (Estado(conta) != troca.Antes)
+            return LinkInvalido;
+
+        var validacao = validator.Validar(troca.Depois);
+        if (validacao.Falhou)
+            return Result.Falha<ContaDeRecebimentoDetalhe>(validacao.Erros);
+
+        if (troca.Depois.Pix is null && await provedor.ObterCredencial(ct) is not null)
+            return ChavePixComProvedor;
+
+        return await Aplicar(formaturaId, usuarioId, conta, troca.Depois, ct);
+    }
+
+    /// <summary>
+    /// A impressão digital da conta para o link de confirmação: os meios e a última gravação.
+    /// </summary>
+    /// <remarks>
+    /// Só os meios deixariam o link reviver na volta ao estado do pedido (A, B, A de novo); a data da gravação muda a
+    /// cada <c>SalvarAsync</c> e não volta. O custo: conferir a chave entre o pedido e o clique também mata o link.
+    /// </remarks>
+    private static string Estado(ContaDeRecebimento? conta) => ConfirmacaoPorEmail.Impressao(new { Meios = conta?.ParaMeios(), conta?.AtualizadoEm });
+
+    /// <summary>
+    /// Grava os meios — cadastro ou troca —, avisa e audita na mesma transação.
+    /// </summary>
+    /// <remarks>
+    /// O e-mail à comissão e à turma sai só na troca: no primeiro cadastro não havia para onde o dinheiro ia antes.
+    /// </remarks>
+    private async Task<Result<ContaDeRecebimentoDetalhe>> Aplicar(
+        Guid formaturaId,
+        Guid usuarioId,
+        ContaDeRecebimento? conta,
+        MeiosDaConta depois,
+        CancellationToken ct
+    )
+    {
         if (conta is null)
         {
             conta = new ContaDeRecebimento();
-            conta.Aplicar(meios);
+            conta.Aplicar(depois);
             await contaRepository.Adicionar(conta, ct);
             await eventos.Auditar(EventoDeCadastro, usuarioId, new { formaturaId, depois = conta.ParaMeios() }, ct);
             await unitOfWork.SalvarAsync(ct);
@@ -130,8 +241,8 @@ public sealed class ContaDeRecebimentoService(
 
         var antes = conta.ParaMeios();
 
-        if (!conta.Aplicar(meios))
-            return Erro.Conflito("recebimento.conta_sem_mudanca", "Estes dados são os mesmos da conta atual.");
+        if (!conta.Aplicar(depois))
+            return SemMudanca;
 
         await Avisar(formaturaId, usuarioId, antes, conta.ParaMeios(), ct);
         await eventos.Auditar(

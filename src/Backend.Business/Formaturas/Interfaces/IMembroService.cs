@@ -27,12 +27,18 @@ public interface IMembroService
     /// <param name="formaturaId">Formatura da sessão.</param>
     Task<Result<IReadOnlyList<ContagemDeMembros>>> Contar(Guid formaturaId, CancellationToken ct = default);
 
-    /// <summary>Troca o papel de um membro ativo.</summary>
+    /// <summary>Troca o papel de um membro ativo. Para Presidente, só pede: o link vai ao e-mail de quem pediu.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Membro a alterar.</param>
     /// <param name="dados">Papel novo.</param>
     /// <param name="autorId">Quem está trocando — vai na trilha de auditoria (Sprint 14).</param>
-    Task<Result> AlterarPapel(Guid formaturaId, Guid usuarioId, AlterarPapel dados, Guid autorId, CancellationToken ct = default);
+    Task<Result<AlteracaoDePapel>> AlterarPapel(Guid formaturaId, Guid usuarioId, AlterarPapel dados, Guid autorId, CancellationToken ct = default);
+
+    /// <summary>Aplica a promoção a Presidente pedida em <see cref="AlterarPapel"/>, pelo link do e-mail.</summary>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="autorId">Quem confirma — tem de ser quem pediu.</param>
+    /// <param name="token">O token do link.</param>
+    Task<Result> ConfirmarPresidente(Guid formaturaId, Guid autorId, string? token, CancellationToken ct = default);
 
     /// <summary>Desativa o vínculo de um membro, preservando o histórico.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>

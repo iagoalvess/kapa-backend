@@ -1,10 +1,14 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Backend.Api.DTOs.Auth;
+using Backend.Api.DTOs.Formaturas;
 using Backend.Api.DTOs.Legal;
 using Backend.Api.DTOs.Recebimentos;
+using Backend.Business.Formaturas.Models;
 using Backend.Business.Recebimentos.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -87,14 +91,32 @@ public static class ClienteExtensions
         return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, ct))!;
     }
 
-    /// <summary>Autentica uma conta registrada por <see cref="RegistrarComEmail"/>.</summary>
+    /// <summary>Autentica uma conta registrada por <see cref="RegistrarComEmail"/>; presidente passa pelo código.</summary>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
+    /// <param name="fabrica">Onde está a fila de e-mails, de onde sai o código.</param>
     /// <param name="email">E-mail da conta.</param>
-    public static async Task<TokenResponseDTO> AutenticarCom(this HttpClient cliente, string email, CancellationToken ct)
-    {
-        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, SenhaPadrao), Json, ct);
+    public static Task<TokenResponseDTO> AutenticarCom(this HttpClient cliente, ApiFactory fabrica, string email, CancellationToken ct) =>
+        cliente.Entrar(fabrica, email, SenhaPadrao, ct);
 
+    /// <summary>
+    /// O login como o front faz: e-mail e senha e, se a API pedir (202), o código de seis dígitos do e-mail.
+    /// </summary>
+    /// <param name="cliente">Cliente HTTP da API de teste.</param>
+    /// <param name="fabrica">Onde está a fila de e-mails, de onde sai o código.</param>
+    /// <param name="email">E-mail da conta.</param>
+    /// <param name="senha">Senha.</param>
+    public static async Task<TokenResponseDTO> Entrar(this HttpClient cliente, ApiFactory fabrica, string email, string senha, CancellationToken ct)
+    {
+        var resposta = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, senha), Json, ct);
         resposta.EnsureSuccessStatusCode();
+
+        if (resposta.StatusCode == HttpStatusCode.Accepted)
+        {
+            var desafio = (await resposta.Content.ReadFromJsonAsync<CodigoDeEntradaDTO>(Json, ct))!.Desafio;
+            var codigo = await fabrica.CodigoDoUltimoEmail(ct);
+            resposta = await cliente.PostAsJsonAsync("/api/v1/auth/login/codigo", new CodigoDeEntradaRequestDTO(desafio, codigo), Json, ct);
+            resposta.EnsureSuccessStatusCode();
+        }
 
         return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, ct))!;
     }
@@ -102,21 +124,11 @@ public static class ClienteExtensions
     /// <summary>Senha usada por todas as contas de teste.</summary>
     private const string SenhaPadrao = "Senha@Teste123";
 
-    /// <summary>Autentica como o administrador criado pelo seed.</summary>
+    /// <summary>Autentica como o administrador criado pelo seed — com o código do e-mail, como todo admin.</summary>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
-    public static async Task<TokenResponseDTO> AutenticarComoAdministrador(this HttpClient cliente, CancellationToken ct)
-    {
-        var resposta = await cliente.PostAsJsonAsync(
-            "/api/v1/auth/login",
-            new LoginRequestDTO(ApiFactory.AdminEmail, ApiFactory.AdminSenha),
-            Json,
-            ct
-        );
-
-        resposta.EnsureSuccessStatusCode();
-
-        return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, ct))!;
-    }
+    /// <param name="fabrica">Onde está a fila de e-mails, de onde sai o código.</param>
+    public static Task<TokenResponseDTO> AutenticarComoAdministrador(this HttpClient cliente, ApiFactory fabrica, CancellationToken ct) =>
+        cliente.Entrar(fabrica, ApiFactory.AdminEmail, ApiFactory.AdminSenha, ct);
 
     /// <summary>Passa a enviar o token no cabeçalho <c>Authorization</c>.</summary>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
@@ -207,17 +219,85 @@ public static class ClienteExtensions
     public static Task<HttpResponseMessage> SairComCorpoVazio(this HttpClient cliente, CancellationToken ct) =>
         cliente.PostAsync("/api/v1/auth/logout", new StringContent("{}", Encoding.UTF8, "application/json"), ct);
 
-    /// <summary>Cadastra a chave PIX da turma, que conectar o Mercado Pago exige.</summary>
+    /// <summary>Cadastra a chave PIX da turma, que conectar o Mercado Pago exige — pedido e confirmação pelo e-mail.</summary>
     /// <param name="presidente">Cliente autenticado como presidente da turma.</param>
-    public static async Task CadastrarChavePix(this HttpClient presidente, CancellationToken ct) =>
+    /// <param name="fabrica">Onde está a fila de e-mails, de onde sai o link.</param>
+    public static async Task CadastrarChavePix(this HttpClient presidente, ApiFactory fabrica, CancellationToken ct) =>
         (
-            await presidente.PutAsJsonAsync(
-                "/api/v1/recebimentos/conta",
+            await presidente.GravarMeios(
+                fabrica,
                 new MeiosDaContaDTO(new ChavePixDTO(TipoDeChavePix.Cpf, "529.982.247-25", "Comissão da Turma", "Curitiba"), null, null),
-                Json,
                 ct
             )
         ).EnsureSuccessStatusCode();
+
+    /// <summary>
+    /// Grava os meios como o presidente faria: o <c>PUT</c> e, se a troca pediu confirmação, o link do e-mail.
+    /// </summary>
+    /// <returns>A resposta da confirmação quando houve uma; senão, a do <c>PUT</c>.</returns>
+    /// <param name="presidente">Cliente autenticado como presidente da turma.</param>
+    /// <param name="fabrica">Onde está a fila de e-mails, de onde sai o link.</param>
+    /// <param name="meios">Os meios.</param>
+    public static async Task<HttpResponseMessage> GravarMeios(
+        this HttpClient presidente,
+        ApiFactory fabrica,
+        MeiosDaContaDTO meios,
+        CancellationToken ct
+    )
+    {
+        var pedido = await presidente.PutAsJsonAsync("/api/v1/recebimentos/conta", meios, Json, ct);
+        if (!pedido.IsSuccessStatusCode)
+            return pedido;
+
+        var gravacao = await pedido.Content.ReadFromJsonAsync<GravacaoDaContaDTO>(Json, ct);
+        if (gravacao!.ConfirmacaoEnviadaPara is null)
+            return pedido;
+
+        return await presidente.PostAsJsonAsync(
+            "/api/v1/recebimentos/conta/confirmar",
+            new ConfirmacaoPorEmailDTO(await fabrica.TokenDoUltimoEmail(ct)),
+            Json,
+            ct
+        );
+    }
+
+    /// <summary>Promove a Presidente como o presidente faria: o <c>PUT</c> do papel e o link do e-mail.</summary>
+    /// <param name="presidente">Cliente autenticado como presidente da turma.</param>
+    /// <param name="fabrica">Onde está a fila de e-mails, de onde sai o link.</param>
+    /// <param name="usuarioId">Quem vira Presidente.</param>
+    public static async Task<HttpResponseMessage> PromoverAPresidente(
+        this HttpClient presidente,
+        ApiFactory fabrica,
+        Guid usuarioId,
+        CancellationToken ct
+    )
+    {
+        var pedido = await presidente.PutAsJsonAsync(
+            $"/api/v1/formaturas/atual/membros/{usuarioId}/papel",
+            new AlterarPapelRequestDTO(PapelNaFormatura.Presidente),
+            Json,
+            ct
+        );
+        if (!pedido.IsSuccessStatusCode)
+            return pedido;
+
+        return await presidente.PostAsJsonAsync(
+            "/api/v1/formaturas/atual/membros/presidente/confirmar",
+            new ConfirmacaoDePresidenteDTO(await fabrica.TokenDoUltimoEmail(ct)),
+            Json,
+            ct
+        );
+    }
+
+    /// <summary>A página de autorização do Mercado Pago, que agora chega por e-mail em vez de vir na resposta.</summary>
+    /// <param name="presidente">Cliente autenticado como presidente da turma.</param>
+    /// <param name="fabrica">Onde está a fila de e-mails.</param>
+    public static async Task<string> UrlDeAutorizacao(this HttpClient presidente, ApiFactory fabrica, CancellationToken ct)
+    {
+        (await presidente.PostAsync("/api/v1/recebimentos/conta/mercado-pago/autorizacao", null, ct)).EnsureSuccessStatusCode();
+
+        return Regex.Match((await fabrica.UltimoEmailDaFila(ct))!, "href=\"([^\"]*state=[^\"]*)\"").Groups[1].Value;
+    }
 
     /// <summary>Nome do cookie, espelhando o padrão de <c>CookieDeSessao:Nome</c>.</summary>
     public const string NomeDoCookie = "refresh_token";

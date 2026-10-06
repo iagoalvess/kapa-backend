@@ -13,6 +13,7 @@ public sealed class RegistroDeMapeamentosPagamentos : IRegister
     public void Register(TypeAdapterConfig config)
     {
         config.NewConfig<ExtratoDoFormando, ExtratoDTO>();
+        config.NewConfig<ProximasParcelas, ProximasParcelasDTO>();
         config.NewConfig<CobrancaDaParcela, CobrancaDaParcelaDTO>();
         config.NewConfig<InformeNaFila, InformeDTO>();
         config.NewConfig<ResultadoDaConferencia, ResultadoDaConferenciaDTO>();

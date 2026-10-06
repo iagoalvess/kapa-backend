@@ -50,6 +50,7 @@ public sealed class AssinaturaServiceTests
             _provedor,
             new VagasDoPlano(_assinaturas, _vinculos),
             new IniciarCheckoutValidator(),
+            new TrocaDePlanoValidator(),
             Options.Create(new AssinaturaSettings()),
             Options.Create(new AplicacaoSettings { UrlDoFrontend = "https://app.kapa" }),
             _unitOfWork

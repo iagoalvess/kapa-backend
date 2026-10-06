@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Backend.Business;
 using Backend.Business.Abstractions;
 using Backend.Data;
@@ -126,6 +127,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         return await contexto.EmailsFila.OrderByDescending(e => e.CriadoEm).Select(e => $"{e.Assunto}\n{e.CorpoHtml}").FirstOrDefaultAsync(ct);
     }
+
+    /// <summary>Os seis dígitos do e-mail mais recente da fila — o código vai no assunto, que vem primeiro.</summary>
+    public async Task<string> CodigoDoUltimoEmail(CancellationToken ct) => Regex.Match((await UltimoEmailDaFila(ct))!, @"\b\d{6}\b").Value;
+
+    /// <summary>O <c>token</c> do link de confirmação no e-mail mais recente da fila.</summary>
+    public async Task<string> TokenDoUltimoEmail(CancellationToken ct) =>
+        Uri.UnescapeDataString(Regex.Match((await UltimoEmailDaFila(ct))!, "token=([^\"&]+)").Groups[1].Value);
 
     /// <inheritdoc />
     /// <remarks>

@@ -16,9 +16,9 @@ namespace Backend.Api.Controllers.V1.Financeiro;
 /// </summary>
 /// <remarks>
 /// O consolidado e a arrecadação são de todo membro — prestação de contas, só somas; a projeção, com o
-/// planejamento das despesas, é da gestão, porque é com ela que a comissão decide contratar. O menu esconde
-/// o Caixa do formando, mas a leitura pela API é dele por direito. Só leitura: nada aqui grava, e saldo não
-/// é coluna (decisão 1).
+/// planejamento das despesas, é da gestão, porque é com ela que a comissão decide contratar. O menu mostra o
+/// Caixa a todo membro; para o formando a tela não pede a projeção nem desenha o cartão dela. Só leitura:
+/// nada aqui grava, e saldo não é coluna (decisão 1).
 /// </remarks>
 /// <param name="caixaService">Agregações do caixa.</param>
 [ApiVersion("1.0")]

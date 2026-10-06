@@ -144,6 +144,19 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
     public async Task<IActionResult> ObterMinha(CancellationToken ct) =>
         Responder((await adesaoService.ObterMinha(FormaturaId, usuarioAtual.Id, ct)).Map(minha => minha.Adapt<MinhaAdesaoDTO>()));
 
+    /// <summary>Se há termo e plano para aceitar e se o próprio membro já aderiu — sem o termo nem a adesão.</summary>
+    /// <remarks>
+    /// É o que a guarda de adesão do app e o ponto do menu perguntam em toda tela; antes eles baixavam
+    /// <c>/adesoes/eu</c> e o termo vigente inteiros para tirar dois booleanos. Liberado antes da adesão, como o
+    /// resto do caminho até o aceite.
+    /// </remarks>
+    [HttpGet("eu/situacao")]
+    [Authorize(Policy = Politicas.MembroAntesDaAdesao)]
+    [ProducesResponseType(typeof(SituacaoDaMinhaAdesaoDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ObterSituacao(CancellationToken ct) =>
+        Responder((await adesaoService.ObterSituacao(FormaturaId, usuarioAtual.Id, ct)).Map(situacao => situacao.Adapt<SituacaoDaMinhaAdesaoDTO>()));
+
     /// <summary>Quem aderiu e quem falta: os membros ativos com a adesão mais recente de cada um.</summary>
     /// <param name="paginacao">Página e tamanho; o teto é aplicado no servidor.</param>
     /// <param name="aderiu">Só quem aderiu (<c>true</c>), só quem falta (<c>false</c>) ou todos.</param>

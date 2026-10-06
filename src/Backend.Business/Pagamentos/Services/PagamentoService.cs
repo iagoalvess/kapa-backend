@@ -106,10 +106,32 @@ public sealed class PagamentoService(
 
         return new ExtratoDoFormando(
             parcelas.Where(p => p.EmAberto).Sum(p => p.ValorDoDia!.TotalEmCentavos),
-            parcelas.FirstOrDefault(p => p.EmAberto && !p.EmConferencia && p.ValorDoDia!.TotalEmCentavos > 0),
+            parcelas.FirstOrDefault(APagar),
             parcelas
         );
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Lê só o que ainda está a pagar, e não o extrato: a regra da próxima é a mesma (<see cref="APagar"/>), e o
+    /// crédito também fica de fora. Do titular, como o extrato.
+    /// </remarks>
+    public async Task<Result<ProximasParcelas>> ObterProximas(Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
+    {
+        var membro = await perfilRepository.ObterTitular(formaturaId, usuarioId, ct);
+        if (membro is null)
+            return ErrosDeFormatura.MembroNaoEncontrado;
+
+        var hoje = DataUtils.Hoje();
+        var aPagar = await parcelaRepository.ComValorDoDia(await parcelaRepository.ListarAPagarDoVinculo(membro.VinculoId, hoje, ct), hoje, ct);
+        var duas = aPagar.Where(APagar).Take(2).ToList();
+
+        return new ProximasParcelas(duas.ElementAtOrDefault(0), duas.ElementAtOrDefault(1));
+    }
+
+    /// <summary>A parcela que o formando ainda paga: aberta ou vencida, sem aviso esperando conferência, e não crédito.</summary>
+    /// <param name="parcela">Parcela com o valor do dia.</param>
+    private static bool APagar(ParcelaResumo parcela) => parcela.EmAberto && !parcela.EmConferencia && parcela.ValorDoDia!.TotalEmCentavos > 0;
 
     /// <inheritdoc />
     public async Task<Result<int>> ContarVencidasSemAviso(Guid formaturaId, Guid usuarioId, CancellationToken ct = default)

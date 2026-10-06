@@ -129,9 +129,12 @@ nossa, e o `trace_id` é o que o resolve.
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
+| <a id="auth.codigo_bloqueado"></a>`auth.codigo_bloqueado` | 401 | Cinco códigos de acesso errados na conta: o segundo passo do login fecha por 15 minutos. |
+| <a id="auth.codigo_incorreto"></a>`auth.codigo_incorreto` | 401 | Código de acesso (login em duas etapas) incorreto ou vencido. |
 | <a id="auth.conta_bloqueada"></a>`auth.conta_bloqueada` | 403 | Conta temporariamente bloqueada por excesso de tentativas. Tente mais tarde. Só na troca de senha, depois de errar a senha atual vezes demais; no login, o bloqueio responde `auth.credenciais_invalidas`, igual à senha errada, de propósito. |
 | <a id="auth.conta_desativada"></a>`auth.conta_desativada` | 403 | Esta conta está desativada. Procure um administrador. |
 | <a id="auth.credenciais_invalidas"></a>`auth.credenciais_invalidas` | 401 | E-mail ou senha incorretos. |
+| <a id="auth.desafio_invalido"></a>`auth.desafio_invalido` | 401 | Desafio do login em duas etapas vencido (30 min) ou adulterado: entre de novo com e-mail e senha. |
 | <a id="auth.email_nao_confirmado"></a>`auth.email_nao_confirmado` | 403 | Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada. |
 | <a id="auth.nao_autenticado"></a>`auth.nao_autenticado` | 401 | Autenticação necessária. Sem token, ou token vencido ou inválido. |
 | <a id="auth.sem_permissao"></a>`auth.sem_permissao` | 403 | Você não tem permissão para esta operação. |
@@ -219,6 +222,7 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="convite.nao_encontrado"></a>`convite.nao_encontrado` | 404 | Convite não encontrado nesta formatura. |
 | <a id="convite.papel_invalido"></a>`convite.papel_invalido` | 400 | Papel inválido. Use Presidente, Tesoureiro, Comissao ou Formando. |
 | <a id="convite.papel_restrito"></a>`convite.papel_restrito` | 403 | Só o Presidente convida para a comissão e a tesouraria. |
+| <a id="convite.presidente_por_promocao"></a>`convite.presidente_por_promocao` | 400 | Convite para Presidente: entra como Comissão e é promovido na tela de membros, com confirmação por e-mail (revisão de 05/10/2026). |
 | <a id="convite.sem_termo_ou_plano"></a>`convite.sem_termo_ou_plano` | 409 | Convite de formando antes de a turma publicar o termo e pôr o plano em vigor (Sprint 47, D34). |
 | <a id="convite.vinculo_removido"></a>`convite.vinculo_removido` | 403 | Você foi removido desta formatura. Para voltar, peça à comissão um convite pessoal. |
 
@@ -306,6 +310,7 @@ Não vem do domínio: é o `GlobalExceptionHandler`, a rede de segurança para e
 | Código | Status | Quando acontece |
 | --- | --- | --- |
 | <a id="formatura.assinatura_ativa"></a>`formatura.assinatura_ativa` | 409 | Cancele a renovação da assinatura antes de encerrar a formatura. |
+| <a id="formatura.confirmacao_invalida"></a>`formatura.confirmacao_invalida` | 400 | Link de confirmação do novo Presidente vencido (30 min), já usado, de outra pessoa ou com o papel do membro mudado desde o pedido. |
 | <a id="formatura.encerrada"></a>`formatura.encerrada` | 409 | Esta turma não contrata assinatura. |
 | <a id="formatura.gratuita_pendente"></a>`formatura.gratuita_pendente` | 409 | Você já tem uma turma no plano gratuito. Contrate ou descarte essa antes de criar outra. |
 | <a id="formatura.inativa"></a>`formatura.inativa` | 403 | Esta formatura está em modo leitura e não aceita alterações. |
@@ -479,6 +484,7 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | <a id="recebimento.avisos_pendentes"></a>`recebimento.avisos_pendentes` | 409 | Trocar para a cobrança automática com avisos de pagamento esperando conferência. |
 | <a id="recebimento.chave_pix_obrigatoria"></a>`recebimento.chave_pix_obrigatoria` | 409 | Com o Mercado Pago conectado, a chave PIX continua na conta: é por ela que o formando paga quando o Mercado Pago não responde. |
 | <a id="recebimento.cobranca_automatica_ligada"></a>`recebimento.cobranca_automatica_ligada` | 409 | Desconectar o Mercado Pago com a turma na cobrança automática: volte ao manual antes. |
+| <a id="recebimento.confirmacao_invalida"></a>`recebimento.confirmacao_invalida` | 400 | Link de confirmação da troca dos meios vencido (30 min), já usado, de outra pessoa ou com a conta mudada desde o pedido. |
 | <a id="recebimento.conta_fora_do_brasil"></a>`recebimento.conta_fora_do_brasil` | 409 | Esta conta do Mercado Pago não é do Brasil. Conecte a conta brasileira da turma. |
 | <a id="recebimento.conta_ja_conferida"></a>`recebimento.conta_ja_conferida` | 409 | Esta chave já foi conferida. |
 | <a id="recebimento.conta_sem_mudanca"></a>`recebimento.conta_sem_mudanca` | 409 | Estes dados são os mesmos da conta atual. |

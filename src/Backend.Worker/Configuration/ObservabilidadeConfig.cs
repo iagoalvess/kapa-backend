@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -44,9 +45,19 @@ public static class ObservabilidadeConfig
 
         var coletor = builder.Configuration[VariavelDoColetor];
 
-        builder
-            .Services.AddOpenTelemetry()
-            .ConfigureResource(recurso => recurso.AddService(nomeDoServico))
+        var telemetria = builder.Services.AddOpenTelemetry().ConfigureResource(recurso => recurso.AddService(nomeDoServico));
+
+        if (!string.IsNullOrWhiteSpace(coletor))
+            telemetria.WithLogging(
+                log => log.AddOtlpExporter(),
+                opcoes =>
+                {
+                    opcoes.IncludeScopes = true;
+                    opcoes.IncludeFormattedMessage = true;
+                }
+            );
+
+        telemetria
             .WithTracing(rastreamento =>
             {
                 rastreamento.AddHttpClientInstrumentation().AddSource("Npgsql");
@@ -57,7 +68,7 @@ public static class ObservabilidadeConfig
             .WithMetrics(metricas =>
             {
                 metricas.AddHttpClientInstrumentation().AddRuntimeInstrumentation();
-                metricas.AddMeter(Medidores.Filas);
+                metricas.AddMeter(Medidores.Filas, "Npgsql");
 
                 if (!string.IsNullOrWhiteSpace(coletor))
                     metricas.AddOtlpExporter();

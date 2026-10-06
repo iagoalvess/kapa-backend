@@ -82,6 +82,11 @@ public interface IAdesaoRepository
     /// <param name="aditivo">Aditivo.</param>
     Task AdicionarAditivo(AditivoDaAdesao aditivo, CancellationToken ct = default);
 
+    /// <summary>Se a turma tem termo e plano para aceitar e se o membro já aderiu; nula sem vínculo ativo.</summary>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">O próprio.</param>
+    Task<SituacaoDaMinhaAdesao?> ObterSituacao(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+
     /// <summary>A adesão mais recente do vínculo, com o texto aceito; nula se ele nunca aderiu.</summary>
     /// <param name="vinculoId">Vínculo.</param>
     Task<AdesaoComTermo?> ObterUltimaDoVinculo(Guid vinculoId, CancellationToken ct = default);

@@ -20,6 +20,7 @@ namespace Backend.Business.Assinaturas.Services;
 /// <param name="provedor">PSP que cobra a licença.</param>
 /// <param name="vagas">Vagas ocupadas, para não vender plano menor que a turma.</param>
 /// <param name="checkoutValidator">Forma do pedido de checkout.</param>
+/// <param name="trocaValidator">Forma do pedido de troca de plano.</param>
 /// <param name="settings">Configuração da assinatura.</param>
 /// <param name="aplicacao">Endereço do front, para a URL de retorno.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
@@ -29,6 +30,7 @@ public sealed class AssinaturaService(
     IProvedorDeAssinatura provedor,
     VagasDoPlano vagas,
     IValidator<IniciarCheckout> checkoutValidator,
+    IValidator<TrocaDePlano> trocaValidator,
     IOptions<AssinaturaSettings> settings,
     IOptions<AplicacaoSettings> aplicacao,
     IUnitOfWork unitOfWork
@@ -53,7 +55,7 @@ public sealed class AssinaturaService(
     /// <inheritdoc />
     /// <remarks>Sem nem o gratuito no catálogo, o banco está mal semeado: 404, e não uma turma sem plano nenhum.</remarks>
     public async Task<Result<PlanoDaTurma>> ObterPlanoDaTurma(Guid formaturaId, CancellationToken ct = default) =>
-        await assinaturaRepository.ObterPlanoVigenteDeTodasAsFormaturas(formaturaId, ct) is { } plano
+        await assinaturaRepository.ObterPlanoDosModulosDeTodasAsFormaturas(formaturaId, ct) is { } plano
             ? new PlanoDaTurma(plano.Codigo, plano.Nome, plano.Modulos, plano.Pago)
             : Erro.NaoEncontrado("plano.nao_encontrado", "O catálogo não tem o plano desta turma.");
 
@@ -194,17 +196,21 @@ public sealed class AssinaturaService(
     /// </remarks>
     public async Task<Result<ResultadoDaTroca>> TrocarPlano(
         Guid formaturaId,
-        string planoCodigo,
+        string? planoCodigo,
         string? emailDoPagador,
         CancellationToken ct = default
     )
     {
+        var validacao = trocaValidator.Validar(new TrocaDePlano(planoCodigo ?? string.Empty));
+        if (validacao.Falhou)
+            return Result.Falha<ResultadoDaTroca>(validacao.Erros);
+
         var assinatura = await assinaturaRepository.ObterMaisRecenteParaEdicao(ct);
 
         if (assinatura is not { Status: StatusDaAssinatura.Ativa })
             return NaoAtiva;
 
-        var novo = await assinaturaRepository.ObterPlanoAtivo(planoCodigo.Trim(), ct);
+        var novo = await assinaturaRepository.ObterPlanoAtivo(planoCodigo!.Trim(), ct);
 
         if (novo is null)
             return Erro.Validacao("assinatura.plano_invalido", "Plano não encontrado.", campo: "plano_codigo");

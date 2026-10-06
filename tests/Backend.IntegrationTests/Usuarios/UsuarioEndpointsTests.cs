@@ -48,7 +48,7 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
     public async Task Administrador_lista_usuarios_paginados()
     {
         var cliente = fabrica.CreateClient();
-        var tokens = await cliente.AutenticarComoAdministrador(Ct);
+        var tokens = await cliente.AutenticarComoAdministrador(fabrica, Ct);
 
         var pagina = await cliente
             .ComToken(tokens.AccessToken)
@@ -64,7 +64,7 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
     public async Task O_tamanho_de_pagina_e_limitado_pelo_servidor()
     {
         var cliente = fabrica.CreateClient();
-        var tokens = await cliente.AutenticarComoAdministrador(Ct);
+        var tokens = await cliente.AutenticarComoAdministrador(fabrica, Ct);
 
         var pagina = await cliente
             .ComToken(tokens.AccessToken)
@@ -77,7 +77,7 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
     public async Task Administrador_altera_o_cadastro_de_um_usuario()
     {
         var cliente = fabrica.CreateClient();
-        var admin = await cliente.AutenticarComoAdministrador(Ct);
+        var admin = await cliente.AutenticarComoAdministrador(fabrica, Ct);
         var alvo = await fabrica.CreateClient().RegistrarUsuarioComum(Ct);
         var alvoId = FormaturaDeTeste.IdDoUsuario(alvo.AccessToken);
 
@@ -114,7 +114,7 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
     public async Task Nome_vazio_devolve_400_apontando_o_campo()
     {
         var cliente = fabrica.CreateClient();
-        var admin = await cliente.AutenticarComoAdministrador(Ct);
+        var admin = await cliente.AutenticarComoAdministrador(fabrica, Ct);
         var alvo = await fabrica.CreateClient().RegistrarUsuarioComum(Ct);
 
         var resposta = await cliente
@@ -129,7 +129,7 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
     public async Task Administrador_nao_consegue_remover_o_proprio_perfil()
     {
         var cliente = fabrica.CreateClient();
-        var tokens = await cliente.AutenticarComoAdministrador(Ct);
+        var tokens = await cliente.AutenticarComoAdministrador(fabrica, Ct);
         var autenticado = cliente.ComToken(tokens.AccessToken);
 
         var eu = FormaturaDeTeste.IdDoUsuario(tokens.AccessToken);
@@ -148,7 +148,7 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
     public async Task Administrador_nao_consegue_desativar_o_proprio_acesso()
     {
         var cliente = fabrica.CreateClient();
-        var tokens = await cliente.AutenticarComoAdministrador(Ct);
+        var tokens = await cliente.AutenticarComoAdministrador(fabrica, Ct);
         var autenticado = cliente.ComToken(tokens.AccessToken);
 
         var eu = FormaturaDeTeste.IdDoUsuario(tokens.AccessToken);
@@ -162,7 +162,7 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
     public async Task Perfil_desconhecido_e_recusado()
     {
         var cliente = fabrica.CreateClient();
-        var admin = await cliente.AutenticarComoAdministrador(Ct);
+        var admin = await cliente.AutenticarComoAdministrador(fabrica, Ct);
         var alvo = await fabrica.CreateClient().RegistrarUsuarioComum(Ct);
 
         var autenticado = cliente.ComToken(admin.AccessToken);
@@ -181,7 +181,7 @@ public sealed class UsuarioEndpointsTests(ApiFactory fabrica)
         var eu = FormaturaDeTeste.IdDoUsuario(alvo.AccessToken);
 
         var clienteAdmin = fabrica.CreateClient();
-        var admin = await clienteAdmin.AutenticarComoAdministrador(Ct);
+        var admin = await clienteAdmin.AutenticarComoAdministrador(fabrica, Ct);
 
         var desativacao = await clienteAdmin
             .ComToken(admin.AccessToken)

@@ -1,11 +1,14 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Backend.Business.Abstractions;
 using Backend.Business.Common;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
+using Backend.Business.Festa.Settings;
 using Backend.Business.Formandos.Interfaces;
+using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Recebimentos.Interfaces;
 using Backend.Business.Recebimentos.Models;
@@ -29,6 +32,7 @@ public sealed class ContaDeRecebimentoServiceTests
 
     private static readonly Guid FormaturaId = Guid.CreateVersion7();
     private static readonly Guid PresidenteId = Guid.CreateVersion7();
+    private const string EmailDoPresidente = "ana@pessoal.com";
 
     private static readonly ChavePixDaConta ChaveCpf = new(TipoDeChavePix.Cpf, "529.982.247-25", "Ana Souza", "Curitiba");
     private static readonly ChavePixDaConta ChaveCelular = new(TipoDeChavePix.Telefone, "(41) 99876-5432", "Bruno Lima", "Curitiba");
@@ -50,7 +54,14 @@ public sealed class ContaDeRecebimentoServiceTests
         _vinculos
             .ListarEmailsDaComissao(FormaturaId, Arg.Any<CancellationToken>())
             .Returns(["presidente@turma.com", "tesoureiro@turma.com", "comissao@turma.com"]);
+        _perfis
+            .ObterMembro(FormaturaId, PresidenteId, Arg.Any<CancellationToken>())
+            .Returns(new MembroDoPerfil(Guid.CreateVersion7(), PresidenteId, "Ana Souza", EmailDoPresidente, "Presidente"));
     }
+
+    private static readonly ConfirmacaoPorEmail Confirmacao = new(
+        Options.Create(new ConviteSettings { SegredoDoConvite = Convert.ToBase64String(new byte[32]) })
+    );
 
     private ContaDeRecebimentoService Servico =>
         new(
@@ -62,6 +73,7 @@ public sealed class ContaDeRecebimentoServiceTests
             new EmailsDeRecebimento(_email, Options.Create(new AplicacaoSettings())),
             _eventos,
             new ContaDeRecebimentoValidator(),
+            Confirmacao,
             _unitOfWork,
             NullLogger<ContaDeRecebimentoService>.Instance
         );
@@ -69,7 +81,7 @@ public sealed class ContaDeRecebimentoServiceTests
     [Fact]
     public async Task Primeira_gravacao_nasce_nao_conferida_normalizada_e_sem_aviso()
     {
-        var gravada = (await Servico.Gravar(FormaturaId, PresidenteId, SoPix, Ct)).Valor;
+        var gravada = (await GravarConfirmado(SoPix)).Valor;
 
         gravada.Meios.Pix!.Chave.ShouldBe("52998224725");
         gravada.ConferidaEm.ShouldBeNull();
@@ -87,7 +99,7 @@ public sealed class ContaDeRecebimentoServiceTests
         Evento? auditado = null;
         await _eventos.Adicionar(Arg.Do<Evento>(e => auditado = e), Arg.Any<CancellationToken>());
 
-        var gravada = (await Servico.Gravar(FormaturaId, PresidenteId, SoPix with { Pix = ChaveCelular }, Ct)).Valor;
+        var gravada = (await GravarConfirmado(SoPix with { Pix = ChaveCelular })).Valor;
 
         gravada.ConferidaEm.ShouldBeNull();
         conta.Conferida.ShouldBeFalse();
@@ -118,7 +130,7 @@ public sealed class ContaDeRecebimentoServiceTests
     {
         var conta = ContaConferida();
 
-        await Servico.Gravar(FormaturaId, PresidenteId, SoPix with { Pix = ChaveCpf with { NomeDoTitular = "Ana Souza Lima" } }, Ct);
+        await GravarConfirmado(SoPix with { Pix = ChaveCpf with { NomeDoTitular = "Ana Souza Lima" } });
 
         conta.Conferida.ShouldBeFalse();
         await _email.ReceivedWithAnyArgs(3).Enfileirar(default!, Ct);
@@ -134,9 +146,9 @@ public sealed class ContaDeRecebimentoServiceTests
     {
         ContaConferida();
         NovoEmail? aviso = null;
-        await _email.Enfileirar(Arg.Do<NovoEmail>(e => aviso ??= e), Arg.Any<CancellationToken>());
+        await _email.Enfileirar(Arg.Do<NovoEmail>(e => aviso ??= e.Para == EmailDoPresidente ? null : e), Arg.Any<CancellationToken>());
 
-        await Servico.Gravar(FormaturaId, PresidenteId, new MeiosDaConta(null, null, new DinheiroComAlguem("Lucas", null)), Ct);
+        await GravarConfirmado(new MeiosDaConta(null, null, new DinheiroComAlguem("Lucas", null)));
 
         aviso.ShouldNotBeNull();
         aviso.CorpoHtml.ShouldContain("Deixou de valer");
@@ -153,9 +165,9 @@ public sealed class ContaDeRecebimentoServiceTests
     {
         ContaConferida();
         NovoEmail? aviso = null;
-        await _email.Enfileirar(Arg.Do<NovoEmail>(e => aviso ??= e), Arg.Any<CancellationToken>());
+        await _email.Enfileirar(Arg.Do<NovoEmail>(e => aviso ??= e.Para == EmailDoPresidente ? null : e), Arg.Any<CancellationToken>());
 
-        await Servico.Gravar(FormaturaId, PresidenteId, SoPix with { Transferencia = Conta }, Ct);
+        await GravarConfirmado(SoPix with { Transferencia = Conta });
 
         aviso.ShouldNotBeNull();
         aviso.CorpoHtml.ShouldNotContain("Deixou de valer");
@@ -168,7 +180,7 @@ public sealed class ContaDeRecebimentoServiceTests
     {
         var conta = ContaConferida();
 
-        var gravada = (await Servico.Gravar(FormaturaId, PresidenteId, SoPix with { Transferencia = Conta }, Ct)).Valor;
+        var gravada = (await GravarConfirmado(SoPix with { Transferencia = Conta })).Valor;
 
         conta.Conferida.ShouldBeTrue();
         gravada.ConferidaEm.ShouldNotBeNull();
@@ -182,7 +194,7 @@ public sealed class ContaDeRecebimentoServiceTests
     {
         var meios = new MeiosDaConta(null, null, new DinheiroComAlguem("Ana Souza", "nas reuniões de quinta"));
 
-        var gravada = (await Servico.Gravar(FormaturaId, PresidenteId, meios, Ct)).Valor;
+        var gravada = (await Servico.Gravar(FormaturaId, PresidenteId, meios, Ct)).Valor.Conta!;
 
         gravada.Meios.Habilitados.ShouldBe([MeioDeRecebimento.Dinheiro]);
         gravada.Meios.Pix.ShouldBeNull();
@@ -293,6 +305,33 @@ public sealed class ContaDeRecebimentoServiceTests
         pix.CopiaECola.ShouldContain("54041.00");
     }
 
+    /// <summary>
+    /// Pede a troca, tira o token do e-mail de quem pediu e confirma — o caminho inteiro do PIX e da transferência.
+    /// Esquece as chamadas do pedido, para as asserções falarem só da troca.
+    /// </summary>
+    private async Task<Result<ContaDeRecebimentoDetalhe>> GravarConfirmado(MeiosDaConta meios)
+    {
+        var pedido = await Servico.Gravar(FormaturaId, PresidenteId, meios, Ct);
+        if (pedido.Falhou)
+            return Result.Falha<ContaDeRecebimentoDetalhe>(pedido.Erros);
+
+        pedido.Valor.ConfirmacaoEnviadaPara.ShouldNotBeNull();
+        var token = TokenDoEmail();
+        _email.ClearReceivedCalls();
+        _eventos.ClearReceivedCalls();
+        _unitOfWork.ClearReceivedCalls();
+
+        return await Servico.Confirmar(FormaturaId, PresidenteId, token, Ct);
+    }
+
+    /// <summary>O token do link que foi ao e-mail do presidente.</summary>
+    private string TokenDoEmail()
+    {
+        var email = _email.ReceivedCalls().Select(c => c.GetArguments()[0]).OfType<NovoEmail>().Last(e => e.Para == EmailDoPresidente);
+
+        return Uri.UnescapeDataString(Regex.Match(email.CorpoHtml, "token=([^\"&]+)").Groups[1].Value);
+    }
+
     /// <summary>A conta com a chave de CPF, conferida pelo Presidente, devolvida para edição.</summary>
     private ContaDeRecebimento ContaConferida()
     {
@@ -314,7 +353,7 @@ public sealed class ContaDeRecebimentoServiceTests
         _vinculos.ListarEmailsDosFormandos(FormaturaId, Arg.Any<CancellationToken>()).Returns(["ana@turma.com"]);
 
         // Act
-        var gravada = (await Servico.Gravar(FormaturaId, PresidenteId, SoPix with { Pix = ChaveCelular }, Ct)).Valor;
+        var gravada = (await GravarConfirmado(SoPix with { Pix = ChaveCelular })).Valor;
 
         // Assert
         await _email
@@ -361,5 +400,88 @@ public sealed class ContaDeRecebimentoServiceTests
         // Assert
         meios.ShouldBe(new MeiosDaConta(new ChavePixDaConta(TipoDeChavePix.Email, "turma@ufpr.dev", "Comissao Odonto", "CURITIBA"), null, null));
         ContaDeRecebimentoService.MeiosGravados(vazio).ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Revisão de segurança de 05/10/2026: a sessão do presidente sozinha não troca para onde vai o dinheiro. O pedido
+    /// não toca na conta, não avisa a turma, e o link vai só ao e-mail de quem pediu, com a chave nova por extenso.
+    /// </summary>
+    [Fact]
+    public async Task Trocar_o_pix_so_pede_e_o_link_vai_ao_email_de_quem_pediu()
+    {
+        // Arrange
+        var conta = ContaConferida();
+        _vinculos.ListarEmailsDosFormandos(FormaturaId, Arg.Any<CancellationToken>()).Returns(["ana@turma.com"]);
+
+        // Act
+        var pedido = (await Servico.Gravar(FormaturaId, PresidenteId, SoPix with { Pix = ChaveCelular }, Ct)).Valor;
+
+        // Assert
+        pedido.ConfirmacaoEnviadaPara.ShouldBe("an*@pessoal.com");
+        conta.Chave.ShouldBe("52998224725");
+        conta.Conferida.ShouldBeTrue();
+        await _email.Received(1).Enfileirar(Arg.Is<NovoEmail>(e => e.Para == EmailDoPresidente && e.CorpoHtml.Contains("+5541998765432")), Ct);
+        await _email.Received(1).Enfileirar(Arg.Any<NovoEmail>(), Ct);
+        await _eventos.Received(1).Adicionar(Arg.Is<Evento>(e => e.Nome == ContaDeRecebimentoService.EventoDeTrocaPedida), Ct);
+        await _contas.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+    }
+
+    /// <summary>O primeiro cadastro do PIX também espera o link: turma sem chave é a mais fácil de sequestrar.</summary>
+    [Fact]
+    public async Task Primeiro_cadastro_do_pix_tambem_so_pede()
+    {
+        var pedido = (await Servico.Gravar(FormaturaId, PresidenteId, SoPix, Ct)).Valor;
+
+        pedido.Conta.ShouldBeNull();
+        pedido.ConfirmacaoEnviadaPara.ShouldNotBeNull();
+        await _contas.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+    }
+
+    /// <summary>Usado uma vez, o link morre: o "antes" que ele carrega deixou de ser verdade.</summary>
+    [Fact]
+    public async Task Link_usado_nao_vale_de_novo()
+    {
+        // Arrange
+        var conta = ContaConferida();
+        await Servico.Gravar(FormaturaId, PresidenteId, SoPix with { Pix = ChaveCelular }, Ct);
+        var token = TokenDoEmail();
+        (await Servico.Confirmar(FormaturaId, PresidenteId, token, Ct)).Sucesso.ShouldBeTrue();
+        _email.ClearReceivedCalls();
+
+        // Act
+        var deNovo = await Servico.Confirmar(FormaturaId, PresidenteId, token, Ct);
+
+        // Assert
+        deNovo.PrimeiroErro.Codigo.ShouldBe("recebimento.confirmacao_invalida");
+        conta.Chave.ShouldBe("+5541998765432");
+        await _email.DidNotReceiveWithAnyArgs().Enfileirar(default!, Ct);
+    }
+
+    /// <summary>O link é de quem pediu e da turma em que pediu; adulterado, não é de ninguém.</summary>
+    [Theory]
+    [InlineData("outro_usuario")]
+    [InlineData("outra_turma")]
+    [InlineData("adulterado")]
+    [InlineData("vazio")]
+    public async Task Link_de_outra_pessoa_turma_ou_adulterado_nao_troca_nada(string caso)
+    {
+        // Arrange
+        var conta = ContaConferida();
+        await Servico.Gravar(FormaturaId, PresidenteId, SoPix with { Pix = ChaveCelular }, Ct);
+        var token = TokenDoEmail();
+        var corpo = token.Split(".")[0];
+
+        // Act
+        var resultado = caso switch
+        {
+            "outro_usuario" => await Servico.Confirmar(FormaturaId, Guid.CreateVersion7(), token, Ct),
+            "outra_turma" => await Servico.Confirmar(Guid.CreateVersion7(), PresidenteId, token, Ct),
+            "adulterado" => await Servico.Confirmar(FormaturaId, PresidenteId, corpo[..^2] + "AA." + token.Split(".")[1], Ct),
+            _ => await Servico.Confirmar(FormaturaId, PresidenteId, null, Ct),
+        };
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("recebimento.confirmacao_invalida");
+        conta.Chave.ShouldBe("52998224725");
     }
 }

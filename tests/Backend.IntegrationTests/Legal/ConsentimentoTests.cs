@@ -306,7 +306,8 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
             CancellationToken ct = default
         ) => throw new InvalidOperationException("Banco caiu no meio do cadastro.");
 
-        public Task<Result<MeusAceites>> ObterMeusAceites(Guid usuarioId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<Result<MeusAceites>> ObterMeusAceites(Guid usuarioId, IReadOnlyList<string> perfis, CancellationToken ct = default) =>
+            throw new NotSupportedException();
 
         public Task<Result> Revogar(Guid usuarioId, Guid consentimentoId, OrigemDoAceite origem, CancellationToken ct = default) =>
             throw new NotSupportedException();

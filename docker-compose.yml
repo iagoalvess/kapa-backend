@@ -60,6 +60,9 @@ services:
       Aplicacao__UrlDoFrontend: ${APP_URL_FRONTEND:-http://localhost:3000}
       Aplicacao__UrlDoSite: ${APP_URL_SITE:-http://localhost:5180}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-}
     ports:
       - "${API_PORT:-8080}:8080"
     volumes:
@@ -83,6 +86,9 @@ services:
       Aplicacao__UrlDoFrontend: ${APP_URL_FRONTEND:-http://localhost:3000}
       Aplicacao__UrlDoSite: ${APP_URL_SITE:-http://localhost:5180}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-}
     depends_on:
       migrations:
         condition: service_completed_successfully

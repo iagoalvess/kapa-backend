@@ -20,6 +20,12 @@ public interface IPagamentoService
     /// <param name="usuarioId">Quem pede.</param>
     Task<Result<ExtratoDoFormando>> ObterExtrato(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
 
+    /// <summary>A próxima parcela a pagar e a seguinte — o bloco "Sua parcela" do Início.</summary>
+    /// <remarks>Existe para o Início não baixar o extrato inteiro, que cresce com a turma, para mostrar duas linhas.</remarks>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Quem pede.</param>
+    Task<Result<ProximasParcelas>> ObterProximas(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+
     /// <summary>Quantas parcelas próprias venceram sem o formando ter avisado o pagamento.</summary>
     /// <remarks>
     /// O selo do menu, que está em toda tela: por isso é um número, e não o extrato inteiro filtrado

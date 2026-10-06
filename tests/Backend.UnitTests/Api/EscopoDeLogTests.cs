@@ -45,7 +45,7 @@ public sealed class EscopoDeLogTests
         var escopo = logger.Escopos.ShouldHaveSingleItem();
         escopo[EscopoDeLog.ChaveDeUsuario].ShouldBe(usuarioId.ToString());
         escopo[EscopoDeLog.ChaveDeFormatura].ShouldBe(formaturaId.ToString());
-        escopo[EscopoDeLog.ChaveDeTrace].ShouldNotBeNull();
+        escopo.ShouldNotContainKey("TraceId");
     }
 
     [Fact]
@@ -54,14 +54,18 @@ public sealed class EscopoDeLogTests
         // Arrange
         var logger = new LoggerDeEscopo();
 
+        var seguiu = false;
+
         // Act
-        await new EscopoDeLog(_ => Task.CompletedTask).InvokeAsync(new DefaultHttpContext(), logger);
+        await new EscopoDeLog(_ =>
+        {
+            seguiu = true;
+            return Task.CompletedTask;
+        }).InvokeAsync(new DefaultHttpContext(), logger);
 
         // Assert
-        var escopo = logger.Escopos.ShouldHaveSingleItem();
-        escopo.ShouldNotContainKey(EscopoDeLog.ChaveDeUsuario);
-        escopo.ShouldNotContainKey(EscopoDeLog.ChaveDeFormatura);
-        escopo[EscopoDeLog.ChaveDeTrace].ShouldNotBeNull();
+        seguiu.ShouldBeTrue();
+        logger.Escopos.ShouldBeEmpty();
     }
 
     private sealed class LoggerDeEscopo : ILogger<EscopoDeLog>

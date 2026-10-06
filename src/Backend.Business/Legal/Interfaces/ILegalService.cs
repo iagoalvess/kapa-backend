@@ -31,7 +31,8 @@ public interface ILegalService
 
     /// <summary>Histórico do usuário e as versões vigentes que ele ainda não aceitou.</summary>
     /// <param name="usuarioId">Titular.</param>
-    Task<Result<MeusAceites>> ObterMeusAceites(Guid usuarioId, CancellationToken ct = default);
+    /// <param name="perfis">Perfis do usuário na plataforma; o administrador do Kapa não tem pendência.</param>
+    Task<Result<MeusAceites>> ObterMeusAceites(Guid usuarioId, IReadOnlyList<string> perfis, CancellationToken ct = default);
 
     /// <summary>
     /// Revoga um consentimento (LGPD, art. 18, IX).

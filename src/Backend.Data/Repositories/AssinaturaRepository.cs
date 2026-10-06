@@ -1,5 +1,6 @@
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Assinaturas.Models;
+using Backend.Business.Formaturas.Models;
 using Backend.Business.Pagamentos.Models;
 using Backend.Data.Context;
 using Backend.Data.Seed;
@@ -130,6 +131,29 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
             where
                 assinatura.FormaturaId == formaturaId
                 && (assinatura.Status == StatusDaAssinatura.Ativa || assinatura.Status == StatusDaAssinatura.Cancelada)
+            orderby assinatura.CriadoEm descending, assinatura.Id descending
+            select plano
+        ).FirstOrDefaultAsync(ct) ?? await ObterPlanoPorCodigo(SeedDePlanos.CodigoGratuito, ct);
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Uma consulta: na turma suspensa vale também a assinatura <c>Vencida</c> — a mais recente que não seja checkout
+    /// por pagar, que é a que a suspendeu. Fora da suspensão a regra é a de <see cref="ObterPlanoVigenteDeTodasAsFormaturas"/>.
+    /// </remarks>
+    public async Task<Plano?> ObterPlanoDosModulosDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default) =>
+        await (
+            from assinatura in db.Assinaturas.AsNoTracking().IgnoreQueryFilters()
+            join plano in db.Planos.AsNoTracking() on assinatura.PlanoId equals plano.Id
+            where
+                assinatura.FormaturaId == formaturaId
+                && (
+                    assinatura.Status == StatusDaAssinatura.Ativa
+                    || assinatura.Status == StatusDaAssinatura.Cancelada
+                    || (
+                        assinatura.Status == StatusDaAssinatura.Vencida
+                        && db.Formaturas.Any(f => f.Id == formaturaId && f.Status == StatusDaFormatura.Suspensa)
+                    )
+                )
             orderby assinatura.CriadoEm descending, assinatura.Id descending
             select plano
         ).FirstOrDefaultAsync(ct) ?? await ObterPlanoPorCodigo(SeedDePlanos.CodigoGratuito, ct);

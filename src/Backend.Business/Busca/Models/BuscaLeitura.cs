@@ -67,4 +67,13 @@ public sealed record BuscaNaTurma(
 /// </summary>
 /// <param name="FormaturaId">Turma da sessão.</param>
 /// <param name="Papel">Papel ativo, como o token o traz. Nulo em sessão sem turma.</param>
-public sealed record QuemBusca(Guid FormaturaId, string? Papel);
+/// <param name="Modulos">
+/// Os módulos que o plano da turma libera — o mesmo critério do gate <c>PlanoComModulo</c>. Resultado de área fora do
+/// plano não aparece: a busca não pode ser a porta dos fundos de um módulo que a API recusaria.
+/// </param>
+public sealed record QuemBusca(Guid FormaturaId, string? Papel, IReadOnlyCollection<string> Modulos)
+{
+    /// <summary>Se o plano da turma libera o módulo.</summary>
+    /// <param name="modulo">Código, de <c>Modulo</c>.</param>
+    public bool Inclui(string modulo) => Modulos.Contains(modulo);
+}

@@ -13,5 +13,6 @@ public sealed class RegistroDeMapeamentosRecebimentos : IRegister
         config.NewConfig<ContaDeRecebimentoDetalhe, ContaDeRecebimentoDTO>();
         config.NewConfig<ContaDeRecebimentoDaTurma, ContaDeRecebimentoDaTurmaDTO>();
         config.NewConfig<PixDeTeste, PixDeTesteDTO>();
+        config.NewConfig<GravacaoDaConta, GravacaoDaContaDTO>();
     }
 }

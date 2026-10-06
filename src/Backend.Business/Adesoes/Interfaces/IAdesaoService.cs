@@ -34,6 +34,11 @@ public interface IAdesaoService
     /// <param name="usuarioId">O próprio.</param>
     Task<Result<MinhaAdesao>> ObterMinha(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
 
+    /// <summary>Se há termo e plano para aceitar e se o próprio membro já aderiu — a guarda de adesão e o menu.</summary>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">O próprio.</param>
+    Task<Result<SituacaoDaMinhaAdesao>> ObterSituacao(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+
     /// <summary>Quem aderiu e quem falta, uma página por vez.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="paginacao">Página pedida.</param>

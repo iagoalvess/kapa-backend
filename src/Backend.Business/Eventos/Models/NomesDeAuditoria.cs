@@ -43,6 +43,12 @@ public static class NomesDeAuditoria
     /// <summary>Troca da chave PIX: muda para onde o dinheiro da turma vai.</summary>
     public const string ContaAlterada = "recebimento.conta_alterada";
 
+    /// <summary>
+    /// Pedido de troca do PIX ou da transferência, que espera o link do e-mail — fica na trilha mesmo sem confirmação,
+    /// e é o rastro de quem tentou desviar o dinheiro com a conta do presidente.
+    /// </summary>
+    public const string TrocaDaContaPedida = "recebimento.troca_pedida";
+
     /// <summary>Aviso do mural apagado — some do registro.</summary>
     public const string AvisoExcluido = "comunicacao.aviso_excluido";
 
@@ -54,6 +60,9 @@ public static class NomesDeAuditoria
 
     /// <summary>Alteração de papel na comissão: muda quem pode o quê.</summary>
     public const string PapelAlterado = "membro.papel_alterado";
+
+    /// <summary>Pedido de promoção a Presidente, que espera o link do e-mail de quem pediu.</summary>
+    public const string PresidentePedido = "membro.presidente_pedido";
 
     /// <summary>Remoção de membro: tira o acesso de alguém à turma.</summary>
     public const string MembroRemovido = "membro.removido";
@@ -195,10 +204,12 @@ public static class NomesDeAuditoria
         EncerradaPorAbandono,
         ContaCadastrada,
         ContaAlterada,
+        TrocaDaContaPedida,
         AvisoExcluido,
         DocumentoSubstituido,
         DocumentoExcluido,
         PapelAlterado,
+        PresidentePedido,
         MembroRemovido,
         FormandoDesligado,
         FormandoReligado,

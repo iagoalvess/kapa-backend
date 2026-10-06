@@ -96,7 +96,7 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
     }
 
     [Theory]
-    [InlineData(PapelNaFormatura.Presidente, HttpStatusCode.NoContent)]
+    [InlineData(PapelNaFormatura.Presidente, HttpStatusCode.OK)]
     [InlineData(PapelNaFormatura.Tesoureiro, HttpStatusCode.Forbidden)]
     [InlineData(PapelNaFormatura.Comissao, HttpStatusCode.Forbidden)]
     [InlineData(PapelNaFormatura.Formando, HttpStatusCode.Forbidden)]
@@ -236,7 +236,7 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
             Ct
         );
 
-        resposta.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await resposta.Content.ReadFromJsonAsync<AlteracaoDePapelDTO>(Json, Ct))!.ConfirmacaoEnviadaPara.ShouldBeNull();
         var membros = (await Pagina(presidente, Rota)).Itens;
         membros.Single(m => m.UsuarioId == formando.UsuarioId).Papel.ShouldBe(PapelNaFormatura.Tesoureiro);
     }
@@ -349,6 +349,61 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
     }
 
     /// <summary>
+    /// Revisão de segurança de 05/10/2026: Presidente troca a conta de recebimento, então a senha do presidente sozinha
+    /// não cria outro. O pedido não muda nada; o link vai ao e-mail de quem pediu, só ele confirma, e uma vez — nem quando o
+    /// papel volta ao do pedido.
+    /// </summary>
+    [Fact]
+    public async Task Promover_a_presidente_so_vale_pelo_link_do_email_de_quem_pediu()
+    {
+        // Arrange
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var outroPresidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var comissao = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Comissao, Ct);
+        const string Confirmar = $"{Rota}/presidente/confirmar";
+
+        // Act
+        var pedido = await presidente.Cliente.PutAsJsonAsync(
+            $"{Rota}/{comissao.UsuarioId}/papel",
+            new AlterarPapelRequestDTO(PapelNaFormatura.Presidente),
+            Json,
+            Ct
+        );
+        var token = await fabrica.TokenDoUltimoEmail(Ct);
+        var antesDoLink = await PapelDe(formaturaId, comissao.UsuarioId);
+        var peloOutro = await outroPresidente.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteDTO(token), Json, Ct);
+        var peloPromovido = await comissao.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteDTO(token), Json, Ct);
+        var confirmada = await presidente.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteDTO(token), Json, Ct);
+        await presidente.Cliente.PutAsJsonAsync(
+            $"{Rota}/{comissao.UsuarioId}/papel",
+            new AlterarPapelRequestDTO(PapelNaFormatura.Comissao),
+            Json,
+            Ct
+        );
+        var deNovo = await presidente.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteDTO(token), Json, Ct);
+
+        // Assert
+        (await pedido.Content.ReadFromJsonAsync<AlteracaoDePapelDTO>(Json, Ct))!.ConfirmacaoEnviadaPara.ShouldNotBeNull();
+        antesDoLink.ShouldBe(PapelNaFormatura.Comissao);
+        (await peloOutro.Codigo(Ct)).ShouldBe("formatura.confirmacao_invalida");
+        peloPromovido.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        confirmada.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await deNovo.Codigo(Ct)).ShouldBe("formatura.confirmacao_invalida");
+        (await PapelDe(formaturaId, comissao.UsuarioId)).ShouldBe(PapelNaFormatura.Comissao);
+    }
+
+    private async Task<string> PapelDe(Guid formaturaId, Guid usuarioId)
+    {
+        await using var contexto = fabrica.ContextoDe(null);
+
+        return await contexto
+            .Vinculos.Where(v => v.FormaturaId == formaturaId && v.UsuarioId == usuarioId && v.Ativo)
+            .Select(v => v.Papel)
+            .SingleAsync(Ct);
+    }
+
+    /// <summary>
     /// O papel é conferido no vínculo, não na claim: rebaixado, o tesoureiro perde a gestão na
     /// requisição seguinte, com o mesmo access token ainda válido.
     /// </summary>
@@ -409,7 +464,7 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
                 b.Cliente.PutAsJsonAsync($"{Rota}/{a.UsuarioId}/papel", rebaixar, Json, Ct)
             );
 
-            respostas.Count(r => r.StatusCode == HttpStatusCode.NoContent).ShouldBe(1);
+            respostas.Count(r => r.StatusCode == HttpStatusCode.OK).ShouldBe(1);
             respostas.ShouldContain(r => r.StatusCode == HttpStatusCode.Conflict || r.StatusCode == HttpStatusCode.Forbidden);
 
             await using var contexto = fabrica.ContextoDe(null);

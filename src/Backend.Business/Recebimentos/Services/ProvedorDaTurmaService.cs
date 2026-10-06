@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Adesoes.Services;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Services;
 using Backend.Business.Formandos.Interfaces;
@@ -88,6 +89,10 @@ public sealed class ProvedorDaTurmaService(
     public async Task<Result<ProvedorDaTurma>> Obter(CancellationToken ct = default) => new ProvedorDaTurma(await repositorio.ObterConexao(ct));
 
     /// <inheritdoc />
+    /// <remarks>
+    /// O link de autorização vai ao e-mail de quem clicou, não ao navegador (revisão de 05/10/2026): com ele na tela,
+    /// a sessão roubada do presidente bastava para conectar a conta de outro e receber o PIX automático e a loja.
+    /// </remarks>
     public async Task<Result<AutorizacaoDoProvedor>> IniciarConexao(Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
     {
         if (!_config.Ligado)
@@ -99,9 +104,19 @@ public sealed class ProvedorDaTurmaService(
                 "Cadastre a chave PIX da turma antes de conectar o Mercado Pago: é por ela que o formando paga se a turma voltar à cobrança manual."
             );
 
-        return new AutorizacaoDoProvedor(
-            mercadoPago.UrlDeAutorizacao(EstadoDaConexao.Assinar(formaturaId, usuarioId, DateTime.UtcNow, _config.ClientSecret))
-        );
+        var presidente = await perfilRepository.ObterMembro(formaturaId, usuarioId, ct);
+        if (presidente is null)
+            return ErrosDeFormatura.MembroNaoEncontrado;
+
+        var url = mercadoPago.UrlDeAutorizacao(EstadoDaConexao.Assinar(formaturaId, usuarioId, DateTime.UtcNow, _config.ClientSecret));
+        var turma = (await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct))?.Nome ?? string.Empty;
+
+        await emails.AutorizarMercadoPago(presidente.Email, turma, url, ct);
+        await unitOfWork.SalvarAsync(ct);
+
+        logger.LogWarning("Link de conexão do Mercado Pago enviado por e-mail a {UsuarioId} da formatura {FormaturaId}.", usuarioId, formaturaId);
+
+        return new AutorizacaoDoProvedor(AdesaoService.MascararEmail(presidente.Email));
     }
 
     /// <inheritdoc />

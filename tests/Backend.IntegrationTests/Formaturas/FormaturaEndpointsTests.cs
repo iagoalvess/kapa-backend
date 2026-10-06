@@ -211,7 +211,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
 
         var formaturaId = await CriarFormaturaCom(usuarioId, PapelNaFormatura.Presidente, ativo: true);
 
-        var tokens = await cliente.AutenticarCom(email, Ct);
+        var tokens = await cliente.AutenticarCom(fabrica, email, Ct);
 
         Claim(tokens.AccessToken, TokenService.ClaimDeFormatura).ShouldBe(formaturaId.ToString());
         Claim(tokens.AccessToken, TokenService.ClaimDePapel).ShouldBe(PapelNaFormatura.Presidente);
@@ -231,7 +231,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
         await CriarFormaturaCom(usuarioId, PapelNaFormatura.Presidente, ativo: true);
         await CriarFormaturaCom(usuarioId, PapelNaFormatura.Formando, ativo: true);
 
-        var tokens = await cliente.AutenticarCom(email, Ct);
+        var tokens = await cliente.AutenticarCom(fabrica, email, Ct);
 
         Claim(tokens.AccessToken, TokenService.ClaimDeFormatura).ShouldBeNull();
     }
@@ -249,7 +249,7 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
 
         await CriarFormaturaCom(usuarioId, PapelNaFormatura.Formando, ativo: false);
 
-        var tokens = await cliente.AutenticarCom(email, Ct);
+        var tokens = await cliente.AutenticarCom(fabrica, email, Ct);
 
         Claim(tokens.AccessToken, TokenService.ClaimDeFormatura).ShouldBeNull();
     }
@@ -271,6 +271,84 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
     /// insert seria recusado pelo banco antes de o teste chegar ao que ele quer provar.
     /// </remarks>
     private async Task<Guid> OutroUsuario() => IdDoUsuario((await fabrica.CreateClient().RegistrarUsuarioComum(Ct)).AccessToken);
+
+    /// <summary>
+    /// Login em duas etapas (revisão de segurança de 05/10/2026): o presidente acerta a senha e não leva sessão nem
+    /// cookie — leva o desafio, e o código vai ao e-mail. Código errado não entra, cinco erros fecham o passo, e o
+    /// certo devolve a sessão com a turma. O formando entra direto.
+    /// </summary>
+    [Fact]
+    public async Task Presidente_so_entra_com_o_codigo_do_email()
+    {
+        // Arrange
+        var cliente = fabrica.CreateClient();
+        var email = $"duas-etapas-{Guid.CreateVersion7():N}@testes.local";
+        var usuarioId = IdDoUsuario((await cliente.RegistrarComEmail(email, Ct)).AccessToken);
+        var formaturaId = await CriarFormaturaCom(usuarioId, PapelNaFormatura.Presidente, ativo: true);
+        var anonimo = fabrica.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+
+        // Act
+        var login = await anonimo.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Senha@Teste123"), Json, Ct);
+        var desafio = (await login.Content.ReadFromJsonAsync<CodigoDeEntradaDTO>(Json, Ct))!;
+        var codigo = await fabrica.CodigoDoUltimoEmail(Ct);
+        var errado = codigo == "000000" ? "111111" : "000000";
+        var comErrado = await anonimo.PostAsJsonAsync("/api/v1/auth/login/codigo", new CodigoDeEntradaRequestDTO(desafio.Desafio, errado), Json, Ct);
+        var adulterado = await anonimo.PostAsJsonAsync(
+            "/api/v1/auth/login/codigo",
+            new CodigoDeEntradaRequestDTO(desafio.Desafio + "x", codigo),
+            Json,
+            Ct
+        );
+        var certo = await anonimo.PostAsJsonAsync("/api/v1/auth/login/codigo", new CodigoDeEntradaRequestDTO(desafio.Desafio, codigo), Json, Ct);
+
+        // Assert
+        login.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        login.Headers.Contains("Set-Cookie").ShouldBeFalse();
+        (await login.Content.ReadAsStringAsync(Ct)).ShouldNotContain("access_token");
+        codigo.Length.ShouldBe(6);
+        (await comErrado.Codigo(Ct)).ShouldBe("auth.codigo_incorreto");
+        (await adulterado.Codigo(Ct)).ShouldBe("auth.desafio_invalido");
+        certo.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var tokens = (await certo.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, Ct))!;
+        Claim(tokens.AccessToken, TokenService.ClaimDeFormatura).ShouldBe(formaturaId.ToString());
+    }
+
+    /// <summary>Cinco códigos errados fecham o passo da conta — nem o certo entra depois, de nenhuma origem.</summary>
+    [Fact]
+    public async Task Cinco_codigos_errados_fecham_o_segundo_passo()
+    {
+        // Arrange
+        var cliente = fabrica.CreateClient();
+        var email = $"bloqueio-{Guid.CreateVersion7():N}@testes.local";
+        var usuarioId = IdDoUsuario((await cliente.RegistrarComEmail(email, Ct)).AccessToken);
+        await CriarFormaturaCom(usuarioId, PapelNaFormatura.Presidente, ativo: true);
+        var login = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Senha@Teste123"), Json, Ct);
+        var desafio = (await login.Content.ReadFromJsonAsync<CodigoDeEntradaDTO>(Json, Ct))!.Desafio;
+        var codigo = await fabrica.CodigoDoUltimoEmail(Ct);
+        var errado = codigo == "000000" ? "111111" : "000000";
+
+        // Act
+        for (var tentativa = 0; tentativa < 5; tentativa++)
+            await cliente.PostAsJsonAsync("/api/v1/auth/login/codigo", new CodigoDeEntradaRequestDTO(desafio, errado), Json, Ct);
+        var certo = await cliente.PostAsJsonAsync("/api/v1/auth/login/codigo", new CodigoDeEntradaRequestDTO(desafio, codigo), Json, Ct);
+
+        // Assert
+        (await certo.Codigo(Ct)).ShouldBe("auth.codigo_bloqueado");
+    }
+
+    /// <summary>Formando não tem segundo passo: o login devolve a sessão direto.</summary>
+    [Fact]
+    public async Task Formando_entra_sem_codigo()
+    {
+        var cliente = fabrica.CreateClient();
+        var email = $"formando-{Guid.CreateVersion7():N}@testes.local";
+        var usuarioId = IdDoUsuario((await cliente.RegistrarComEmail(email, Ct)).AccessToken);
+        await CriarFormaturaCom(usuarioId, PapelNaFormatura.Formando, ativo: true);
+
+        var login = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Senha@Teste123"), Json, Ct);
+
+        login.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
 
     private async Task<Guid> CriarFormaturaCom(Guid usuarioId, string papel, bool ativo)
     {

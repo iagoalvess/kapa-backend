@@ -5,7 +5,7 @@ using Microsoft.IdentityModel.JsonWebTokens;
 namespace Backend.Api.Middleware;
 
 /// <summary>
-/// Põe quem fez a requisição no escopo de <b>todo</b> log dela: usuário, formatura e id de correlação.
+/// Põe quem fez a requisição no escopo de <b>todo</b> log dela: usuário e formatura.
 /// </summary>
 /// <remarks>
 /// O log estruturado já registra os campos onde o código os escreve, e o <c>ProblemDetails</c> devolve
@@ -18,8 +18,10 @@ namespace Backend.Api.Middleware;
 /// <c>AsyncLocal</c> do fluxo.
 /// </para>
 /// <para>
-/// Requisição anônima não ganha <c>UsuarioId</c> nem <c>FormaturaId</c>, e continua com o
-/// <c>TraceId</c> para correlacionar. A formatura apontada por rota assinada (loja, webhook) é
+/// Requisição anônima não ganha escopo. A correlação não é daqui: o ASP.NET já põe em toda linha o
+/// <c>TraceId</c> do rastreamento e o <c>RequestId</c>, que é o <c>trace_id</c> do <c>ProblemDetails</c>.
+/// Empilhar o <c>TraceIdentifier</c> sob a chave <c>TraceId</c> sobrescrevia o id real e soltava o log
+/// do trace no agregador (05/10/2026). A formatura apontada por rota assinada (loja, webhook) é
 /// resolvida dentro do service, depois deste ponto, e por isso não entra no escopo.
 /// </para>
 /// </remarks>
@@ -32,21 +34,24 @@ public sealed class EscopoDeLog(RequestDelegate proximo)
     /// <summary>Chave da formatura da sessão no escopo de log.</summary>
     public const string ChaveDeFormatura = "FormaturaId";
 
-    /// <summary>Chave do identificador de correlação da requisição no escopo de log.</summary>
-    public const string ChaveDeTrace = "TraceId";
-
     /// <summary>Empilha o escopo e segue.</summary>
     /// <param name="contexto">Contexto HTTP, com o usuário já autenticado.</param>
     /// <param name="logger">Logger usado para abrir o escopo.</param>
     public async Task InvokeAsync(HttpContext contexto, ILogger<EscopoDeLog> logger)
     {
-        var escopo = new Dictionary<string, object?> { [ChaveDeTrace] = contexto.TraceIdentifier };
+        var escopo = new Dictionary<string, object?>();
 
         if (contexto.User.FindFirstValue(JwtRegisteredClaimNames.Sub) is { Length: > 0 } usuarioId)
             escopo[ChaveDeUsuario] = usuarioId;
 
         if (contexto.User.FindFirstValue(TokenService.ClaimDeFormatura) is { Length: > 0 } formaturaId)
             escopo[ChaveDeFormatura] = formaturaId;
+
+        if (escopo.Count == 0)
+        {
+            await proximo(contexto);
+            return;
+        }
 
         using (logger.BeginScope(escopo))
             await proximo(contexto);

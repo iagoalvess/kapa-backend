@@ -43,6 +43,11 @@ public sealed class ContaDeRecebimentoController(IContaDeRecebimentoService cont
     /// Meio nulo é meio desligado, e o que sobra é o que o formando vê na tela de pagamento. Mexer no
     /// PIX desfaz a conferência do titular; mexer nos demais, não.
     /// <para>
+    /// Mudar o PIX ou a transferência só pede: <c>confirmacao_enviada_para</c> vem preenchido, a conta segue como
+    /// estava, e a troca vale quando o presidente abrir o link do e-mail (<c>POST conta/confirmar</c>). Mudar só o
+    /// dinheiro vale na hora, e o campo vem nulo.
+    /// </para>
+    /// <para>
     /// 400 com o motivo no caminho do campo (<c>pix.chave</c>, <c>transferencia.banco</c>) ou
     /// <c>recebimento.sem_meio</c> se nenhum meio vier; 409 <c>recebimento.conta_sem_mudanca</c> se
     /// nada mudou.
@@ -52,7 +57,7 @@ public sealed class ContaDeRecebimentoController(IContaDeRecebimentoService cont
     [HttpPut("conta")]
     [Authorize(Policy = Politicas.SomentePresidente)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [ProducesResponseType(typeof(ContaDeRecebimentoDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GravacaoDaContaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
@@ -60,8 +65,27 @@ public sealed class ContaDeRecebimentoController(IContaDeRecebimentoService cont
     {
         var resultado = await contaService.Gravar(FormaturaId, usuarioAtual.Id, ParaModelo(requisicao), ct);
 
-        return Responder(resultado.Map(conta => conta.Adapt<ContaDeRecebimentoDTO>()));
+        return Responder(resultado.Map(gravacao => gravacao.Adapt<GravacaoDaContaDTO>()));
     }
+
+    /// <summary>Aplica a troca dos meios pedida no <c>PUT</c>, pelo link que chegou ao e-mail de quem pediu.</summary>
+    /// <remarks>
+    /// 400 <c>recebimento.confirmacao_invalida</c> se o link venceu, já foi usado, é de outra pessoa ou a conta mudou
+    /// depois do pedido.
+    /// </remarks>
+    /// <param name="requisicao">O token do link.</param>
+    [HttpPost("conta/confirmar")]
+    [Authorize(Policy = Politicas.SomentePresidente)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [RegistrarEvento("recebimento.troca_confirmada")]
+    [ProducesResponseType(typeof(ContaDeRecebimentoDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Confirmar([FromBody] ConfirmacaoPorEmailDTO requisicao, CancellationToken ct) =>
+        Responder(
+            (await contaService.Confirmar(FormaturaId, usuarioAtual.Id, requisicao.Token, ct)).Map(conta => conta.Adapt<ContaDeRecebimentoDTO>())
+        );
 
     /// <summary>O copia-e-cola de R$ 1,00 para a chave gravada. O QR é desenhado no navegador.</summary>
     /// <remarks>409 <c>recebimento.sem_chave_pix</c> se a turma não aceita PIX: não há chave para testar.</remarks>

@@ -38,10 +38,11 @@ public sealed class ProvedorDaTurmaController(IProvedorDaTurmaService provedorSe
         Responder((await provedorService.Obter(ct)).Map(provedor => provedor.Adapt<ProvedorDaTurmaDTO>()));
 
     /// <summary>
-    /// Começa a conexão: devolve a página do Mercado Pago onde o presidente autoriza o Kapa na conta da turma.
+    /// Começa a conexão: manda ao e-mail do presidente o link da página do Mercado Pago onde ele autoriza o Kapa na
+    /// conta da turma, e devolve o e-mail mascarado.
     /// </summary>
     /// <remarks>
-    /// O front manda o navegador para a <c>url</c>; o Mercado Pago o devolve ao retorno da API, que grava a
+    /// O link vai por e-mail para a sessão sozinha não bastar (revisão de 05/10/2026); o Mercado Pago o devolve ao retorno da API, que grava a
     /// conexão e volta para a tela da turma. Conectar de novo troca a conta. 409
     /// <c>recebimento.provedor_desligado</c> se a aplicação do Kapa não estiver configurada; 409
     /// <c>recebimento.chave_pix_obrigatoria</c> se a turma ainda não tem chave PIX (P7).

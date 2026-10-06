@@ -225,6 +225,7 @@ public static class DependenciasBusiness
         services.AddScoped<IRetencaoDeFormaturasService, RetencaoDeFormaturasService>();
         services.AddScoped<IMembroService, MembroService>();
         services.AddScoped<EmailsDeDesligamento>();
+        services.AddScoped<EmailsDePapel>();
         services.AddScoped<IConviteService, ConviteService>();
         services.AddScoped<IPerfilService, PerfilService>();
         services.AddScoped<ICobrancaService, PlanoDeCobrancaService>();
@@ -310,6 +311,7 @@ public static class DependenciasBusiness
         services.AddScoped<IJornadasDeMarketingService, JornadasDeMarketingService>();
         services.AddScoped<EmailsDeMarketing>();
         services.AddSingleton<LinkDeDescadastro>();
+        services.AddSingleton<ConfirmacaoPorEmail>();
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IAdminService, AdminService>();
         services.AddScoped<IEmailService, EmailService>();

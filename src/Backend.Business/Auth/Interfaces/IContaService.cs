@@ -77,4 +77,10 @@ public interface IEmailsDeConta
     /// </remarks>
     /// <param name="usuario">Destinatário.</param>
     Task EnfileirarAvisoDeSenhaAlterada(Usuario usuario, CancellationToken ct = default);
+
+    /// <summary>O código do login em duas etapas.</summary>
+    /// <param name="usuario">Quem acertou a senha.</param>
+    /// <param name="codigo">Os seis dígitos.</param>
+    /// <param name="minutos">Por quanto tempo vale.</param>
+    Task EnfileirarCodigoDeEntrada(Usuario usuario, string codigo, int minutos, CancellationToken ct = default);
 }

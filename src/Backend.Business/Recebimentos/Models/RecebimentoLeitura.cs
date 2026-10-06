@@ -79,3 +79,15 @@ public sealed record ContaDeRecebimentoDaTurma(ContaDeRecebimentoDetalhe? Conta)
 /// <param name="CopiaECola">O BR Code, que a tela transforma em QR.</param>
 /// <param name="ValorEmCentavos">Valor do teste.</param>
 public sealed record PixDeTeste(string CopiaECola, long ValorEmCentavos);
+
+/// <summary>O que a gravação dos meios deu: aplicada na hora, ou esperando o link do e-mail de quem pediu.</summary>
+/// <param name="Conta">A conta como está agora — com a troca, se ela já valeu; nula se ainda não há conta.</param>
+/// <param name="ConfirmacaoEnviadaPara">O e-mail, mascarado, que recebeu o link; nulo quando a troca já valeu.</param>
+public sealed record GravacaoDaConta(ContaDeRecebimentoDetalhe? Conta, string? ConfirmacaoEnviadaPara);
+
+/// <summary>A troca dos meios esperando confirmação — o que viaja assinado no link do e-mail.</summary>
+/// <param name="FormaturaId">Turma da troca.</param>
+/// <param name="UsuarioId">Quem pediu, e só ele confirma.</param>
+/// <param name="Antes">Impressão digital da conta no pedido: gravada de novo desde então, o link morre.</param>
+/// <param name="Depois">Os meios pedidos, já normalizados.</param>
+public sealed record TrocaDosMeios(Guid FormaturaId, Guid UsuarioId, string Antes, MeiosDaConta Depois);

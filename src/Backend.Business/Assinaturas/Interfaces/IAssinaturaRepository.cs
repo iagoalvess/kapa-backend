@@ -72,6 +72,19 @@ public interface IAssinaturaRepository
     /// <returns>O plano vigente, ou nulo se nem o gratuito existir no catálogo.</returns>
     Task<Plano?> ObterPlanoVigenteDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default);
 
+    /// <summary>
+    /// O plano que decide <b>quais módulos</b> a turma enxerga: o vigente, salvo na turma suspensa, que continua lendo
+    /// os módulos do plano que tinha (decisão do dono de 06/10/2026, revendo a F3/P3 da Sprint 45).
+    /// </summary>
+    /// <remarks>
+    /// Só para módulo: o gate <c>PlanoComModulo</c>, o <c>/formaturas/atual/plano</c> e a busca. A escrita da suspensa
+    /// continua barrada pelas políticas de status (<c>formatura.inativa</c>), e o limite de vagas, a loja e a régua
+    /// seguem em <see cref="ObterPlanoVigenteDeTodasAsFormaturas"/>. A turma que nunca contratou fica no gratuito.
+    /// </remarks>
+    /// <param name="formaturaId">Formatura consultada.</param>
+    /// <returns>O plano dos módulos, ou nulo se nem o gratuito existir no catálogo.</returns>
+    Task<Plano?> ObterPlanoDosModulosDeTodasAsFormaturas(Guid formaturaId, CancellationToken ct = default);
+
     /// <summary>A assinatura mais recente de uma formatura qualquer, rastreada para alteração.</summary>
     /// <remarks>
     /// Atravessa formaturas de propósito — e o nome diz isso: quem chama é o painel de suporte, que

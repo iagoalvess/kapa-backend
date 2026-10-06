@@ -84,7 +84,7 @@ public sealed class LegalController(ILegalService legalService, IUsuarioAtual us
     [ProducesResponseType(typeof(MeusAceitesDTO), StatusCodes.Status200OK)]
     public async Task<IActionResult> ObterMeusAceites(CancellationToken ct)
     {
-        var resultado = await legalService.ObterMeusAceites(usuarioAtual.Id, ct);
+        var resultado = await legalService.ObterMeusAceites(usuarioAtual.Id, usuarioAtual.Perfis, ct);
 
         return Responder(resultado.Map(aceites => aceites.Adapt<MeusAceitesDTO>()));
     }

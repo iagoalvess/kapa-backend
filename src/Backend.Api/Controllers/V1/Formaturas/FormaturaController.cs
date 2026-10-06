@@ -74,6 +74,19 @@ public sealed class FormaturaController(IFormaturaService formaturaService, IUsu
         return Responder(resultado.Map(detalhe => detalhe.Adapt<FormaturaDetalheDTO>()));
     }
 
+    /// <summary>Os passos da comissão até a turma estar rodando — o bloco "Primeiros passos" do Início.</summary>
+    /// <remarks>
+    /// Um booleano por passo e <c>concluidos</c>, calculados aqui numa consulta só: antes o Início da Tesouraria pedia
+    /// membros, planos de cobrança, termo vigente, conta e Mercado Pago só para desenhar seis marcas de feito. Da
+    /// Tesouraria, que é quem vê o bloco. Leitura: vale em qualquer status.
+    /// </remarks>
+    [HttpGet("atual/primeiros-passos")]
+    [Authorize(Policy = Politicas.Tesouraria)]
+    [ProducesResponseType(typeof(PrimeirosPassosDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ObterPrimeirosPassos(CancellationToken ct) =>
+        Responder((await formaturaService.ObterPrimeirosPassos(ct)).Map(passos => passos.Adapt<PrimeirosPassosDTO>()));
+
     /// <summary>Edita os dados cadastrais. Recusa em formatura suspensa ou encerrada.</summary>
     /// <param name="requisicao">Dados novos.</param>
     [HttpPut("atual")]

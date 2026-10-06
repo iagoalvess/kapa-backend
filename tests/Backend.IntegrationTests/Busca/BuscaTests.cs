@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Backend.Api.DTOs.Busca;
@@ -21,6 +22,8 @@ namespace Backend.IntegrationTests.Busca;
 public sealed class BuscaTests(ApiFactory fabrica)
 {
     private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
+
+    private static readonly byte[] Pdf = "%PDF-1.4\n1 0 obj <<>> endobj\ntrailer <<>>\n%%EOF"u8.ToArray();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -68,6 +71,55 @@ public sealed class BuscaTests(ApiFactory fabrica)
 
         busca.Membros.ShouldBeEmpty();
         busca.Fornecedores.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// A busca recorta também pelo plano: aviso e documento são do mural, e a turma que perdeu o mural (assinatura
+    /// vencida, de volta ao gratuito) não os acha pela busca — a mesma recusa do gate de módulo.
+    /// </summary>
+    [Fact]
+    public async Task Turma_sem_mural_nao_acha_aviso_nem_documento()
+    {
+        // Arrange
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var titulo = $"Rifa {Guid.NewGuid():N}";
+        (
+            await presidente.Cliente.PostAsJsonAsync(
+                "/api/v1/comunicacao/avisos",
+                new
+                {
+                    titulo,
+                    conteudo = "Texto.",
+                    visibilidade = "Turma",
+                    fixado = false,
+                    destaque = false,
+                },
+                Json,
+                Ct
+            )
+        ).EnsureSuccessStatusCode();
+        var documento = new MultipartFormDataContent
+        {
+            { new StringContent(titulo), "titulo" },
+            { new StringContent("Ata"), "categoria" },
+            { new StringContent("Turma"), "visibilidade" },
+        };
+        var pdf = new ByteArrayContent(Pdf);
+        pdf.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+        documento.Add(pdf, "arquivo", "ata.pdf");
+        (await presidente.Cliente.PostAsync("/api/v1/comunicacao/documentos", documento, Ct)).EnsureSuccessStatusCode();
+        var comMural = await Buscar(presidente, titulo);
+
+        // Act
+        await fabrica.VencerAssinatura(formaturaId, Ct);
+        var semMural = await Buscar(presidente, titulo);
+
+        // Assert
+        comMural.Avisos.ShouldHaveSingleItem();
+        comMural.Documentos.ShouldHaveSingleItem();
+        semMural.Avisos.ShouldBeEmpty();
+        semMural.Documentos.ShouldBeEmpty();
     }
 
     /// <summary>Termo curto não é erro: quem está digitando ainda não terminou.</summary>

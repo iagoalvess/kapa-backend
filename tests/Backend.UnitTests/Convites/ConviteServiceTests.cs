@@ -106,7 +106,6 @@ public sealed class ConviteServiceTests
     [Theory]
     [InlineData(PapelNaFormatura.Tesoureiro)]
     [InlineData(PapelNaFormatura.Comissao)]
-    [InlineData(PapelNaFormatura.Presidente)]
     public async Task Comissao_convidando_para_papel_de_gestao_devolve_403_sem_gravar(string papel)
     {
         // Arrange
@@ -129,6 +128,21 @@ public sealed class ConviteServiceTests
 
         resultado.Sucesso.ShouldBeTrue();
         await _convites.Received(1).Adicionar(Arg.Is<Convite>(c => c.Papel == PapelNaFormatura.Tesoureiro), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Revisão de segurança de 05/10/2026: Presidente não entra por convite — senão a senha do presidente bastava para
+    /// criar outro e confirmar a troca da chave no e-mail dele. Entra como comissão e é promovido, com confirmação.
+    /// </summary>
+    [Fact]
+    public async Task Nem_o_presidente_convida_para_presidente()
+    {
+        AutorCom(PapelNaFormatura.Presidente);
+
+        var resultado = await Servico.Criar(FormaturaId, UsuarioId, new CriarConvite("ana@exemplo.com", PapelNaFormatura.Presidente), Ct);
+
+        resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("convite.presidente_por_promocao");
+        await _convites.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
     }
 
     /// <summary>Link da turma circula em grupo: nem o Presidente abre um link de Tesoureiro.</summary>
@@ -471,7 +485,6 @@ public sealed class ConviteServiceTests
     [Theory]
     [InlineData(PapelNaFormatura.Tesoureiro)]
     [InlineData(PapelNaFormatura.Comissao)]
-    [InlineData(PapelNaFormatura.Presidente)]
     public async Task Convite_de_comissao_com_a_turma_lotada_devolve_409(string papel)
     {
         AutorCom(PapelNaFormatura.Presidente);

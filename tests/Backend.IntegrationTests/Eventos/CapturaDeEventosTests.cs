@@ -35,7 +35,7 @@ public sealed class CapturaDeEventosTests(ApiFactory fabrica)
         var usuarioAlvoId = FormaturaDeTeste.IdDoUsuario(alvo.AccessToken);
 
         var clienteAdmin = fabrica.CreateClient();
-        var admin = await clienteAdmin.AutenticarComoAdministrador(Ct);
+        var admin = await clienteAdmin.AutenticarComoAdministrador(fabrica, Ct);
         var administradorId = FormaturaDeTeste.IdDoUsuario(admin.AccessToken);
 
         var resposta = await clienteAdmin
@@ -59,7 +59,7 @@ public sealed class CapturaDeEventosTests(ApiFactory fabrica)
     public async Task Requisicao_recusada_nao_gera_evento()
     {
         var cliente = fabrica.CreateClient();
-        var admin = await cliente.AutenticarComoAdministrador(Ct);
+        var admin = await cliente.AutenticarComoAdministrador(fabrica, Ct);
         var eu = FormaturaDeTeste.IdDoUsuario(admin.AccessToken);
         cliente.ComToken(admin.AccessToken);
 

@@ -84,7 +84,7 @@ public sealed record CobrancaDoPlanoDTO(
 
 /// <summary>Corpo da troca de plano.</summary>
 /// <param name="PlanoCodigo">Plano novo, do mesmo ciclo.</param>
-public sealed record TrocarPlanoRequestDTO(string PlanoCodigo);
+public sealed record TrocarPlanoRequestDTO(string? PlanoCodigo);
 
 /// <summary>Corpo da troca de meio.</summary>
 /// <param name="Meio"><c>Cartao</c> ou <c>Pix</c>.</param>

@@ -91,6 +91,10 @@ public sealed record CobrancaDoPlanoResumo(
 /// <param name="EmailDoPagador">E-mail de quem contrata: o provedor exige na recorrência.</param>
 public sealed record IniciarCheckout(string PlanoCodigo, MeioDePagamento? Meio = null, string? EmailDoPagador = null);
 
+/// <summary>Pedido de troca de plano vindo do cartão da assinatura.</summary>
+/// <param name="PlanoCodigo">Plano novo, do mesmo ciclo.</param>
+public sealed record TrocaDePlano(string PlanoCodigo);
+
 /// <summary>O que a troca de plano ou de meio deu.</summary>
 /// <param name="Url">Página do provedor para pagar a diferença ou autorizar o cartão; nula quando nada precisa ser pago agora.</param>
 public sealed record ResultadoDaTroca(string? Url);

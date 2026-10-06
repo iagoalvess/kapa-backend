@@ -52,7 +52,7 @@ public sealed class AdminEndpointsTests(ApiFactory fabrica)
     public async Task Administrador_recebe_403_numa_rota_de_gestao_de_turma(string rota)
     {
         var cliente = fabrica.CreateClient();
-        var tokens = await cliente.AutenticarComoAdministrador(Ct);
+        var tokens = await cliente.AutenticarComoAdministrador(fabrica, Ct);
 
         var resposta = await cliente.ComToken(tokens.AccessToken).GetAsync(rota, Ct);
 
@@ -122,7 +122,7 @@ public sealed class AdminEndpointsTests(ApiFactory fabrica)
     private async Task<HttpClient> Suporte()
     {
         var cliente = fabrica.CreateClient();
-        var tokens = await cliente.AutenticarComoAdministrador(Ct);
+        var tokens = await cliente.AutenticarComoAdministrador(fabrica, Ct);
 
         return cliente.ComToken(tokens.AccessToken);
     }

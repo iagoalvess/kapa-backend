@@ -54,6 +54,12 @@ public static class RotasDoFront
 
     /// <summary>As compras da loja, do lado da Gestão — a fila de pedidos de cancelamento (Sprint 38).</summary>
     public const string ComprasDaLoja = "/cobrancas/loja";
+
+    /// <summary>Onde o presidente confirma, pelo link do e-mail, a troca dos meios de recebimento.</summary>
+    public const string ConfirmarMeios = "/confirmar/meios";
+
+    /// <summary>Onde o presidente confirma, pelo link do e-mail, quem passa a ser Presidente.</summary>
+    public const string ConfirmarPresidente = "/confirmar/presidente";
 }
 
 /// <summary>

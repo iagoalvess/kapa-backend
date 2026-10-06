@@ -15,6 +15,7 @@ using Backend.Business.Eventos.Models;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Backend.Business.Festa.Services;
+using Backend.Business.Festa.Settings;
 using Backend.Business.Formandos.Interfaces;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Interfaces;
@@ -103,6 +104,8 @@ public sealed class DesligamentoDeFormandoTests
             new AlterarPapelValidator(),
             new DesligarFormandoValidator(),
             new ValoresADevolver(_valoresADevolver),
+            new EmailsDePapel(_emailService, Options.Create(new AplicacaoSettings())),
+            new ConfirmacaoPorEmail(Options.Create(new ConviteSettings { SegredoDoConvite = Convert.ToBase64String(new byte[32]) })),
             _unitOfWork
         );
 

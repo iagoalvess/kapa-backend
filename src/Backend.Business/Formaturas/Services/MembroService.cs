@@ -1,8 +1,10 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Adesoes.Interfaces;
+using Backend.Business.Adesoes.Services;
 using Backend.Business.Assinaturas.Services;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Common;
 using Backend.Business.Common.Datas;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
@@ -30,6 +32,8 @@ namespace Backend.Business.Formaturas.Services;
 /// <param name="papelValidator">Validador da troca de papel.</param>
 /// <param name="desligamentoValidator">Validador do desligamento.</param>
 /// <param name="valoresADevolver">O parcial das parcelas canceladas no desligamento (Sprint 42, decisão 3).</param>
+/// <param name="emailsDePapel">O link que confirma um Presidente novo.</param>
+/// <param name="confirmacao">A assinatura do link.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 public sealed class MembroService(
     IVinculoRepository vinculoRepository,
@@ -44,6 +48,8 @@ public sealed class MembroService(
     IValidator<AlterarPapel> papelValidator,
     IValidator<DesligarFormando> desligamentoValidator,
     ValoresADevolver valoresADevolver,
+    EmailsDePapel emailsDePapel,
+    ConfirmacaoPorEmail confirmacao,
     IUnitOfWork unitOfWork
 ) : IMembroService
 {
@@ -53,6 +59,14 @@ public sealed class MembroService(
     );
 
     private static readonly Erro JaDesligado = Erro.Conflito("formatura.membro_ja_desligado", "Esta pessoa já foi desligada da turma.");
+
+    /// <summary>A finalidade do link que confirma um Presidente novo.</summary>
+    public const string FinalidadeDaPromocao = "formatura.presidente";
+
+    private static readonly Erro LinkInvalido = Erro.Validacao(
+        "formatura.confirmacao_invalida",
+        "Este link de confirmação venceu, já foi usado ou é de outra pessoa. Peça a promoção de novo na tela de membros."
+    );
 
     private static readonly Erro UltimoPresidente = Erro.Conflito(
         "formatura.ultimo_presidente",
@@ -72,15 +86,105 @@ public sealed class MembroService(
         Result.Ok(await vinculoRepository.ContarMembros(formaturaId, ct));
 
     /// <inheritdoc />
-    public async Task<Result> AlterarPapel(Guid formaturaId, Guid usuarioId, AlterarPapel dados, Guid autorId, CancellationToken ct = default)
+    /// <remarks>
+    /// Para Presidente, só pede: o link vai ao e-mail de quem pediu, e a promoção vale em
+    /// <see cref="ConfirmarPresidente"/> (revisão de segurança de 05/10/2026). Os demais papéis valem na hora.
+    /// </remarks>
+    public async Task<Result<AlteracaoDePapel>> AlterarPapel(
+        Guid formaturaId,
+        Guid usuarioId,
+        AlterarPapel dados,
+        Guid autorId,
+        CancellationToken ct = default
+    )
     {
         var validacao = papelValidator.Validar(dados);
         if (validacao.Falhou)
-            return validacao;
+            return Result.Falha<AlteracaoDePapel>(validacao.Erros);
 
         if (await vagas.ConferirPapel(formaturaId, dados.Papel, ct) is { } semPlanoPago)
+            return semPlanoPago;
+
+        if (dados.Papel == PapelNaFormatura.Presidente)
+            return await PedirPromocao(formaturaId, usuarioId, autorId, ct);
+
+        var aplicada = await Aplicar(formaturaId, usuarioId, dados.Papel, autorId, null, ct);
+
+        return aplicada.Sucesso ? new AlteracaoDePapel(null) : Result.Falha<AlteracaoDePapel>(aplicada.Erros);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Vale só para quem pediu, na turma em que pediu, e enquanto o membro tiver o papel que tinha no pedido — aplicado
+    /// uma vez, o mesmo link morre.
+    /// </remarks>
+    public async Task<Result> ConfirmarPresidente(Guid formaturaId, Guid autorId, string? token, CancellationToken ct = default)
+    {
+        if (
+            confirmacao.Ler<PromocaoAPresidente>(FinalidadeDaPromocao, token, DateTime.UtcNow) is not { } promocao
+            || promocao.FormaturaId != formaturaId
+            || promocao.AutorId != autorId
+        )
+            return Result.Falha(LinkInvalido);
+
+        if (await vagas.ConferirPapel(formaturaId, PapelNaFormatura.Presidente, ct) is { } semPlanoPago)
             return Result.Falha(semPlanoPago);
 
+        return await Aplicar(formaturaId, promocao.UsuarioId, PapelNaFormatura.Presidente, autorId, promocao.Antes, ct);
+    }
+
+    /// <summary>Manda a quem pediu o link que confirma o Presidente novo, e deixa o pedido na trilha.</summary>
+    private async Task<Result<AlteracaoDePapel>> PedirPromocao(Guid formaturaId, Guid usuarioId, Guid autorId, CancellationToken ct)
+    {
+        var alvo = await perfilRepository.ObterMembro(formaturaId, usuarioId, ct);
+        var autor = await perfilRepository.ObterMembro(formaturaId, autorId, ct);
+        var vinculo = await vinculoRepository.ObterAtivoParaEdicao(usuarioId, formaturaId, ct);
+
+        if (alvo is null || autor is null || vinculo is null)
+            return ErrosDeFormatura.MembroNaoEncontrado;
+
+        if (vinculo.Papel == PapelNaFormatura.Presidente)
+            return new AlteracaoDePapel(null);
+
+        var token = confirmacao.Assinar(
+            FinalidadeDaPromocao,
+            new PromocaoAPresidente(formaturaId, autorId, usuarioId, Estado(vinculo)),
+            DateTime.UtcNow
+        );
+        var turma = (await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct))?.Nome ?? string.Empty;
+
+        await emailsDePapel.ConfirmarPresidente(autor.Email, turma, alvo.Nome, alvo.Email, token, ct);
+        await eventos.Auditar(
+            NomesDeAuditoria.PresidentePedido,
+            autorId,
+            new
+            {
+                formaturaId,
+                membroUsuarioId = usuarioId,
+                antes = new { papel = vinculo.Papel },
+            },
+            ct
+        );
+        await unitOfWork.SalvarAsync(ct);
+
+        return new AlteracaoDePapel(AdesaoService.MascararEmail(autor.Email));
+    }
+
+    /// <summary>
+    /// A impressão digital do vínculo para o link de confirmação: o papel e a última gravação, que muda a cada
+    /// <c>SalvarAsync</c> e não deixa o link reviver quando o papel volta ao do pedido.
+    /// </summary>
+    private static string Estado(VinculoDeFormatura vinculo) => ConfirmacaoPorEmail.Impressao(new { vinculo.Papel, vinculo.AtualizadoEm });
+
+    /// <summary>Troca o papel sob a trava dos presidentes, com a trilha na mesma transação.</summary>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">Membro a alterar.</param>
+    /// <param name="papel">Papel novo.</param>
+    /// <param name="autorId">Quem troca.</param>
+    /// <param name="estadoEsperado">O vínculo que o link de confirmação viu (<see cref="Estado"/>); outro agora, o link não vale. Nulo: sem link.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    private async Task<Result> Aplicar(Guid formaturaId, Guid usuarioId, string papel, Guid autorId, string? estadoEsperado, CancellationToken ct)
+    {
         return await unitOfWork.EmTransacaoAsync(
             async token =>
             {
@@ -90,14 +194,17 @@ public sealed class MembroService(
                 if (vinculo is null)
                     return Result.Falha(ErrosDeFormatura.MembroNaoEncontrado);
 
-                if (vinculo.Papel == dados.Papel)
+                if (estadoEsperado is not null && Estado(vinculo) != estadoEsperado)
+                    return Result.Falha(LinkInvalido);
+
+                if (vinculo.Papel == papel)
                     return Result.Ok();
 
                 if (DeixariaSemPresidente(vinculo, presidentes))
                     return Result.Falha(UltimoPresidente);
 
                 var antes = vinculo.Papel;
-                vinculo.Papel = dados.Papel;
+                vinculo.Papel = papel;
 
                 await eventos.Auditar(
                     NomesDeAuditoria.PapelAlterado,

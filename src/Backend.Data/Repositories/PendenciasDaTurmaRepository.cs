@@ -1,3 +1,4 @@
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
@@ -69,6 +70,30 @@ public sealed class PendenciasDaTurmaRepository(AppDbContext db) : IPendenciasDa
                     c.Status == StatusDaCobrancaBancaria.Emitindo || (c.Status == StatusDaCobrancaBancaria.Emitida && c.ExpiraEm > agora)
                 ),
                 db.ValoresADevolver.Count(v => v.Status == StatusDoValorADevolver.ADevolver)
+            ))
+            .FirstAsync(ct);
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Uma ida ao banco, com um <c>EXISTS</c> ou um <c>COUNT</c> por passo — nada é carregado. O vínculo não é
+    /// entidade da formatura, por isso leva a turma explícita; o resto já vem isolado pelo filtro global.
+    /// <para>
+    /// O recebimento segue a regra da tela até aqui: cobrança automática pelo Mercado Pago, ou um meio que dispensa
+    /// conferência (transferência, dinheiro), ou o PIX com o titular conferido.
+    /// </para>
+    /// </remarks>
+    public async Task<PrimeirosPassos> ConferirPrimeirosPassos(CancellationToken ct = default) =>
+        await db
+            .Formaturas.AsNoTracking()
+            .Where(f => f.Id == db.FormaturaAtualId)
+            .Select(f => new PrimeirosPassos(
+                db.Vinculos.Count(v => v.FormaturaId == f.Id && v.Ativo && v.Papel != PapelNaFormatura.Formando) > 1,
+                db.PlanosDeCobranca.Any(p => p.Status == StatusDoPlano.Vigente),
+                db.TermosDeAdesao.Any(),
+                db.CredenciaisDeProvedor.Any(c => c.CobrancaAutomaticaEm != null)
+                    || db.ContasDeRecebimento.Any(c => c.Banco != null || c.DinheiroCom != null || (c.Chave != null && c.ConferidaEm != null)),
+                db.Assinaturas.Any(a => a.Status != StatusDaAssinatura.Pendente),
+                db.Vinculos.Any(v => v.FormaturaId == f.Id && v.Ativo && v.Papel == PapelNaFormatura.Formando)
             ))
             .FirstAsync(ct);
 }

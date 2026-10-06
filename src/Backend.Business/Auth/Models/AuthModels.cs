@@ -41,3 +41,21 @@ public sealed record AccessTokenGerado(string Token, DateTime ExpiraEm);
 /// <param name="Hash">Valor persistido. Não entregue ao cliente.</param>
 /// <param name="ExpiraEm">Expiração, em UTC.</param>
 public sealed record RefreshTokenGerado(string Token, string Hash, DateTime ExpiraEm);
+
+/// <summary>
+/// O que o login deu: a sessão, ou — para administrador e presidente — o pedido do código que foi ao e-mail
+/// (login em duas etapas, revisão de segurança de 05/10/2026).
+/// </summary>
+/// <param name="Sessao">O par de tokens; nulo enquanto falta o código.</param>
+/// <param name="Codigo">O código pedido; nulo quando a sessão já saiu.</param>
+public sealed record Entrada(ParDeTokens? Sessao, CodigoDeEntrada? Codigo);
+
+/// <summary>O segundo passo do login: o código foi ao e-mail da conta.</summary>
+/// <param name="Desafio">O que o cliente devolve junto do código — liga os dois passos sem sessão.</param>
+/// <param name="EnviadoPara">O e-mail, mascarado.</param>
+/// <param name="MinutosDeValidade">Por quanto tempo o código vale, para a tela dizer.</param>
+public sealed record CodigoDeEntrada(string Desafio, string EnviadoPara, int MinutosDeValidade);
+
+/// <summary>O que viaja assinado no desafio: de quem é o login que espera o código.</summary>
+/// <param name="UsuarioId">Quem acertou a senha.</param>
+public sealed record DesafioDeEntrada(Guid UsuarioId);

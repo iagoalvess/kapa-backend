@@ -140,7 +140,7 @@ public class ContaDeRecebimento : EntidadeDaFormatura
         );
 
     /// <summary>Apara o texto de cada campo e normaliza a chave; grupo que sobrou vazio vira meio desligado.</summary>
-    private static MeiosDaConta Normalizar(MeiosDaConta meios)
+    public static MeiosDaConta Normalizar(MeiosDaConta meios)
     {
         ChavePixDaConta? pix = null;
 

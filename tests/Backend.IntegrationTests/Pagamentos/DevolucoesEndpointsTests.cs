@@ -489,9 +489,8 @@ public sealed class DevolucoesEndpointsTests(ApiFactory fabrica)
         var presidente = Cliente(api, turma.Presidente.Cliente);
         var anonimo = Cliente(api, null);
 
-        await presidente.CadastrarChavePix(Ct);
-        var autorizacao = await Ler<AutorizacaoDoProvedorDTO>(await presidente.PostAsync($"{Conta}/autorizacao", null, Ct));
-        var state = HttpUtility.ParseQueryString(new Uri(autorizacao.Url).Query)["state"];
+        await presidente.CadastrarChavePix(fabrica, Ct);
+        var state = HttpUtility.ParseQueryString(new Uri(await presidente.UrlDeAutorizacao(fabrica, Ct)).Query)["state"];
         (await anonimo.GetAsync($"/api/v1/mercado-pago/retorno?code=codigo&state={Uri.EscapeDataString(state!)}", Ct))
             .Headers.Location!.ToString()
             .ShouldContain("mercado_pago=conectado");

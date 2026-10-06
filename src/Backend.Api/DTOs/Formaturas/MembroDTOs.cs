@@ -76,3 +76,13 @@ public sealed record ResumoDaSaidaDTO(
 /// Cancela também as parcelas já vencidas e não pagas. <c>false</c> mantém a cobrança do atraso.
 /// </param>
 public sealed record DesligarMembroRequestDTO(string Motivo, string? Detalhe, bool CancelarAtraso);
+
+/// <summary>O que a troca de papel deu.</summary>
+/// <param name="ConfirmacaoEnviadaPara">
+/// Mascarado, o e-mail que recebeu o link: a promoção a Presidente só vale depois dele. Nulo: a troca já valeu.
+/// </param>
+public sealed record AlteracaoDePapelDTO(string? ConfirmacaoEnviadaPara);
+
+/// <summary>O token do link que confirma um Presidente novo.</summary>
+/// <param name="Token">Como veio no link.</param>
+public sealed record ConfirmacaoDePresidenteDTO(string? Token);

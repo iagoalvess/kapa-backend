@@ -89,6 +89,18 @@ public interface IParcelaRepository
     /// <param name="hoje">Dia que separa aberta de vencida.</param>
     Task<IReadOnlyList<ParcelaResumo>> ListarDoVinculo(Guid vinculoId, DateOnly hoje, CancellationToken ct = default);
 
+    /// <summary>
+    /// As parcelas do vínculo ainda a pagar — abertas ou vencidas, sem aviso de pagamento esperando a tesouraria —, por
+    /// vencimento e sem o valor do dia.
+    /// </summary>
+    /// <remarks>
+    /// O recorte de onde sai a próxima parcela do Início: sem as pagas e as canceladas, que são a maior parte do
+    /// extrato de quem está no fim da turma.
+    /// </remarks>
+    /// <param name="vinculoId">Vínculo do formando.</param>
+    /// <param name="hoje">Dia que separa aberta de vencida.</param>
+    Task<IReadOnlyList<ParcelaResumo>> ListarAPagarDoVinculo(Guid vinculoId, DateOnly hoje, CancellationToken ct = default);
+
     /// <summary>Quantas parcelas do vínculo venceram sem aviso de pagamento esperando a tesouraria.</summary>
     /// <remarks>
     /// É um <c>COUNT</c>, e não a contagem de <see cref="ListarDoVinculo"/>: quem pergunta é o selo do

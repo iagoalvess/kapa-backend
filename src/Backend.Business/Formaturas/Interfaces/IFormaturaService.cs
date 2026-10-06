@@ -55,6 +55,9 @@ public interface IFormaturaService
     /// <param name="formaturaId">Formatura da sessão.</param>
     Task<Result<FormaturaDetalhe>> ObterAtual(Guid formaturaId, CancellationToken ct = default);
 
+    /// <summary>Os passos da comissão até a turma estar rodando — o bloco "Primeiros passos" do Início.</summary>
+    Task<Result<PrimeirosPassos>> ObterPrimeirosPassos(CancellationToken ct = default);
+
     /// <summary>Edita os dados cadastrais da formatura da sessão.</summary>
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="dados">Dados novos.</param>

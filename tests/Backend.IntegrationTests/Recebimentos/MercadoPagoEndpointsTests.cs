@@ -48,9 +48,8 @@ public sealed class MercadoPagoEndpointsTests(ApiFactory fabrica)
         var anonimo = Cliente(api, null);
 
         // Act — conectar (a chave PIX vem antes: é o chão da P7)
-        await presidente.CadastrarChavePix(Ct);
-        var autorizacao = await Ler<AutorizacaoDoProvedorDTO>(await presidente.PostAsync($"{Conta}/autorizacao", null, Ct));
-        var state = HttpUtility.ParseQueryString(new Uri(autorizacao.Url).Query)["state"];
+        await presidente.CadastrarChavePix(fabrica, Ct);
+        var state = HttpUtility.ParseQueryString(new Uri(await presidente.UrlDeAutorizacao(fabrica, Ct)).Query)["state"];
         var retorno = await anonimo.GetAsync($"/api/v1/mercado-pago/retorno?code=codigo-do-oauth&state={Uri.EscapeDataString(state!)}", Ct);
 
         // Assert — conectado, e o token fica no banco
@@ -284,11 +283,10 @@ public sealed class MercadoPagoEndpointsTests(ApiFactory fabrica)
         };
 
     /// <summary>O presidente cadastra a chave, clica em conectar e o navegador volta do Mercado Pago com o código.</summary>
-    private static async Task Conectar(HttpClient presidente, HttpClient anonimo)
+    private async Task Conectar(HttpClient presidente, HttpClient anonimo)
     {
-        await presidente.CadastrarChavePix(Ct);
-        var autorizacao = await Ler<AutorizacaoDoProvedorDTO>(await presidente.PostAsync($"{Conta}/autorizacao", null, Ct));
-        var state = HttpUtility.ParseQueryString(new Uri(autorizacao.Url).Query)["state"];
+        await presidente.CadastrarChavePix(fabrica, Ct);
+        var state = HttpUtility.ParseQueryString(new Uri(await presidente.UrlDeAutorizacao(fabrica, Ct)).Query)["state"];
         var retorno = await anonimo.GetAsync($"/api/v1/mercado-pago/retorno?code=codigo&state={Uri.EscapeDataString(state!)}", Ct);
         retorno.Headers.Location!.ToString().ShouldContain("mercado_pago=conectado");
     }

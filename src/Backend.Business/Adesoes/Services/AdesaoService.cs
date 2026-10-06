@@ -285,6 +285,10 @@ public sealed class AdesaoService(
     }
 
     /// <inheritdoc />
+    public async Task<Result<SituacaoDaMinhaAdesao>> ObterSituacao(Guid formaturaId, Guid usuarioId, CancellationToken ct = default) =>
+        await adesaoRepository.ObterSituacao(formaturaId, usuarioId, ct) is { } situacao ? situacao : ErrosDeFormatura.MembroNaoEncontrado;
+
+    /// <inheritdoc />
     public async Task<Result<PaginaDe<SituacaoDeAdesao>>> Listar(
         Guid formaturaId,
         PaginacaoRequest paginacao,

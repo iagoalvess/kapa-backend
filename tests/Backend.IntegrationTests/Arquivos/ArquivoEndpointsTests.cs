@@ -89,7 +89,7 @@ public sealed class ArquivoEndpointsTests(ApiFactory fabrica)
         var (_, arquivoId) = await FormandoComFoto();
 
         var admin = fabrica.CreateClient();
-        var tokens = await admin.AutenticarComoAdministrador(Ct);
+        var tokens = await admin.AutenticarComoAdministrador(fabrica, Ct);
 
         var resposta = await admin.ComToken(tokens.AccessToken).GetAsync($"/api/v1/arquivos/{arquivoId}/conteudo", Ct);
 

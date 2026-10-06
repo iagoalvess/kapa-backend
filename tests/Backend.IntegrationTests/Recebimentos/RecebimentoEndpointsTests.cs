@@ -49,7 +49,7 @@ public sealed class RecebimentoEndpointsTests(ApiFactory fabrica)
     {
         var formaturaId = await fabrica.CriarFormatura(Ct);
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
-        (await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCpf, Json, Ct)).EnsureSuccessStatusCode();
+        (await presidente.Cliente.GravarMeios(fabrica, ChaveCpf, Ct)).EnsureSuccessStatusCode();
         var membro = await fabrica.NovoMembro(formaturaId, papel, Ct);
 
         (await membro.Cliente.GetAsync(Rota, Ct)).StatusCode.ShouldBe(leitura);
@@ -98,12 +98,12 @@ public sealed class RecebimentoEndpointsTests(ApiFactory fabrica)
         var formaturaId = await fabrica.CriarFormatura(Ct);
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
 
-        var gravada = await Ler<ContaDeRecebimentoDTO>(await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCpf, Json, Ct));
+        var gravada = await Ler<ContaDeRecebimentoDTO>(await presidente.Cliente.GravarMeios(fabrica, ChaveCpf, Ct));
         var pix = await presidente.Cliente.GetFromJsonAsync<PixDeTesteDTO>($"{Rota}/pix-de-teste", Json, Ct);
         var antes = DateTime.UtcNow;
         var conferida = await Ler<ContaDeRecebimentoDTO>(await presidente.Cliente.PostAsync($"{Rota}/conferir", null, Ct));
         var deNovo = await presidente.Cliente.PostAsync($"{Rota}/conferir", null, Ct);
-        var trocada = await Ler<ContaDeRecebimentoDTO>(await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCelular, Json, Ct));
+        var trocada = await Ler<ContaDeRecebimentoDTO>(await presidente.Cliente.GravarMeios(fabrica, ChaveCelular, Ct));
         var repetida = await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCelular, Json, Ct);
 
         gravada.Meios.Pix!.Chave.ShouldBe("52998224725");
@@ -134,10 +134,10 @@ public sealed class RecebimentoEndpointsTests(ApiFactory fabrica)
         var tesoureiro = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Tesoureiro, Ct);
         var comissao = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Comissao, Ct);
         var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
-        (await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCpf, Json, Ct)).EnsureSuccessStatusCode();
+        (await presidente.Cliente.GravarMeios(fabrica, ChaveCpf, Ct)).EnsureSuccessStatusCode();
         var avisosDoCadastro = await AvisosPara([presidente, tesoureiro, comissao, formando]);
 
-        (await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCelular, Json, Ct)).EnsureSuccessStatusCode();
+        (await presidente.Cliente.GravarMeios(fabrica, ChaveCelular, Ct)).EnsureSuccessStatusCode();
 
         avisosDoCadastro.ShouldBeEmpty();
         var avisos = await AvisosPara([presidente, tesoureiro, comissao, formando]);
@@ -162,7 +162,7 @@ public sealed class RecebimentoEndpointsTests(ApiFactory fabrica)
         var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
         var soDinheiro = new MeiosDaContaDTO(null, null, new DinheiroDTO("Ana Souza", "nas reuniões de quinta"));
 
-        var gravada = await Ler<ContaDeRecebimentoDTO>(await presidente.Cliente.PutAsJsonAsync(Rota, soDinheiro, Json, Ct));
+        var gravada = (await Ler<GravacaoDaContaDTO>(await presidente.Cliente.PutAsJsonAsync(Rota, soDinheiro, Json, Ct))).Conta!;
         var teste = await presidente.Cliente.GetAsync($"{Rota}/pix-de-teste", Ct);
         var vazia = await presidente.Cliente.PutAsJsonAsync(Rota, new MeiosDaContaDTO(null, null, null), Json, Ct);
 
@@ -179,14 +179,57 @@ public sealed class RecebimentoEndpointsTests(ApiFactory fabrica)
     public async Task Habilitar_outro_meio_mantem_a_conferencia_do_pix()
     {
         var presidente = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Presidente, Ct);
-        (await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCpf, Json, Ct)).EnsureSuccessStatusCode();
+        (await presidente.Cliente.GravarMeios(fabrica, ChaveCpf, Ct)).EnsureSuccessStatusCode();
         (await presidente.Cliente.PostAsync($"{Rota}/conferir", null, Ct)).EnsureSuccessStatusCode();
 
         var comTed = ChaveCpf with { Transferencia = new DadosBancariosDTO("Banco do Brasil", "1234-5", "98765-4", "Corrente", "Comissão") };
-        var gravada = await Ler<ContaDeRecebimentoDTO>(await presidente.Cliente.PutAsJsonAsync(Rota, comTed, Json, Ct));
+        var gravada = await Ler<ContaDeRecebimentoDTO>(await presidente.Cliente.GravarMeios(fabrica, comTed, Ct));
 
         gravada.ConferidaEm.ShouldNotBeNull();
         gravada.Meios.Transferencia!.Banco.ShouldBe("Banco do Brasil");
+    }
+
+    /// <summary>
+    /// Revisão de segurança de 05/10/2026: a sessão do presidente sozinha não muda para onde a turma paga. O pedido
+    /// deixa a conta como estava — o formando segue vendo a chave antiga —, o link só vale para quem pediu, e uma vez — nem na volta
+    /// à chave do pedido.
+    /// </summary>
+    [Fact]
+    public async Task Troca_so_vale_pelo_link_do_email_de_quem_pediu_e_uma_vez()
+    {
+        // Arrange
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var outroPresidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var tesoureiro = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Tesoureiro, Ct);
+        (await presidente.Cliente.GravarMeios(fabrica, ChaveCpf, Ct)).EnsureSuccessStatusCode();
+
+        // Act
+        var pedido = await Ler<GravacaoDaContaDTO>(await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCelular, Json, Ct));
+        var token = await fabrica.TokenDoUltimoEmail(Ct);
+        var lidaNoMeio = await presidente.Cliente.GetFromJsonAsync<ContaDeRecebimentoDaTurmaDTO>(Rota, Json, Ct);
+        var peloOutro = await outroPresidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token), Json, Ct);
+        var peloTesoureiro = await tesoureiro.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token), Json, Ct);
+        var adulterado = await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token + "x"), Json, Ct);
+        var confirmada = await Ler<ContaDeRecebimentoDTO>(
+            await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token), Json, Ct)
+        );
+        var deNovo = await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token), Json, Ct);
+        (await presidente.Cliente.GravarMeios(fabrica, ChaveCpf, Ct)).EnsureSuccessStatusCode();
+        var naVolta = await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token), Json, Ct);
+
+        // Assert
+        pedido.ConfirmacaoEnviadaPara.ShouldNotBeNull();
+        pedido.Conta!.Meios.Pix!.Chave.ShouldBe("52998224725");
+        lidaNoMeio!.Conta!.Meios.Pix!.Chave.ShouldBe("52998224725");
+        (await peloOutro.Codigo(Ct)).ShouldBe("recebimento.confirmacao_invalida");
+        peloTesoureiro.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await adulterado.Codigo(Ct)).ShouldBe("recebimento.confirmacao_invalida");
+        confirmada.Meios.Pix!.Chave.ShouldBe("+5541998765432");
+        (await deNovo.Codigo(Ct)).ShouldBe("recebimento.confirmacao_invalida");
+        (await naVolta.Codigo(Ct)).ShouldBe("recebimento.confirmacao_invalida");
+        await using var contexto = fabrica.ContextoDe(null);
+        (await contexto.Eventos.CountAsync(e => e.Nome == "recebimento.troca_pedida" && e.UsuarioId == presidente.UsuarioId, Ct)).ShouldBe(3);
     }
 
     private static async Task<T> Ler<T>(HttpResponseMessage resposta)

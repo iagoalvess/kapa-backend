@@ -8,6 +8,7 @@ using Backend.Business.Formaturas.Models;
 using Backend.Business.MercadoPago.Models;
 using Backend.Business.Pagamentos.Models;
 using Backend.IntegrationTests.Infra;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
@@ -226,6 +227,23 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         historico.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    /// <summary>Corpo sem o plano é erro de forma no campo, e não 500: quem confere é o validator.</summary>
+    [Fact]
+    public async Task Trocar_de_plano_sem_o_codigo_e_400_no_campo()
+    {
+        // Arrange
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+
+        // Act
+        var resposta = await presidente.Cliente.PostAsJsonAsync($"{Assinatura}/trocar-plano", new { }, Json, Ct);
+
+        // Assert
+        resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var problema = await resposta.Content.ReadFromJsonAsync<ValidationProblemDetails>(Json, Ct);
+        problema!.Errors.Keys.ShouldContain("plano_codigo");
+    }
+
     /// <summary>
     /// P7: o suporte estorna o pagamento inteiro nos 7 dias, a renovação para e a turma fica só para consulta. Estornar
     /// de novo é conflito.
@@ -342,10 +360,10 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         return await contexto.Formaturas.Where(f => f.Id == formaturaId).Select(f => f.Status).SingleAsync(Ct);
     }
 
-    private static async Task<HttpClient> Suporte(WebApplicationFactory<Program> api)
+    private async Task<HttpClient> Suporte(WebApplicationFactory<Program> api)
     {
         var cliente = Cliente(api, null);
-        var tokens = await cliente.AutenticarComoAdministrador(Ct);
+        var tokens = await cliente.AutenticarComoAdministrador(fabrica, Ct);
 
         return cliente.ComToken(tokens.AccessToken);
     }

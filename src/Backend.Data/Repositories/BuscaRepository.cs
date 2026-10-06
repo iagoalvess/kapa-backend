@@ -1,3 +1,4 @@
+using Backend.Business.Assinaturas.Models;
 using Backend.Business.Busca.Interfaces;
 using Backend.Business.Busca.Models;
 using Backend.Business.Comunicacao.Models;
@@ -37,12 +38,15 @@ public sealed class BuscaRepository(AppDbContext db) : IBuscaRepository
         var tesouraria = quem.Papel is not null && PapelNaFormatura.Tesouraria.Contains(quem.Papel);
         var veInternos = Visibilidades.VeInternos(quem.Papel);
 
+        var mural = quem.Inclui(Modulo.Mural);
+        var despesas = quem.Inclui(Modulo.Despesas);
+
         return new BuscaNaTurma(
-            gestao ? await Membros(quem.FormaturaId, padrao, porGrupo, ct) : [],
-            await Despesas(padrao, porGrupo, ct),
-            tesouraria ? await Fornecedores(padrao, porGrupo, ct) : [],
-            await Avisos(padrao, porGrupo, veInternos, ct),
-            await Documentos(padrao, porGrupo, veInternos, ct)
+            gestao && quem.Inclui(Modulo.Membros) ? await Membros(quem.FormaturaId, padrao, porGrupo, ct) : [],
+            despesas ? await Despesas(padrao, porGrupo, ct) : [],
+            tesouraria && despesas ? await Fornecedores(padrao, porGrupo, ct) : [],
+            mural ? await Avisos(padrao, porGrupo, veInternos, ct) : [],
+            mural ? await Documentos(padrao, porGrupo, veInternos, ct) : []
         );
     }
 

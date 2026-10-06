@@ -14,6 +14,7 @@ public sealed class RegistroDeMapeamentosFormaturas : IRegister
     {
         config.NewConfig<FormaturaDoUsuario, FormaturaDoUsuarioDTO>();
         config.NewConfig<FormaturaDetalhe, FormaturaDetalheDTO>();
+        config.NewConfig<PrimeirosPassos, PrimeirosPassosDTO>();
         config.NewConfig<DadosDaFormaturaRequestDTO, DadosDaFormatura>();
     }
 }

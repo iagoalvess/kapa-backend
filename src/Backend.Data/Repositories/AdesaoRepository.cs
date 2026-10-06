@@ -22,6 +22,22 @@ namespace Backend.Data.Repositories;
 public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAdesaoRepository
 {
     /// <inheritdoc />
+    /// <remarks>
+    /// Uma consulta, com três <c>EXISTS</c>: o que se pergunta em toda tela não carrega termo, plano nem adesão. Aderiu
+    /// é a qualquer versão — a mesma regra do gate da API (<c>VinculoRepository.FormandoSemAdesao</c>).
+    /// </remarks>
+    public Task<SituacaoDaMinhaAdesao?> ObterSituacao(Guid formaturaId, Guid usuarioId, CancellationToken ct = default) =>
+        db
+            .Vinculos.AsNoTracking()
+            .Where(v => v.UsuarioId == usuarioId && v.FormaturaId == formaturaId && v.Ativo)
+            .Select(v => new SituacaoDaMinhaAdesao(
+                db.TermosDeAdesao.Any(),
+                db.PlanosDeCobranca.Any(p => p.Status == StatusDoPlano.Vigente),
+                db.Adesoes.Any(a => a.VinculoId == v.Id)
+            ))
+            .FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
     public Task<VersaoDoTermo?> ObterTermoVigente(CancellationToken ct = default) =>
         db
             .TermosDeAdesao.AsNoTracking()

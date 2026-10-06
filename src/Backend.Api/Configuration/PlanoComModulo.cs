@@ -26,6 +26,10 @@ public sealed class PlanoComModuloRequirement(string modulo) : IAuthorizationReq
 /// suspensa perde a escrita mas continua vendo o que já é dela, enquanto módulo fora do plano é
 /// área que a turma nunca comprou — não há o que preservar.
 /// </para>
+/// <para>
+/// A turma <b>suspensa</b> continua lendo os módulos do plano que tinha (decisão do dono de 06/10/2026): o plano aqui
+/// é <c>ObterPlanoDosModulosDeTodasAsFormaturas</c>, e quem barra a escrita dela é a política de status.
+/// </para>
 /// <para>Scoped, porque depende do repositório da requisição.</para>
 /// </remarks>
 /// <param name="assinaturaRepository">Módulos do plano vigente.</param>
@@ -40,7 +44,7 @@ public sealed class PlanoComModuloHandler(IAssinaturaRepository assinaturaReposi
         var ct = (context.Resource as HttpContext)?.RequestAborted ?? CancellationToken.None;
 
         if (
-            await assinaturaRepository.ObterPlanoVigenteDeTodasAsFormaturas(formaturaId, ct) is { } plano
+            await assinaturaRepository.ObterPlanoDosModulosDeTodasAsFormaturas(formaturaId, ct) is { } plano
             && plano.Modulos.Contains(requirement.Modulo)
         )
             context.Succeed(requirement);

@@ -182,14 +182,13 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         var ana = await FormandoQueAderiu(turma, "Ana Em Espécie");
         var parcela = ana.Parcelas[0];
         (
-            await turma.Presidente.Cliente.PutAsJsonAsync(
-                "/api/v1/recebimentos/conta",
+            await turma.Presidente.Cliente.GravarMeios(
+                fabrica,
                 new MeiosDaContaDTO(
                     new ChavePixDTO(TipoDeChavePix.Cpf, "529.982.247-25", "Comissão Medicina", "Curitiba"),
                     null,
                     new DinheiroDTO("Bruna Tesoureira", "nas reuniões de quinta")
                 ),
-                Json,
                 Ct
             )
         ).EnsureSuccessStatusCode();
@@ -419,6 +418,33 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         depoisDoAviso.VencidasSemAviso.ShouldBe(0);
     }
 
+    /// <summary>
+    /// As duas parcelas do Início, sem o extrato: a próxima é a mesma do extrato, e a que tem aviso esperando a
+    /// tesouraria sai das duas no instante do aviso.
+    /// </summary>
+    [Fact]
+    public async Task Proximas_sao_as_do_extrato_e_pulam_a_que_esta_em_conferencia()
+    {
+        // Arrange
+        var turma = await TurmaPronta();
+        var ana = await FormandoQueAderiu(turma, "Ana Adiantada");
+
+        // Act
+        var antes = await Ler<ProximasParcelasDTO>(await ana.Membro.Cliente.GetAsync("/api/v1/extrato/eu/proximas", Ct));
+        var extrato = await Ler<ExtratoDTO>(await ana.Membro.Cliente.GetAsync("/api/v1/extrato/eu", Ct));
+        (
+            await ana.Membro.Cliente.PostAsync($"/api/v1/parcelas/{ana.Parcelas[0]}/informes", Informe(Hoje, Mensalidade), Ct)
+        ).EnsureSuccessStatusCode();
+        var depoisDoAviso = await Ler<ProximasParcelasDTO>(await ana.Membro.Cliente.GetAsync("/api/v1/extrato/eu/proximas", Ct));
+
+        // Assert
+        antes.Proxima.ShouldBe(extrato.Proxima);
+        antes.Proxima!.Id.ShouldBe(ana.Parcelas[0]);
+        antes.Seguinte!.Id.ShouldBe(ana.Parcelas[1]);
+        depoisDoAviso.Proxima!.Id.ShouldBe(ana.Parcelas[1]);
+        depoisDoAviso.Seguinte!.Id.ShouldBe(ana.Parcelas[2]);
+    }
+
     [Fact]
     public async Task Busca_acha_as_parcelas_pelo_nome_civil_ou_da_conta_e_o_resumo_soma_o_recebido()
     {
@@ -499,10 +525,9 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
 
         var antes = await Ler<CobrancaDaParcelaDTO>(await ana.Membro.Cliente.GetAsync($"/api/v1/parcelas/{ana.Parcelas[1]}/cobranca", Ct));
         (
-            await turma.Presidente.Cliente.PutAsJsonAsync(
-                "/api/v1/recebimentos/conta",
+            await turma.Presidente.Cliente.GravarMeios(
+                fabrica,
                 new MeiosDaContaDTO(new ChavePixDTO(TipoDeChavePix.Email, "outra@turma.dev", "Fulano Trocado", "Curitiba"), null, null),
-                Json,
                 Ct
             )
         ).EnsureSuccessStatusCode();
@@ -601,10 +626,9 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
 
         if (comConta)
             (
-                await presidente.Cliente.PutAsJsonAsync(
-                    "/api/v1/recebimentos/conta",
+                await presidente.Cliente.GravarMeios(
+                    fabrica,
                     new MeiosDaContaDTO(new ChavePixDTO(TipoDeChavePix.Cpf, "529.982.247-25", "Comissão Medicina", "Curitiba"), null, null),
-                    Json,
                     Ct
                 )
             ).EnsureSuccessStatusCode();

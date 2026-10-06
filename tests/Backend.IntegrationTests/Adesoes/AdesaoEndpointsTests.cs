@@ -62,6 +62,73 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
         (await membro.Cliente.GetAsync($"{Rota}/eu", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    /// <summary>
+    /// A situação leve que a guarda do app e o menu leem: liberada ao formando antes da adesão (é ela que o leva ao
+    /// termo), e o aceite a vira na hora.
+    /// </summary>
+    [Fact]
+    public async Task Situacao_do_formando_sem_adesao_e_depois_do_aceite()
+    {
+        // Arrange
+        var turma = await TurmaPronta();
+        var formando = await fabrica.NovoMembro(turma.FormaturaId, PapelNaFormatura.Formando, Ct);
+        await PreencherCadastro(formando.Cliente, NovoCpf());
+
+        // Act
+        var antes = await formando.Cliente.GetAsync($"{Rota}/eu/situacao", Ct);
+        (await Aderir(fabrica, formando.Cliente)).Resposta.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var depois = await formando.Cliente.GetFromJsonAsync<SituacaoDaMinhaAdesaoDTO>($"{Rota}/eu/situacao", Json, Ct);
+
+        // Assert
+        antes.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await antes.Content.ReadFromJsonAsync<SituacaoDaMinhaAdesaoDTO>(Json, Ct)).ShouldBe(new SituacaoDaMinhaAdesaoDTO(true, true, false));
+        depois.ShouldBe(new SituacaoDaMinhaAdesaoDTO(true, true, true));
+    }
+
+    /// <summary>Turma sem termo nem plano: nada a aceitar, e o contrato escreve os três campos em snake_case.</summary>
+    [Fact]
+    public async Task Situacao_em_turma_sem_termo_vem_toda_falsa()
+    {
+        // Arrange
+        var formando = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Formando, Ct);
+
+        // Act
+        var corpo = await formando.Cliente.GetStringAsync($"{Rota}/eu/situacao", Ct);
+
+        // Assert
+        corpo.ShouldBe("""{"termo_publicado":false,"plano_vigente":false,"aderiu":false}""");
+    }
+
+    /// <summary>A comissão também lê a própria situação: ela adere como qualquer membro, só não é barrada sem aderir.</summary>
+    [Fact]
+    public async Task Situacao_da_comissao_sem_adesao()
+    {
+        // Arrange
+        var turma = await TurmaPronta();
+        var comissao = await fabrica.NovoMembro(turma.FormaturaId, PapelNaFormatura.Comissao, Ct);
+
+        // Act
+        var situacao = await comissao.Cliente.GetFromJsonAsync<SituacaoDaMinhaAdesaoDTO>($"{Rota}/eu/situacao", Json, Ct);
+
+        // Assert
+        situacao.ShouldBe(new SituacaoDaMinhaAdesaoDTO(true, true, false));
+    }
+
+    /// <summary>Sem turma na sessão não há situação: a política pede o vínculo ativo.</summary>
+    [Fact]
+    public async Task Situacao_sem_formatura_na_sessao_e_recusada()
+    {
+        // Arrange
+        var cliente = fabrica.CreateClient();
+        var tokens = await cliente.RegistrarUsuarioComum(Ct);
+
+        // Act
+        var resposta = await cliente.ComToken(tokens.AccessToken).GetAsync($"{Rota}/eu/situacao", Ct);
+
+        // Assert
+        resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
     /// <summary>Sem termo e sem plano a tela explica o que falta: as duas partes vêm ausentes, e o aceite é recusado.</summary>
     [Fact]
     public async Task Sem_termo_nem_plano_o_conteudo_vem_vazio_e_o_aceite_e_recusado()

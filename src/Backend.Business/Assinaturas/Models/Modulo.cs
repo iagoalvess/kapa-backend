@@ -34,7 +34,7 @@ public static class Modulo
     /// <summary>Despesas e fornecedores.</summary>
     public const string Despesas = "despesas";
 
-    /// <summary>Caixa, dashboard e relatórios.</summary>
+    /// <summary>Caixa e dashboard. Os relatórios são módulo próprio, <see cref="Relatorios"/>.</summary>
     public const string Caixa = "caixa";
 
     /// <summary>Mural, acervo de documentos e o orçamento da festa (itens, meta e propostas).</summary>

@@ -2,6 +2,7 @@ using Backend.Business.Abstractions;
 using Backend.Business.Common.Texto;
 using Backend.Business.Legal.Interfaces;
 using Backend.Business.Legal.Models;
+using Backend.Business.Usuarios.Models;
 using FluentValidation;
 
 namespace Backend.Business.Legal.Services;
@@ -90,9 +91,18 @@ public sealed class LegalService(ILegalRepository legalRepository, IValidator<Re
     /// <remarks>
     /// Vale a linha <b>mais recente</b> de cada versão: aceite seguido de revogação é pendência,
     /// e revogação seguida de novo aceite não é.
+    /// <para>
+    /// O <see cref="PerfisPadrao.Administrador"/> não tem pendência (decisão de 06/10/2026): é o próprio
+    /// Kapa operando a plataforma, não um usuário dela, e não participa de formatura. Os Termos de Uso e a
+    /// Política valem para quem usa o produto; pedir o aceite ao operador seria registrar um consentimento
+    /// que não consente nada.
+    /// </para>
     /// </remarks>
-    public async Task<Result<MeusAceites>> ObterMeusAceites(Guid usuarioId, CancellationToken ct = default)
+    public async Task<Result<MeusAceites>> ObterMeusAceites(Guid usuarioId, IReadOnlyList<string> perfis, CancellationToken ct = default)
     {
+        if (perfis.Contains(PerfisPadrao.Administrador))
+            return new MeusAceites([]);
+
         var vigentes = await legalRepository.ListarVigentes(DateTime.UtcNow, ct);
         var historico = await legalRepository.ListarConsentimentos(usuarioId, ct);
 

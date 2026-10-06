@@ -79,6 +79,30 @@ public sealed class EmailsDeConta(IEmailService emailService, IOptions<Aplicacao
         await emailService.Enfileirar(new NovoEmail(usuario.Email!, $"Sua senha foi alterada — {_aplicacao.Nome}", corpo, EEmailPrioridade.Alta), ct);
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// O código vai no assunto, como nos apps de banco: dá para ler na notificação sem abrir o e-mail. Prioridade
+    /// alta, porque a pessoa está esperando na tela.
+    /// </remarks>
+    public async Task EnfileirarCodigoDeEntrada(Usuario usuario, string codigo, int minutos, CancellationToken ct = default)
+    {
+        var corpo = Modelo(
+            "Seu código de acesso",
+            $"Olá, {Texto(usuario.Nome)}. Use o código <strong style=\"font-size:22px;letter-spacing:4px\">{Texto(codigo)}</strong> "
+                + $"para entrar no {Texto(_aplicacao.Nome)}. Ele vale por poucos minutos — conte com {minutos}.<br><br>"
+                + "<strong>Se não foi você que tentou entrar, troque sua senha agora</strong>: alguém acertou a sua senha, e só "
+                + "este código impediu a entrada.",
+            botao: null,
+            link: null,
+            Mascote.Cadeado
+        );
+
+        await emailService.Enfileirar(
+            new NovoEmail(usuario.Email!, $"{codigo} é o seu código de acesso — {_aplicacao.Nome}", corpo, EEmailPrioridade.Alta),
+            ct
+        );
+    }
+
     private string MontarLink(string caminho, string email, string token) =>
         _aplicacao.MontarUrl(caminho, [new("email", email), new("token", CodificadorDeToken.Codificar(token))]);
 

@@ -141,6 +141,25 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
         );
 
     /// <inheritdoc />
+    /// <remarks>O aviso pendente sai da mesma subconsulta que alimenta <c>EmConferencia</c>, aqui no <c>WHERE</c>.</remarks>
+    public async Task<IReadOnlyList<ParcelaResumo>> ListarAPagarDoVinculo(Guid vinculoId, DateOnly hoje, CancellationToken ct = default) =>
+        NoDia(
+            await Projetar(
+                    Linhas()
+                        .Where(linha =>
+                            linha.Parcela.VinculoId == vinculoId
+                            && linha.Parcela.Status == StatusDaParcela.Aberta
+                            && !db.Informes.Any(i => i.ParcelaId == linha.Parcela.Id && i.Status == StatusDoInforme.Pendente)
+                        )
+                        .OrderBy(linha => linha.Parcela.Vencimento)
+                        .ThenBy(linha => linha.Parcela.Numero)
+                        .ThenBy(linha => linha.Parcela.Id)
+                )
+                .ToListAsync(ct),
+            hoje
+        );
+
+    /// <inheritdoc />
     /// <remarks>
     /// "Vencida" é aberta com vencimento no passado, como em toda leitura daqui; o aviso pendente sai
     /// da mesma subconsulta que alimenta <c>EmConferencia</c> em <see cref="Linhas(AppDbContext)"/>.

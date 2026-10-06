@@ -18,4 +18,7 @@ public interface IPendenciasDaTurmaRepository
     /// <summary>Tudo o que impede encerrar a turma (P11).</summary>
     /// <param name="agora">Instante, em UTC — a cobrança que já venceu não está mais viva.</param>
     Task<PendenciasDaTurma> ContarParaEncerrar(DateTime agora, CancellationToken ct = default);
+
+    /// <summary>Os passos da comissão até a turma estar rodando — o bloco do Início da Tesouraria.</summary>
+    Task<PrimeirosPassos> ConferirPrimeirosPassos(CancellationToken ct = default);
 }
