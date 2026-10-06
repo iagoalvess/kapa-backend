@@ -73,6 +73,20 @@ public sealed class PlanoDaTurmaTests(ApiFactory fabrica)
         (await resposta.Codigo(Ct)).ShouldBe("plano.modulo_nao_incluido");
     }
 
+    /// <summary>A tela avisa que mostrou o paywall; o motivo vem do cliente e só passa no formato de código.</summary>
+    [Theory]
+    [InlineData("plano.limite_de_formandos", HttpStatusCode.NoContent)]
+    [InlineData("modulo.festa", HttpStatusCode.NoContent)]
+    [InlineData("Modulo<script>", HttpStatusCode.BadRequest)]
+    public async Task O_paywall_exibido_aceita_so_codigo(string motivo, HttpStatusCode esperado)
+    {
+        var presidente = await fabrica.NovoMembro(await Gratuita(), PapelNaFormatura.Presidente, Ct);
+
+        var resposta = await presidente.Cliente.PostAsync($"{RotaDoPlano}/paywall/{Uri.EscapeDataString(motivo)}", null, Ct);
+
+        resposta.StatusCode.ShouldBe(esperado);
+    }
+
     [Fact]
     public async Task O_gratuito_le_o_proprio_plano_sem_a_festa()
     {
@@ -117,7 +131,7 @@ public sealed class PlanoDaTurmaTests(ApiFactory fabrica)
 
         formando.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await formando.Codigo(Ct)).ShouldBe("convite.formatura_nao_contratada");
-        tesoureiro.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        tesoureiro.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     /// <summary>Pagou um dia e venceu: volta ao gratuito e deixa de convidar e de promover formando (P3).</summary>
@@ -138,6 +152,47 @@ public sealed class PlanoDaTurmaTests(ApiFactory fabrica)
         troca.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         plano.Pago.ShouldBeFalse();
         plano.Codigo.ShouldBe(Plano.CodigoGratuito);
+    }
+
+    /// <summary>
+    /// Decisão do dono de 06/10/2026 (revê a F3/P3 da Sprint 45): a turma suspensa continua lendo os módulos do plano
+    /// que tinha — mural, festa e portaria —, e a escrita continua barrada por <c>formatura.inativa</c>.
+    /// </summary>
+    [Fact]
+    public async Task Suspensa_le_os_modulos_do_plano_que_tinha_e_nao_escreve()
+    {
+        // Arrange
+        var formaturaId = await Contratada("premium");
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        await fabrica.SuspenderPorVencimento(formaturaId, Ct);
+
+        // Act
+        var plano = await Ler<PlanoDaTurmaDTO>(await presidente.Cliente.GetAsync(RotaDoPlano, Ct));
+        var mural = await presidente.Cliente.GetAsync("/api/v1/comunicacao/avisos", Ct);
+        var festa = await presidente.Cliente.GetAsync("/api/v1/festa/itens", Ct);
+        var portaria = await presidente.Cliente.GetAsync("/api/v1/festa/portaria", Ct);
+        var publicar = await presidente.Cliente.PostAsJsonAsync(
+            "/api/v1/comunicacao/avisos",
+            new
+            {
+                titulo = "Aviso",
+                conteudo = "Texto.",
+                visibilidade = "Turma",
+                fixado = false,
+                destaque = false,
+            },
+            Json,
+            Ct
+        );
+
+        // Assert
+        plano.Codigo.ShouldBe("premium");
+        plano.Modulos.ShouldContain(Modulo.Mural);
+        mural.StatusCode.ShouldBe(HttpStatusCode.OK);
+        festa.StatusCode.ShouldBe(HttpStatusCode.OK);
+        portaria.StatusCode.ShouldNotBe(HttpStatusCode.Forbidden, "sem festa marcada a portaria responde 404; o que importa é o módulo não recusar");
+        publicar.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await publicar.Codigo(Ct)).ShouldBe("formatura.inativa");
     }
 
     private Task<Guid> Gratuita() => fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct, contratada: false);
