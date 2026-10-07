@@ -209,8 +209,12 @@ public sealed class ReguaService(
     /// Os resumos que vão à tesouraria: o dos degraus que a avisam (D+15 e D+30) e o do informe parado.
     /// </summary>
     /// <remarks>
+    /// O do informe parado sai no dia em que algum aviso completa o prazo, e não em todo dia em que haja
+    /// algum parado (07/10/2026): a fila continua à vista na tela de conferência.
+    /// <para>
     /// Um resumo, e não uma cópia por parcela: a caixa de entrada de quem confere é a primeira a ser
     /// ignorada quando enche, e é justamente ela que a sprint quer desbloquear.
+    /// </para>
     /// </remarks>
     private async Task<IReadOnlyList<NotificacaoEnviada>> AvisarTesouraria(
         FormaturaParaRegua formatura,
@@ -260,8 +264,14 @@ public sealed class ReguaService(
         if (pendentes is not null)
         {
             var parados = await notificacoes.ContarInformesPendentesAte(hoje.AddDays(-pendentes.DiasDeDeslocamento), ct);
+            var jaAvisados = await notificacoes.ContarInformesPendentesAte(
+                JanelaDeEnvio.DiasRepresados(hoje).Min().AddDays(-pendentes.DiasDeDeslocamento - 1),
+                ct
+            );
 
-            if (parados > 0)
+            // Só quando algum aviso cruzou o prazo nesta rodada: repetir todo dia o mesmo resumo era um e-mail
+            // diário por tesoureiro enquanto a conferência não andasse. O total vai na mensagem do mesmo jeito.
+            if (parados > jaAvisados)
                 envios.AddRange(
                     await Resumir(
                         pendentes,

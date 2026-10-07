@@ -31,7 +31,8 @@ namespace Backend.Api.Controllers.V1.Assinaturas;
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/formaturas/atual/plano")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class PlanoDaTurmaController(IAssinaturaService assinaturaService, IRegistradorDeEventos registrador, IUsuarioAtual usuario) : MainController
+public sealed class PlanoDaTurmaController(IAssinaturaService assinaturaService, IRegistradorDeEventos registrador, IUsuarioAtual usuario)
+    : MainController
 {
     /// <summary>O plano vigente da turma da sessão, com os módulos.</summary>
     /// <remarks>Aceita o desligado, como a moldura: é o menu dele também.</remarks>

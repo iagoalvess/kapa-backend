@@ -249,6 +249,19 @@ public interface IConviteDoEventoRepository
     /// <returns>Quantos convites nasceram agora.</returns>
     Task<int> EmitirDosPacotes(Guid formaturaId, Guid? vinculoId, string prefixo, CancellationToken ct = default);
 
+    /// <summary>
+    /// Põe o próprio formando como titular do convite 1 de pacote que ainda está "a definir" — o formando entra
+    /// na conta do pacote: "Festa 10" são ele e mais nove.
+    /// </summary>
+    /// <remarks>
+    /// Nome civil do cadastro (ou o da conta) e o CPF do cadastro. Só o convite sem nome: quem já deu o 1 para
+    /// outra pessoa não o recebe de volta.
+    /// </remarks>
+    /// <param name="formaturaId">Turma.</param>
+    /// <param name="vinculoId">Só este vínculo; nulo é a turma inteira.</param>
+    /// <returns>Quantos convites ganharam o formando agora.</returns>
+    Task<int> NomearOsDoProprioFormando(Guid formaturaId, Guid? vinculoId, CancellationToken ct = default);
+
     /// <summary>Os convites de pacote válidos do vínculo, travados até o fim da transação — para revogar na saída ou liberar.</summary>
     /// <param name="vinculoId">Dono.</param>
     Task<IReadOnlyList<ConviteDoEvento>> TravarDosPacotes(Guid vinculoId, CancellationToken ct = default);

@@ -37,6 +37,7 @@ public sealed class ContaDeRecebimentoMapping : IEntityTypeConfiguration<ContaDe
         builder.Property(c => c.Chave).HasMaxLength(ChavePix.TamanhoMaximoDoEmail);
         builder.Property(c => c.NomeDoTitular).HasMaxLength(200);
         builder.Property(c => c.Cidade).HasMaxLength(100);
+        builder.Property(c => c.BancoDaChave).HasMaxLength(ContaDeRecebimentoValidator.TamanhoDoCampoBancario);
 
         builder.Property(c => c.Banco).HasMaxLength(ContaDeRecebimentoValidator.TamanhoDoCampoBancario);
         builder.Property(c => c.Agencia).HasMaxLength(ContaDeRecebimentoValidator.TamanhoDoCampoBancario);

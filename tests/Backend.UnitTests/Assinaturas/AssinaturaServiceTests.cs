@@ -5,6 +5,7 @@ using Backend.Business.Assinaturas.Services;
 using Backend.Business.Assinaturas.Settings;
 using Backend.Business.Assinaturas.Validators;
 using Backend.Business.Common;
+using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Pagamentos.Models;
@@ -26,6 +27,7 @@ public sealed class AssinaturaServiceTests
     private readonly IProvedorDeAssinatura _provedor = Substitute.For<IProvedorDeAssinatura>();
     private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly ICupomRepository _cupons = Substitute.For<ICupomRepository>();
 
     private static readonly Plano Premium = new()
     {
@@ -49,6 +51,8 @@ public sealed class AssinaturaServiceTests
             _formaturas,
             _provedor,
             new VagasDoPlano(_assinaturas, _vinculos),
+            new CupomService(_cupons, _assinaturas, Substitute.For<IEventoRepository>(), new NovoCupomValidator(), _unitOfWork),
+            _cupons,
             new IniciarCheckoutValidator(),
             new TrocaDePlanoValidator(),
             Options.Create(new AssinaturaSettings()),
@@ -472,5 +476,107 @@ public sealed class AssinaturaServiceTests
         var resultado = await Servico.PagarCiclo(null, Ct);
 
         resultado.Erros.ShouldHaveSingleItem().Codigo.ShouldBe("assinatura.renovacao_automatica");
+    }
+
+    private Cupom CupomDe(int percentual, string codigo = "PILOTO50")
+    {
+        var cupom = new Cupom
+        {
+            Codigo = codigo,
+            Percentual = percentual,
+            ValidoAte = DateTime.UtcNow.AddDays(30),
+            LimiteDeUsos = 10,
+        };
+        _cupons.ObterPorCodigo(codigo, Arg.Any<CancellationToken>()).Returns(cupom);
+        _cupons.Obter(cupom.Id, Arg.Any<CancellationToken>()).Returns(cupom);
+        _cupons.ReservarUso(cupom.Id, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
+
+        return cupom;
+    }
+
+    [Fact]
+    public async Task Checkout_com_cupom_cobra_a_primeira_com_desconto_e_conta_o_uso()
+    {
+        // Arrange
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        var cupom = CupomDe(50);
+        Assinatura? criada = null;
+        await _assinaturas.Adicionar(Arg.Do<Assinatura>(a => criada = a), Arg.Any<CancellationToken>());
+
+        // Act
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium", CupomCodigo: " piloto50 "), Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        await _provedor.Received(1).CriarCheckout(Arg.Is<PedidoDeCheckout>(p => p.PrecoEmCentavos == 2495), Arg.Any<CancellationToken>());
+        await _cupons.Received(1).ReservarUso(cupom.Id, Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        criada!.CupomId.ShouldBe(cupom.Id);
+    }
+
+    [Fact]
+    public async Task Cupom_esgotado_na_reserva_nao_chega_ao_provedor()
+    {
+        // Arrange
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        var cupom = CupomDe(50);
+        _cupons.ReservarUso(cupom.Id, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(false);
+
+        // Act
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium", CupomCodigo: "PILOTO50"), Ct);
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("cupom.invalido");
+        await _provedor.DidNotReceive().CriarCheckout(Arg.Any<PedidoDeCheckout>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Cupom_em_turma_que_ja_pagou_e_recusado_com_a_mesma_resposta()
+    {
+        // Arrange
+        var formatura = FormaturaEm(StatusDaFormatura.Suspensa);
+        CupomDe(50);
+        _assinaturas.ExisteAlgumaDeTodasAsFormaturas(formatura.Id, Arg.Any<CancellationToken>()).Returns(true);
+
+        // Act
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium", CupomCodigo: "PILOTO50"), Ct);
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("cupom.invalido");
+        await _cupons.DidNotReceive().ReservarUso(Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Retomar_a_pendente_com_cupom_reaproveita_sem_contar_outro_uso()
+    {
+        // Arrange
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        var cupom = CupomDe(20);
+        var pendente = new Assinatura { CupomId = cupom.Id };
+        _assinaturas.ObterMaisRecenteParaEdicao(Arg.Any<CancellationToken>()).Returns(pendente);
+
+        // Act
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium"), Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        await _provedor.Received(1).CriarCheckout(Arg.Is<PedidoDeCheckout>(p => p.PrecoEmCentavos == 3992), Arg.Any<CancellationToken>());
+        await _cupons.DidNotReceive().ReservarUso(Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Outro_cupom_em_cima_do_preso_a_pendente_e_recusado()
+    {
+        // Arrange
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        var preso = CupomDe(20, "PRIMEIRO");
+        CupomDe(50, "SEGUNDO");
+        _assinaturas.ObterMaisRecenteParaEdicao(Arg.Any<CancellationToken>()).Returns(new Assinatura { CupomId = preso.Id });
+
+        // Act
+        var resultado = await Servico.IniciarCheckout(formatura.Id, new IniciarCheckout("premium", CupomCodigo: "SEGUNDO"), Ct);
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("cupom.ja_aplicado");
+        await _provedor.DidNotReceive().CriarCheckout(Arg.Any<PedidoDeCheckout>(), Arg.Any<CancellationToken>());
     }
 }

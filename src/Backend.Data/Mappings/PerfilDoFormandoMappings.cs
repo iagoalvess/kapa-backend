@@ -14,8 +14,8 @@ namespace Backend.Data.Mappings;
 /// A cifra do CPF é aplicada pelo <c>AppDbContext</c>, que tem a chave — é uma linha na coluna, e
 /// nenhum service ou repositório sabe que ela existe.
 /// <para>
-/// Endereço e contato de emergência são tipos próprios nas colunas do perfil
-/// (<c>endereco_cep</c>, <c>contato_de_emergencia_nome</c>): são lidos sempre junto, e tabela à
+/// O contato de emergência é tipo próprio nas colunas do perfil
+/// (<c>contato_de_emergencia_nome</c>): é lido sempre junto, e tabela à
 /// parte seria um <c>JOIN</c> a mais para nada. Navegação obrigatória: a instância existe mesmo
 /// com as colunas todas nulas, e ninguém precisa testar nulo antes de ler um campo.
 /// </para>
@@ -37,26 +37,8 @@ public sealed class PerfilDoFormandoMapping : IEntityTypeConfiguration<PerfilDoF
         builder.HasKey(p => p.Id);
 
         builder.Property(p => p.NomeCompleto).HasMaxLength(200);
-        builder.Property(p => p.NomeNoDiploma).HasMaxLength(200);
         builder.Property(p => p.Cpf).HasMaxLength(256);
-        builder.Property(p => p.Rg).HasMaxLength(20);
-        builder.Property(p => p.Matricula).HasMaxLength(30);
         builder.Property(p => p.Telefone).HasMaxLength(16);
-        builder.Property(p => p.Observacoes).HasMaxLength(1000);
-
-        builder.OwnsOne(
-            p => p.Endereco,
-            endereco =>
-            {
-                endereco.Property(e => e.Cep).HasMaxLength(8);
-                endereco.Property(e => e.Logradouro).HasMaxLength(200);
-                endereco.Property(e => e.Numero).HasMaxLength(20);
-                endereco.Property(e => e.Complemento).HasMaxLength(100);
-                endereco.Property(e => e.Bairro).HasMaxLength(100);
-                endereco.Property(e => e.Cidade).HasMaxLength(100);
-                endereco.Property(e => e.Uf).HasMaxLength(2);
-            }
-        );
 
         builder.OwnsOne(
             p => p.ContatoDeEmergencia,
@@ -68,7 +50,6 @@ public sealed class PerfilDoFormandoMapping : IEntityTypeConfiguration<PerfilDoF
             }
         );
 
-        builder.Navigation(p => p.Endereco).IsRequired();
         builder.Navigation(p => p.ContatoDeEmergencia).IsRequired();
 
         builder.HasIndex(p => p.VinculoId).IsUnique();

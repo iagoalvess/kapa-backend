@@ -167,6 +167,7 @@ public sealed class TesourariaService(
                 var enderecos = await vinculoRepository.ListarEmailsDosVinculos(vinculos, token);
                 var agora = DateTime.UtcNow;
                 var confirmados = 0;
+                List<PagamentoConfirmado> avisos = [];
 
                 foreach (var item in lote.Itens)
                 {
@@ -191,7 +192,8 @@ public sealed class TesourariaService(
                             formaturaId,
                             nomeDaTurma,
                             regras.GetValueOrDefault(informe.VinculoId, RegrasDeAtraso.Nenhuma),
-                            enderecos.GetValueOrDefault(informe.VinculoId)
+                            enderecos.GetValueOrDefault(informe.VinculoId),
+                            avisos
                         ),
                         token
                     );
@@ -202,6 +204,8 @@ public sealed class TesourariaService(
                     if (baixa.Valor)
                         confirmados++;
                 }
+
+                await emails.Confirmados(avisos, token);
 
                 return Result.Ok(new ResultadoDaConferencia(confirmados, ids.Count - confirmados));
             },

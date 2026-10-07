@@ -71,16 +71,13 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
         );
 
     /// <summary>Aviso de vencimento em D-7, D-3 ou D+1.</summary>
+    /// <remarks>Antes do vencimento, só para o PIX avulso e a renovação cancelada: o cartão ativo renova sozinho e não é avisado.</remarks>
     /// <param name="formatura">Formatura da assinatura.</param>
     /// <param name="presidentes">E-mails dos presidentes.</param>
     /// <param name="marco">Dias até o vencimento; negativo é depois.</param>
     /// <param name="vigenteAte">Fim da vigência.</param>
     /// <param name="suspensaoEm">Quando a turma vira leitura se nada mudar.</param>
     /// <param name="renovacaoCancelada">Se não há renovação automática por vir.</param>
-    /// <param name="pagaPorPix">
-    /// Se a turma paga no PIX avulso: a renovação não é automática, e o e-mail pede o PIX do ciclo, que se paga pela
-    /// tela da assinatura (Sprint 37).
-    /// </param>
     public Task AvisoDeVencimento(
         Formatura formatura,
         IReadOnlyList<string> presidentes,
@@ -88,7 +85,6 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
         DateTime vigenteAte,
         DateTime suspensaoEm,
         bool renovacaoCancelada,
-        bool pagaPorPix,
         CancellationToken ct = default
     )
     {
@@ -98,11 +94,10 @@ public sealed class EmailsDeAssinatura(IEmailService emailService, IOptions<Apli
         {
             (< 0, _) => $"A assinatura de <strong>{nome}</strong> venceu em {Data(vigenteAte)} e a renovação não foi confirmada. "
                 + $"Se nada mudar, a turma entra em modo leitura em {Data(suspensaoEm)}.",
-            (_, false) when pagaPorPix => $"A assinatura de <strong>{nome}</strong> vence em {Data(vigenteAte)}. "
-                + "Pague o PIX da renovação pela tela da assinatura, em Ver assinatura, para a turma seguir sem interrupção.",
             (_, true) => $"A assinatura de <strong>{nome}</strong> foi cancelada e o acesso completo termina em {Data(vigenteAte)}. "
                 + "Depois disso a turma fica em modo leitura, sem perder nada.",
-            _ => $"A assinatura de <strong>{nome}</strong> renova em {Data(vigenteAte)}. Se o pagamento estiver em dia, nada muda.",
+            _ => $"A assinatura de <strong>{nome}</strong> vence em {Data(vigenteAte)}. "
+                + "Pague o PIX da renovação pela tela da assinatura, em Ver assinatura, para a turma seguir sem interrupção.",
         };
 
         return Enfileirar(

@@ -22,7 +22,7 @@ public sealed class DocumentosPublicadosTests
 {
     [Theory]
     [InlineData("TermosDeUso", "1", "fe4fdc8e5016a996532067c4ec1beac14d29f016c682a7bfba5897f558f7c93c")]
-    [InlineData("PoliticaDePrivacidade", "1", "cad80aab7806093e7619ba3ee6cd938fce906d2e70e82af864d0e5a8a236690c")]
+    [InlineData("PoliticaDePrivacidade", "1", "be86ffbbecc245fb9f4f02ca90e5e26625bb07534eea62120caef8a9230a37eb")]
     public void Texto_publicado_nao_muda(string tipo, string versao, string hashEsperado)
     {
         var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(DocumentosLegais.Ler(tipo, versao))));

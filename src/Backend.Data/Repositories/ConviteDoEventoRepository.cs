@@ -183,6 +183,62 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Grava por conta própria, como o <see cref="EmitirDosPacotes"/> que vem logo antes: os convites acabaram de nascer
+    /// por SQL e não estão rastreados, e o <c>WHERE nome_do_convidado IS NULL</c> é o que impede pisar numa
+    /// nomeação feita no mesmo instante. Roda na transação de quem chama.
+    /// <para>
+    /// Uma atualização por formando, não um <c>UPDATE … FROM</c>: nome e documento são cifrados pelo contexto, e só o
+    /// parâmetro do <c>ExecuteUpdate</c> passa pelo conversor.
+    /// </para>
+    /// </remarks>
+    public async Task<int> NomearOsDoProprioFormando(Guid formaturaId, Guid? vinculoId, CancellationToken ct = default)
+    {
+        var semNome = db
+            .ConvitesDoEvento.IgnoreQueryFilters()
+            .Where(c =>
+                c.FormaturaId == formaturaId
+                && c.VinculoId != null
+                && (vinculoId == null || c.VinculoId == vinculoId)
+                && c.PedidoId == null
+                && c.CompraId == null
+                && c.Sequencial == 1
+                && c.NomeDoConvidado == null
+                && c.RevogadoEm == null
+            );
+
+        var formandos = await (
+            from vinculo in db.Vinculos.IgnoreQueryFilters().AsNoTracking()
+            join usuario in db.Users.AsNoTracking() on vinculo.UsuarioId equals usuario.Id
+            join perfil in db.PerfisDeFormandos.IgnoreQueryFilters().AsNoTracking() on vinculo.Id equals perfil.VinculoId into perfis
+            from perfil in perfis.DefaultIfEmpty()
+            where semNome.Any(c => c.VinculoId == vinculo.Id)
+            select new
+            {
+                vinculo.Id,
+                Nome = perfil != null && perfil.NomeCompleto != null ? perfil.NomeCompleto : usuario.Nome,
+                Cpf = perfil != null ? perfil.Cpf : null,
+            }
+        ).ToListAsync(ct);
+
+        var nomeados = 0;
+        foreach (var formando in formandos)
+            nomeados += await semNome
+                .Where(c => c.VinculoId == formando.Id)
+                .ExecuteUpdateAsync(
+                    campos =>
+                        campos
+                            .SetProperty(c => c.NomeDoConvidado, formando.Nome)
+                            .SetProperty(c => c.TipoDoDocumento, formando.Cpf == null ? null : TipoDeDocumento.Cpf)
+                            .SetProperty(c => c.NumeroDoDocumento, formando.Cpf)
+                            .SetProperty(c => c.AtualizadoEm, DateTime.UtcNow),
+                    ct
+                );
+
+        return nomeados;
+    }
+
+    /// <inheritdoc />
     /// <remarks>Em ordem de id, como as outras travas: duas revogações do mesmo vínculo nunca se travam em cruz.</remarks>
     public async Task<IReadOnlyList<ConviteDoEvento>> TravarDosPacotes(Guid vinculoId, CancellationToken ct = default) =>
         await db
@@ -438,7 +494,7 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
         db
             .ConvitesDoEvento.IgnoreQueryFilters()
             .Where(c =>
-                (c.NumeroDoDocumento != null || c.EmailDoConvidado != null)
+                (c.NumeroDoDocumento != null || c.EmailDoConvidado != null || c.Observacoes != null)
                 && db.EventosDaTurma.IgnoreQueryFilters().Any(e => e.Id == c.EventoId && e.Data < eventosAte)
             )
             .ExecuteUpdateAsync(
@@ -446,6 +502,7 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
                     campos
                         .SetProperty(c => c.NumeroDoDocumento, (string?)null)
                         .SetProperty(c => c.EmailDoConvidado, (string?)null)
+                        .SetProperty(c => c.Observacoes, (string?)null)
                         .SetProperty(c => c.TipoDoDocumento, (TipoDeDocumento?)null),
                 ct
             );

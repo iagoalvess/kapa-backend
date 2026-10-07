@@ -95,6 +95,14 @@ public static class RateLimitConfig
     /// </remarks>
     public const string Codigo = "codigo";
 
+    /// <summary>Limite estreito, por usuário, para conferir cupom e abrir checkout com ele (Sprint 51).</summary>
+    /// <remarks>
+    /// O cupom é código curto e humano — sem limite, o campo do checkout vira um adivinhador. Mesma cota padrão do
+    /// <see cref="Codigo"/> (6 por minuto), em balde e chave de configuração próprios: errar o cupom não tranca o
+    /// código da adesão.
+    /// </remarks>
+    public const string Cupom = "cupom";
+
     /// <summary>
     /// Limite para comprar na loja pública e mexer na compra pelo link: balde por IP, com rajada (Sprint 26,
     /// decisão 7).
@@ -134,6 +142,7 @@ public static class RateLimitConfig
         var porMinutoIngresso = configuration.GetValue($"{Secao}:IngressoPorMinuto", 30);
         var rajadaIngresso = configuration.GetValue($"{Secao}:IngressoRajada", 120);
         var porMinutoCodigo = configuration.GetValue($"{Secao}:CodigoPorMinuto", 6);
+        var porMinutoCupom = configuration.GetValue($"{Secao}:CupomPorMinuto", 6);
         var porMinutoEntrada = configuration.GetValue($"{Secao}:EntradaPorMinuto", 10);
         var rajadaEntrada = configuration.GetValue($"{Secao}:EntradaRajada", 100);
         var simultaneasPorTurma = configuration.GetValue($"{Secao}:FilaPorTurmaSimultaneas", 4);
@@ -186,6 +195,7 @@ public static class RateLimitConfig
 
             opcoes.AddPolicy(Sessao, contexto => BaldePor($"sessao:{Ip(contexto)}", rajadaSessao, porMinutoSessao));
             opcoes.AddPolicy(Codigo, contexto => LimitarPor($"codigo:{Identificar(contexto)}", porMinutoCodigo));
+            opcoes.AddPolicy(Cupom, contexto => LimitarPor($"cupom:{Identificar(contexto)}", porMinutoCupom));
 
             opcoes.AddPolicy(Webhook, contexto => LimitarPor($"webhook:{Identificar(contexto)}", porMinutoWebhook));
 

@@ -67,27 +67,15 @@ public sealed record MeusDadosDaTurma(
 
 /// <summary>O cadastro, campo a campo — inclusive o CPF, que é da própria pessoa.</summary>
 /// <param name="NomeCompleto">Nome civil.</param>
-/// <param name="NomeNoDiploma">Nome no diploma.</param>
 /// <param name="Cpf">CPF, só dígitos.</param>
-/// <param name="Rg">RG.</param>
-/// <param name="Matricula">Matrícula.</param>
 /// <param name="Telefone">Telefone em E.164.</param>
-/// <param name="DataDeNascimento">Data de nascimento.</param>
-/// <param name="Observacoes">Recado livre para a comissão.</param>
-/// <param name="Endereco">Endereço.</param>
 /// <param name="ContatoDeEmergencia">Quem avisar numa emergência.</param>
 /// <param name="TemFoto">Se há foto de rosto guardada.</param>
 /// <param name="Completude">Percentual do cadastro preenchido.</param>
 public sealed record PerfilExportado(
     string? NomeCompleto,
-    string? NomeNoDiploma,
     string? Cpf,
-    string? Rg,
-    string? Matricula,
     string? Telefone,
-    DateOnly? DataDeNascimento,
-    string? Observacoes,
-    DadosDeEndereco Endereco,
     DadosDeEmergencia ContatoDeEmergencia,
     bool TemFoto,
     int Completude

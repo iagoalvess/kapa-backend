@@ -25,6 +25,9 @@ public sealed class TermoServiceTests
     private readonly IFormaturaAtual _formatura = Substitute.For<IFormaturaAtual>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
+    /// <summary>Plano em vigor por padrão: publicar o termo exige um (decisão de 06/10/2026).</summary>
+    public TermoServiceTests() => _planos.ExisteVigente(Arg.Any<CancellationToken>()).Returns(true);
+
     private TermoService Servico =>
         new(
             _adesoes,
@@ -79,6 +82,22 @@ public sealed class TermoServiceTests
                 ),
                 Arg.Any<CancellationToken>()
             );
+    }
+
+    /// <summary>O termo é assinado com o quadro de escolhas do plano: sem plano em vigor, não há o que assinar.</summary>
+    [Fact]
+    public async Task Publicar_sem_plano_em_vigor_devolve_conflito()
+    {
+        // Arrange
+        _planos.ExisteVigente(Arg.Any<CancellationToken>()).Returns(false);
+
+        // Act
+        var resultado = await Servico.Publicar(Guid.CreateVersion7(), new PublicarTermo("Primeira versão do termo."), Ct);
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("adesao.termo_sem_plano_vigente");
+        await _adesoes.DidNotReceiveWithAnyArgs().AdicionarTermo(default!, Ct);
+        await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
     }
 
     [Fact]

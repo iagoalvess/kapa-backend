@@ -270,7 +270,8 @@ public sealed class PagamentoService(
                                 meios.Pix.Chave,
                                 meios.Pix.NomeDoTitular,
                                 ChavePix.DocumentoDoTitular(meios.Pix.TipoDeChave, meios.Pix.Chave),
-                                conta!.ConferidaEm
+                                conta!.ConferidaEm,
+                                meios.Pix.Banco
                             ),
                             null,
                             null

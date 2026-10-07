@@ -326,11 +326,7 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
         var formaturaId = await fabrica.CriarFormatura(Ct);
         var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
         var preencheu = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
-        var pessoais = new AtualizarPerfilRequestDTO(
-            new DadosPessoaisDTO("Ana Sônia Souza", null, "529.982.247-25", null, null, "(41) 99876-5432", null, null),
-            null,
-            null
-        );
+        var pessoais = new AtualizarPerfilRequestDTO(new DadosPessoaisDTO("Ana Sônia Souza", "529.982.247-25", "(41) 99876-5432"), null);
         (await preencheu.Cliente.PutAsJsonAsync("/api/v1/formandos/eu", pessoais, Json, Ct)).EnsureSuccessStatusCode();
 
         var todos = await Pagina(presidente, Rota);
@@ -339,7 +335,7 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
         var semAcento = await Pagina(presidente, $"{Rota}?busca=sonia");
 
         var linha = todos.Itens.Single(m => m.UsuarioId == preencheu.UsuarioId);
-        linha.Completude.ShouldBe(30);
+        linha.Completude.ShouldBe(60);
         linha.NomeCompleto.ShouldBe("Ana Sônia Souza");
         linha.EssencialPendente.ShouldBeFalse();
         todos.Itens.Single(m => m.UsuarioId == presidente.UsuarioId).Completude.ShouldBe(0);

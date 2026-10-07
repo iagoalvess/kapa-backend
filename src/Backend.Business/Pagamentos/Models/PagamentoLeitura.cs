@@ -66,7 +66,35 @@ public sealed record DadosDaBaixa(
 /// <param name="NomeDaTurma">Nome da turma, para o e-mail.</param>
 /// <param name="Regras">Regras aceitas pelo formando, para o devido do dia.</param>
 /// <param name="EmailDoFormando">Destino do "pagamento confirmado"; nulo, não avisa.</param>
-public sealed record ContextoDaBaixa(Guid FormaturaId, string NomeDaTurma, RegrasDeAtraso Regras, string? EmailDoFormando);
+/// <param name="Confirmados">
+/// Num lote, onde a baixa deixa o aviso em vez de enfileirá-lo: quem chama manda um e-mail por formando no fim
+/// (<c>EmailsDePagamento.Confirmados</c>). Nulo, o aviso sai na hora.
+/// </param>
+public sealed record ContextoDaBaixa(
+    Guid FormaturaId,
+    string NomeDaTurma,
+    RegrasDeAtraso Regras,
+    string? EmailDoFormando,
+    ICollection<PagamentoConfirmado>? Confirmados = null
+);
+
+/// <summary>Uma parcela baixada, para o aviso ao formando.</summary>
+/// <param name="Email">Formando.</param>
+/// <param name="Turma">Nome da turma.</param>
+/// <param name="Vencimento">Vencimento da parcela.</param>
+/// <param name="ValorEmCentavos">O que entrou.</param>
+/// <param name="PagoEm">Dia em que entrou.</param>
+/// <param name="SaldoEmCentavos">O que ainda falta na parcela; zero se ela ficou quitada.</param>
+/// <param name="RecebimentoId">A baixa, cujo recibo o e-mail abre.</param>
+public sealed record PagamentoConfirmado(
+    string Email,
+    string Turma,
+    DateOnly Vencimento,
+    long ValorEmCentavos,
+    DateOnly PagoEm,
+    long SaldoEmCentavos,
+    Guid RecebimentoId
+);
 
 /// <summary>O resultado do lote.</summary>
 /// <param name="Confirmados">Informes que baixaram parcela.</param>
@@ -95,7 +123,15 @@ public sealed record ProximasParcelas(ParcelaResumo? Proxima, ParcelaResumo? Seg
 /// <param name="NomeDoTitular">O nome que o banco vai mostrar.</param>
 /// <param name="DocumentoDoTitular">CPF mascarado ou CNPJ, quando é esse o tipo da chave; nulo nos demais.</param>
 /// <param name="ConferidaEm">Quando o Presidente conferiu a titularidade, em UTC. Nulo: a conferir.</param>
-public sealed record PixParaPagar(string CopiaECola, string Chave, string NomeDoTitular, string? DocumentoDoTitular, DateTime? ConferidaEm);
+/// <param name="BancoDoTitular">O banco que o app do pagador deve mostrar; nulo quando a comissão não informou.</param>
+public sealed record PixParaPagar(
+    string CopiaECola,
+    string Chave,
+    string NomeDoTitular,
+    string? DocumentoDoTitular,
+    DateTime? ConferidaEm,
+    string? BancoDoTitular = null
+);
 
 /// <summary>
 /// Tudo o que o recibo imprime, lido de uma vez: o recebimento, a parcela, quem pagou, quem baixou e a turma.

@@ -5,7 +5,11 @@ namespace Backend.Business.Recebimentos.Models;
 /// <param name="Chave">Chave, com ou sem máscara.</param>
 /// <param name="NomeDoTitular">Nome do titular, como o banco mostra.</param>
 /// <param name="Cidade">Cidade do titular.</param>
-public sealed record ChavePixDaConta(TipoDeChavePix TipoDeChave, string Chave, string NomeDoTitular, string Cidade);
+/// <param name="Banco">
+/// Banco da chave, como o app do pagador mostra: "Nubank", "Banco do Brasil". Opcional — é mais uma coisa para o formando
+/// conferir antes de pagar, e não entra no BR Code.
+/// </param>
+public sealed record ChavePixDaConta(TipoDeChavePix TipoDeChave, string Chave, string NomeDoTitular, string Cidade, string? Banco = null);
 
 /// <summary>
 /// A conta para quem vai transferir — banco, agência, conta, tipo e titular.

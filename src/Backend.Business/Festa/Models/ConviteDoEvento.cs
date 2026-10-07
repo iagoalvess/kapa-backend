@@ -65,6 +65,12 @@ public class ConviteDoEvento : EntidadeDaFormatura
     /// <summary>E-mail do convidado, para mandar o convite a ele. Cifrado no banco.</summary>
     public string? EmailDoConvidado { get; private set; }
 
+    /// <summary>
+    /// O que a comissão precisa saber do convidado — restrição alimentar, acessibilidade. Cifrada no banco e
+    /// apagada com o documento (P5.1): pode ser dado de saúde de terceiro.
+    /// </summary>
+    public string? Observacoes { get; private set; }
+
     /// <summary>Quando nasceu, em UTC.</summary>
     public DateTime EmitidoEm { get; private set; } = DateTime.UtcNow;
 
@@ -132,6 +138,7 @@ public class ConviteDoEvento : EntidadeDaFormatura
             TipoDoDocumento = TipoDoDocumento,
             NumeroDoDocumento = NumeroDoDocumento,
             EmailDoConvidado = EmailDoConvidado,
+            Observacoes = Observacoes,
         };
 
         if (convidado is not null)
@@ -163,6 +170,7 @@ public class ConviteDoEvento : EntidadeDaFormatura
         TipoDoDocumento = convidado.NumeroDoDocumento is null ? null : convidado.TipoDoDocumento;
         NumeroDoDocumento = convidado.NumeroDoDocumento;
         EmailDoConvidado = string.IsNullOrWhiteSpace(convidado.Email) ? null : convidado.Email.Trim();
+        Observacoes = string.IsNullOrWhiteSpace(convidado.Observacoes) ? null : convidado.Observacoes.Trim();
     }
 
     /// <summary>Solta o convite preso por atraso. Liberar de novo não muda a hora.</summary>

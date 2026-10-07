@@ -13,37 +13,6 @@ namespace Backend.Business.Common.Texto;
 /// </remarks>
 public static partial class FormatosBrasileiros
 {
-    private static readonly HashSet<string> Ufs =
-    [
-        "AC",
-        "AL",
-        "AP",
-        "AM",
-        "BA",
-        "CE",
-        "DF",
-        "ES",
-        "GO",
-        "MA",
-        "MT",
-        "MS",
-        "MG",
-        "PA",
-        "PB",
-        "PR",
-        "PE",
-        "PI",
-        "RJ",
-        "RN",
-        "RS",
-        "RO",
-        "RR",
-        "SC",
-        "SP",
-        "SE",
-        "TO",
-    ];
-
     private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
 
     /// <summary>Valor em centavos como <c>R$ 1.234,56</c>, para texto de e-mail e de documento.</summary>
@@ -152,14 +121,6 @@ public static partial class FormatosBrasileiros
         return dddValido && nacional ? $"+55{digitos}" : null;
     }
 
-    /// <summary>Se o CEP tem 8 dígitos, com ou sem a máscara <c>00.000-000</c>.</summary>
-    /// <param name="cep">CEP informado.</param>
-    public static bool CepValido(string? cep) => cep is not null && Cep().IsMatch(cep.Trim());
-
-    /// <summary>Se é uma das 27 siglas de unidade federativa, sem diferenciar maiúsculas.</summary>
-    /// <param name="uf">Sigla informada.</param>
-    public static bool UfValida(string? uf) => uf is not null && Ufs.Contains(uf.Trim().ToUpperInvariant());
-
     /// <summary>Soma ponderada do CPF, módulo 11.</summary>
     /// <param name="digitos">CPF com 11 dígitos.</param>
     /// <param name="quantos">Quantos dígitos entram na soma: 9 para o primeiro verificador, 10 para o segundo.</param>
@@ -189,9 +150,6 @@ public static partial class FormatosBrasileiros
 
         return resto < 2 ? 0 : 11 - resto;
     }
-
-    [GeneratedRegex(@"^\d{2}\.?\d{3}-?\d{3}$")]
-    private static partial Regex Cep();
 
     [GeneratedRegex("^[0-9A-Z]{12}[0-9]{2}$")]
     private static partial Regex Cnpj();

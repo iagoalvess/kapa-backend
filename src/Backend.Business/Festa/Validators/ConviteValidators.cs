@@ -52,6 +52,8 @@ public sealed class DadosDoConvidadoValidator : AbstractValidator<DadosDoConvida
             .WithMessage("E-mail inválido.")
             .MaximumLength(254)
             .WithMessage("E-mail longo demais.");
+
+        RuleFor(x => x.Observacoes).MaximumLength(500).WithMessage("As observações devem ter no máximo 500 caracteres.");
     }
 }
 

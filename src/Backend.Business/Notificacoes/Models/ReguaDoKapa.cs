@@ -28,6 +28,12 @@ public sealed record DegrauDaRegua(GatilhoDaRegua Gatilho, int DiasDeDeslocament
 /// Texto editável pela turma era editor, variável, prévia e validação para uma coisa que quase ninguém
 /// muda — e abria espaço para o e-mail com a marca do Kapa dizer o que o Kapa não diria.
 /// <para>
+/// Um lembrete só antes do vencimento (07/10/2026): D-5 e D0 viraram D-2. Quem paga em dia recebia dois
+/// e-mails por parcela, e era o grosso do volume da régua. As linhas antigas de D-5 e D0 ficam no banco
+/// pelo histórico, e <c>ReguaDaTurma</c> as deixa de fora. O texto não diz "em 2 dias" porque o disparo avulso
+/// usa este degrau também para a parcela que vence hoje ou venceu há um dia.
+/// </para>
+/// <para>
 /// O banco guarda só o degrau e se ele está ligado; o texto mora aqui, e mudar uma frase é deploy.
 /// </para>
 /// </remarks>
@@ -38,18 +44,11 @@ public static class ReguaDoKapa
     [
         new(
             GatilhoDaRegua.Vencimento,
-            -5,
+            -2,
             new(
-                "Sua parcela vence em 5 dias",
-                "Oi, {nome}! Sua parcela de {formatura} vence em {vencimento}, no valor de {valor}. O PIX para pagar está no seu extrato."
-            )
-        ),
-        new(
-            GatilhoDaRegua.Vencimento,
-            0,
-            new(
-                "Sua parcela vence hoje",
-                "Oi, {nome}! Sua parcela de {formatura} vence hoje, {vencimento}, no valor de {valor}. O PIX para pagar está no seu extrato."
+                "Lembrete da sua parcela",
+                "Oi, {nome}! Lembrete da sua parcela de {formatura}, com vencimento em {vencimento}, no valor de {valor}. "
+                    + "O PIX para pagar está no seu extrato."
             )
         ),
         new(

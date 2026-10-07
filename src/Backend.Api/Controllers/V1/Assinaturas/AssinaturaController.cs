@@ -6,6 +6,7 @@ using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Assinaturas.Models;
+using Backend.Business.Assinaturas.Services;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,10 +23,11 @@ namespace Backend.Api.Controllers.V1.Assinaturas;
 /// </remarks>
 /// <param name="assinaturaService">Contratação e cancelamento.</param>
 /// <param name="usuarioAtual">Quem contrata — o e-mail vai para o provedor, que o exige na recorrência.</param>
+/// <param name="cupomService">Consulta do cupom antes do checkout.</param>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/formaturas/atual/assinatura")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class AssinaturaController(IAssinaturaService assinaturaService, IUsuarioAtual usuarioAtual) : MainController
+public sealed class AssinaturaController(IAssinaturaService assinaturaService, IUsuarioAtual usuarioAtual, CupomService cupomService) : MainController
 {
     /// <summary>Status, plano, vigência e próxima cobrança. É o que a tela de retorno consulta enquanto espera.</summary>
     [HttpGet]
@@ -46,6 +48,7 @@ public sealed class AssinaturaController(IAssinaturaService assinaturaService, I
     /// <param name="requisicao">Plano escolhido.</param>
     [HttpPost("checkout")]
     [Authorize(Policy = Politicas.SomentePresidente)]
+    [EnableRateLimiting(RateLimitConfig.Cupom)]
     [RegistrarEvento("assinatura.checkout_iniciado")]
     [ProducesResponseType(typeof(CheckoutDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -56,11 +59,32 @@ public sealed class AssinaturaController(IAssinaturaService assinaturaService, I
     {
         var resultado = await assinaturaService.IniciarCheckout(
             FormaturaId,
-            new IniciarCheckout(requisicao.PlanoCodigo, requisicao.Meio, usuarioAtual.Email),
+            new IniciarCheckout(requisicao.PlanoCodigo, requisicao.Meio, usuarioAtual.Email, requisicao.CupomCodigo),
             ct
         );
 
         return Responder(resultado.Map(sessao => sessao.Adapt<CheckoutDTO>()));
+    }
+
+    /// <summary>
+    /// Confere um cupom antes do checkout e devolve o desconto, para a tela mostrar o preço riscado (Sprint 51).
+    /// </summary>
+    /// <remarks>
+    /// Inexistente, vencido, esgotado, desativado e turma que já pagou respondem o mesmo 400 <c>cupom.invalido</c>:
+    /// distinguir viraria verificador de códigos. O limite estreito por usuário segura a força bruta.
+    /// </remarks>
+    /// <param name="codigo">O que foi digitado.</param>
+    [HttpGet("cupom/{codigo}")]
+    [Authorize(Policy = Politicas.SomentePresidente)]
+    [EnableRateLimiting(RateLimitConfig.Cupom)]
+    [ProducesResponseType(typeof(CupomAplicavelDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> ConsultarCupom(string codigo, CancellationToken ct)
+    {
+        var resultado = await cupomService.Consultar(FormaturaId, codigo, ct);
+
+        return Responder(resultado.Map(cupom => cupom.Adapt<CupomAplicavelDTO>()));
     }
 
     /// <summary>Cancela a renovação. A vigência paga é respeitada; depois dela, a turma vira leitura.</summary>

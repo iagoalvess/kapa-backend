@@ -18,6 +18,10 @@ public interface IEmailSender
     Task EnviarAsync(MensagemDeEmail mensagem, CancellationToken ct = default);
 }
 
+/// <summary>O provedor recusou a mensagem de vez: tentar de novo daria a mesma recusa.</summary>
+/// <param name="mensagem">O que o provedor respondeu.</param>
+public sealed class EmailRecusadoException(string mensagem) : Exception(mensagem);
+
 /// <summary>
 /// Enfileira e-mails.
 /// </summary>

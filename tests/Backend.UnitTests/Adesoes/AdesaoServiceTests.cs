@@ -138,12 +138,10 @@ public sealed class AdesaoServiceTests
     /// <summary>A cesta padrão dos testes: só o primeiro pacote, a mensalidade.</summary>
     private IReadOnlyList<ItemDeCobranca> Cesta => [_plano.Itens[0]];
 
-    private static PerfilDoFormando Perfil(string? nome = "Ana Souza", string? cpf = "52998224725", DateOnly? nascimento = null)
+    private static PerfilDoFormando Perfil(string? nome = "Ana Souza", string? cpf = "52998224725")
     {
         var perfil = new PerfilDoFormando { VinculoId = VinculoId };
-        perfil.Aplicar(
-            new AtualizarPerfil(new DadosPessoais(nome, null, cpf, null, null, null, nascimento ?? new DateOnly(2000, 5, 20), null), null, null)
-        );
+        perfil.Aplicar(new AtualizarPerfil(new DadosPessoais(nome, cpf, null), null));
 
         return perfil;
     }
@@ -302,28 +300,8 @@ public sealed class AdesaoServiceTests
 
         var minha = (await Servico.ObterMinha(FormaturaId, UsuarioId, Ct)).Valor;
 
-        minha.Pendencias.ShouldBe(["nomeCompleto", "cpf", "dataDeNascimento"]);
+        minha.Pendencias.ShouldBe(["nomeCompleto", "cpf"]);
         minha.Adesao.ShouldBeNull();
-    }
-
-    /// <summary>Decisão de 14/09/2026: menor de 18 adere com a comissão, fora da plataforma.</summary>
-    [Fact]
-    public async Task Menor_de_18_anos_nao_adere()
-    {
-        var dezessete = DataUtils.Hoje().AddYears(-18).AddDays(1);
-        _perfis.ObterDoVinculo(VinculoId, Arg.Any<CancellationToken>()).Returns(Perfil(nascimento: dezessete));
-
-        (await Aderir()).PrimeiroErro.Codigo.ShouldBe("adesao.menor_de_idade");
-        (await Servico.ObterMinha(FormaturaId, UsuarioId, Ct)).Valor.MenorDeIdade.ShouldBeTrue();
-        await NadaFoiGravado();
-    }
-
-    [Fact]
-    public async Task Quem_faz_18_hoje_adere()
-    {
-        _perfis.ObterDoVinculo(VinculoId, Arg.Any<CancellationToken>()).Returns(Perfil(nascimento: DataUtils.Hoje().AddYears(-18)));
-
-        (await Aderir()).Sucesso.ShouldBeTrue();
     }
 
     /// <summary>Decisão de 14/09/2026: o mesmo CPF não adere duas vezes na turma.</summary>

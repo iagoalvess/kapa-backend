@@ -28,7 +28,7 @@ public sealed class PerfilServiceTests
 
     private PerfilService Servico => new(_perfis, _arquivos, new AtualizarPerfilValidator(), _unitOfWork, NullLogger<PerfilService>.Instance);
 
-    private static AtualizarPerfil ComCpf(string cpf) => new(new DadosPessoais("Ana Souza", null, cpf, null, null, null, null, null), null, null);
+    private static AtualizarPerfil ComCpf(string cpf) => new(new DadosPessoais("Ana Souza", cpf, null), null);
 
     [Fact]
     public async Task Cpf_invalido_devolve_erro_no_campo_da_secao_sem_gravar()

@@ -284,14 +284,8 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
     private static PerfilExportado Exportar(PerfilDoFormando perfil) =>
         new(
             perfil.NomeCompleto,
-            perfil.NomeNoDiploma,
             perfil.Cpf,
-            perfil.Rg,
-            perfil.Matricula,
             perfil.Telefone,
-            perfil.DataDeNascimento,
-            perfil.Observacoes,
-            perfil.Endereco.ParaDados(),
             perfil.ContatoDeEmergencia.ParaDados(),
             perfil.FotoArquivoId is not null,
             perfil.Completude

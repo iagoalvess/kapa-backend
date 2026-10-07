@@ -420,6 +420,10 @@ namespace Backend.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("criado_em");
 
+                    b.Property<Guid?>("CupomId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cupom_id");
+
                     b.Property<Guid>("FormaturaId")
                         .HasColumnType("uuid")
                         .HasColumnName("formatura_id");
@@ -469,6 +473,9 @@ namespace Backend.Data.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_assinaturas");
+
+                    b.HasIndex("CupomId")
+                        .HasDatabaseName("ix_assinaturas_cupom_id");
 
                     b.HasIndex("FormaturaId")
                         .HasDatabaseName("ix_assinaturas_formatura_id");
@@ -575,6 +582,62 @@ namespace Backend.Data.Migrations
                         .HasDatabaseName("ix_cobrancas_da_assinatura_situacao_criado_em");
 
                     b.ToTable("cobrancas_da_assinatura", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Assinaturas.Models.Cupom", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("boolean")
+                        .HasColumnName("ativo");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("codigo");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<int>("LimiteDeUsos")
+                        .HasColumnType("integer")
+                        .HasColumnName("limite_de_usos");
+
+                    b.Property<int>("Percentual")
+                        .HasColumnType("integer")
+                        .HasColumnName("percentual");
+
+                    b.Property<int>("Usos")
+                        .HasColumnType("integer")
+                        .HasColumnName("usos");
+
+                    b.Property<DateTime>("ValidoAte")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("valido_ate");
+
+                    b.HasKey("Id")
+                        .HasName("pk_cupons");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique()
+                        .HasDatabaseName("ix_cupons_codigo");
+
+                    b.ToTable("cupons", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_cupons_percentual", "percentual BETWEEN 1 AND 50");
+
+                            t.HasCheckConstraint("ck_cupons_usos", "limite_de_usos > 0 AND usos >= 0 AND usos <= limite_de_usos");
+                        });
                 });
 
             modelBuilder.Entity("Backend.Business.Assinaturas.Models.EventoDeCobranca", b =>
@@ -1793,6 +1856,11 @@ namespace Backend.Data.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("numero_do_documento");
 
+                    b.Property<string>("Observacoes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("observacoes");
+
                     b.Property<Guid?>("PedidoId")
                         .HasColumnType("uuid")
                         .HasColumnName("pedido_id");
@@ -2512,10 +2580,6 @@ namespace Backend.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("criado_em");
 
-                    b.Property<DateOnly?>("DataDeNascimento")
-                        .HasColumnType("date")
-                        .HasColumnName("data_de_nascimento");
-
                     b.Property<bool>("EssencialPreenchido")
                         .HasColumnType("boolean")
                         .HasColumnName("essencial_preenchido");
@@ -2528,30 +2592,10 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("foto_arquivo_id");
 
-                    b.Property<string>("Matricula")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("matricula");
-
                     b.Property<string>("NomeCompleto")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("nome_completo");
-
-                    b.Property<string>("NomeNoDiploma")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("nome_no_diploma");
-
-                    b.Property<string>("Observacoes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("observacoes");
-
-                    b.Property<string>("Rg")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("rg");
 
                     b.Property<string>("Telefone")
                         .HasMaxLength(16)
@@ -3840,6 +3884,11 @@ namespace Backend.Data.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("banco");
 
+                    b.Property<string>("BancoDaChave")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("banco_da_chave");
+
                     b.Property<string>("Chave")
                         .HasMaxLength(77)
                         .HasColumnType("character varying(77)")
@@ -4505,6 +4554,12 @@ namespace Backend.Data.Migrations
 
             modelBuilder.Entity("Backend.Business.Assinaturas.Models.Assinatura", b =>
                 {
+                    b.HasOne("Backend.Business.Assinaturas.Models.Cupom", null)
+                        .WithMany()
+                        .HasForeignKey("CupomId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_assinaturas_cupons_cupom_id");
+
                     b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
                         .WithMany()
                         .HasForeignKey("FormaturaId")
@@ -5026,60 +5081,7 @@ namespace Backend.Data.Migrations
                                 .HasConstraintName("fk_perfis_de_formandos_perfis_de_formandos_id");
                         });
 
-                    b.OwnsOne("Backend.Business.Formandos.Models.Endereco", "Endereco", b1 =>
-                        {
-                            b1.Property<Guid>("PerfilDoFormandoId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("id");
-
-                            b1.Property<string>("Bairro")
-                                .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
-                                .HasColumnName("endereco_bairro");
-
-                            b1.Property<string>("Cep")
-                                .HasMaxLength(8)
-                                .HasColumnType("character varying(8)")
-                                .HasColumnName("endereco_cep");
-
-                            b1.Property<string>("Cidade")
-                                .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
-                                .HasColumnName("endereco_cidade");
-
-                            b1.Property<string>("Complemento")
-                                .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
-                                .HasColumnName("endereco_complemento");
-
-                            b1.Property<string>("Logradouro")
-                                .HasMaxLength(200)
-                                .HasColumnType("character varying(200)")
-                                .HasColumnName("endereco_logradouro");
-
-                            b1.Property<string>("Numero")
-                                .HasMaxLength(20)
-                                .HasColumnType("character varying(20)")
-                                .HasColumnName("endereco_numero");
-
-                            b1.Property<string>("Uf")
-                                .HasMaxLength(2)
-                                .HasColumnType("character varying(2)")
-                                .HasColumnName("endereco_uf");
-
-                            b1.HasKey("PerfilDoFormandoId");
-
-                            b1.ToTable("perfis_de_formandos");
-
-                            b1.WithOwner()
-                                .HasForeignKey("PerfilDoFormandoId")
-                                .HasConstraintName("fk_perfis_de_formandos_perfis_de_formandos_id");
-                        });
-
                     b.Navigation("ContatoDeEmergencia")
-                        .IsRequired();
-
-                    b.Navigation("Endereco")
                         .IsRequired();
                 });
 

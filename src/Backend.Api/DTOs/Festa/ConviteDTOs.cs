@@ -8,7 +8,14 @@ namespace Backend.Api.DTOs.Festa;
 /// <param name="TipoDoDocumento"><c>Cpf</c> ou <c>Rg</c>; obrigatório junto com o número.</param>
 /// <param name="NumeroDoDocumento">Número, com ou sem pontuação.</param>
 /// <param name="Email">E-mail do convidado, para receber o convite; opcional.</param>
-public sealed record ConvidadoRequestDTO(string? Nome, TipoDeDocumento? TipoDoDocumento, string? NumeroDoDocumento, string? Email);
+/// <param name="Observacoes">Restrição alimentar, acessibilidade; opcional.</param>
+public sealed record ConvidadoRequestDTO(
+    string? Nome,
+    TipoDeDocumento? TipoDoDocumento,
+    string? NumeroDoDocumento,
+    string? Email,
+    string? Observacoes = null
+);
 
 /// <summary>Corpo da cortesia: o convidado e o motivo.</summary>
 /// <param name="Nome">Quem vai usar o convite.</param>
@@ -17,13 +24,15 @@ public sealed record ConvidadoRequestDTO(string? Nome, TipoDeDocumento? TipoDoDo
 /// <param name="Email">E-mail do convidado; opcional.</param>
 /// <param name="Motivo">Por que a turma está dando o convite.</param>
 /// <param name="EventoId">Evento da cortesia; ausente é a festa.</param>
+/// <param name="Observacoes">Restrição alimentar, acessibilidade; opcional.</param>
 public sealed record CortesiaRequestDTO(
     string? Nome,
     TipoDeDocumento? TipoDoDocumento,
     string? NumeroDoDocumento,
     string? Email,
     string? Motivo,
-    Guid? EventoId = null
+    Guid? EventoId = null,
+    string? Observacoes = null
 );
 
 /// <summary>Corpo da liberação manual.</summary>
@@ -106,7 +115,8 @@ public sealed record MeuConviteDTO(
     string? Documento,
     string? EmailDoConvidado,
     DateTime EmitidoEm,
-    DateTime? ValidadoEm
+    DateTime? ValidadoEm,
+    string? Observacoes
 );
 
 /// <summary>Os convites do formando para a festa.</summary>
@@ -146,7 +156,8 @@ public sealed record ConviteNaPortariaDTO(
     SituacaoNaPortaria Situacao,
     string? MotivoDaRevogacao,
     EntradaNaPortariaDTO? Entrada,
-    bool EntrouSemRedeDuasVezes
+    bool EntrouSemRedeDuasVezes,
+    string? Observacoes
 );
 
 /// <summary>Um convite aberto na portaria.</summary>

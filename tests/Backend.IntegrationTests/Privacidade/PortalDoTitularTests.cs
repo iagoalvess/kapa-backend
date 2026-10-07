@@ -229,7 +229,6 @@ public sealed class PortalDoTitularTests(ApiFactory fabrica)
         perfil.NomeCompleto.ShouldBeNull();
         perfil.Cpf.ShouldBeNull();
         perfil.Telefone.ShouldBeNull();
-        perfil.Endereco.Cep.ShouldBeNull();
         perfil.ContatoDeEmergencia.Nome.ShouldBeNull();
 
         // A linha continua amarrada ao vínculo: é o que mantém parcela e recebimento apontando para

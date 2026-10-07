@@ -106,18 +106,22 @@ public static class SeedDePlanos
     /// <remarks>
     /// Dois, e não três: a escada de antes (Essencial, Completo, Turma Grande) obrigava a comissão
     /// a comparar três listas de módulos para descobrir de qual precisava. Agora a pergunta é uma
-    /// só — a turma cabe em 50? —, e o Premium se vende pelos diferenciais (as mesas entraram entre eles em 29/09/2026), não por um
+    /// só — a turma cabe em 60? —, e o Premium se vende pelos diferenciais (as mesas entraram entre eles em 29/09/2026), não por um
     /// pedaço do necessário que foi retirado do Essencial.
+    /// <para>
+    /// Preços e limites da Sprint 51 (06/10/2026): R$ 89 até 60 e R$ 179 até 200. A maioria das turmas tem de 20 a 60
+    /// formandos — o Essencial cobre quase todas, e acima de 200 é exceção.
+    /// </para>
     /// </remarks>
     private static readonly Pacote[] Pacotes =
     [
-        new("essencial", "Essencial", "Cobrar a turma, pagar os fornecedores e fechar o caixa.", 2990, 50, ModulosDoEssencial, false),
+        new("essencial", "Essencial", "Cobrar a turma, pagar os fornecedores e fechar o caixa.", 8900, 60, ModulosDoEssencial, false),
         new(
             "premium",
             "Premium",
             "Turma grande, com mural, régua de cobrança e prestação de contas.",
-            4990,
-            400,
+            17900,
+            200,
             [.. ModulosDoEssencial, .. DiferenciaisDoPremium],
             true
         ),
@@ -143,8 +147,8 @@ public static class SeedDePlanos
 
     /// <summary>O mesmo pacote nos dois ciclos.</summary>
     /// <remarks>
-    /// O anual cobra doze meses menos o desconto, arredondado para real cheio: R$ 287,04 vira
-    /// R$ 287,00 — preço de vitrine não tem centavo quebrado. O preço cheio guardado é o dos doze
+    /// O anual cobra doze meses menos o desconto, arredondado para real cheio: R$ 854,40 vira
+    /// R$ 854,00 — preço de vitrine não tem centavo quebrado. O preço cheio guardado é o dos doze
     /// meses avulsos, que é de onde o card tira o valor riscado e a porcentagem.
     /// </remarks>
     /// <param name="pacote">O pacote.</param>

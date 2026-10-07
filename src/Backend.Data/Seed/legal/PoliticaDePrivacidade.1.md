@@ -22,7 +22,9 @@ Pedidos sobre dados da formatura podem ser feitos diretamente à comissão ou à
 
 **Dados de conta:** nome, e-mail e senha. A senha é armazenada apenas em forma de hash irreversível.
 
-**Dados de cadastro na formatura:** informados por você ou pela comissão, como nome completo, CPF, telefone, endereço, curso, número de matrícula, foto e demais dados necessários à organização da formatura. O CPF é armazenado criptografado.
+**Dados de cadastro na formatura:** informados por você ou pela comissão, como nome completo, CPF, telefone, contato de emergência, curso e foto. O CPF é armazenado criptografado.
+
+**Dados de convidados:** quem tem convites para os eventos da turma — o formando, a comissão ou quem compra na loja da turma — informa o nome de cada convidado e, se quiser, o documento (CPF ou RG), o e-mail para o convite chegar direto e observações para a comissão, como restrição alimentar ou necessidade de acessibilidade. As observações podem revelar informação de saúde: informe apenas o necessário para a organização do evento. Documento, e-mail e observações são armazenados criptografados. Quem informa os dados de um convidado declara que ele está ciente e de acordo.
 
 **Dados financeiros da formatura:** contribuições, parcelas, vencimentos, pagamentos, avisos de pagamento, confirmações, baixas manuais e comprovantes, renegociações e o registro da adesão ao termo da turma.
 
@@ -55,6 +57,7 @@ Pedidos sobre dados da formatura podem ser feitos diretamente à comissão ou à
 
 - **Presidente, Tesoureiro e Comissão** veem o cadastro e o extrato dos formandos da turma, para administrá-la — com o CPF mascarado. O número completo aparece só para o próprio formando e no termo de adesão que ele assina.
 - **Formandos** veem apenas os próprios dados, os indicadores consolidados da turma e a chave PIX e o nome do titular da conta de recebimento, para pagar.
+- **Dados de convidados:** quem informou vê os dos próprios convites; a comissão vê a lista da turma com o documento mascarado, inclusive na portaria, e as observações. O documento completo aparece apenas na lista exportada pela comissão para a entrada do evento.
 - Pessoas de uma formatura **não** veem dados de outra formatura.
 
 ## 6. Compartilhamento
@@ -85,8 +88,9 @@ A Kapa usa apenas **cookies essenciais**: o cookie de sessão que mantém você 
 - **Registros financeiros da formatura:** durante a formatura e por 5 anos após o encerramento, para prestação de contas e cumprimento de obrigações legais.
 - **Dados de pagamento da assinatura da Kapa:** 5 anos, por exigência fiscal.
 - **Registros de aceite:** enquanto a conta existir e, depois, pelo prazo necessário para o exercício de direitos.
+- **Dados de convidados:** documento, e-mail e observações são eliminados 30 dias após o evento; o nome permanece como histórico da formatura.
 
-**Exclusão de conta:** como os registros financeiros da turma não podem ser apagados enquanto durar a obrigação de guarda, a exclusão **anonimiza** seus dados pessoais — nome, CPF, contatos, endereço e foto são substituídos por marcadores irreversíveis — e mantém os lançamentos financeiros vinculados a um identificador anônimo. Os demais dados são eliminados.
+**Exclusão de conta:** como os registros financeiros da turma não podem ser apagados enquanto durar a obrigação de guarda, a exclusão **anonimiza** seus dados pessoais — nome, CPF, contatos e foto são substituídos por marcadores irreversíveis — e mantém os lançamentos financeiros vinculados a um identificador anônimo. Os demais dados são eliminados.
 
 ## 10. Seus direitos
 

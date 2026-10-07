@@ -58,18 +58,22 @@ public sealed class CaixaService(ICaixaRepository caixaRepository, IFormaturaRep
     /// O acumulado começa em zero no primeiro mês com movimento e chega, no mês de hoje, ao saldo real
     /// da turma — é a mesma conta da tela do caixa, desenhada no tempo. Daí para a frente ele soma o
     /// previsto, e é essa parte que a tela desenha pontilhada.
+    /// <para>
+    /// <paramref name="soRealizado"/> é a forma do formando (06/10): os meses até o atual, sem previsto — o que já
+    /// aconteceu é prestação de contas; o planejamento das despesas continua da Gestão.
+    /// </para>
     /// </remarks>
-    public async Task<Result<ProjecaoDoCaixa>> Projecao(Guid formaturaId, CancellationToken ct = default)
+    public async Task<Result<ProjecaoDoCaixa>> Projecao(Guid formaturaId, bool soRealizado = false, CancellationToken ct = default)
     {
         var hoje = DataUtils.Hoje();
         var mesAtual = PrimeiroDoMes(hoje);
 
         var entradas = Indexar(await caixaRepository.EntradasPorMes(ct));
         var saidas = Indexar(await caixaRepository.SaidasPorMes(ct));
-        var entradasPrevistas = Indexar(await caixaRepository.EntradasPrevistasPorMes(hoje, comOutrasReceitasPrevistas: true, ct));
-        var saidasPrevistas = Indexar(await caixaRepository.SaidasPrevistasPorMes(hoje, ct));
+        var entradasPrevistas = soRealizado ? [] : Indexar(await caixaRepository.EntradasPrevistasPorMes(hoje, comOutrasReceitasPrevistas: true, ct));
+        var saidasPrevistas = soRealizado ? [] : Indexar(await caixaRepository.SaidasPrevistasPorMes(hoje, ct));
 
-        var colacao = (await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct))?.PrevisaoDeColacao;
+        var colacao = soRealizado ? null : (await formaturaRepository.ObterDetalheDeTodasAsFormaturas(formaturaId, ct))?.PrevisaoDeColacao;
         var meses = Janela(mesAtual, colacao, [entradas, saidas, entradasPrevistas, saidasPrevistas]);
 
         var acumulado = 0L;

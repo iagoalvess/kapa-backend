@@ -70,7 +70,6 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="adesao.codigo_invalido"></a>`adesao.codigo_invalido` | 409 | O código não confere ou já expirou. Peça um código novo e use o mais recente que chegou no seu e-mail. |
 | <a id="adesao.cpf_em_uso"></a>`adesao.cpf_em_uso` | 409 | Este CPF já está na adesão de outra pessoa da turma. Confira o seu cadastro ou fale com a comissão. |
 | <a id="adesao.ja_aderiu"></a>`adesao.ja_aderiu` | 409 | Você já aderiu a esta versão do termo. |
-| <a id="adesao.menor_de_idade"></a>`adesao.menor_de_idade` | 409 | Quem tem menos de 18 anos adere com a comissão, junto com o responsável legal, e não pela plataforma. |
 | <a id="adesao.nao_encontrada"></a>`adesao.nao_encontrada` | 404 | Adesão não encontrada. |
 | <a id="adesao.pacote_ja_contratado"></a>`adesao.pacote_ja_contratado` | 400 | O pacote escolhido no aditivo já está na cesta do formando. |
 | <a id="adesao.pendente"></a>`adesao.pendente` | 403 | O formando ainda não aderiu ao termo publicado da turma: só Meu termo e Meu cadastro respondem até o aceite (Sprint 47, D18). |
@@ -80,6 +79,7 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="adesao.termo_desatualizado"></a>`adesao.termo_desatualizado` | 409 | O termo ou o plano mudou enquanto você lia. Confira a versão atual antes de aceitar. |
 | <a id="adesao.termo_nao_encontrado"></a>`adesao.termo_nao_encontrado` | 404 | Versão do termo não encontrada. |
 | <a id="adesao.termo_sem_mudanca"></a>`adesao.termo_sem_mudanca` | 409 | Este texto é igual ao da versão vigente. |
+| <a id="adesao.termo_sem_plano_vigente"></a>`adesao.termo_sem_plano_vigente` | 409 | Ponha o plano de cobrança em vigor antes de publicar o termo: ele é assinado junto com os pacotes do plano. |
 
 ### agenda
 
@@ -206,6 +206,15 @@ nossa, e o `trace_id` é o que o resolve.
 | Código | Status | Quando acontece |
 | --- | --- | --- |
 | <a id="conta.link_invalido"></a>`conta.link_invalido` | 400 | Este link é inválido ou expirou. Solicite um novo. |
+
+### cupom
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| <a id="cupom.codigo_em_uso"></a>`cupom.codigo_em_uso` | 409 | Já existe um cupom com este código. |
+| <a id="cupom.invalido"></a>`cupom.invalido` | 400 | Cupom inválido ou expirado. Resposta única para inexistente, vencido, esgotado, desativado e turma que já pagou. |
+| <a id="cupom.ja_aplicado"></a>`cupom.ja_aplicado` | 409 | Esta contratação já usa o cupom …. |
+| <a id="cupom.nao_encontrado"></a>`cupom.nao_encontrado` | 404 | Cupom não encontrado. |
 
 ### convite
 
@@ -439,16 +448,13 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
-| <a id="perfil.cep_invalido"></a>`perfil.cep_invalido` | 400 | CEP inválido. Use os 8 dígitos, como 80000-000. |
 | <a id="perfil.cpf_invalido"></a>`perfil.cpf_invalido` | 400 | CPF inválido. Confira os 11 dígitos. |
-| <a id="perfil.data_de_nascimento_invalida"></a>`perfil.data_de_nascimento_invalida` | 400 | A data de nascimento precisa ser de … a … anos atrás. |
 | <a id="perfil.foto_grande"></a>`perfil.foto_grande` | 400 | A foto excede o limite de … MB. |
 | <a id="perfil.foto_ilegivel"></a>`perfil.foto_ilegivel` | 400 | Não foi possível ler esta imagem. Envie outra foto. |
 | <a id="perfil.foto_tipo_invalido"></a>`perfil.foto_tipo_invalido` | 400 | Envie uma imagem JPEG, PNG ou WebP. |
 | <a id="perfil.foto_vazia"></a>`perfil.foto_vazia` | 400 | Nenhuma imagem foi enviada. |
 | <a id="perfil.sem_foto"></a>`perfil.sem_foto` | 404 | Este formando ainda não enviou foto. |
 | <a id="perfil.telefone_invalido"></a>`perfil.telefone_invalido` | 400 | Telefone inválido. Use DDD e número, como (41) 99876-5432, ou o formato internacional +55…. |
-| <a id="perfil.uf_invalida"></a>`perfil.uf_invalida` | 400 | UF inválida. Use a sigla, como PR. |
 
 ### plano
 

@@ -54,8 +54,8 @@ porquê lá:
 - `RefreshTokenRepository.RemoverInativosAnterioresA`, `EventoRepository.RemoverAnterioresA` e
   `EmailFilaRepository.RemoverConcluidosAnterioresA`/`DesistirDosPresosAnterioresA` —
   `ExecuteDeleteAsync`/`ExecuteUpdateAsync`, limpeza em massa do worker, sem nada a compor.
-- `ConviteRepository.ConsumirUsoDeTodasAsFormaturas` — `ExecuteUpdateAsync` condicional, porque a
-  checagem precisa acontecer sob a trava da linha.
+- `ConviteRepository.ConsumirUsoDeTodasAsFormaturas` e `CupomRepository.ReservarUso` — `ExecuteUpdateAsync`
+  condicional, porque a checagem do limite precisa acontecer sob a trava da linha.
 - `EventoRepository.GravarLote` — quem chama é a descarga da fila, fora de qualquer requisição.
 - `ConviteDoEventoRepository.EmitirDoPedido` e `RegistrarEntrada` — uma instrução com
   `ON CONFLICT` cada, na transação de quem chama: a garantia contra convite e entrada em dobro é o
@@ -68,6 +68,8 @@ porquê lá:
   chama, pela mesma razão do `ReservarNoItem`: é a linha que a abertura de vendas disputa (Sprint 38, decisão 1).
 - `ConviteDoEventoRepository.EmitirDaCota` — `INSERT … SELECT … ON CONFLICT DO NOTHING` para a turma inteira: a
   garantia contra cota em dobro é o índice único (Sprint 30, P1).
+- `ConviteDoEventoRepository.NomearOsDoProprioFormando` — `ExecuteUpdateAsync` condicional logo depois da emissão
+  dos pacotes: o convite 1 sem nome recebe o formando, e o `WHERE` sem nome não pisa numa nomeação concorrente.
 - `AssinaturaRepository.RegistrarSeNovo` e `ProvedorDaTurmaRepository.ReservarEmissao` — `INSERT … ON CONFLICT DO
   NOTHING` contra o índice único: a entrega repetida do evento e a segunda aba perdem a corrida sem erro, e a reserva
   da emissão precisa estar gravada antes da chamada ao Mercado Pago (Sprint 25, decisão 12a).

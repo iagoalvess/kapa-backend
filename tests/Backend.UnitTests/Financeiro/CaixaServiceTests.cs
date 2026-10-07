@@ -85,7 +85,7 @@ public sealed class CaixaServiceTests
         _formaturas.ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(null));
 
         // Act
-        await Servico.Projecao(FormaturaId, Ct);
+        await Servico.Projecao(FormaturaId, ct: Ct);
         await Servico.Arrecadacao(Ct);
 
         // Assert
@@ -112,7 +112,7 @@ public sealed class CaixaServiceTests
         _formaturas.ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(proximo));
 
         // Act
-        var projecao = (await Servico.Projecao(FormaturaId, Ct)).Valor;
+        var projecao = (await Servico.Projecao(FormaturaId, ct: Ct)).Valor;
 
         // Assert
         projecao.Meses.Count.ShouldBe(3);
@@ -135,7 +135,7 @@ public sealed class CaixaServiceTests
         _formaturas.ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(proximo));
 
         // Act
-        var projecao = (await Servico.Projecao(FormaturaId, Ct)).Valor;
+        var projecao = (await Servico.Projecao(FormaturaId, ct: Ct)).Valor;
 
         // Assert
         projecao.Meses[0].Projetado.ShouldBeFalse();
@@ -149,7 +149,7 @@ public sealed class CaixaServiceTests
         _formaturas.ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(null));
 
         // Act
-        var projecao = (await Servico.Projecao(FormaturaId, Ct)).Valor;
+        var projecao = (await Servico.Projecao(FormaturaId, ct: Ct)).Valor;
 
         // Assert
         projecao.Meses.ShouldHaveSingleItem().Mes.ShouldBe(MesAtual);
@@ -163,11 +163,33 @@ public sealed class CaixaServiceTests
         _formaturas.ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(colacao));
 
         // Act
-        var projecao = (await Servico.Projecao(FormaturaId, Ct)).Valor;
+        var projecao = (await Servico.Projecao(FormaturaId, ct: Ct)).Valor;
 
         // Assert
         projecao.Meses.Count.ShouldBe(6);
         projecao.Meses[^1].Mes.ShouldBe(MesAtual.AddMonths(5));
+    }
+
+    /// <summary>06/10: o formando vê o que já aconteceu — nada de previsto, nenhum mês à frente.</summary>
+    [Fact]
+    public async Task So_realizado_para_no_mes_atual_e_nao_soma_previsto()
+    {
+        // Arrange
+        var proximo = MesAtual.AddMonths(1);
+        _caixa.EntradasPorMes(Arg.Any<CancellationToken>()).Returns([new SomaDoMes(MesAtual, 1_000_00L)]);
+        _caixa
+            .EntradasPrevistasPorMes(Arg.Any<DateOnly>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns([new SomaDoMes(MesAtual, 5_000_00L), new SomaDoMes(proximo, 2_000_00L)]);
+        _formaturas.ObterDetalheDeTodasAsFormaturas(FormaturaId, Arg.Any<CancellationToken>()).Returns(Formatura(proximo.AddMonths(6)));
+
+        // Act
+        var projecao = (await Servico.Projecao(FormaturaId, soRealizado: true, Ct)).Valor;
+
+        // Assert
+        var mes = projecao.Meses.ShouldHaveSingleItem();
+        mes.Mes.ShouldBe(MesAtual);
+        mes.EntradasPrevistasEmCentavos.ShouldBe(0);
+        mes.SaldoAcumuladoEmCentavos.ShouldBe(1_000_00L);
     }
 
     private static FormaturaDetalhe Formatura(DateOnly? colacao) =>

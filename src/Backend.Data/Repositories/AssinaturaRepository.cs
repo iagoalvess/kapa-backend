@@ -54,6 +54,8 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
             join plano in db.Planos.AsNoTracking() on assinatura.PlanoId equals plano.Id
             join proximo in db.Planos.AsNoTracking() on assinatura.PlanoDoProximoCicloId equals proximo.Id into proximos
             from proximo in proximos.DefaultIfEmpty()
+            join cupom in db.Cupons.AsNoTracking() on assinatura.CupomId equals cupom.Id into cupons
+            from cupom in cupons.DefaultIfEmpty()
             orderby assinatura.CriadoEm descending, assinatura.Id descending
             select new AssinaturaDetalhe(
                 assinatura.Id,
@@ -88,7 +90,8 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
                         proximo.Modulos,
                         proximo.Recomendado
                     ),
-                assinatura.Meio == MeioDePagamento.Pix && assinatura.IdExterno != null
+                assinatura.Meio == MeioDePagamento.Pix && assinatura.IdExterno != null,
+                cupom == null ? null : new CupomAplicavel(cupom.Codigo, cupom.Percentual)
             )
         ).FirstOrDefaultAsync(ct);
 

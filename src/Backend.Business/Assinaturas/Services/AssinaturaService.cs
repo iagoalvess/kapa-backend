@@ -19,6 +19,8 @@ namespace Backend.Business.Assinaturas.Services;
 /// <param name="formaturaRepository">A formatura, que muda de status no checkout.</param>
 /// <param name="provedor">PSP que cobra a licença.</param>
 /// <param name="vagas">Vagas ocupadas, para não vender plano menor que a turma.</param>
+/// <param name="cupons">A regra do cupom da primeira cobrança (Sprint 51).</param>
+/// <param name="cupomRepository">Cupons, para contar o uso e reler o preso à pendente.</param>
 /// <param name="checkoutValidator">Forma do pedido de checkout.</param>
 /// <param name="trocaValidator">Forma do pedido de troca de plano.</param>
 /// <param name="settings">Configuração da assinatura.</param>
@@ -29,6 +31,8 @@ public sealed class AssinaturaService(
     IFormaturaRepository formaturaRepository,
     IProvedorDeAssinatura provedor,
     VagasDoPlano vagas,
+    CupomService cupons,
+    ICupomRepository cupomRepository,
     IValidator<IniciarCheckout> checkoutValidator,
     IValidator<TrocaDePlano> trocaValidator,
     IOptions<AssinaturaSettings> settings,
@@ -95,6 +99,12 @@ public sealed class AssinaturaService(
     /// deixava vencer e contratava o Essencial (50) com os 200 dentro. Igual ao limite passa — a
     /// turma não cresce, mas também não precisa encolher.
     /// </para>
+    /// <para>
+    /// <b>Cupom</b> (Sprint 51): o uso é contado <b>antes</b> do provedor, pelo <c>UPDATE</c> condicional — dois
+    /// checkouts com o último uso não passam os dois. Provedor fora do ar depois disso gasta o uso (D5), e o cupom
+    /// fica preso à pendente: retomar o checkout reaproveita o mesmo, sem contar outro, e outro código é recusado.
+    /// O preço vem do servidor; o front só manda o código.
+    /// </para>
     /// </remarks>
     public async Task<Result<SessaoDeCheckout>> IniciarCheckout(Guid formaturaId, IniciarCheckout dados, CancellationToken ct = default)
     {
@@ -131,6 +141,12 @@ public sealed class AssinaturaService(
         var pendente = maisRecente is { Status: StatusDaAssinatura.Pendente } atual ? atual : null;
         var meio = dados.Meio ?? MeioDePagamento.Cartao;
 
+        var cupom = await CupomDoCheckout(formaturaId, pendente, dados.CupomCodigo, ct);
+        if (cupom.Falhou)
+            return Result.Falha<SessaoDeCheckout>(cupom.Erros);
+
+        var preco = cupom.Valor?.Aplicar(plano.PrecoEmCentavos) ?? plano.PrecoEmCentavos;
+
         if (pendente is { IdExterno: { } sessaoAnterior })
         {
             var invalidada = await provedor.Cancelar(sessaoAnterior, ct);
@@ -142,26 +158,21 @@ public sealed class AssinaturaService(
         assinatura.PlanoId = plano.Id;
         assinatura.Meio = meio;
 
+        if (cupom.Valor is { } novo && assinatura.CupomId != novo.Id)
+        {
+            if (!await cupomRepository.ReservarUso(novo.Id, DateTime.UtcNow, ct))
+                return CupomService.Invalido;
+
+            assinatura.CupomId = novo.Id;
+        }
+
         if (pendente is not null)
             (await assinaturaRepository.ObterCobrancaAbertaParaEdicao(pendente.Id, MotivoDaCobranca.Ciclo, ct))?.Cancelar();
 
-        var cobranca =
-            meio == MeioDePagamento.Pix
-                ? CobrancaDaAssinatura.Abrir(assinatura.Id, plano.Id, MotivoDaCobranca.Ciclo, meio, plano.PrecoEmCentavos)
-                : null;
+        var cobranca = meio == MeioDePagamento.Pix ? CobrancaDaAssinatura.Abrir(assinatura.Id, plano.Id, MotivoDaCobranca.Ciclo, meio, preco) : null;
 
         var sessao = await provedor.CriarCheckout(
-            new PedidoDeCheckout(
-                assinatura.Id,
-                plano.Codigo,
-                plano.Nome,
-                plano.PrecoEmCentavos,
-                plano.Ciclo,
-                UrlDeRetorno,
-                meio,
-                dados.EmailDoPagador,
-                cobranca?.Id
-            ),
+            new PedidoDeCheckout(assinatura.Id, plano.Codigo, plano.Nome, preco, plano.Ciclo, UrlDeRetorno, meio, dados.EmailDoPagador, cobranca?.Id),
             ct
         );
 
@@ -182,6 +193,36 @@ public sealed class AssinaturaService(
         await unitOfWork.SalvarAsync(ct);
 
         return sessao;
+    }
+
+    /// <summary>
+    /// O cupom deste checkout: o preso à pendente, se houver; senão o digitado, se valer; senão nenhum.
+    /// </summary>
+    /// <remarks>
+    /// Preso à pendente vale mesmo desativado depois — o uso já foi contado. Digitar outro código em cima dele é
+    /// recusado, para a turma não trocar um cupom por outro e gastar os dois.
+    /// </remarks>
+    private async Task<Result<Cupom?>> CupomDoCheckout(Guid formaturaId, Assinatura? pendente, string? codigo, CancellationToken ct)
+    {
+        var digitado = Cupom.Normalizar(codigo);
+
+        if (pendente is { CupomId: { } presoId } && await cupomRepository.Obter(presoId, ct) is { } preso)
+        {
+            if (digitado.Length > 0 && digitado != preso.Codigo)
+                return Erro.Conflito("cupom.ja_aplicado", $"Esta contratação já usa o cupom {preso.Codigo}.");
+
+            return preso;
+        }
+
+        if (digitado.Length == 0)
+            return Result.Ok<Cupom?>(null);
+
+        var aplicavel = await cupons.Aplicavel(formaturaId, digitado, ct);
+
+        if (aplicavel.Falhou)
+            return Result.Falha<Cupom?>(aplicavel.Erros);
+
+        return aplicavel.Valor;
     }
 
     /// <inheritdoc />

@@ -32,7 +32,13 @@ public sealed class ContaDeRecebimentoRepository(AppDbContext db) : IContaDeRece
                 new MeiosDaConta(
                     conta.TipoDeChave == null || conta.Chave == null
                         ? null
-                        : new ChavePixDaConta(conta.TipoDeChave.Value, conta.Chave, conta.NomeDoTitular ?? "", conta.Cidade ?? ""),
+                        : new ChavePixDaConta(
+                            conta.TipoDeChave.Value,
+                            conta.Chave,
+                            conta.NomeDoTitular ?? "",
+                            conta.Cidade ?? "",
+                            conta.BancoDaChave
+                        ),
                     conta.Banco == null
                         ? null
                         : new DadosBancarios(

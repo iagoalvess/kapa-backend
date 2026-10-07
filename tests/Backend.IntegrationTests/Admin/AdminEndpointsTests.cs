@@ -74,7 +74,7 @@ public sealed class AdminEndpointsTests(ApiFactory fabrica)
         var antes = await Analytics(suporte);
         var formaturaId = await fabrica.CriarFormatura(StatusDaFormatura.Ativa, Ct, contratada: false);
         await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
-        await PagarPlano(formaturaId, 4990);
+        await PagarPlano(formaturaId, 17900);
 
         // Act
         var depois = await Analytics(suporte);
@@ -84,7 +84,7 @@ public sealed class AdminEndpointsTests(ApiFactory fabrica)
         depois.Formaturas.NovasNoPeriodo.ShouldBe(antes.Formaturas.NovasNoPeriodo + 1);
         depois.Formaturas.Pagantes.ShouldBe(antes.Formaturas.Pagantes + 1);
         depois.Formaturas.PorLicenca.Sum(l => l.Turmas).ShouldBe(depois.Formaturas.Total);
-        depois.Kapa.RecebidoEmCentavos.ShouldBe(antes.Kapa.RecebidoEmCentavos + 4990);
+        depois.Kapa.RecebidoEmCentavos.ShouldBe(antes.Kapa.RecebidoEmCentavos + 17900);
         depois.Kapa.MrrEmCentavos.ShouldBeGreaterThan(antes.Kapa.MrrEmCentavos);
         depois.Contas.Total.ShouldBeGreaterThanOrEqualTo(depois.Contas.Confirmadas);
         depois.Uso.ShouldAllBe(u => u.Eventos >= u.Usuarios && !u.Recurso.Contains('.'));

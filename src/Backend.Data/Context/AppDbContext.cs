@@ -91,6 +91,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Assinaturas da licença, por formatura.</summary>
     public DbSet<Assinatura> Assinaturas => Set<Assinatura>();
 
+    /// <summary>Cupons de desconto da primeira cobrança (Sprint 51).</summary>
+    public DbSet<Cupom> Cupons => Set<Cupom>();
+
     /// <summary>Eventos recebidos do provedor de assinatura.</summary>
     public DbSet<EventoDeCobranca> EventosDeCobranca => Set<EventoDeCobranca>();
 
@@ -265,6 +268,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
         builder.Entity<AdesaoDoFormando>().Property(a => a.Cpf).HasConversion((ValueConverter)cifra.Conversor());
         builder.Entity<ConviteDoEvento>().Property(c => c.NumeroDoDocumento).HasConversion(cifra.Conversor());
         builder.Entity<ConviteDoEvento>().Property(c => c.EmailDoConvidado).HasConversion(cifra.Conversor());
+        builder.Entity<ConviteDoEvento>().Property(c => c.Observacoes).HasConversion(cifra.Conversor());
         builder.Entity<CompraDeConvite>().Property(c => c.Cpf).HasConversion(cifra.Conversor());
         builder.Entity<CompraDeConvite>().Property(c => c.Convidados).HasConversion(cifra.Conversor());
         builder.Entity<CompraDeConvite>().Property(c => c.CpfDoPagador).HasConversion(cifra.Conversor());

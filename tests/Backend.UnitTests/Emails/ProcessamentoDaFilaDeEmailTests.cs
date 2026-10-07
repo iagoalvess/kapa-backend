@@ -97,6 +97,21 @@ public sealed class ProcessamentoDaFilaDeEmailTests
         await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Recusa permanente do provedor não ganha nova tentativa: o mesmo 422 viria mais quatro vezes.</summary>
+    [Fact]
+    public async Task Recusa_permanente_desiste_na_primeira()
+    {
+        var recusado = Reservado();
+        _fila.ReservarLote(2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns([recusado]);
+        _remetente
+            .EnviarAsync(Arg.Any<MensagemDeEmail>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new EmailRecusadoException("MillionSend recusou o e-mail: 422 invalid to"));
+
+        await Servico().ProcessarLote(Ct);
+
+        recusado.Status.ShouldBe(EEmailStatus.Falhou);
+    }
+
     /// <summary>A preferência é conferida no envio (Sprint 40): quem saiu depois de enfileirar não recebe.</summary>
     [Fact]
     public async Task Marketing_de_quem_saiu_e_descartado_e_o_transacional_sai()

@@ -12,6 +12,7 @@ using Backend.Business.Formaturas.Models;
 using Backend.Business.Formaturas.Services;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
+using Backend.Business.Pagamentos.Models;
 using Backend.Business.Pagamentos.Services;
 using Backend.Business.Privacidade.Models;
 using Backend.Business.Privacidade.Services;
@@ -111,17 +112,23 @@ public sealed class AmostraDeEmails(
         await assinatura.BoasVindas(formatura, presidentes, hoje.AddYears(1), ct);
         await assinatura.PagamentoRecusado(formatura, presidentes, ct);
         await assinatura.Suspensao(formatura, presidentes, ct);
-        await assinatura.AvisoDeVencimento(formatura, presidentes, 7, hoje.AddDays(7), hoje.AddDays(14), false, false, ct);
-        await assinatura.AvisoDeVencimento(formatura, presidentes, 7, hoje.AddDays(7), hoje.AddDays(14), false, true, ct);
-        await assinatura.AvisoDeVencimento(formatura, presidentes, -1, hoje.AddDays(-1), hoje.AddDays(6), true, false, ct);
+        await assinatura.AvisoDeVencimento(formatura, presidentes, 7, hoje.AddDays(7), hoje.AddDays(14), false, ct);
+        await assinatura.AvisoDeVencimento(formatura, presidentes, -1, hoje.AddDays(-1), hoje.AddDays(6), true, ct);
     }
 
     private async Task DoPagamento(string para, CancellationToken ct)
     {
         var vencimento = DataUtils.Hoje();
 
-        await pagamento.Confirmado(para, Turma, vencimento, 35_000, vencimento, 0, Guid.CreateVersion7(), ct);
-        await pagamento.Confirmado(para, Turma, vencimento, 20_000, vencimento, 15_000, Guid.CreateVersion7(), ct);
+        await pagamento.Confirmados([new(para, Turma, vencimento, 35_000, vencimento, 0, Guid.CreateVersion7())], ct);
+        await pagamento.Confirmados([new(para, Turma, vencimento, 20_000, vencimento, 15_000, Guid.CreateVersion7())], ct);
+        await pagamento.Confirmados(
+            [
+                new(para, Turma, vencimento, 35_000, vencimento, 0, Guid.CreateVersion7()),
+                new(para, Turma, vencimento.AddMonths(1), 35_000, vencimento, 0, Guid.CreateVersion7()),
+            ],
+            ct
+        );
         await pagamento.Recusado(para, Turma, vencimento, 35_000, "Não encontramos este PIX no extrato da turma.", ct);
         await pagamento.Estornado(para, Turma, vencimento, 35_000, "Baixa lançada na parcela errada.", ct);
     }
@@ -154,7 +161,7 @@ public sealed class AmostraDeEmails(
     private async Task DoRecebimento(string para, CancellationToken ct)
     {
         var antes = new MeiosDaConta(
-            new ChavePixDaConta(TipoDeChavePix.Email, "tesouraria@odonto.kapa.dev", "Comissão de Formatura Odontologia", "Curitiba"),
+            new ChavePixDaConta(TipoDeChavePix.Email, "tesouraria@odonto.kapa.dev", "Comissão de Formatura Odontologia", "Curitiba", "Nubank"),
             new DadosBancarios("Banco do Brasil", "1234-5", "98765-4", "Corrente", "Comissão de Formatura Odontologia"),
             null
         );
@@ -169,7 +176,7 @@ public sealed class AmostraDeEmails(
         await canal.Enviar(
             new MensagemDeNotificacao(
                 para,
-                $"Sua parcela vence em 3 dias — {Turma}",
+                $"Lembrete da sua parcela — {Turma}",
                 "Olá, Ana Beatriz. A sua parcela de <strong>R$ 350,00</strong> vence em <strong>20/09/2026</strong>. "
                     + "Depois do vencimento entram multa de 2% e juros de 1% ao mês.",
                 aplicacao.Value.Link(RotasDoFront.MinhasParcelas),

@@ -10,22 +10,13 @@ namespace Backend.Business.Formandos.Models;
 /// obrigaria o cliente a reenviar o que não mudou — e a sobrescrever o que outra aba acabou de
 /// salvar.
 /// </remarks>
-/// <param name="Pessoais">Documentos e contato.</param>
-/// <param name="Endereco">Endereço.</param>
+/// <param name="Pessoais">Nome, CPF e telefone.</param>
 /// <param name="ContatoDeEmergencia">Quem avisar numa emergência.</param>
-public sealed record AtualizarPerfil(DadosPessoais? Pessoais, DadosDeEndereco? Endereco, DadosDeEmergencia? ContatoDeEmergencia)
+public sealed record AtualizarPerfil(DadosPessoais? Pessoais, DadosDeEmergencia? ContatoDeEmergencia)
 {
     /// <summary>Nomes das seções presentes no pedido, para o registro de correção.</summary>
     public string SecoesInformadas() =>
-        string.Join(
-            ',',
-            new[]
-            {
-                Pessoais is null ? null : "pessoais",
-                Endereco is null ? null : "endereco",
-                ContatoDeEmergencia is null ? null : "contatoDeEmergencia",
-            }.OfType<string>()
-        );
+        string.Join(',', new[] { Pessoais is null ? null : "pessoais", ContatoDeEmergencia is null ? null : "contatoDeEmergencia" }.OfType<string>());
 
     /// <summary>O mesmo pedido com outro CPF na seção pessoal, se ela veio.</summary>
     /// <param name="cpf">CPF que substitui o informado.</param>
@@ -34,41 +25,9 @@ public sealed record AtualizarPerfil(DadosPessoais? Pessoais, DadosDeEndereco? E
 
 /// <summary>Seção de dados pessoais.</summary>
 /// <param name="NomeCompleto">Nome civil completo.</param>
-/// <param name="NomeNoDiploma">Nome como sai no diploma.</param>
 /// <param name="Cpf">CPF, com ou sem máscara.</param>
-/// <param name="Rg">RG.</param>
-/// <param name="Matricula">Matrícula na instituição.</param>
 /// <param name="Telefone">Telefone, em E.164 ou no formato nacional com DDD.</param>
-/// <param name="DataDeNascimento">Data de nascimento.</param>
-/// <param name="Observacoes">Recado para a comissão.</param>
-public sealed record DadosPessoais(
-    string? NomeCompleto,
-    string? NomeNoDiploma,
-    string? Cpf,
-    string? Rg,
-    string? Matricula,
-    string? Telefone,
-    DateOnly? DataDeNascimento,
-    string? Observacoes
-);
-
-/// <summary>Seção de endereço.</summary>
-/// <param name="Cep">CEP, com ou sem máscara.</param>
-/// <param name="Logradouro">Rua, avenida.</param>
-/// <param name="Numero">Número.</param>
-/// <param name="Complemento">Complemento.</param>
-/// <param name="Bairro">Bairro.</param>
-/// <param name="Cidade">Cidade.</param>
-/// <param name="Uf">Sigla da UF.</param>
-public sealed record DadosDeEndereco(
-    string? Cep,
-    string? Logradouro,
-    string? Numero,
-    string? Complemento,
-    string? Bairro,
-    string? Cidade,
-    string? Uf
-);
+public sealed record DadosPessoais(string? NomeCompleto, string? Cpf, string? Telefone);
 
 /// <summary>Seção de contato de emergência.</summary>
 /// <param name="Nome">Nome de quem avisar.</param>
@@ -89,8 +48,7 @@ public sealed record MembroDoPerfil(Guid VinculoId, Guid UsuarioId, string Nome,
 /// <param name="Nome">Nome de exibição da conta.</param>
 /// <param name="Email">E-mail da conta.</param>
 /// <param name="Papel">Papel na formatura.</param>
-/// <param name="Pessoais">Documentos e contato.</param>
-/// <param name="Endereco">Endereço.</param>
+/// <param name="Pessoais">Nome, CPF e telefone.</param>
 /// <param name="ContatoDeEmergencia">Contato de emergência.</param>
 /// <param name="FotoArquivoId">Arquivo da foto: o dono baixa pelo módulo de arquivos, a comissão por <see cref="Interfaces.IPerfilService.BaixarFoto"/>.</param>
 /// <param name="Completude">Percentual preenchido, de 0 a 100.</param>
@@ -102,7 +60,6 @@ public sealed record PerfilDetalhe(
     string Email,
     string Papel,
     DadosPessoais Pessoais,
-    DadosDeEndereco Endereco,
     DadosDeEmergencia ContatoDeEmergencia,
     Guid? FotoArquivoId,
     int Completude,

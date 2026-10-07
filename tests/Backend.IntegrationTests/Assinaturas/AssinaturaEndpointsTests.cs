@@ -41,7 +41,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
 
         // Assert
         planos.ShouldNotBeNull();
-        planos.Single(p => p.Codigo == "premium").PrecoEmCentavos.ShouldBe(4990);
+        planos.Single(p => p.Codigo == "premium").PrecoEmCentavos.ShouldBe(17900);
         planos.Select(p => p.PrecoEmCentavos).ShouldBeInOrder();
     }
 
@@ -78,7 +78,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
         assinatura.ProximaCobrancaEm.ShouldBeNull();
     }
 
-    /// <summary>R$ 49,90 ida e volta: catálogo, provedor e leitura carregam 4990, nunca 49.9.</summary>
+    /// <summary>R$ 179,00 ida e volta: catálogo, provedor e leitura carregam 17900, nunca 179.0.</summary>
     [Fact]
     public async Task Valores_em_centavos_ponta_a_ponta()
     {
@@ -87,8 +87,8 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
 
         var checkout = (await (await Checkout(presidente)).Content.ReadFromJsonAsync<CheckoutDTO>(Json, Ct))!;
 
-        Fake.ObterSessao(checkout.Url.Split('/')[^1])!.Pedido.PrecoEmCentavos.ShouldBe(4990);
-        (await presidente.Cliente.GetFromJsonAsync<AssinaturaDTO>(Assinatura, Json, Ct))!.Plano.PrecoEmCentavos.ShouldBe(4990);
+        Fake.ObterSessao(checkout.Url.Split('/')[^1])!.Pedido.PrecoEmCentavos.ShouldBe(17900);
+        (await presidente.Cliente.GetFromJsonAsync<AssinaturaDTO>(Assinatura, Json, Ct))!.Plano.PrecoEmCentavos.ShouldBe(17900);
     }
 
     /// <summary>
@@ -284,7 +284,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
         var pagina = await navegador.GetStringAsync(checkout.Url, Ct);
         var pagamento = await navegador.PostAsync($"{checkout.Url}/pagar", null, Ct);
 
-        pagina.ShouldContain("R$ 49,90");
+        pagina.ShouldContain("R$ 179,00");
         pagamento.StatusCode.ShouldBe(HttpStatusCode.Redirect);
         pagamento.Headers.Location!.ToString().ShouldEndWith("/assinatura/retorno");
         (await StatusDa(formaturaId)).ShouldBe(StatusDaFormatura.Ativa);
@@ -292,7 +292,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
 
     /// <summary>
     /// Pediu o Essencial, depois o Premium: a sessão do Essencial não paga mais nada. Sem
-    /// isso, pagá-la ativava o Premium (400 formandos) pelo preço do Essencial.
+    /// isso, pagá-la ativava o Premium (200 formandos) pelo preço do Essencial.
     /// </summary>
     [Fact]
     public async Task Trocar_de_plano_invalida_a_sessao_do_plano_anterior()

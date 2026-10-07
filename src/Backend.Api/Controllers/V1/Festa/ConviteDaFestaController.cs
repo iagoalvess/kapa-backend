@@ -143,7 +143,13 @@ public sealed class ConviteDaFestaController(IConviteDoEventoService convites, I
     public async Task<IActionResult> EmitirCortesia([FromBody] CortesiaRequestDTO requisicao, CancellationToken ct)
     {
         var dados = new DadosDaCortesia(
-            new DadosDoConvidado(requisicao.Nome ?? string.Empty, requisicao.TipoDoDocumento, requisicao.NumeroDoDocumento, requisicao.Email),
+            new DadosDoConvidado(
+                requisicao.Nome ?? string.Empty,
+                requisicao.TipoDoDocumento,
+                requisicao.NumeroDoDocumento,
+                requisicao.Email,
+                requisicao.Observacoes
+            ),
             requisicao.Motivo ?? string.Empty,
             requisicao.EventoId
         );
@@ -162,5 +168,5 @@ public sealed class ConviteDaFestaController(IConviteDoEventoService convites, I
         Responder((await gestao.EmitirPendentes(ct)).Map(pedidos => new EmissaoDTO(pedidos)));
 
     private static DadosDoConvidado ParaModelo(ConvidadoRequestDTO requisicao) =>
-        new(requisicao.Nome ?? string.Empty, requisicao.TipoDoDocumento, requisicao.NumeroDoDocumento, requisicao.Email);
+        new(requisicao.Nome ?? string.Empty, requisicao.TipoDoDocumento, requisicao.NumeroDoDocumento, requisicao.Email, requisicao.Observacoes);
 }

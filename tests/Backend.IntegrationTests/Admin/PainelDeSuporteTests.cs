@@ -361,7 +361,7 @@ public sealed class PainelDeSuporteTests(ApiFactory fabrica)
 
         var vinculoId = await contexto.Vinculos.Where(v => v.UsuarioId == usuarioId).Select(v => v.Id).SingleAsync(Ct);
         var perfil = new PerfilDoFormando { VinculoId = vinculoId };
-        perfil.Aplicar(new AtualizarPerfil(new DadosPessoais("Ana Souza", null, cpf, null, null, null, new DateOnly(2000, 5, 20), null), null, null));
+        perfil.Aplicar(new AtualizarPerfil(new DadosPessoais("Ana Souza", cpf, null), null));
 
         contexto.PerfisDeFormandos.Add(perfil);
 

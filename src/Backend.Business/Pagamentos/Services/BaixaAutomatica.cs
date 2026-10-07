@@ -402,6 +402,7 @@ public sealed class BaixaAutomatica(
                 var semParcela = 0L;
                 Parcela? primeiraSemBaixa = null;
                 var baixadas = 0;
+                List<PagamentoConfirmado> confirmados = [];
 
                 foreach (var (parcela, ultima) in parcelas.Select((p, i) => (p, i == parcelas.Count - 1)))
                 {
@@ -413,7 +414,7 @@ public sealed class BaixaAutomatica(
                         parcela,
                         new DadosDaBaixa(forma, pagoEm, cabe, null, usuarioId, null, DateTime.UtcNow, cobranca.Id),
                         informes.FirstOrDefault(informe => informe.ParcelaId == parcela.Id),
-                        new ContextoDaBaixa(formaturaId, nomeDaTurma, regrasDoFormando, emails.GetValueOrDefault(parcela.VinculoId)),
+                        new ContextoDaBaixa(formaturaId, nomeDaTurma, regrasDoFormando, emails.GetValueOrDefault(parcela.VinculoId), confirmados),
                         token
                     );
 
@@ -432,6 +433,7 @@ public sealed class BaixaAutomatica(
 
                 cobranca.Paga();
                 await LancarNoCaixa(cobranca, tarifaEmCentavos, pagoEm, token);
+                await avisos.Confirmados(confirmados, token);
 
                 if (semParcela > 0 || parcelas.Count == 0)
                 {

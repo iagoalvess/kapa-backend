@@ -107,8 +107,7 @@ public sealed record AdesaoDetalhe(
 /// <summary>A situação do próprio formando diante do termo.</summary>
 /// <param name="Adesao">A adesão mais recente, se houver.</param>
 /// <param name="Pendencias">Itens do cadastro que faltam para aderir, pelos nomes de <c>ItensDoCadastro</c>.</param>
-/// <param name="MenorDeIdade">Se a data de nascimento informada dá menos de 18 anos hoje.</param>
-public sealed record MinhaAdesao(AdesaoDetalhe? Adesao, IReadOnlyList<string> Pendencias, bool MenorDeIdade);
+public sealed record MinhaAdesao(AdesaoDetalhe? Adesao, IReadOnlyList<string> Pendencias);
 
 /// <summary>
 /// Só o que a guarda de adesão e o ponto do menu perguntam: há termo, há plano, e eu já aderi?

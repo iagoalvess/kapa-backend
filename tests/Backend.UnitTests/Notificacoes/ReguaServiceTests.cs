@@ -233,6 +233,27 @@ public sealed class ReguaServiceTests
     }
 
     /// <summary>
+    /// O resumo da conferência sai no dia em que um aviso completa três dias parado, e não em todo dia
+    /// seguinte: os que já estavam parados ontem não disparam de novo.
+    /// </summary>
+    [Theory]
+    [InlineData(4, 3, true)]
+    [InlineData(3, 3, false)]
+    public async Task O_resumo_da_conferencia_sai_so_quando_um_aviso_cruza_o_prazo(int parados, int jaParadosOntem, bool sai)
+    {
+        _notificacoes
+            .ListarRegras(Arg.Any<CancellationToken>())
+            .Returns([new RegraResumo(Guid.CreateVersion7(), GatilhoDaRegua.InformePendente, 3, true)]);
+        _vinculos.ListarEmailsDaTesouraria(Formatura.Id, Arg.Any<CancellationToken>()).Returns(["tesouraria@turma.dev"]);
+        _notificacoes.ContarInformesPendentesAte(new DateOnly(2026, 9, 12), Arg.Any<CancellationToken>()).Returns(parados);
+        _notificacoes.ContarInformesPendentesAte(new DateOnly(2026, 9, 11), Arg.Any<CancellationToken>()).Returns(jaParadosOntem);
+
+        await Servico.Executar(Formatura, DentroDaJanela, Ct);
+
+        EnviosGravados().Count.ShouldBe(sai ? 1 : 0);
+    }
+
+    /// <summary>
     /// Mensagem recusada pelo canal não vira envio gravado: o histórico não mente sobre o que saiu.
     /// </summary>
     [Fact]

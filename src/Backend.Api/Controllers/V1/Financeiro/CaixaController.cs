@@ -15,17 +15,17 @@ namespace Backend.Api.Controllers.V1.Financeiro;
 /// Quanto a turma tem, quanto ainda entra e quanto ainda sai.
 /// </summary>
 /// <remarks>
-/// O consolidado e a arrecadação são de todo membro — prestação de contas, só somas; a projeção, com o
-/// planejamento das despesas, é da gestão, porque é com ela que a comissão decide contratar. O menu mostra o
-/// Caixa a todo membro; para o formando a tela não pede a projeção nem desenha o cartão dela. Só leitura:
-/// nada aqui grava, e saldo não é coluna (decisão 1).
+/// O consolidado e a arrecadação são de todo membro — prestação de contas, só somas. A projeção, com o
+/// planejamento das despesas, é da gestão, porque é com ela que a comissão decide contratar: o formando recebe
+/// só os meses que já passaram (06/10). Só leitura: nada aqui grava, e saldo não é coluna (decisão 1).
 /// </remarks>
 /// <param name="caixaService">Agregações do caixa.</param>
+/// <param name="autorizacao">Diz se quem lê é da Gestão — o papel vem do banco, não do token.</param>
 [ApiVersion("1.0")]
 [ExigeModulo(Modulo.Caixa)]
 [Route("api/v{version:apiVersion}/financeiro/caixa")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class CaixaController(ICaixaService caixaService) : MainController
+public sealed class CaixaController(ICaixaService caixaService, IAuthorizationService autorizacao) : MainController
 {
     /// <summary>O caixa de hoje: arrecadado, gasto, saldo, a receber, o quadro por categoria e os últimos lançamentos.</summary>
     /// <remarks>
@@ -52,11 +52,18 @@ public sealed class CaixaController(ICaixaService caixaService) : MainController
         Responder((await caixaService.Arrecadacao(ct)).Map(meses => meses.Adapt<IReadOnlyList<MesDaArrecadacaoDTO>>()));
 
     /// <summary>O fluxo mês a mês: realizado até hoje, projetado até a colação.</summary>
-    /// <remarks>Parcela vencida não entra em mês nenhum: vai em <c>emAtrasoEmCentavos</c>, à parte (decisão 6).</remarks>
+    /// <remarks>
+    /// Parcela vencida não entra em mês nenhum: vai em <c>emAtrasoEmCentavos</c>, à parte (decisão 6). Quem não é
+    /// da Gestão recebe só até o mês atual, sem previsto.
+    /// </remarks>
     [HttpGet("projecao")]
-    [Authorize(Policy = Politicas.Gestao)]
+    [Authorize(Policy = Politicas.MembroDaFormatura)]
     [ProducesResponseType(typeof(ProjecaoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> Projecao(CancellationToken ct) =>
-        Responder((await caixaService.Projecao(FormaturaId, ct)).Map(projecao => projecao.Adapt<ProjecaoDTO>()));
+    public async Task<IActionResult> Projecao(CancellationToken ct)
+    {
+        var daGestao = (await autorizacao.AuthorizeAsync(User, Politicas.Gestao)).Succeeded;
+
+        return Responder((await caixaService.Projecao(FormaturaId, soRealizado: !daGestao, ct)).Map(projecao => projecao.Adapt<ProjecaoDTO>()));
+    }
 }

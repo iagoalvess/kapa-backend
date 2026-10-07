@@ -244,12 +244,15 @@ alguém vai procurar depois.
 
 ### Por que SMTP e não o SDK de um provedor
 
-Amazon SES, SendGrid, Mailgun, Resend, Postmark e Gmail **todos falam SMTP**. Uma implementação
+Amazon SES, SendGrid, Mailgun, Postmark e Gmail **todos falam SMTP**. Uma implementação
 cobre todos, e trocar de provedor é mudar host, porta e credencial no ambiente.
 
 Um cliente específico só passa a valer a pena quando você precisa de algo que SMTP não oferece:
 webhook de bounce, template hospedado no provedor, envio em lote personalizado. Nesse dia,
 implemente `IEmailSender` e troque o registro na injeção de dependência.
+
+Foi o caso da MillionSend (07/10/2026): a Cloud não tem relay SMTP, então `MillionSendEmailSender` monta a
+mesma mensagem do `SmtpEmailSender` e a entrega por `POST /emails`. Liga com `Smtp:ApiKeyDaMillionSend`.
 
 Com `Smtp:Host` vazio, entra um remetente que apenas registra a mensagem no log — é o que faz o
 projeto subir e o fluxo funcionar de ponta a ponta sem um servidor SMTP à mão.

@@ -75,6 +75,10 @@ public sealed class ContaDeRecebimentoValidator : AbstractValidator<MeiosDaConta
                     .WithMessage("A cidade deve ter no máximo 100 caracteres.")
                     .Must(cidade => BrCode.Texto(cidade, BrCode.TamanhoMaximoDaCidade).Length > 0)
                     .WithMessage("Escreva a cidade com letras do alfabeto latino.");
+
+                RuleFor(x => x.Pix!.Banco)
+                    .MaximumLength(TamanhoDoCampoBancario)
+                    .WithMessage($"O banco deve ter no máximo {TamanhoDoCampoBancario} caracteres.");
             }
         );
 

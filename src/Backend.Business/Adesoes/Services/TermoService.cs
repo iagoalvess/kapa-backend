@@ -53,12 +53,23 @@ public sealed class TermoService(
     /// de ser criado, e quem preenche essa coluna é o <c>SaveChangesAsync</c>, que ainda não rodou.
     /// Lê-la aqui grava <c>Guid.Empty</c> no evento — e o evento some da trilha da turma.
     /// </para>
+    /// <para>
+    /// Exige plano de cobrança em vigor (<c>adesao.termo_sem_plano_vigente</c>, decisão de 06/10/2026): o que o formando
+    /// assina é o termo com o quadro de escolhas do plano (Sprint 47), e sem o plano o texto seria escrito antes de os
+    /// pacotes e os preços existirem. Vale para toda versão — numa turma rodando, o plano em vigor sempre existe.
+    /// </para>
     /// </remarks>
     public async Task<Result<VersaoDoTermo>> Publicar(Guid usuarioId, PublicarTermo dados, CancellationToken ct = default)
     {
         var validacao = validator.Validar(dados);
         if (validacao.Falhou)
             return Result.Falha<VersaoDoTermo>(validacao.Erros);
+
+        if (!await planoRepository.ExisteVigente(ct))
+            return Erro.Conflito(
+                "adesao.termo_sem_plano_vigente",
+                "Ponha o plano de cobrança em vigor antes de publicar o termo: ele é assinado junto com os pacotes do plano."
+            );
 
         var vigente = await adesaoRepository.ObterTermoVigente(ct);
         var conteudo = dados.Conteudo.Trim();

@@ -48,7 +48,7 @@ dotnet test tests/Backend.IntegrationTests --no-build # sobe Postgres em contain
 | **Painel administrativo** | Analytics da plataforma (`GET /api/v1/admin/analytics`), listas de turmas e contas do suporte e gestão completa de usuários, com travas contra ficar sem administrador. |
 | **Erros** | `Result<T>` para falha prevista, exceção para o resto; tudo sai em `ProblemDetails` (RFC 9457) com `traceId`. |
 | **Persistência** | EF Core + PostgreSQL, `snake_case`, UUIDv7, Unit of Work, mapeamento por `IEntityTypeConfiguration`. |
-| **E-mail** | Fila em tabela + envio pelo worker com retentativa exponencial. SMTP (MailKit), que serve SES, SendGrid, Mailgun, Resend e Gmail sem trocar código. |
+| **E-mail** | Fila em tabela + envio pelo worker com retentativa exponencial. SMTP (MailKit) para SES, SendGrid, Mailgun e Gmail; em produção, a API HTTP da MillionSend (`Smtp:ApiKeyDaMillionSend`). |
 | **Arquivos** | Upload, download e remoção com metadados no banco e bytes no provedor. Disco local em dev, S3 em produção (ou MinIO/R2/B2). Lista de permissão de extensões, tipo de conteúdo derivado da extensão, cota por usuário e chave gerada pela aplicação. |
 | **Eventos** | `[RegistrarEvento("nome")]` no controller → fila em memória → gravação em lote → job de retenção. |
 | **Observabilidade** | `ILogger` com console JSON + OpenTelemetry (traces e métricas via OTLP) + health check. |

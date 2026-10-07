@@ -5,7 +5,7 @@ namespace Backend.Business.Emails.Settings;
 /// </summary>
 /// <remarks>
 /// SMTP, e não o SDK de um provedor específico, porque **todos** falam SMTP — Amazon SES,
-/// SendGrid, Mailgun, Resend, Postmark, Gmail. Trocar de provedor é mudar host, porta e
+/// SendGrid, Mailgun, Postmark, Gmail. Trocar de provedor é mudar host, porta e
 /// credencial no ambiente, sem recompilar e sem tocar em código.
 /// <para>
 /// Um cliente específico de provedor só passa a valer a pena quando você precisa de algo que
@@ -35,6 +35,10 @@ public sealed class SmtpSettings
     /// <summary>Senha de autenticação.</summary>
     public string Senha { get; init; } = string.Empty;
 
+    /// <summary>Chave <c>ms_…</c> da MillionSend. Preenchida, o envio sai pela API HTTP dela e o <see cref="Host"/> é ignorado.</summary>
+    /// <remarks>A MillionSend Cloud não tem relay SMTP; exige <see cref="UrlDasImagens"/>, porque a API recusa imagem por <c>cid</c>.</remarks>
+    public string ApiKeyDaMillionSend { get; init; } = string.Empty;
+
     /// <summary>Endereço que aparece como remetente.</summary>
     public string RemetenteEmail { get; init; } = string.Empty;
 
@@ -43,7 +47,7 @@ public sealed class SmtpSettings
 
     /// <summary>Endereço que assina o marketing do Kapa (P4 da Sprint 40). Vazio, sai pelo <see cref="RemetenteEmail"/>.</summary>
     /// <remarks>
-    /// Subdomínio próprio (<c>novidades@novidades.kapaformaturas.com.br</c>), com SPF e DKIM próprios no Resend:
+    /// Subdomínio próprio (<c>novidades@novidades.kapaformaturas.com.br</c>), com SPF e DKIM próprios na MillionSend:
     /// a reputação de uma campanha ruim fica nele, e a cobrança e a redefinição de senha continuam chegando.
     /// </remarks>
     public string RemetenteDeMarketingEmail { get; init; } = string.Empty;
@@ -86,5 +90,5 @@ public sealed class SmtpSettings
     public int MaximoDeTentativas { get; init; } = 5;
 
     /// <summary>Indica se a configuração aponta para um servidor real.</summary>
-    public bool Configurado => !string.IsNullOrWhiteSpace(Host);
+    public bool Configurado => !string.IsNullOrWhiteSpace(Host) || !string.IsNullOrWhiteSpace(ApiKeyDaMillionSend);
 }

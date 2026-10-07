@@ -37,6 +37,9 @@ public class Assinatura : EntidadeDaFormatura
     /// <summary>Como a turma paga: cartão recorrente ou um PIX avulso por ciclo (Sprint 37).</summary>
     public MeioDePagamento Meio { get; set; } = MeioDePagamento.Cartao;
 
+    /// <summary>Cupom da primeira cobrança (Sprint 51). Preso à pendente: retomar o checkout não gasta outro uso.</summary>
+    public Guid? CupomId { get; set; }
+
     /// <summary>Plano que passa a valer na próxima renovação — a descida do Premium para o Essencial (P4).</summary>
     public Guid? PlanoDoProximoCicloId { get; private set; }
 

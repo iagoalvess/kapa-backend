@@ -145,6 +145,12 @@ public static class NomesDeAuditoria
     /// <remarks>Leva a <c>formaturaId</c>, como a ativação: a comissão vê na trilha dela quem devolveu e quanto.</remarks>
     public const string SuportePagamentoEstornado = "suporte.pagamento_estornado";
 
+    /// <summary>Cupom de desconto criado pelo Administrador (Sprint 51). Da plataforma: sai sem <c>formaturaId</c>.</summary>
+    public const string CupomCriado = "suporte.cupom_criado";
+
+    /// <summary>Cupom desativado pelo Administrador (Sprint 51): deixa de valer na hora.</summary>
+    public const string CupomDesativado = "suporte.cupom_desativado";
+
     /// <summary>Convite da festa emitido antes da quitação, pela Gestão, com motivo (Sprint 21, P2).</summary>
     public const string ConvitesLiberados = "festa.convites_liberados";
 
@@ -242,5 +248,7 @@ public static class NomesDeAuditoria
         SuporteRedefinicaoDisparada,
         SuporteContaDesbloqueada,
         SuportePagamentoEstornado,
+        CupomCriado,
+        CupomDesativado,
     ];
 }

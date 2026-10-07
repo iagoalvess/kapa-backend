@@ -98,7 +98,7 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
     /// <remarks>
     /// 409 com <c>adesao.sem_termo_publicado</c>, <c>adesao.sem_plano_vigente</c>, <c>adesao.ja_aderiu</c>,
     /// <c>adesao.termo_desatualizado</c> (recarregue e leia de novo), <c>adesao.cadastro_incompleto</c>,
-    /// <c>adesao.menor_de_idade</c>, <c>adesao.cpf_em_uso</c> ou <c>adesao.codigo_invalido</c> (peça outro
+    /// <c>adesao.cpf_em_uso</c> ou <c>adesao.codigo_invalido</c> (peça outro
     /// em <c>POST /adesoes/codigo</c>).
     /// <para>
     /// O limite estreito é o mesmo do envio: o código tem seis dígitos e vale poucos minutos, e sem

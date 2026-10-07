@@ -16,7 +16,7 @@ public interface ICaixaService
 
     /// <summary>O fluxo mês a mês: realizado até hoje, projetado até a colação.</summary>
     /// <param name="formaturaId">Formatura da sessão — é dela a data da colação.</param>
-    Task<Result<ProjecaoDoCaixa>> Projecao(Guid formaturaId, CancellationToken ct = default);
+    Task<Result<ProjecaoDoCaixa>> Projecao(Guid formaturaId, bool soRealizado = false, CancellationToken ct = default);
 
     /// <summary>
     /// Quanto a turma já tinha juntado ao fim de cada um dos últimos meses, e quanto deve ter no próximo.

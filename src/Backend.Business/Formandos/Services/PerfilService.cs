@@ -206,7 +206,6 @@ public sealed class PerfilService(
             membro.Email,
             membro.Papel,
             perfil.ParaDadosPessoais(),
-            perfil.Endereco.ParaDados(),
             perfil.ContatoDeEmergencia.ParaDados(),
             perfil.FotoArquivoId,
             perfil.Completude,

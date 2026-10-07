@@ -345,6 +345,7 @@ public sealed class ConviteDoEventoService(
             Nome = dados.Nome.Trim(),
             NumeroDoDocumento = DocumentoDoConvidado.Normalizar(dados.TipoDoDocumento, dados.NumeroDoDocumento),
             Email = string.IsNullOrWhiteSpace(dados.Email) ? null : dados.Email.Trim(),
+            Observacoes = string.IsNullOrWhiteSpace(dados.Observacoes) ? null : dados.Observacoes.Trim(),
         };
 
     private MeuConvite ParaMeu(ConviteDoEvento convite, DateTime? validadoEm) => ParaMeu(convite, validadoEm, codigos);
@@ -364,7 +365,8 @@ public sealed class ConviteDoEventoService(
             DocumentoDoConvidado.Mascarar(convite.TipoDoDocumento, convite.NumeroDoDocumento),
             convite.EmailDoConvidado,
             convite.EmitidoEm,
-            validadoEm
+            validadoEm,
+            convite.Observacoes
         );
 }
 

@@ -47,18 +47,4 @@ public sealed class FormatosBrasileirosTests
     [InlineData("+0 1234 5678", null)]
     public void Telefone_nacional_ou_E164_sai_em_E164(string telefone, string? esperado) =>
         FormatosBrasileiros.TelefoneE164(telefone).ShouldBe(esperado);
-
-    [Theory]
-    [InlineData("80000-000", true)]
-    [InlineData("80.000-000", true)]
-    [InlineData("80000000", true)]
-    [InlineData("8000-0000", false)]
-    [InlineData("800000001", false)]
-    public void Cep_tem_oito_digitos(string cep, bool esperado) => FormatosBrasileiros.CepValido(cep).ShouldBe(esperado);
-
-    [Theory]
-    [InlineData("pr", true)]
-    [InlineData("SP", true)]
-    [InlineData("XX", false)]
-    public void Uf_e_uma_das_27_siglas(string uf, bool esperado) => FormatosBrasileiros.UfValida(uf).ShouldBe(esperado);
 }

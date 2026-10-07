@@ -123,7 +123,8 @@ public sealed class ProcessamentoDaFilaDeEmail(
         }
         catch (Exception excecao)
         {
-            email.RegistrarFalha(excecao.Message, DateTime.UtcNow, _settings.MaximoDeTentativas);
+            // Recusa permanente não ganha nova tentativa: seriam mais quatro chamadas pagas para o mesmo "não".
+            email.RegistrarFalha(excecao.Message, DateTime.UtcNow, excecao is EmailRecusadoException ? 0 : _settings.MaximoDeTentativas);
 
             logger.LogWarning(
                 excecao,

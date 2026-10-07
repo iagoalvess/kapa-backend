@@ -342,6 +342,9 @@ public sealed class WebhookService(
             await AjustarRecorrencia(assinatura, ct);
         else if (contratacao)
         {
+            if (assinatura.CupomId is not null)
+                await AjustarRecorrencia(assinatura, ct);
+
             Ativar(formatura);
             await emails.BoasVindas(formatura, await Presidentes(formatura, ct), assinatura.VigenteAte!.Value, ct);
         }
@@ -431,8 +434,9 @@ public sealed class WebhookService(
     }
 
     /// <summary>
-    /// Depois da diferença paga, o débito do cartão passa a cobrar o plano novo. Falhar aqui não desfaz nada: o log
-    /// avisa, e o próximo débito sai pelo valor antigo até o suporte acertar.
+    /// Depois da diferença paga, o débito do cartão passa a cobrar o plano novo — e, depois da contratação com cupom
+    /// (Sprint 51), o preço cheio: o desconto vale só na primeira cobrança. Falhar aqui não desfaz nada: o log
+    /// avisa como erro (é o alerta do Grafana), e o próximo débito sai pelo valor antigo até o suporte acertar.
     /// </summary>
     private async Task AjustarRecorrencia(Assinatura assinatura, CancellationToken ct)
     {
@@ -447,7 +451,7 @@ public sealed class WebhookService(
         var ajuste = await provedor.AtualizarValor(recorrencia, plano.PrecoEmCentavos, ct);
 
         if (ajuste.Falhou)
-            logger.LogWarning(
+            logger.LogError(
                 "A recorrência da assinatura {AssinaturaId} não passou para o valor do plano {Plano}: {Codigo}.",
                 assinatura.Id,
                 plano.Codigo,
@@ -490,9 +494,18 @@ public sealed class WebhookService(
         await emails.Suspensao(formatura, await Presidentes(formatura, ct), ct);
     }
 
+    /// <summary>Avisa o vencimento — menos o "renova em tal dia, nada muda" de quem renova sozinho no cartão.</summary>
+    /// <remarks>
+    /// Antes do vencimento, a assinatura no cartão que segue ativa não pede nada a ninguém: eram dois e-mails por ciclo
+    /// só para dizer que tudo continua (07/10/2026). O marco fica registrado do mesmo jeito; o PIX avulso, a renovação
+    /// cancelada e o D+1 continuam saindo, porque pedem uma ação.
+    /// </remarks>
     private async Task Avisar(Assinatura assinatura, int marco, CancellationToken ct)
     {
         assinatura.RegistrarAviso(marco);
+
+        if (marco > 0 && assinatura.Status != StatusDaAssinatura.Cancelada && assinatura.Meio != MeioDePagamento.Pix)
+            return;
 
         var formatura = await formaturaRepository.ObterParaEdicao(assinatura.FormaturaId, ct);
 
@@ -509,7 +522,6 @@ public sealed class WebhookService(
             vigenteAte,
             cancelada ? vigenteAte : vigenteAte + Carencia,
             cancelada,
-            assinatura.Meio == MeioDePagamento.Pix,
             ct
         );
     }

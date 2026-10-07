@@ -61,6 +61,7 @@ public sealed class AssinaturaMapping : IEntityTypeConfiguration<Assinatura>
         builder.HasOne<Plano>().WithMany().HasForeignKey(a => a.PlanoDoProximoCicloId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<Plano>().WithMany().HasForeignKey(a => a.PlanoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Cupom>().WithMany().HasForeignKey(a => a.CupomId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Formatura>().WithMany().HasForeignKey(a => a.FormaturaId).OnDelete(DeleteBehavior.Restrict);
 
         builder
@@ -70,6 +71,35 @@ public sealed class AssinaturaMapping : IEntityTypeConfiguration<Assinatura>
             .HasDatabaseName("ix_assinaturas_pendente_por_formatura");
 
         builder.HasIndex(a => new { a.Status, a.VigenteAte });
+    }
+}
+
+/// <summary>
+/// Mapeamento dos cupons (Sprint 51).
+/// </summary>
+/// <remarks>
+/// As travas de dinheiro moram também no banco: teto de 50%, limite positivo e usos nunca acima dele. O <c>UPDATE</c>
+/// condicional do repositório já respeita o limite; a constraint é o muro se alguém escrever outro caminho.
+/// </remarks>
+public sealed class CupomMapping : IEntityTypeConfiguration<Cupom>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<Cupom> builder)
+    {
+        builder.ToTable(
+            "cupons",
+            tabela =>
+            {
+                tabela.HasCheckConstraint("ck_cupons_percentual", $"percentual BETWEEN 1 AND {Cupom.PercentualMaximo}");
+                tabela.HasCheckConstraint("ck_cupons_usos", "limite_de_usos > 0 AND usos >= 0 AND usos <= limite_de_usos");
+            }
+        );
+
+        builder.HasKey(c => c.Id);
+
+        builder.Property(c => c.Codigo).IsRequired().HasMaxLength(Cupom.TamanhoMaximo);
+
+        builder.HasIndex(c => c.Codigo).IsUnique();
     }
 }
 

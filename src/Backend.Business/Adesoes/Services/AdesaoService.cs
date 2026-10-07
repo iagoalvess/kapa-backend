@@ -73,19 +73,11 @@ public sealed class AdesaoService(
     /// <summary>Tamanho da coluna de User-Agent; o cabeçalho é escrito pelo cliente e não tem teto.</summary>
     public const int TamanhoMaximoDoUserAgent = 512;
 
-    /// <summary>Idade mínima para aderir pela plataforma (decisão de 14/09/2026).</summary>
-    public const int IdadeMinima = 18;
-
     /// <summary>
-    /// O que o cadastro precisa ter para aderir: nome e CPF identificam quem assina; a data de
-    /// nascimento diz se a pessoa pode assinar sozinha.
+    /// O que o cadastro precisa ter para aderir: nome e CPF identificam quem assina. A idade é declarada
+    /// nos Termos de Uso (06/10), não conferida.
     /// </summary>
-    public static readonly IReadOnlyList<string> ExigidosNaAdesao =
-    [
-        ItensDoCadastro.NomeCompleto,
-        ItensDoCadastro.Cpf,
-        ItensDoCadastro.DataDeNascimento,
-    ];
+    public static readonly IReadOnlyList<string> ExigidosNaAdesao = [ItensDoCadastro.NomeCompleto, ItensDoCadastro.Cpf];
 
     private static readonly Erro SemTermo = Erro.Conflito("adesao.sem_termo_publicado", "A comissão ainda não publicou o termo de adesão da turma.");
 
@@ -277,11 +269,7 @@ public sealed class AdesaoService(
         var ultima = await adesaoRepository.ObterUltimaDoVinculo(membro.VinculoId, ct);
         var perfil = await perfilRepository.ObterDoVinculo(membro.VinculoId, ct);
 
-        return new MinhaAdesao(
-            ultima is null ? null : Detalhar(ultima),
-            Pendencias(perfil),
-            perfil?.DataDeNascimento is { } nascimento && MenorDeIdade(nascimento)
-        );
+        return new MinhaAdesao(ultima is null ? null : Detalhar(ultima), Pendencias(perfil));
     }
 
     /// <inheritdoc />
@@ -366,17 +354,7 @@ public sealed class AdesaoService(
     private async Task<Result> ConferirCadastro(PerfilDoFormando? perfil, Guid vinculoId, CancellationToken ct)
     {
         if (perfil is null || Pendencias(perfil).Count > 0)
-            return Result.Falha(
-                Erro.Conflito("adesao.cadastro_incompleto", "Para aderir, informe no seu cadastro o nome completo, o CPF e a data de nascimento.")
-            );
-
-        if (MenorDeIdade(perfil.DataDeNascimento!.Value))
-            return Result.Falha(
-                Erro.Conflito(
-                    "adesao.menor_de_idade",
-                    "Quem tem menos de 18 anos adere com a comissão, junto com o responsável legal, e não pela plataforma."
-                )
-            );
+            return Result.Falha(Erro.Conflito("adesao.cadastro_incompleto", "Para aderir, informe no seu cadastro o nome completo e o CPF."));
 
         if (await adesaoRepository.CpfEmUsoPorOutro(perfil.Cpf!, vinculoId, ct))
             return Result.Falha(
@@ -391,8 +369,6 @@ public sealed class AdesaoService(
 
     private static IReadOnlyList<string> Pendencias(PerfilDoFormando? perfil) =>
         perfil is null ? ExigidosNaAdesao : [.. ExigidosNaAdesao.Intersect(perfil.Faltando())];
-
-    private static bool MenorDeIdade(DateOnly nascimento) => nascimento.AddYears(IdadeMinima) > DataUtils.Hoje();
 
     /// <summary>
     /// <c>ana.souza@exemplo.com</c> vira <c>an*******@exemplo.com</c>: o bastante para a pessoa

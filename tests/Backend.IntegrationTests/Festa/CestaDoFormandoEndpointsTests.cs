@@ -62,7 +62,10 @@ public sealed class CestaDoFormandoEndpointsTests(ApiFactory fabrica)
         // Assert
         (await Devido(catalogo, ana)).ShouldBe(420_000 + 30_000);
         (await Devido(catalogo, bruno)).ShouldBe(80_000);
-        (await Meus(ana, TipoDeEvento.Festa)).Convites.Count().ShouldBe(15);
+        var daAna = (await Meus(ana, TipoDeEvento.Festa)).Convites.ToList();
+        daAna.Count.ShouldBe(15);
+        daAna.Single(convite => convite.Sequencial == 1).Documento.ShouldNotBeNull().ShouldStartWith("CPF");
+        daAna.Count(convite => convite.NomeDoConvidado is null).ShouldBe(14);
         (await Meus(bruno, TipoDeEvento.Festa)).Convites.ShouldBeEmpty();
 
         var cesta = (await ana.Cliente.GetFromJsonAsync<MinhaAdesaoDTO>("/api/v1/adesoes/eu", Json, Ct))!.Adesao!.Plano.Cesta;
@@ -84,8 +87,8 @@ public sealed class CestaDoFormandoEndpointsTests(ApiFactory fabrica)
 
         // Assert
         (await Meus(ana, TipoDeEvento.Colacao))
-            .Convites.Select(convite => convite.Sequencial)
-            .ShouldBe([1, 2, 3]);
+            .Convites.Select(convite => (convite.Sequencial, ComNome: convite.NomeDoConvidado is not null))
+            .ShouldBe([(1, true), (2, false), (3, false)]);
     }
 
     /// <summary>D32 e D33: uma faixa por grupo, e ao menos um pacote para aderir.</summary>
@@ -173,7 +176,7 @@ public sealed class CestaDoFormandoEndpointsTests(ApiFactory fabrica)
         var festaId = await CriarEvento(catalogo.Turma.Presidente, TipoDeEvento.Festa, TimeSpan.FromHours(1));
         var ana = await fabrica.FormandoComAdesao(catalogo.Turma.FormaturaId, catalogo.Festa10);
         var gestao = catalogo.Turma.Presidente.Cliente;
-        var convite = (await Meus(ana, TipoDeEvento.Festa)).Convites.First();
+        var convite = (await Meus(ana, TipoDeEvento.Festa)).Convites.First(c => c.NomeDoConvidado is null);
         (
             await gestao.PutAsJsonAsync(
                 $"{Convites}/{convite.Id}/convidado",
@@ -415,7 +418,7 @@ public sealed class CestaDoFormandoEndpointsTests(ApiFactory fabrica)
         var festaId = await CriarEvento(catalogo.Turma.Presidente, TipoDeEvento.Festa, TimeSpan.FromHours(1));
         var ana = await fabrica.FormandoComAdesao(catalogo.Turma.FormaturaId, catalogo.Festa10);
         var gestao = catalogo.Turma.Presidente.Cliente;
-        var convites = (await Meus(ana, TipoDeEvento.Festa)).Convites.Take(2).ToList();
+        var convites = (await Meus(ana, TipoDeEvento.Festa)).Convites.Where(c => c.NomeDoConvidado is null).Take(2).ToList();
         foreach (var convite in convites)
             (
                 await gestao.PutAsJsonAsync(

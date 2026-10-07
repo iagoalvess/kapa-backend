@@ -41,12 +41,12 @@ public sealed class PacoteDeDadosTests
     }
 
     [Fact]
-    public void Cadastro_leva_o_cpf_e_o_endereco_do_titular()
+    public void Cadastro_leva_o_cpf_e_o_contato_do_titular()
     {
         var cadastro = Abrir(Dados())["cadastro.csv"];
 
         cadastro.ShouldContain("12345678901");
-        cadastro.ShouldContain("Rua das Flores");
+        cadastro.ShouldContain("Marta Souza");
         cadastro.ShouldContain("Medicina 2027");
     }
 
@@ -82,12 +82,12 @@ public sealed class PacoteDeDadosTests
     }
 
     /// <summary>
-    /// Injeção de fórmula em CSV: o titular escreve a observação, e é ele mesmo quem abre o arquivo.
+    /// Injeção de fórmula em CSV: o titular escreve o parentesco, e é ele mesmo quem abre o arquivo.
     /// </summary>
     [Fact]
-    public void Observacao_que_comeca_com_igual_nao_vira_formula()
+    public void Parentesco_que_comeca_com_igual_nao_vira_formula()
     {
-        var cadastro = Abrir(Dados(observacoes: "=1+1"))["cadastro.csv"];
+        var cadastro = Abrir(Dados(parentesco: "=1+1"))["cadastro.csv"];
 
         cadastro.ShouldContain("'=1+1");
     }
@@ -95,7 +95,7 @@ public sealed class PacoteDeDadosTests
     [Fact]
     public void Valor_com_ponto_e_virgula_vai_entre_aspas()
     {
-        var cadastro = Abrir(Dados(observacoes: "moro com a mãe; ligar à noite"))["cadastro.csv"];
+        var cadastro = Abrir(Dados(parentesco: "moro com a mãe; ligar à noite"))["cadastro.csv"];
 
         cadastro.ShouldContain("\"moro com a mãe; ligar à noite\"");
     }
@@ -139,7 +139,7 @@ public sealed class PacoteDeDadosTests
     }
 
     /// <summary>Um titular com uma turma, uma parcela, um consentimento e uma preferência.</summary>
-    private static MeusDados Dados(string? observacoes = null)
+    private static MeusDados Dados(string? parentesco = "mãe")
     {
         var formaturaId = Guid.CreateVersion7();
 
@@ -154,15 +154,9 @@ public sealed class PacoteDeDadosTests
                     true,
                     new PerfilExportado(
                         "Ana Souza",
-                        null,
                         "12345678901",
-                        "1234567",
-                        "2021001",
                         "+5541999990000",
-                        new DateOnly(2000, 3, 14),
-                        observacoes,
-                        new DadosDeEndereco("80000000", "Rua das Flores", "100", null, "Centro", "Curitiba", "PR"),
-                        new DadosDeEmergencia("Marta Souza", "+5541988880000", "mãe"),
+                        new DadosDeEmergencia("Marta Souza", "+5541988880000", parentesco),
                         true,
                         90
                     ),

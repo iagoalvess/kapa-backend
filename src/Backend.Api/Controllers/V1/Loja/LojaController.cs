@@ -139,7 +139,13 @@ public sealed class LojaController(ILojaService loja) : MainController
                 await loja.NomearConvidado(
                     token,
                     id,
-                    new DadosDoConvidado(requisicao.Nome ?? string.Empty, requisicao.TipoDoDocumento, requisicao.NumeroDoDocumento, requisicao.Email),
+                    new DadosDoConvidado(
+                        requisicao.Nome ?? string.Empty,
+                        requisicao.TipoDoDocumento,
+                        requisicao.NumeroDoDocumento,
+                        requisicao.Email,
+                        requisicao.Observacoes
+                    ),
                     ct
                 )
             ).Map(convite => convite.Adapt<MeuConviteDTO>())

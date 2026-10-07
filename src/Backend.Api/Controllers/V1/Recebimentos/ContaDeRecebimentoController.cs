@@ -122,7 +122,13 @@ public sealed class ContaDeRecebimentoController(IContaDeRecebimentoService cont
     private static MeiosDaConta ParaModelo(MeiosDaContaDTO requisicao) =>
         new(
             requisicao.Pix is { } pix
-                ? new ChavePixDaConta(pix.TipoDeChave, pix.Chave ?? string.Empty, pix.NomeDoTitular ?? string.Empty, pix.Cidade ?? string.Empty)
+                ? new ChavePixDaConta(
+                    pix.TipoDeChave,
+                    pix.Chave ?? string.Empty,
+                    pix.NomeDoTitular ?? string.Empty,
+                    pix.Cidade ?? string.Empty,
+                    pix.Banco
+                )
                 : null,
             requisicao.Transferencia is { } conta
                 ? new DadosBancarios(

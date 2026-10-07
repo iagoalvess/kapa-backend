@@ -137,7 +137,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     /// <inheritdoc />
     /// <remarks>
-    /// A rajada da entrada vai por <c>UseSetting</c>, e não pelo dicionário de <see cref="CreateHost"/>:
+    /// A rajada da entrada (e o limite do cupom) vai por <c>UseSetting</c>, e não pelo dicionário de <see cref="CreateHost"/>:
     /// lá ela ganharia do <c>UseSetting</c> de um host apertado, e o teste do limite não conseguiria
     /// baixá-la. Aqui, o <c>WithWebHostBuilder</c> do teste roda depois e sobrescreve.
     /// <para>
@@ -151,6 +151,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             .UseEnvironment("Testing")
             .UseSetting("RateLimit:EntradaRajada", "100000")
             .UseSetting("RateLimit:IngressoRajada", "100000")
+            .UseSetting("RateLimit:CupomPorMinuto", "100000")
             .ConfigureTestServices(services =>
             {
                 services.RemoveAll<AppDbContext>();

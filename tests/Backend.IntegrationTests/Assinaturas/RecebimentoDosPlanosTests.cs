@@ -51,7 +51,7 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
 
         // Assert
         checkout.Url.ShouldStartWith("https://mp.testes/checkout/");
-        cobranca.Valor.ShouldBe(2990);
+        cobranca.Valor.ShouldBe(8900);
         primeiro.StatusCode.ShouldBe(HttpStatusCode.OK);
         repetido.StatusCode.ShouldBe(HttpStatusCode.OK);
         var assinatura = await Ler<AssinaturaDTO>(await presidente.GetAsync(Assinatura, Ct));
@@ -61,7 +61,7 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         var historico = await Ler<CobrancaDoPlanoDTO[]>(await presidente.GetAsync($"{Assinatura}/cobrancas", Ct));
         var pago = historico.ShouldHaveSingleItem();
         pago.Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Paga);
-        pago.ValorEmCentavos.ShouldBe(2990);
+        pago.ValorEmCentavos.ShouldBe(8900);
         (await StatusDa(formaturaId)).ShouldBe(StatusDaFormatura.Ativa);
     }
 
@@ -177,11 +177,11 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
 
         // Assert
         troca.Url.ShouldNotBeNull();
-        diferenca.Valor.ShouldBeInRange(1900, 2000);
+        diferenca.Valor.ShouldBeInRange(8900, 9000);
         antesDePagar.Plano.Codigo.ShouldBe("essencial");
         depois.Plano.Codigo.ShouldBe("premium");
         depois.VigenteAte.ShouldBe(antesDePagar.VigenteAte);
-        falso.ValorDaRecorrencia(recorrencia).ShouldBe(4990);
+        falso.ValorDaRecorrencia(recorrencia).ShouldBe(17900);
     }
 
     /// <summary>P4: a descida vale na próxima renovação, e a recorrência já cobra o preço novo nela.</summary>
@@ -203,7 +203,7 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         troca.Url.ShouldBeNull();
         aposATroca.Plano.Codigo.ShouldBe("premium");
         aposATroca.ProximoPlano!.Codigo.ShouldBe("essencial");
-        falso.ValorDaRecorrencia(recorrencia).ShouldBe(2990);
+        falso.ValorDaRecorrencia(recorrencia).ShouldBe(8900);
         renovada.Plano.Codigo.ShouldBe("essencial");
         renovada.ProximoPlano.ShouldBeNull();
     }
@@ -270,7 +270,7 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         depois.Pagamentos.ShouldHaveSingleItem().Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Estornada);
         depois.Assinatura!.Status.ShouldBe(nameof(StatusDaAssinatura.Vencida));
         depois.Status.ShouldBe(nameof(StatusDaFormatura.Suspensa));
-        falso.Estornos.ShouldHaveSingleItem().Valor.ShouldBe(4990);
+        falso.Estornos.ShouldHaveSingleItem().Valor.ShouldBe(17900);
         falso.Recorrencias[recorrencia].Situacao.ShouldBe(SituacaoDaRecorrencia.Cancelada);
         denovo.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await denovo.Codigo(Ct)).ShouldBe("estorno.cobranca_nao_paga");
@@ -296,6 +296,89 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         planilha.Content.Headers.ContentType!.MediaType.ShouldBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         (await planilha.Content.ReadAsByteArrayAsync(Ct)).Length.ShouldBeGreaterThan(1000);
         invalida.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>Sprint 51, D4: no cartão, o cupom vale no primeiro débito; depois dele, a recorrência volta ao cheio.</summary>
+    [Fact]
+    public async Task Cupom_no_cartao_desconta_o_primeiro_debito_e_volta_ao_cheio()
+    {
+        // Arrange
+        var falso = new MercadoPagoFalso();
+        await using var api = falso.CobrandoOsPlanos(fabrica);
+        var codigo = await CupomNoBanco(50);
+        var (presidente, _) = await Turma(api);
+
+        // Act
+        await Ler<CheckoutDTO>(
+            await presidente.PostAsJsonAsync(
+                $"{Assinatura}/checkout",
+                new
+                {
+                    planoCodigo = "essencial",
+                    meio = "Cartao",
+                    cupomCodigo = codigo,
+                },
+                Json,
+                Ct
+            )
+        );
+        var recorrencia = falso.Recorrencias.Keys.Last();
+        var primeiro = falso.ValorDaRecorrencia(recorrencia);
+        falso.MudarRecorrencia(recorrencia, SituacaoDaRecorrencia.Autorizada);
+        await Avisar(api, "subscription_authorized_payment", falso.Debitar(recorrencia, aprovado: true));
+        var assinatura = await Ler<AssinaturaDTO>(await presidente.GetAsync(Assinatura, Ct));
+
+        // Assert
+        primeiro.ShouldBe(4450);
+        falso.ValorDaRecorrencia(recorrencia).ShouldBe(8900);
+        assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
+        assinatura.Cupom!.Codigo.ShouldBe(codigo);
+    }
+
+    /// <summary>Sprint 51, D4: no PIX, a página da contratação sai com desconto.</summary>
+    [Fact]
+    public async Task Cupom_no_pix_desconta_a_pagina_da_contratacao()
+    {
+        // Arrange
+        var falso = new MercadoPagoFalso();
+        await using var api = falso.CobrandoOsPlanos(fabrica);
+        var codigo = await CupomNoBanco(10);
+        var (presidente, _) = await Turma(api);
+
+        // Act
+        await Ler<CheckoutDTO>(
+            await presidente.PostAsJsonAsync(
+                $"{Assinatura}/checkout",
+                new
+                {
+                    planoCodigo = "premium-anual",
+                    meio = "Pix",
+                    cupomCodigo = codigo,
+                },
+                Json,
+                Ct
+            )
+        );
+
+        // Assert
+        falso.Paginas.ShouldHaveSingleItem().Value.Valor.ShouldBe(154620);
+    }
+
+    /// <summary>Um cupom gravado direto no banco, com código único por teste.</summary>
+    private async Task<string> CupomNoBanco(int percentual)
+    {
+        await using var contexto = fabrica.ContextoDe(null);
+        var cupom = new Cupom
+        {
+            Codigo = $"T{Guid.NewGuid():N}"[..12].ToUpperInvariant(),
+            Percentual = percentual,
+            ValidoAte = DateTime.UtcNow.AddDays(1),
+            LimiteDeUsos = 5,
+        };
+        contexto.Cupons.Add(cupom);
+        await contexto.SaveChangesAsync(Ct);
+
+        return cupom.Codigo;
     }
 
     /// <summary>Uma turma no gratuito com o Presidente, falando com a fábrica do falso.</summary>

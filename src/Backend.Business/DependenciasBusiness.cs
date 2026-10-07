@@ -113,7 +113,7 @@ public static class DependenciasBusiness
     /// Registra o remetente de e-mail conforme a configuração.
     /// </summary>
     /// <remarks>
-    /// Sem <c>Smtp:Host</c>, entra o remetente que apenas registra a mensagem no log. É o que
+    /// Com <c>Smtp:ApiKeyDaMillionSend</c>, a API HTTP da MillionSend (produção); com <c>Smtp:Host</c>, SMTP (o Gmail de desenvolvimento). Sem nenhum dos dois, entra o remetente que apenas registra a mensagem no log. É o que
     /// permite o projeto subir e o fluxo de e-mail funcionar de ponta a ponta sem um servidor
     /// SMTP à mão — em desenvolvimento e nos testes.
     /// <para>
@@ -127,7 +127,15 @@ public static class DependenciasBusiness
     {
         var smtp = configuration.GetSection(SmtpSettings.Secao).Get<SmtpSettings>();
 
-        if (smtp?.Configurado == true)
+        if (!string.IsNullOrWhiteSpace(smtp?.ApiKeyDaMillionSend))
+        {
+            if (string.IsNullOrWhiteSpace(smtp.UrlDasImagens))
+                throw new InvalidOperationException("Smtp:ApiKeyDaMillionSend exige Smtp:UrlDasImagens: a MillionSend não aceita imagem por cid.");
+
+            services.AddSingleton<SmtpEmailSender>();
+            services.AddSingleton<IEmailSender>(sp => ActivatorUtilities.CreateInstance<MillionSendEmailSender>(sp, ClienteHttpDaMillionSend));
+        }
+        else if (smtp?.Configurado == true)
             services.AddSingleton<IEmailSender, SmtpEmailSender>();
         else
             services.AddSingleton<IEmailSender, EmailSenderDeLog>();
@@ -212,6 +220,12 @@ public static class DependenciasBusiness
     private static readonly HttpClient ClienteHttpDoMercadoPago = new(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) })
     {
         Timeout = Timeout.InfiniteTimeSpan,
+    };
+
+    /// <summary>O <see cref="HttpClient"/> do <see cref="MillionSendEmailSender"/>, pelo mesmo motivo do da IA.</summary>
+    private static readonly HttpClient ClienteHttpDaMillionSend = new(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) })
+    {
+        Timeout = TimeSpan.FromSeconds(30),
     };
 
     private static IServiceCollection AdicionarServices(this IServiceCollection services)
@@ -319,6 +333,7 @@ public static class DependenciasBusiness
         services.AddScoped<IProcessamentoDaFilaDeEmail, ProcessamentoDaFilaDeEmail>();
         services.AddScoped<IArquivoService, ArquivoService>();
         services.AddScoped<IAssinaturaService, AssinaturaService>();
+        services.AddScoped<CupomService>();
         services.AddScoped<VagasDoPlano>();
         services.AddScoped<IWebhookService, WebhookService>();
         services.AddScoped<EmailsDeAssinatura>();

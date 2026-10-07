@@ -234,6 +234,7 @@ public sealed class EmailsDeRecebimento(IEmailService emailService, IOptions<Apl
             linhas.Add(
                 $"• <strong>PIX</strong> — chave {ModeloDeEmail.Texto(ChavePix.Rotulo(pix.TipoDeChave))} "
                     + $"<strong>{ModeloDeEmail.Texto(pix.Chave)}</strong>, em nome de <strong>{ModeloDeEmail.Texto(pix.NomeDoTitular)}</strong>"
+                    + (pix.Banco is { } banco ? $", no {ModeloDeEmail.Texto(banco)}" : string.Empty)
             );
 
         if (meios.Transferencia is { } conta)

@@ -131,7 +131,8 @@ public sealed class EmissaoDeConvites(
     /// </summary>
     /// <remarks>
     /// Substitui a cota uniforme da Sprint 30 (D15): "Festa 15" emite 15 convites da festa, e quem não contratou nada
-    /// não recebe nada (D17). Evento ainda sem data, hora ou local não emite; quem chama de novo quando a agenda fica
+    /// não recebe nada (D17). O formando está dentro da conta: o convite 1 de cada evento já nasce com o nome dele
+    /// (06/10). Evento ainda sem data, hora ou local não emite; quem chama de novo quando a agenda fica
     /// completa é a agenda. O convite nasce valendo, mas preso enquanto o dono tiver parcela em atraso — a trava é lida
     /// na portaria, não gravada aqui.
     /// </remarks>
@@ -141,6 +142,7 @@ public sealed class EmissaoDeConvites(
     public async Task<int> EmitirDosPacotes(Guid formaturaId, Guid? vinculoId, CancellationToken ct = default)
     {
         var emitidos = await convites.EmitirDosPacotes(formaturaId, vinculoId, await Prefixo(formaturaId, ct), ct);
+        await convites.NomearOsDoProprioFormando(formaturaId, vinculoId, ct);
 
         if (emitidos > 0)
             logger.LogInformation(

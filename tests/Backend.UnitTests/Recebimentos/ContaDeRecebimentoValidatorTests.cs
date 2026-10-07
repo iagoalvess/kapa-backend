@@ -51,6 +51,18 @@ public sealed class ContaDeRecebimentoValidatorTests
         erros.Select(e => e.Campo).ShouldBe(["pix.chave", "pix.nome_do_titular", "pix.cidade"]);
     }
 
+    /// <summary>O banco da chave é opcional: só o tamanho é conferido, e o espaço em branco vira nulo ao gravar.</summary>
+    [Fact]
+    public void Banco_da_chave_e_opcional_e_tem_limite()
+    {
+        var chave = new ChavePixDaConta(TipoDeChavePix.Cpf, "52998224725", "Ana Souza", "Curitiba");
+
+        _validator.Validar(Pix(chave)).Erros.ShouldBeEmpty();
+        _validator.Validar(Pix(chave with { Banco = new string('x', 101) })).Erros.ShouldHaveSingleItem().Campo.ShouldBe("pix.banco");
+        ContaDeRecebimento.Normalizar(Pix(chave with { Banco = "  " })).Pix!.Banco.ShouldBeNull();
+        ContaDeRecebimento.Normalizar(Pix(chave with { Banco = " Nubank " })).Pix!.Banco.ShouldBe("Nubank");
+    }
+
     [Fact]
     public void Nome_sem_letra_latina_nao_cabe_no_br_code()
     {

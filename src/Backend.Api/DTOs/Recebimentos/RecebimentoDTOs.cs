@@ -7,7 +7,8 @@ namespace Backend.Api.DTOs.Recebimentos;
 /// <param name="Chave">A chave, com ou sem máscara na ida; no formato do diretório do PIX na volta.</param>
 /// <param name="NomeDoTitular">Nome do titular, como o banco mostra.</param>
 /// <param name="Cidade">Cidade do titular.</param>
-public sealed record ChavePixDTO(TipoDeChavePix TipoDeChave, string? Chave, string? NomeDoTitular, string? Cidade);
+/// <param name="Banco">Banco da chave; opcional.</param>
+public sealed record ChavePixDTO(TipoDeChavePix TipoDeChave, string? Chave, string? NomeDoTitular, string? Cidade, string? Banco = null);
 
 /// <summary>A conta para quem vai transferir. Texto livre: o Kapa não confere dígito nem consulta banco.</summary>
 /// <param name="Banco">Nome do banco.</param>

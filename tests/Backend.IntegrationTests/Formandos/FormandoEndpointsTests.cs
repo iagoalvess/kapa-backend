@@ -29,7 +29,7 @@ public sealed class FormandoEndpointsTests(ApiFactory fabrica)
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static AtualizarPerfilRequestDTO Pessoais(string? cpf = CpfValido, string? telefone = "(41) 99876-5432") =>
-        new(new DadosPessoaisDTO("Ana Souza", null, cpf, null, null, telefone, null, null), null, null);
+        new(new DadosPessoaisDTO("Ana Souza", cpf, telefone), null);
 
     /// <summary>A coluna guarda cifra; decifrada com a chave, volta o CPF.</summary>
     [Fact]

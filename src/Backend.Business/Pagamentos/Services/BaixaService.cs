@@ -98,16 +98,22 @@ public sealed class BaixaService(
         );
 
         if (contexto.EmailDoFormando is { } email)
-            await emails.Confirmado(
+        {
+            var confirmado = new PagamentoConfirmado(
                 email,
                 contexto.NomeDaTurma,
                 parcela.Vencimento,
                 dados.ValorEmCentavos,
                 dados.PagoEm,
                 pagar.Valor ? 0 : parcela.QuitaCom(devido) - (parcela.ValorPagoEmCentavos ?? 0),
-                recebimento.Id,
-                ct
+                recebimento.Id
             );
+
+            if (contexto.Confirmados is { } lote)
+                lote.Add(confirmado);
+            else
+                await emails.Confirmados([confirmado], ct);
+        }
 
         return true;
     }

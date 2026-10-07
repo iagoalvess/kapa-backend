@@ -50,30 +50,48 @@ public sealed class FinanceiroEndpointsTests(ApiFactory fabrica)
         (await membro.Cliente.GetFromJsonAsync<ResumoDeDespesasDTO>($"{Despesas}/resumo", Json, Ct))!.Prevista.ValorEmCentavos;
 
     /// <summary>
-    /// A prestação de contas é de todo membro; o cadastro de fornecedor e a projeção, não.
+    /// A prestação de contas é de todo membro; o cadastro de fornecedor, não.
     /// </summary>
     /// <remarks>
     /// O caixa e a lista de despesas dizem no que a turma gastou, e quem paga a turma tem direito de
     /// ler — são somas e contratos, sem nome de ninguém. Fornecedor é cadastro de trabalho da
-    /// Tesouraria, e a projeção é planejamento da Gestão.
+    /// Tesouraria. O mês a mês do caixa todo membro lê; o previsto dele é da Gestão (teste abaixo).
     /// </remarks>
     [Theory]
-    [InlineData(PapelNaFormatura.Presidente, HttpStatusCode.OK, HttpStatusCode.OK)]
-    [InlineData(PapelNaFormatura.Tesoureiro, HttpStatusCode.OK, HttpStatusCode.OK)]
-    [InlineData(PapelNaFormatura.Comissao, HttpStatusCode.Forbidden, HttpStatusCode.OK)]
-    [InlineData(PapelNaFormatura.Formando, HttpStatusCode.Forbidden, HttpStatusCode.Forbidden)]
-    public async Task Fornecedor_e_projecao_sao_da_gestao_mas_o_caixa_e_de_todo_membro(string papel, HttpStatusCode tesouraria, HttpStatusCode gestao)
+    [InlineData(PapelNaFormatura.Presidente, HttpStatusCode.OK)]
+    [InlineData(PapelNaFormatura.Tesoureiro, HttpStatusCode.OK)]
+    [InlineData(PapelNaFormatura.Comissao, HttpStatusCode.Forbidden)]
+    [InlineData(PapelNaFormatura.Formando, HttpStatusCode.Forbidden)]
+    public async Task Fornecedor_e_da_tesouraria_mas_o_caixa_e_de_todo_membro(string papel, HttpStatusCode tesouraria)
     {
         var membro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), papel, Ct);
 
         (await membro.Cliente.GetAsync(Fornecedores, Ct)).StatusCode.ShouldBe(tesouraria);
         (await membro.Cliente.GetAsync($"{Fornecedores}/resumo", Ct)).StatusCode.ShouldBe(tesouraria);
-        (await membro.Cliente.GetAsync($"{Caixa}/projecao", Ct)).StatusCode.ShouldBe(gestao);
+        (await membro.Cliente.GetAsync($"{Caixa}/projecao", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         (await membro.Cliente.GetAsync(Despesas, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await membro.Cliente.GetAsync($"{Despesas}/resumo", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await membro.Cliente.GetAsync(Caixa, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await membro.Cliente.GetAsync($"{Caixa}/arrecadacao", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    /// <summary>06/10: o formando vê o mês a mês do que já aconteceu; a despesa prevista lá na frente, só a Gestão.</summary>
+    [Fact]
+    public async Task Formando_le_o_caixa_ate_hoje_sem_o_previsto()
+    {
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var tesoureiro = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Tesoureiro, Ct);
+        var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+        var daquiADoisMeses = Hoje.AddMonths(2);
+        await Lancar(tesoureiro, Nova("Buffet") with { Competencia = daquiADoisMeses, Vencimento = daquiADoisMeses }, Ct);
+
+        var daGestao = await tesoureiro.Cliente.GetFromJsonAsync<ProjecaoDTO>($"{Caixa}/projecao", Json, Ct);
+        var doFormando = await formando.Cliente.GetFromJsonAsync<ProjecaoDTO>($"{Caixa}/projecao", Json, Ct);
+
+        daGestao!.Meses.ShouldContain(mes => mes.Projetado && mes.SaidasPrevistasEmCentavos == 100_000);
+        doFormando!.Meses.ShouldNotBeEmpty();
+        doFormando.Meses.ShouldAllBe(mes => !mes.Projetado && mes.SaidasPrevistasEmCentavos == 0 && mes.EntradasPrevistasEmCentavos == 0);
     }
 
     [Fact]

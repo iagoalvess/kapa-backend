@@ -46,6 +46,7 @@ public sealed class ConviteDoEventoMapping : IEntityTypeConfiguration<ConviteDoE
         builder.Property(c => c.TipoDoDocumento).HasConversion<string>().HasMaxLength(10);
         builder.Property(c => c.NumeroDoDocumento).HasMaxLength(200);
         builder.Property(c => c.EmailDoConvidado).HasMaxLength(600);
+        builder.Property(c => c.Observacoes).HasMaxLength(2000);
         builder.Property(c => c.MotivoDaRevogacao).HasMaxLength(200);
 
         builder.Ignore(c => c.Valido);

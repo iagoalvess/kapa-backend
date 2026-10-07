@@ -47,6 +47,7 @@ public sealed record PlanoDaTurma(string Codigo, string Nome, IReadOnlyList<stri
 /// <param name="Meio">Cartão recorrente ou PIX avulso.</param>
 /// <param name="ProximoPlano">Plano que vale a partir da próxima renovação, quando a turma agendou a descida.</param>
 /// <param name="CartaoAguardandoAutorizacao">Se a troca para o cartão espera a autorização na página do provedor.</param>
+/// <param name="Cupom">Cupom usado na primeira cobrança (Sprint 51); nulo sem cupom.</param>
 public sealed record AssinaturaDetalhe(
     Guid Id,
     StatusDaAssinatura Status,
@@ -56,7 +57,8 @@ public sealed record AssinaturaDetalhe(
     DateTime? CanceladaEm,
     MeioDePagamento Meio,
     PlanoResumo? ProximoPlano,
-    bool CartaoAguardandoAutorizacao
+    bool CartaoAguardandoAutorizacao,
+    CupomAplicavel? Cupom = null
 );
 
 /// <summary>Um pagamento do plano, como o histórico da tela o mostra.</summary>
@@ -89,7 +91,8 @@ public sealed record CobrancaDoPlanoResumo(
 /// <param name="PlanoCodigo">Plano escolhido.</param>
 /// <param name="Meio">Cartão recorrente ou PIX avulso. Nulo é cartão — o contrato de antes da Sprint 37.</param>
 /// <param name="EmailDoPagador">E-mail de quem contrata: o provedor exige na recorrência.</param>
-public sealed record IniciarCheckout(string PlanoCodigo, MeioDePagamento? Meio = null, string? EmailDoPagador = null);
+/// <param name="CupomCodigo">Cupom da primeira cobrança (Sprint 51); nulo ou vazio é sem cupom.</param>
+public sealed record IniciarCheckout(string PlanoCodigo, MeioDePagamento? Meio = null, string? EmailDoPagador = null, string? CupomCodigo = null);
 
 /// <summary>Pedido de troca de plano vindo do cartão da assinatura.</summary>
 /// <param name="PlanoCodigo">Plano novo, do mesmo ciclo.</param>
@@ -180,3 +183,15 @@ public sealed record ReciboDeWebhook(string EventoId, bool Duplicado);
 /// <param name="Vencidas">Assinaturas vencidas e formaturas suspensas.</param>
 /// <param name="Avisos">Avisos de vencimento enfileirados.</param>
 public sealed record ResumoDaConciliacao(int Confirmadas, int Renovadas, int Vencidas, int Avisos);
+
+/// <summary>Cupom criado pelo Administrador no painel (Sprint 51).</summary>
+/// <param name="Codigo">Código, em qualquer caixa — é normalizado para maiúsculo.</param>
+/// <param name="Percentual">Desconto na primeira cobrança, de 1 a 50.</param>
+/// <param name="ValidoAte">Último dia em que vale, no fuso de exibição.</param>
+/// <param name="LimiteDeUsos">Quantas turmas podem usar.</param>
+public sealed record NovoCupom(string Codigo, int Percentual, DateOnly ValidoAte, int LimiteDeUsos);
+
+/// <summary>O cupom que a turma pode usar, como o checkout o mostra antes de pagar.</summary>
+/// <param name="Codigo">Código normalizado.</param>
+/// <param name="Percentual">Desconto na primeira cobrança.</param>
+public sealed record CupomAplicavel(string Codigo, int Percentual);

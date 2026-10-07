@@ -99,8 +99,8 @@ public sealed class DesligamentoEndpointsTests(ApiFactory fabrica)
         var ana = await FormandoQueAderiu(turma, "Ana Regua");
         var bruno = await FormandoQueAderiu(turma, "Bruno Regua");
 
-        // As duas primeiras parcelas de cada um vencem hoje: a régua do dia cobra as duas pessoas.
-        await Vencer(turma, [ana.Parcelas[0], bruno.Parcelas[0]], DateOnly.FromDateTime(DentroDaJanela));
+        // As duas primeiras parcelas de cada um vencem em dois dias: o lembrete do dia sai para as duas pessoas.
+        await Vencer(turma, [ana.Parcelas[0], bruno.Parcelas[0]], DateOnly.FromDateTime(DentroDaJanela).AddDays(2));
 
         var antes = await Rodar(turma);
         antes.Parcelas.ShouldBe(2);

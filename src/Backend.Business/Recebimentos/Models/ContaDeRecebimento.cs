@@ -33,6 +33,9 @@ public class ContaDeRecebimento : EntidadeDaFormatura
     /// <summary>Cidade do titular, como a comissão digitou.</summary>
     public string? Cidade { get; private set; }
 
+    /// <summary>Banco da chave PIX, como a comissão digitou. Opcional.</summary>
+    public string? BancoDaChave { get; private set; }
+
     /// <summary>Banco da conta para transferência. Nulo: a turma não aceita TED.</summary>
     public string? Banco { get; private set; }
 
@@ -85,6 +88,7 @@ public class ContaDeRecebimento : EntidadeDaFormatura
         Chave = depois.Pix?.Chave;
         NomeDoTitular = depois.Pix?.NomeDoTitular;
         Cidade = depois.Pix?.Cidade;
+        BancoDaChave = depois.Pix?.Banco;
 
         Banco = depois.Transferencia?.Banco;
         Agencia = depois.Transferencia?.Agencia;
@@ -125,7 +129,7 @@ public class ContaDeRecebimento : EntidadeDaFormatura
     public MeiosDaConta ParaMeios() =>
         new(
             TipoDeChave is { } tipo && Chave is not null
-                ? new ChavePixDaConta(tipo, Chave, NomeDoTitular ?? string.Empty, Cidade ?? string.Empty)
+                ? new ChavePixDaConta(tipo, Chave, NomeDoTitular ?? string.Empty, Cidade ?? string.Empty, BancoDaChave)
                 : null,
             Banco is null
                 ? null
@@ -150,7 +154,7 @@ public class ContaDeRecebimento : EntidadeDaFormatura
                 ChavePix.Normalizar(chavePix.TipoDeChave, chavePix.Chave)
                 ?? throw new ArgumentException("Chave inválida para o tipo.", nameof(meios));
 
-            pix = new ChavePixDaConta(chavePix.TipoDeChave, chave, chavePix.NomeDoTitular.Trim(), chavePix.Cidade.Trim());
+            pix = new ChavePixDaConta(chavePix.TipoDeChave, chave, chavePix.NomeDoTitular.Trim(), chavePix.Cidade.Trim(), Texto(chavePix.Banco));
         }
 
         var transferencia = meios.Transferencia is { } dados

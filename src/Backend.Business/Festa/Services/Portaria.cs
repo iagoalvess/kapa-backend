@@ -252,7 +252,8 @@ public sealed class Portaria(
             situacao,
             convite.MotivoDaRevogacao,
             gravado.Entrada,
-            gravado.EntrouSemRedeDuasVezes
+            gravado.EntrouSemRedeDuasVezes,
+            convite.Observacoes
         );
     }
 

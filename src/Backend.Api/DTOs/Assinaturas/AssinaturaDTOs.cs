@@ -44,6 +44,7 @@ public sealed record PlanoDaTurmaDTO(string Codigo, string Nome, IReadOnlyList<s
 /// <param name="Meio"><c>Cartao</c> (recorrente) ou <c>Pix</c> (avulso, um por ciclo).</param>
 /// <param name="ProximoPlano">Plano que passa a valer na próxima renovação; nulo sem descida agendada.</param>
 /// <param name="CartaoAguardandoAutorizacao">Se a troca para o cartão espera a autorização na página do provedor.</param>
+/// <param name="Cupom">Cupom usado na primeira cobrança; nulo sem cupom.</param>
 public sealed record AssinaturaDTO(
     Guid Id,
     StatusDaAssinatura Status,
@@ -53,7 +54,8 @@ public sealed record AssinaturaDTO(
     DateTime? CanceladaEm,
     MeioDePagamento Meio,
     PlanoDTO? ProximoPlano,
-    bool CartaoAguardandoAutorizacao
+    bool CartaoAguardandoAutorizacao,
+    CupomAplicavelDTO? Cupom
 );
 
 /// <summary>Um pagamento do plano, no histórico.</summary>
@@ -98,7 +100,8 @@ public sealed record TrocaDTO(string? Url);
 /// <summary>Corpo do checkout.</summary>
 /// <param name="PlanoCodigo">Plano escolhido.</param>
 /// <param name="Meio"><c>Cartao</c> (recorrente) ou <c>Pix</c> (avulso). Nulo é cartão.</param>
-public sealed record IniciarCheckoutRequestDTO(string PlanoCodigo, MeioDePagamento? Meio = null);
+/// <param name="CupomCodigo">Cupom da primeira cobrança; nulo é sem cupom. Só o código: o preço é do servidor.</param>
+public sealed record IniciarCheckoutRequestDTO(string PlanoCodigo, MeioDePagamento? Meio = null, string? CupomCodigo = null);
 
 /// <summary>Sessão de pagamento criada.</summary>
 /// <param name="Url">Página do provedor, para onde o navegador deve ir.</param>
@@ -108,3 +111,26 @@ public sealed record CheckoutDTO(string Url);
 /// <param name="EventoId">Id do evento recebido.</param>
 /// <param name="Duplicado">Se já tinha chegado antes e não foi reprocessado.</param>
 public sealed record ReciboDeWebhookDTO(string EventoId, bool Duplicado);
+
+/// <summary>Cupom que vale para a turma, como o checkout o mostra.</summary>
+/// <param name="Codigo">Código normalizado.</param>
+/// <param name="Percentual">Desconto na primeira cobrança, em % (1 a 50).</param>
+public sealed record CupomAplicavelDTO(string Codigo, int Percentual);
+
+/// <summary>Cupom no painel do Kapa.</summary>
+/// <param name="Id">Identificador.</param>
+/// <param name="Codigo">Código.</param>
+/// <param name="Percentual">Desconto na primeira cobrança, em %.</param>
+/// <param name="ValidoAte">Último instante em que vale, em UTC.</param>
+/// <param name="LimiteDeUsos">Quantas turmas podem usar.</param>
+/// <param name="Usos">Quantas já usaram.</param>
+/// <param name="Ativo">Se não foi desativado.</param>
+/// <param name="CriadoEm">Quando foi criado, em UTC.</param>
+public sealed record CupomDTO(Guid Id, string Codigo, int Percentual, DateTime ValidoAte, int LimiteDeUsos, int Usos, bool Ativo, DateTime CriadoEm);
+
+/// <summary>Corpo do cupom novo.</summary>
+/// <param name="Codigo">6 a 20 letras, números ou hífen; é guardado em maiúsculo.</param>
+/// <param name="Percentual">Desconto na primeira cobrança, de 1 a 50.</param>
+/// <param name="ValidoAte">Último dia em que vale (<c>aaaa-mm-dd</c>, no horário de Brasília).</param>
+/// <param name="LimiteDeUsos">Quantas turmas podem usar, de 1 a 1000.</param>
+public sealed record NovoCupomRequestDTO(string Codigo, int Percentual, DateOnly ValidoAte, int LimiteDeUsos);

@@ -27,7 +27,15 @@ public sealed record ProximasParcelasDTO(ParcelaDTO? Proxima, ParcelaDTO? Seguin
 /// <param name="NomeDoTitular">O nome que o banco vai mostrar.</param>
 /// <param name="DocumentoDoTitular">CPF mascarado ou CNPJ, quando é esse o tipo da chave; nulo nos demais.</param>
 /// <param name="ConferidaEm">Quando a comissão conferiu a titularidade no banco, em UTC. Nulo: a conferir.</param>
-public sealed record PixParaPagarDTO(string CopiaECola, string Chave, string NomeDoTitular, string? DocumentoDoTitular, DateTime? ConferidaEm);
+/// <param name="BancoDoTitular">O banco que o app do pagador deve mostrar; nulo quando a comissão não informou.</param>
+public sealed record PixParaPagarDTO(
+    string CopiaECola,
+    string Chave,
+    string NomeDoTitular,
+    string? DocumentoDoTitular,
+    DateTime? ConferidaEm,
+    string? BancoDoTitular
+);
 
 /// <summary>Um meio que a comissão habilitou, com o que a tela precisa mostrar.</summary>
 /// <remarks>Só o campo do próprio meio vem preenchido; os outros vêm nulos.</remarks>

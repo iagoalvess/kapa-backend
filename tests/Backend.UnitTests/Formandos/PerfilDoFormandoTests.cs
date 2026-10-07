@@ -6,7 +6,7 @@ namespace Backend.UnitTests.Formandos;
 /// <summary>Completude e normalização do cadastro: o que a lista da comissão filtra.</summary>
 public sealed class PerfilDoFormandoTests
 {
-    private static readonly DadosPessoais Essenciais = new("Ana Souza", null, "529.982.247-25", null, null, "(41) 99876-5432", null, null);
+    private static readonly DadosPessoais Essenciais = new("Ana Souza", "529.982.247-25", "(41) 99876-5432");
 
     [Fact]
     public void Cadastro_novo_esta_zerado_e_com_o_essencial_pendente()
@@ -19,14 +19,14 @@ public sealed class PerfilDoFormandoTests
     }
 
     [Fact]
-    public void Nome_cpf_e_telefone_liberam_o_essencial_e_contam_30_por_cento()
+    public void Nome_cpf_e_telefone_liberam_o_essencial_e_contam_60_por_cento()
     {
         var perfil = new PerfilDoFormando();
 
-        perfil.Aplicar(new AtualizarPerfil(Essenciais, null, null));
+        perfil.Aplicar(new AtualizarPerfil(Essenciais, null));
 
         perfil.EssencialPreenchido.ShouldBeTrue();
-        perfil.Completude.ShouldBe(30);
+        perfil.Completude.ShouldBe(60);
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class PerfilDoFormandoTests
     {
         var perfil = new PerfilDoFormando();
 
-        perfil.Aplicar(new AtualizarPerfil(Essenciais, null, null));
+        perfil.Aplicar(new AtualizarPerfil(Essenciais, null));
 
         perfil.Cpf.ShouldBe("52998224725");
         perfil.Telefone.ShouldBe("+5541998765432");
@@ -45,35 +45,34 @@ public sealed class PerfilDoFormandoTests
     public void Secao_ausente_fica_como_estava()
     {
         var perfil = new PerfilDoFormando();
-        perfil.Aplicar(new AtualizarPerfil(Essenciais, null, null));
+        perfil.Aplicar(new AtualizarPerfil(Essenciais, null));
 
-        perfil.Aplicar(new AtualizarPerfil(null, new DadosDeEndereco("80000-000", "Rua XV", "10", null, "Centro", "Curitiba", "pr"), null));
+        perfil.Aplicar(new AtualizarPerfil(null, new DadosDeEmergencia("Marta Souza", "(41) 98888-0000", "mãe")));
 
         perfil.NomeCompleto.ShouldBe("Ana Souza");
-        perfil.Endereco.Cep.ShouldBe("80000000");
-        perfil.Endereco.Uf.ShouldBe("PR");
-        perfil.Completude.ShouldBe(40);
+        perfil.ContatoDeEmergencia.Telefone.ShouldBe("+5541988880000");
+        perfil.Completude.ShouldBe(80);
     }
 
-    /// <summary>Endereço conta inteiro ou não conta: sem número não se entrega nada.</summary>
+    /// <summary>Contato de emergência conta inteiro ou não conta: sem parentesco não se sabe para quem se liga.</summary>
     [Fact]
-    public void Endereco_sem_numero_nao_conta()
+    public void Contato_sem_parentesco_nao_conta()
     {
         var perfil = new PerfilDoFormando();
 
-        perfil.Aplicar(new AtualizarPerfil(null, new DadosDeEndereco("80000000", "Rua XV", " ", null, "Centro", "Curitiba", "PR"), null));
+        perfil.Aplicar(new AtualizarPerfil(null, new DadosDeEmergencia("Marta Souza", "(41) 98888-0000", " ")));
 
-        perfil.Faltando().ShouldContain(ItensDoCadastro.Endereco);
-        perfil.Endereco.Numero.ShouldBeNull();
+        perfil.Faltando().ShouldContain(ItensDoCadastro.ContatoDeEmergencia);
+        perfil.ContatoDeEmergencia.Parentesco.ShouldBeNull();
     }
 
     [Fact]
     public void Apagar_o_cpf_volta_a_pendencia_do_essencial()
     {
         var perfil = new PerfilDoFormando();
-        perfil.Aplicar(new AtualizarPerfil(Essenciais, null, null));
+        perfil.Aplicar(new AtualizarPerfil(Essenciais, null));
 
-        perfil.Aplicar(new AtualizarPerfil(Essenciais with { Cpf = "" }, null, null));
+        perfil.Aplicar(new AtualizarPerfil(Essenciais with { Cpf = "" }, null));
 
         perfil.Cpf.ShouldBeNull();
         perfil.EssencialPreenchido.ShouldBeFalse();
@@ -89,6 +88,6 @@ public sealed class PerfilDoFormandoTests
         var anterior = perfil.TrocarFoto(Guid.CreateVersion7());
 
         anterior.ShouldBe(primeira);
-        perfil.Completude.ShouldBe(10);
+        perfil.Completude.ShouldBe(20);
     }
 }

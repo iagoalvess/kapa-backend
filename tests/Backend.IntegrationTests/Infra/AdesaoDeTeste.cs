@@ -23,17 +23,12 @@ public static partial class AdesaoDeTeste
     /// <summary>Preenche o que a adesão exige no cadastro do próprio membro.</summary>
     /// <param name="cliente">Cliente do membro.</param>
     /// <param name="cpf">CPF, diferente por teste (<see cref="NovoCpf"/>).</param>
-    /// <param name="nascimento">Data de nascimento; ausente, um adulto.</param>
     /// <param name="nome">Nome civil.</param>
-    public static async Task PreencherCadastro(HttpClient cliente, string cpf, DateOnly? nascimento = null, string nome = "Ana Souza") =>
+    public static async Task PreencherCadastro(HttpClient cliente, string cpf, string nome = "Ana Souza") =>
         (
             await cliente.PutAsJsonAsync(
                 "/api/v1/formandos/eu",
-                new AtualizarPerfilRequestDTO(
-                    new DadosPessoaisDTO(nome, null, cpf, null, null, "(41) 99876-5432", nascimento ?? new DateOnly(2000, 5, 20), null),
-                    null,
-                    null
-                ),
+                new AtualizarPerfilRequestDTO(new DadosPessoaisDTO(nome, cpf, "(41) 99876-5432"), null),
                 Json,
                 Ct
             )

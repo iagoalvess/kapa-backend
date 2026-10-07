@@ -56,7 +56,7 @@ public sealed class ReguaEndpointsTests(ApiFactory fabrica)
         var regua = await Ler<ReguaDTO>(await turma.Tesoureiro.Cliente.GetAsync(Regras, Ct));
 
         regua.Regras.Count.ShouldBe(ReguaDoKapa.Degraus.Count);
-        regua.Regras.Select(r => r.DiasDeDeslocamento).ShouldContain(-5);
+        regua.Regras.Select(r => r.DiasDeDeslocamento).ShouldContain(-2);
         regua.Regras.ShouldContain(r => r.Gatilho == GatilhoDaRegua.InformePendente);
         regua.Regras.ShouldAllBe(r => r.Ativa);
         regua.Regras.Where(r => r.AvisarTesouraria).Select(r => r.DiasDeDeslocamento).ShouldBe([15, 30], ignoreOrder: true);

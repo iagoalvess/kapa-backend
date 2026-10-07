@@ -157,6 +157,7 @@ public static class DependenciasData
         services.AddScoped<IRetencaoDeFormaturasRepository, RetencaoDeFormaturasRepository>();
         services.AddScoped<ILegalRepository, LegalRepository>();
         services.AddScoped<IAssinaturaRepository, AssinaturaRepository>();
+        services.AddScoped<ICupomRepository, CupomRepository>();
         services.AddScoped<IPerfilRepository, PerfilRepository>();
         services.AddScoped<IPlanoDeCobrancaRepository, PlanoDeCobrancaRepository>();
         services.AddScoped<IParcelaRepository, ParcelaRepository>();

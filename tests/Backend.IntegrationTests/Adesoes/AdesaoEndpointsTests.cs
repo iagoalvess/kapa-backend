@@ -188,7 +188,7 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
         var minha = await formando.Cliente.GetFromJsonAsync<MinhaAdesaoDTO>($"{Rota}/eu", Json, Ct);
         var (resposta, _) = await Aderir(fabrica, formando.Cliente);
 
-        minha!.Pendencias.ShouldBe(["nomeCompleto", "cpf", "dataDeNascimento"]);
+        minha!.Pendencias.ShouldBe(["nomeCompleto", "cpf"]);
         resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await resposta.Codigo(Ct)).ShouldBe("adesao.cadastro_incompleto");
         (await Parcelas(turma.FormaturaId, formando.UsuarioId)).ShouldBe(0);
@@ -413,19 +413,6 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
 
         (await repetido.Codigo(Ct)).ShouldBe("adesao.cpf_em_uso");
         emOutraTurma.StatusCode.ShouldBe(HttpStatusCode.Created);
-    }
-
-    /// <summary>Decisão de 14/09/2026: menor de 18 não adere pela plataforma.</summary>
-    [Fact]
-    public async Task Menor_de_18_devolve_409()
-    {
-        var turma = await TurmaPronta();
-        var formando = await fabrica.NovoMembro(turma.FormaturaId, PapelNaFormatura.Formando, Ct);
-        await PreencherCadastro(formando.Cliente, NovoCpf(), nascimento: DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-17));
-
-        var (resposta, _) = await Aderir(fabrica, formando.Cliente);
-
-        (await resposta.Codigo(Ct)).ShouldBe("adesao.menor_de_idade");
     }
 
     [Fact]
