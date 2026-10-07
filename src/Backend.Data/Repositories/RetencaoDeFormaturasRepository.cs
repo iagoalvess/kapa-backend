@@ -37,7 +37,6 @@ public sealed class RetencaoDeFormaturasRepository(AppDbContext db) : IRetencaoD
     /// </remarks>
     public static readonly Type[] Apagadas =
     [
-        typeof(VotoNaProposta),
         typeof(PropostaDoItem),
         typeof(CheckIn),
         typeof(ConviteDoEvento),

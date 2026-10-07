@@ -96,8 +96,8 @@ public sealed class AdesaoService(
     /// descobrir o cadastro incompleto só depois de pedir o código gastaria a janela inteira.
     /// </para>
     /// <para>
-    /// O código chega no e-mail da conta, então acertá-lo prova o e-mail: a conta fica confirmada — é o
-    /// que libera o voto na festa para quem entrou pelo link sem clicar na confirmação.
+    /// O código chega no e-mail da conta, então acertá-lo prova o e-mail: a conta fica confirmada, mesmo
+    /// para quem entrou pelo link sem clicar na confirmação.
     /// </para>
     /// </remarks>
     public async Task<Result<AdesaoDetalhe>> Aderir(

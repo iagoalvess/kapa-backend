@@ -2,36 +2,28 @@ using Backend.Business.Abstractions;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Interfaces;
-using Backend.Business.Formandos.Interfaces;
-using Backend.Business.Formaturas.Models;
-using Backend.Business.Usuarios.Interfaces;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
 namespace Backend.Business.Festa.Services;
 
 /// <summary>
-/// As candidatas de um item "a contratar", e em qual delas a turma votou.
+/// As candidatas de um item "a contratar": os orçamentos que a comissão compara.
 /// </summary>
 /// <remarks>
 /// Decisão 16: o mapeamento não é um estado novo — "a contratar" já era ele. O que faltava era as
 /// candidatas terem onde morar, em vez de caberem só na prosa do item.
 /// <para>
-/// Decisão 17: um voto por formando por item. Quem garante a unicidade é o índice do banco, não este
-/// service: ele lê o voto que existe e o atualiza, e dois cliques simultâneos em propostas
-/// diferentes esbarram na constraint em vez de virarem dois votos.
+/// A janela é o estado do item, e ela também é lida, nunca gravada: proposta só muda enquanto não há
+/// despesa vinculada. Depois dela a escolha já aconteceu.
 /// </para>
 /// <para>
-/// A janela é o estado do item, e ela também é lida, nunca gravada: proposta e voto só entram
-/// enquanto não há despesa vinculada. Depois dela a escolha já aconteceu — reabrir a votação sobre
-/// um contrato assinado é discussão de assembleia, e não de tela.
+/// O voto da turma nas propostas (decisão 17) saiu em 07/10/2026: quem contrata é a comissão.
 /// </para>
 /// </remarks>
-/// <param name="propostaRepository">Propostas e votos.</param>
+/// <param name="propostaRepository">Propostas.</param>
 /// <param name="itemRepository">Itens, para achar o dono da proposta.</param>
-/// <param name="despesaRepository">Despesas, para saber se a disputa ainda está aberta.</param>
-/// <param name="perfilRepository">Vínculo de quem vota.</param>
-/// <param name="usuarioRepository">Se quem vota confirmou o e-mail.</param>
+/// <param name="despesaRepository">Despesas, para saber se o item ainda está "a contratar".</param>
 /// <param name="validator">Forma da proposta.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
@@ -39,8 +31,6 @@ public sealed class PropostaService(
     IPropostaRepository propostaRepository,
     IItemDaFestaRepository itemRepository,
     IDespesaRepository despesaRepository,
-    IPerfilRepository perfilRepository,
-    IUsuarioRepository usuarioRepository,
     IValidator<DadosDaProposta> validator,
     IUnitOfWork unitOfWork,
     ILogger<PropostaService> logger
@@ -52,14 +42,10 @@ public sealed class PropostaService(
 
     private static readonly Erro DisputaEncerrada = Erro.Conflito(
         "festa.disputa_encerrada",
-        "Este item já foi contratado ou cancelado: a escolha da turma já aconteceu."
+        "Este item já foi contratado ou cancelado: a escolha já aconteceu."
     );
 
     /// <inheritdoc />
-    /// <remarks>
-    /// A resposta é montada aqui, e não relida do banco: proposta recém-criada tem zero voto, e isso
-    /// é fato — reler para descobrir um zero seria uma consulta a mais em cada "Nova proposta".
-    /// </remarks>
     public async Task<Result<PropostaResumo>> Criar(Guid itemId, DadosDaProposta dados, CancellationToken ct = default)
     {
         var validacao = validator.Validar(dados);
@@ -77,7 +63,7 @@ public sealed class PropostaService(
 
         logger.LogInformation("Proposta {PropostaId} criada para o item {ItemId}.", proposta.Id, itemId);
 
-        return new PropostaResumo(proposta.Id, proposta.Titulo, proposta.ValorEmCentavos, proposta.OQueInclui, 0, false);
+        return new PropostaResumo(proposta.Id, proposta.Titulo, proposta.ValorEmCentavos, proposta.OQueInclui);
     }
 
     /// <inheritdoc />
@@ -120,75 +106,6 @@ public sealed class PropostaService(
         return Result.Ok();
     }
 
-    /// <inheritdoc />
-    /// <remarks>
-    /// Votar de novo na mesma proposta é o mesmo estado, e não um erro: a tela pode repetir o clique,
-    /// e devolver 409 para "você já votou nesta" faria a interface ter de tratar um caso que não
-    /// significa nada.
-    /// <para>
-    /// Só vota quem confirmou o e-mail — pelo link de confirmação ou pelo código da adesão. O link da
-    /// turma aceita qualquer conta nova, e sem essa prova cada e-mail inventado era mais um voto.
-    /// </para>
-    /// </remarks>
-    public async Task<Result> Votar(Guid propostaId, Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
-    {
-        var proposta = await propostaRepository.ObterParaEdicao(propostaId, ct);
-        if (proposta is null)
-            return Result.Falha(NaoEncontrada);
-
-        var aberta = await DisputaAberta(proposta.ItemDaFestaId, ct);
-        if (aberta.Falhou)
-            return aberta;
-
-        var vinculo = await VinculoDe(formaturaId, usuarioId, ct);
-        if (vinculo.Falhou)
-            return vinculo;
-
-        if (await usuarioRepository.ObterDetalhe(usuarioId, ct) is not { EmailConfirmado: true })
-            return Result.Falha(
-                Erro.Proibido(
-                    "festa.email_nao_confirmado",
-                    "Confirme seu e-mail para votar. Use o link que enviamos quando você criou a conta, ou peça outro em Minha conta."
-                )
-            );
-
-        if (await propostaRepository.ObterVoto(vinculo.Valor, proposta.ItemDaFestaId, ct) is { } voto)
-        {
-            var troca = voto.Trocar(proposta);
-            if (troca.Falhou)
-                return troca;
-        }
-        else
-        {
-            await propostaRepository.AdicionarVoto(VotoNaProposta.Novo(vinculo.Valor, proposta), ct);
-        }
-
-        await unitOfWork.SalvarAsync(ct);
-
-        return Result.Ok();
-    }
-
-    /// <inheritdoc />
-    /// <remarks>Sem voto, não há o que tirar — e responder 204 de novo é a resposta honesta.</remarks>
-    public async Task<Result> Desvotar(Guid itemId, Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
-    {
-        var aberta = await DisputaAberta(itemId, ct);
-        if (aberta.Falhou)
-            return aberta;
-
-        var vinculo = await VinculoDe(formaturaId, usuarioId, ct);
-        if (vinculo.Falhou)
-            return vinculo;
-
-        if (await propostaRepository.ObterVoto(vinculo.Valor, itemId, ct) is { } voto)
-        {
-            propostaRepository.RemoverVoto(voto);
-            await unitOfWork.SalvarAsync(ct);
-        }
-
-        return Result.Ok();
-    }
-
     /// <summary>
     /// Se o item existe aqui e ainda está "a contratar".
     /// </summary>
@@ -209,14 +126,8 @@ public sealed class PropostaService(
         return Result.Ok();
     }
 
-    /// <summary>O vínculo de quem vota nesta turma.</summary>
-    /// <param name="formaturaId">Turma da sessão.</param>
-    /// <param name="usuarioId">Quem vota.</param>
-    private async Task<Result<Guid>> VinculoDe(Guid formaturaId, Guid usuarioId, CancellationToken ct) =>
-        await perfilRepository.ObterTitular(formaturaId, usuarioId, ct) is { } membro ? membro.VinculoId : ErrosDeFormatura.MembroNaoEncontrado;
-
     /// <summary>A proposta como a tela a mostra, depois da gravação.</summary>
     /// <param name="id">Proposta.</param>
     private async Task<Result<PropostaResumo>> Devolver(Guid id, CancellationToken ct) =>
-        await propostaRepository.Obter(id, null, ct) is { } resumo ? resumo : NaoEncontrada;
+        await propostaRepository.Obter(id, ct) is { } resumo ? resumo : NaoEncontrada;
 }

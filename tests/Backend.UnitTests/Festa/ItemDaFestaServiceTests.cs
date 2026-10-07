@@ -30,7 +30,6 @@ public sealed class ItemDaFestaServiceTests
     private readonly IDocumentoService _acervo = Substitute.For<IDocumentoService>();
     private readonly ICaixaRepository _caixa = Substitute.For<ICaixaRepository>();
     private readonly IPropostaRepository _propostas = Substitute.For<IPropostaRepository>();
-    private readonly IPerfilRepository _perfis = Substitute.For<IPerfilRepository>();
     private readonly IFormaturaAtual _formaturaAtual = Substitute.For<IFormaturaAtual>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
@@ -50,7 +49,6 @@ public sealed class ItemDaFestaServiceTests
             _acervo,
             _caixa,
             _propostas,
-            _perfis,
             _formaturaAtual,
             new DadosDoItemDaFestaValidator(),
             _unitOfWork,

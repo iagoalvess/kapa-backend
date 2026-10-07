@@ -1,4 +1,4 @@
- using Asp.Versioning;
+using Asp.Versioning;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Assinaturas;
 using Backend.Api.Extensions;

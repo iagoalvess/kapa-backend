@@ -7,12 +7,12 @@ namespace Backend.Business.Festa.Models;
 /// </summary>
 /// <remarks>
 /// Decisão 16: o item "a contratar" é o mapeamento da comissão, e até aqui as candidatas só cabiam
-/// em prosa, dentro do <see cref="ItemDaFesta.OQueInclui"/>. Prosa não se compara, não se vota e não
+/// em prosa, dentro do <see cref="ItemDaFesta.OQueInclui"/>. Prosa não se compara e não
 /// vira despesa — três bandas num parágrafo são três bandas que ninguém consegue escolher em tela.
 /// <para>
 /// A proposta <b>não</b> é fornecedor cadastrado nem cotação formal: não tem contato, não tem
 /// documento e não tem prazo de validade. É o que a comissão levantou no grupo, escrito onde a turma
-/// possa ler e votar. Quem for contratado vira <c>Fornecedor</c> no lançamento da despesa, e é de lá
+/// possa ler. Quem for contratado vira <c>Fornecedor</c> no lançamento da despesa, e é de lá
 /// que o nome no cartão continua saindo (decisão 15).
 /// </para>
 /// <para>

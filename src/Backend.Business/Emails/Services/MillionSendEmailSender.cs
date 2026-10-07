@@ -39,8 +39,8 @@ public sealed class MillionSendEmailSender(
 
     /// <inheritdoc />
     /// <remarks>
-    /// 4xx é recusa da própria mensagem — endereço inválido, validação — e mandar de novo dá o mesmo 4xx: vira
-    /// <see cref="EmailRecusadoException"/>, e a fila desiste na hora. 408 e 429 são do momento, como o 5xx, e reagendam.
+    /// A recusa sai como <see cref="HttpRequestException"/> com o status: a fila desiste na hora do 4xx, que é recusa da
+    /// própria mensagem, e reagenda o resto.
     /// </remarks>
     public async Task EnviarAsync(MensagemDeEmail mensagem, CancellationToken ct = default)
     {
@@ -53,10 +53,11 @@ public sealed class MillionSendEmailSender(
 
         if (!resposta.IsSuccessStatusCode)
         {
-            var codigo = (int)resposta.StatusCode;
-            var erro = $"MillionSend recusou o e-mail: {codigo} {await resposta.Content.ReadAsStringAsync(ct)}";
-
-            throw codigo is >= 400 and < 500 and not (408 or 429) ? new EmailRecusadoException(erro) : new HttpRequestException(erro);
+            throw new HttpRequestException(
+                $"MillionSend recusou o e-mail: {(int)resposta.StatusCode} {await resposta.Content.ReadAsStringAsync(ct)}",
+                null,
+                resposta.StatusCode
+            );
         }
 
         logger.LogInformation("E-mail entregue à MillionSend para {Destinatario}.", TextoUtils.MascararEmail(mime.To.ToString()));

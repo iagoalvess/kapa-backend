@@ -27,21 +27,12 @@ public sealed record DadosDoItemDaFesta(
 /// <param name="OQueInclui">O que ela entrega, em Markdown curto.</param>
 public sealed record DadosDaProposta(string Titulo, long ValorEmCentavos, string? OQueInclui);
 
-/// <summary>
-/// Uma proposta como a turma a vê, com quantos votos tem e se o voto de quem lê é dela.
-/// </summary>
-/// <remarks>
-/// <paramref name="Votos"/> é a contagem das linhas de <see cref="VotoNaProposta"/>, e não um
-/// contador gravado — é a decisão 2 desta sprint aplicada ao placar, pelo mesmo motivo: contador que
-/// alguém esquece de decrementar é um placar que mente para a turma inteira.
-/// </remarks>
+/// <summary>Uma proposta como a tela a mostra.</summary>
 /// <param name="Id">Identificador.</param>
 /// <param name="Titulo">Quem está propondo.</param>
 /// <param name="ValorEmCentavos">Quanto ela custa.</param>
 /// <param name="OQueInclui">O que ela entrega, em Markdown.</param>
-/// <param name="Votos">Quantos formandos escolheram esta.</param>
-/// <param name="MeuVoto">Se o voto de quem está lendo é nesta proposta.</param>
-public sealed record PropostaResumo(Guid Id, string Titulo, long ValorEmCentavos, string? OQueInclui, int Votos, bool MeuVoto);
+public sealed record PropostaResumo(Guid Id, string Titulo, long ValorEmCentavos, string? OQueInclui);
 
 /// <summary>
 /// Um item da festa como a turma o vê, com o que já foi contratado e pago.
@@ -128,11 +119,10 @@ public sealed record ItemDaFestaResumo(
 /// <remarks>
 /// As propostas não vêm na listagem de propósito: a lista da esquerda só precisa saber que existem
 /// (<see cref="ItemDaFestaResumo.QuantidadeDePropostas"/>), e trazer todas em toda abertura da tela
-/// carregaria a consulta com o que só um item por vez mostra. O detalhe é o único lugar que sabe
-/// <see cref="PropostaResumo.MeuVoto"/>, porque é o único que recebe quem está lendo.
+/// carregaria a consulta com o que só um item por vez mostra.
 /// </remarks>
 /// <param name="Item">O item, como a lista o mostra.</param>
-/// <param name="Propostas">As candidatas, da mais votada para a menos.</param>
+/// <param name="Propostas">As candidatas, da mais barata para a mais cara.</param>
 public sealed record ItemDaFestaDetalhe(ItemDaFestaResumo Item, IReadOnlyList<PropostaResumo> Propostas);
 
 /// <summary>

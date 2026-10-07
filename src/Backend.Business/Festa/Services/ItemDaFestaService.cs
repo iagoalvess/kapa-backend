@@ -27,7 +27,6 @@ namespace Backend.Business.Festa.Services;
 /// <param name="documentoService">Acervo, para criar o contrato enviado junto do cadastro.</param>
 /// <param name="caixaRepository">O arrecadado da turma — o mesmo número da tela do Caixa.</param>
 /// <param name="propostaRepository">As candidatas de cada item, para o painel de detalhe.</param>
-/// <param name="perfilRepository">Vínculo de quem lê, para saber onde está o voto dele.</param>
 /// <param name="formaturaAtual">Turma da sessão, para gravar o contrato no acervo dela.</param>
 /// <param name="validator">Forma do item.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
@@ -39,7 +38,6 @@ public sealed class ItemDaFestaService(
     IDocumentoService documentoService,
     ICaixaRepository caixaRepository,
     IPropostaRepository propostaRepository,
-    IPerfilRepository perfilRepository,
     IFormaturaAtual formaturaAtual,
     IValidator<DadosDoItemDaFesta> validator,
     IUnitOfWork unitOfWork,
@@ -94,20 +92,8 @@ public sealed class ItemDaFestaService(
         await itemRepository.Obter(id, ct) is { } item ? item : NaoEncontrado;
 
     /// <inheritdoc />
-    /// <remarks>
-    /// O vínculo de quem lê é opcional para a consulta: quem não tiver um — a Gestão que não é
-    /// formando da turma — vê as propostas e o placar, e nenhuma delas marcada como sua. Não votar
-    /// não é erro, então não devolve erro nenhum.
-    /// </remarks>
-    public async Task<Result<ItemDaFestaDetalhe>> ObterDetalhe(Guid id, Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
-    {
-        if (await itemRepository.Obter(id, ct) is not { } item)
-            return NaoEncontrado;
-
-        var vinculoId = (await perfilRepository.ObterTitular(formaturaId, usuarioId, ct))?.VinculoId;
-
-        return new ItemDaFestaDetalhe(item, await propostaRepository.Listar(id, vinculoId, ct));
-    }
+    public async Task<Result<ItemDaFestaDetalhe>> ObterDetalhe(Guid id, CancellationToken ct = default) =>
+        await itemRepository.Obter(id, ct) is { } item ? new ItemDaFestaDetalhe(item, await propostaRepository.Listar(id, ct)) : NaoEncontrado;
 
     /// <inheritdoc />
     /// <remarks>

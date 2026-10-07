@@ -110,6 +110,15 @@ public sealed class ProcessamentoDaFilaDeEmail(
             email.Descartar(agoraUtc);
     }
 
+    /// <summary>Se o provedor recusou a mensagem de vez: tentar de novo daria a mesma recusa.</summary>
+    /// <remarks>
+    /// 4xx é a própria mensagem — endereço inválido, validação —, e cada nova tentativa era mais uma chamada paga para o
+    /// mesmo "não". 408 e 429 são do momento, como o 5xx e a falha de rede, e reagendam.
+    /// </remarks>
+    /// <param name="excecao">O que o remetente lançou.</param>
+    private static bool RecusaPermanente(Exception excecao) =>
+        excecao is HttpRequestException { StatusCode: { } codigo } && (int)codigo is >= 400 and < 500 and not (408 or 429);
+
     private async Task EnviarUm(EmailNaFila email, CancellationToken ct)
     {
         try
@@ -123,8 +132,7 @@ public sealed class ProcessamentoDaFilaDeEmail(
         }
         catch (Exception excecao)
         {
-            // Recusa permanente não ganha nova tentativa: seriam mais quatro chamadas pagas para o mesmo "não".
-            email.RegistrarFalha(excecao.Message, DateTime.UtcNow, excecao is EmailRecusadoException ? 0 : _settings.MaximoDeTentativas);
+            email.RegistrarFalha(excecao.Message, DateTime.UtcNow, RecusaPermanente(excecao) ? 0 : _settings.MaximoDeTentativas);
 
             logger.LogWarning(
                 excecao,

@@ -269,8 +269,6 @@ public sealed class ReguaService(
                 ct
             );
 
-            // Só quando algum aviso cruzou o prazo nesta rodada: repetir todo dia o mesmo resumo era um e-mail
-            // diário por tesoureiro enquanto a conferência não andasse. O total vai na mensagem do mesmo jeito.
             if (parados > jaAvisados)
                 envios.AddRange(
                     await Resumir(

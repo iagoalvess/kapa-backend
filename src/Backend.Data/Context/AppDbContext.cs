@@ -169,9 +169,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Candidatas a serem contratadas para um item "a contratar".</summary>
     public DbSet<PropostaDoItem> PropostasDoItem => Set<PropostaDoItem>();
 
-    /// <summary>Em qual proposta cada formando votou — uma linha por formando por item.</summary>
-    public DbSet<VotoNaProposta> VotosNasPropostas => Set<VotoNaProposta>();
-
     /// <summary>
     /// As datas da turma: colação, festa, reunião, prazo.
     /// </summary>

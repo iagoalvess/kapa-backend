@@ -1,3 +1,4 @@
+using System.Net;
 using Backend.Business.Abstractions;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
@@ -105,7 +106,7 @@ public sealed class ProcessamentoDaFilaDeEmailTests
         _fila.ReservarLote(2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns([recusado]);
         _remetente
             .EnviarAsync(Arg.Any<MensagemDeEmail>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new EmailRecusadoException("MillionSend recusou o e-mail: 422 invalid to"));
+            .ThrowsAsync(new HttpRequestException("MillionSend recusou o e-mail: 422 invalid to", null, HttpStatusCode.UnprocessableEntity));
 
         await Servico().ProcessarLote(Ct);
 

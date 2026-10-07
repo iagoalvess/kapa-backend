@@ -259,10 +259,9 @@ Não vem do domínio: é o `GlobalExceptionHandler`, a rede de segurança para e
 | <a id="festa.convite_preso"></a>`festa.convite_preso` | 409 | Convite de pacote preso: o formando tem parcela vencida além da carência. Volta a valer ao regularizar ou quando a comissão libera (Sprint 47, D24). |
 | <a id="festa.convite_revogado"></a>`festa.convite_revogado` | 409 | O convite foi revogado (estorno, cancelamento, transferência ou reemissão); a mensagem traz o motivo. |
 | <a id="festa.convite_sem_titular"></a>`festa.convite_sem_titular` | 409 | O convite ainda não tem nome e documento do convidado — não entra como anônimo (P5). |
-| <a id="festa.disputa_encerrada"></a>`festa.disputa_encerrada` | 409 | Este item já foi contratado ou cancelado: a escolha da turma já aconteceu. |
+| <a id="festa.disputa_encerrada"></a>`festa.disputa_encerrada` | 409 | Este item já foi contratado ou cancelado: a escolha já aconteceu. |
 | <a id="festa.documento_nao_encontrado"></a>`festa.documento_nao_encontrado` | 400 | Documento não encontrado no acervo, ou visível apenas para a comissão. |
 | <a id="festa.documento_obrigatorio"></a>`festa.documento_obrigatorio` | 400 | Depois do fechamento da lista, o convite precisa de nome e documento. |
-| <a id="festa.email_nao_confirmado"></a>`festa.email_nao_confirmado` | 403 | Confirme seu e-mail para votar. Use o link que enviamos quando você criou a conta, ou peça outro em Minha conta. |
 | <a id="festa.entrada_nao_encontrada"></a>`festa.entrada_nao_encontrada` | 404 | Entrada da portaria não encontrada. |
 | <a id="festa.evento_incompleto"></a>`festa.evento_incompleto` | 409 | A festa precisa estar na agenda com data, hora e local antes de qualquer convite sair (P6). |
 | <a id="festa.evento_sem_convite"></a>`festa.evento_sem_convite` | 400 | Só a festa e a colação têm cota de convites. |
@@ -281,7 +280,6 @@ Não vem do domínio: é o `GlobalExceptionHandler`, a rede de segurança para e
 | <a id="festa.mesas_alem_do_pedido"></a>`festa.mesas_alem_do_pedido` | 409 | O formando já tem no mapa todas as mesas que os pedidos confirmados do opcional Mesa dão direito (Sprint 27, decisão 6). |
 | <a id="festa.outro_evento"></a>`festa.outro_evento` | 409 | O convite é de outro evento da turma — não é código inválido (decisão 13). |
 | <a id="festa.pedido_sem_convite"></a>`festa.pedido_sem_convite` | 409 | O pedido não é de convite extra. |
-| <a id="festa.proposta_de_outro_item"></a>`festa.proposta_de_outro_item` | 409 | Essa proposta é de outro item. |
 | <a id="festa.proposta_nao_encontrada"></a>`festa.proposta_nao_encontrada` | 404 | Proposta não encontrada. |
 | <a id="festa.sincronizacao_grande"></a>`festa.sincronizacao_grande` | 400 | Envie no máximo 2.000 entradas sem rede por vez. |
 

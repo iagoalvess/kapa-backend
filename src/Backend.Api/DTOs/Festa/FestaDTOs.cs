@@ -100,20 +100,12 @@ public sealed record MetaDaFestaDTO(
 /// <param name="OQueInclui">O que ela entrega, em Markdown curto.</param>
 public sealed record PropostaRequestDTO(string? Titulo, long ValorEmCentavos, string? OQueInclui);
 
-/// <summary>
-/// Uma proposta como a turma a vê.
-/// </summary>
-/// <remarks>
-/// <paramref name="Votos"/> é a contagem das linhas de voto, e não um contador gravado: é a mesma
-/// regra do estado do item — o que a turma lê não pode depender de alguém lembrar de atualizar.
-/// </remarks>
+/// <summary>Uma proposta como a tela a mostra.</summary>
 /// <param name="Id">Identificador.</param>
 /// <param name="Titulo">Quem está propondo.</param>
 /// <param name="ValorEmCentavos">Quanto ela custa.</param>
 /// <param name="OQueInclui">O que ela entrega, em Markdown.</param>
-/// <param name="Votos">Quantos formandos escolheram esta.</param>
-/// <param name="MeuVoto">Se o voto de quem está lendo é nesta proposta.</param>
-public sealed record PropostaDTO(Guid Id, string Titulo, long ValorEmCentavos, string? OQueInclui, int Votos, bool MeuVoto);
+public sealed record PropostaDTO(Guid Id, string Titulo, long ValorEmCentavos, string? OQueInclui);
 
 /// <summary>Um item com as candidatas levantadas para ele — o painel de detalhe da tela.</summary>
 /// <param name="Item">O item, como a lista o mostra.</param>

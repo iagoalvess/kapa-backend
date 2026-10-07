@@ -24,9 +24,7 @@ public interface IItemDaFestaService
 
     /// <summary>Um item com as propostas levantadas para ele — o painel da direita da tela.</summary>
     /// <param name="id">Item.</param>
-    /// <param name="formaturaId">Turma da sessão, para achar o vínculo de quem lê.</param>
-    /// <param name="usuarioId">Quem está lendo: é o que decide o <c>meu_voto</c> de cada proposta.</param>
-    Task<Result<ItemDaFestaDetalhe>> ObterDetalhe(Guid id, Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+    Task<Result<ItemDaFestaDetalhe>> ObterDetalhe(Guid id, CancellationToken ct = default);
 
     /// <summary>A meta: custo da festa, arrecadado e quanto dela já foi paga.</summary>
     Task<Result<MetaDaFesta>> ObterMeta(CancellationToken ct = default);
@@ -71,12 +69,12 @@ public interface IItemDaFestaService
 }
 
 /// <summary>
-/// As propostas de um item e o voto da turma nelas.
+/// As propostas de um item: os orçamentos que a comissão levantou para comparar.
 /// </summary>
 /// <remarks>
-/// Escrita para a Gestão, voto para o formando (decisão 17). Proposta e voto só existem enquanto o
-/// item está "a contratar": depois de lançada a despesa, a escolha já aconteceu, e reabrir a votação
-/// sobre um contrato assinado é discussão que a tela não deve hospedar.
+/// Escrita para a Gestão. Proposta só muda enquanto o item está "a contratar": depois de lançada a
+/// despesa, a escolha já aconteceu. O voto da turma nelas (decisão 17) saiu em 07/10/2026 — quem
+/// escolhe fornecedor é a comissão, e opinião da turma é assunto de enquete.
 /// </remarks>
 public interface IPropostaService
 {
@@ -90,27 +88,9 @@ public interface IPropostaService
     /// <param name="dados">Dados novos.</param>
     Task<Result<PropostaResumo>> Atualizar(Guid id, DadosDaProposta dados, CancellationToken ct = default);
 
-    /// <summary>
-    /// Tira uma proposta da disputa.
-    /// </summary>
-    /// <remarks>
-    /// Os votos dela vão junto, em cascata: voto é preferência, não dinheiro, e manter voto órfão
-    /// obrigaria a inventar um estado "votou em proposta que não existe mais" que ninguém lê.
-    /// </remarks>
+    /// <summary>Exclui uma proposta.</summary>
     /// <param name="id">Proposta.</param>
     Task<Result> Excluir(Guid id, CancellationToken ct = default);
-
-    /// <summary>O formando escolhe uma proposta, ou troca a que já tinha escolhido.</summary>
-    /// <param name="propostaId">A escolhida.</param>
-    /// <param name="formaturaId">Turma da sessão.</param>
-    /// <param name="usuarioId">Quem vota.</param>
-    Task<Result> Votar(Guid propostaId, Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
-
-    /// <summary>Tira o voto do formando naquele item.</summary>
-    /// <param name="itemId">Item.</param>
-    /// <param name="formaturaId">Turma da sessão.</param>
-    /// <param name="usuarioId">Quem vota.</param>
-    Task<Result> Desvotar(Guid itemId, Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -146,43 +126,28 @@ public interface IItemDaFestaRepository
 }
 
 /// <summary>
-/// As propostas dos itens da festa e os votos nelas.
+/// As propostas dos itens da festa.
 /// </summary>
 /// <remarks>Isolados pelo filtro global: nenhum método recebe a formatura.</remarks>
 public interface IPropostaRepository
 {
-    /// <summary>As propostas de um item, da mais votada para a menos, com o voto de quem lê.</summary>
+    /// <summary>As propostas de um item, da mais barata para a mais cara.</summary>
     /// <param name="itemId">Item.</param>
-    /// <param name="vinculoId">Quem está lendo; <c>null</c> devolve <c>meu_voto</c> falso em todas.</param>
-    Task<IReadOnlyList<PropostaResumo>> Listar(Guid itemId, Guid? vinculoId, CancellationToken ct = default);
+    Task<IReadOnlyList<PropostaResumo>> Listar(Guid itemId, CancellationToken ct = default);
 
     /// <summary>Uma proposta, como a lista a mostra; nula se não existir aqui.</summary>
     /// <param name="id">Proposta.</param>
-    /// <param name="vinculoId">Quem está lendo.</param>
-    Task<PropostaResumo?> Obter(Guid id, Guid? vinculoId, CancellationToken ct = default);
+    Task<PropostaResumo?> Obter(Guid id, CancellationToken ct = default);
 
     /// <summary>A proposta rastreada para alteração; nula se não existir aqui.</summary>
     /// <param name="id">Proposta.</param>
     Task<PropostaDoItem?> ObterParaEdicao(Guid id, CancellationToken ct = default);
 
-    /// <summary>O voto que o vínculo já deu naquele item; nulo se ainda não votou.</summary>
-    /// <param name="vinculoId">Quem vota.</param>
-    /// <param name="itemId">Item.</param>
-    Task<VotoNaProposta?> ObterVoto(Guid vinculoId, Guid itemId, CancellationToken ct = default);
-
     /// <summary>Marca uma proposta nova para inclusão.</summary>
     /// <param name="proposta">Proposta.</param>
     Task Adicionar(PropostaDoItem proposta, CancellationToken ct = default);
 
-    /// <summary>Marca um voto novo para inclusão.</summary>
-    /// <param name="voto">Voto.</param>
-    Task AdicionarVoto(VotoNaProposta voto, CancellationToken ct = default);
-
-    /// <summary>Marca a proposta para exclusão; os votos dela vão em cascata.</summary>
+    /// <summary>Marca a proposta para exclusão.</summary>
     /// <param name="proposta">Proposta já carregada.</param>
     void Remover(PropostaDoItem proposta);
-
-    /// <summary>Marca o voto para exclusão.</summary>
-    /// <param name="voto">Voto já carregado.</param>
-    void RemoverVoto(VotoNaProposta voto);
 }

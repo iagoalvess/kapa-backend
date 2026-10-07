@@ -26,7 +26,7 @@ namespace Backend.Api.Controllers.V1.Festa;
 /// </para>
 /// </remarks>
 /// <param name="itemService">Regras dos itens e da meta.</param>
-/// <param name="usuarioAtual">Quem chama — é o que decide de quem é o voto em cada proposta.</param>
+/// <param name="usuarioAtual">Quem chama — o autor do contrato enviado no cadastro.</param>
 [ApiVersion("1.0")]
 [ExigeModulo(Modulo.Mural)]
 [Route("api/v{version:apiVersion}/festa")]
@@ -64,10 +64,7 @@ public sealed class ItemDaFestaController(IItemDaFestaService itemService, IUsua
         Responder((await itemService.ObterPorId(id, ct)).Map(item => item.Adapt<ItemDaFestaDTO>()));
 
     /// <summary>Um item com as propostas levantadas para ele — o painel da direita da tela.</summary>
-    /// <remarks>
-    /// As propostas não vêm na listagem: a lista da esquerda só precisa da contagem, e é este
-    /// endpoint que sabe de quem é o voto, porque é o único que recebe quem está lendo.
-    /// </remarks>
+    /// <remarks>As propostas não vêm na listagem: a lista da esquerda só precisa da contagem.</remarks>
     /// <param name="id">Item.</param>
     [HttpGet("itens/{id:guid}/detalhe")]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
@@ -76,7 +73,7 @@ public sealed class ItemDaFestaController(IItemDaFestaService itemService, IUsua
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ObterDetalhe(Guid id, CancellationToken ct) =>
         Responder(
-            (await itemService.ObterDetalhe(id, FormaturaId, usuarioAtual.Id, ct)).Map(detalhe => new ItemDaFestaDetalheDTO(
+            (await itemService.ObterDetalhe(id, ct)).Map(detalhe => new ItemDaFestaDetalheDTO(
                 detalhe.Item.Adapt<ItemDaFestaDTO>(),
                 detalhe.Propostas.Select(proposta => proposta.Adapt<PropostaDTO>())
             ))

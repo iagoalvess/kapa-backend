@@ -15,12 +15,12 @@ public interface IEmailSender
     /// <summary>Entrega a mensagem.</summary>
     /// <param name="mensagem">Mensagem a enviar.</param>
     /// <exception cref="Exception">Qualquer falha de conexão, autenticação ou recusa do servidor.</exception>
+    /// <exception cref="HttpRequestException">
+    /// Recusa do provedor HTTP, com o <see cref="HttpRequestException.StatusCode"/> que ele respondeu: um 4xx diz que a
+    /// mensagem não passa, e a fila desiste sem nova tentativa.
+    /// </exception>
     Task EnviarAsync(MensagemDeEmail mensagem, CancellationToken ct = default);
 }
-
-/// <summary>O provedor recusou a mensagem de vez: tentar de novo daria a mesma recusa.</summary>
-/// <param name="mensagem">O que o provedor respondeu.</param>
-public sealed class EmailRecusadoException(string mensagem) : Exception(mensagem);
 
 /// <summary>
 /// Enfileira e-mails.

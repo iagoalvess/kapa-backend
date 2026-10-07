@@ -226,7 +226,7 @@ public static class FormaturaDeTeste
         await contexto.Users.Where(u => u.Email == email).ExecuteUpdateAsync(s => s.SetProperty(u => u.EmailConfirmed, true), ct);
     }
 
-    /// <summary>Marca o e-mail do membro como confirmado — o que o voto na festa exige.</summary>
+    /// <summary>Marca o e-mail do membro como confirmado.</summary>
     /// <param name="fabrica">API de teste.</param>
     /// <param name="membro">Membro criado pela fábrica.</param>
     public static async Task ConfirmarEmail(this ApiFactory fabrica, MembroDeTeste membro, CancellationToken ct)
