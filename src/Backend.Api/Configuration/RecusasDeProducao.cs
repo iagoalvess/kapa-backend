@@ -39,7 +39,7 @@ public static class RecusasDeProducao
 
         if (app.Configuration.GetValue("Assinaturas:Provedor", EProvedorDeAssinatura.Fake) == EProvedorDeAssinatura.Fake)
             throw new InvalidOperationException(
-                "'Assinaturas:Provedor' não pode ser Fake em produção: configure MercadoPago e o token da conta do Kapa. Ver docs/deploy.md."
+                "'Assinaturas:Provedor' não pode ser Fake em produção: configure MercadoPago e o token da conta do Kapa. Ver docs/operacao/deploy.md."
             );
 
         return app;

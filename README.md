@@ -3,7 +3,7 @@
 A API (`api.kapaformaturas.com.br`) e o Worker do Kapa em .NET 10: camadas, autenticação JWT com
 refresh token rotativo, jobs de fundo, observabilidade e testes de integração contra banco real.
 O nome `Backend` dos projetos e namespaces vem do template de origem e ficou. Deploy em
-`docs/deploy.md` na raiz do projeto.
+`docs/operacao/deploy.md` na raiz do projeto.
 
 ---
 
