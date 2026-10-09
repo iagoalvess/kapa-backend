@@ -147,14 +147,6 @@ public sealed class NotificacaoRepository(AppDbContext db) : INotificacaoReposit
         return new PaginaDe<NotificacaoNoHistorico>(itens, paginacao.Pagina, paginacao.Tamanho, total);
     }
 
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<PreferenciaDeNotificacao>> ListarPreferenciasParaEdicao(Guid vinculoId, CancellationToken ct = default) =>
-        await db.PreferenciasDeNotificacao.Where(p => p.VinculoId == vinculoId).ToListAsync(ct);
-
-    /// <inheritdoc />
-    public Task AdicionarPreferencias(IReadOnlyList<PreferenciaDeNotificacao> preferencias, CancellationToken ct = default) =>
-        db.PreferenciasDeNotificacao.AddRangeAsync(preferencias, ct);
-
     /// <summary>
     /// As parcelas que a régua pode cobrar: em aberto, com dono que tem e-mail e sem informe pendente.
     /// </summary>

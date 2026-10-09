@@ -48,6 +48,10 @@ public sealed record PlanoDaTurma(string Codigo, string Nome, IReadOnlyList<stri
 /// <param name="ProximoPlano">Plano que vale a partir da próxima renovação, quando a turma agendou a descida.</param>
 /// <param name="CartaoAguardandoAutorizacao">Se a troca para o cartão espera a autorização na página do provedor.</param>
 /// <param name="Cupom">Cupom usado na primeira cobrança (Sprint 51); nulo sem cupom.</param>
+/// <param name="DesistenciaAte">
+/// Até quando o Presidente pode desistir com o reembolso integral do último ciclo pago, em UTC (art. 49 do CDC). Nulo
+/// fora do prazo, sem ciclo pago ou com a assinatura já encerrada.
+/// </param>
 public sealed record AssinaturaDetalhe(
     Guid Id,
     StatusDaAssinatura Status,
@@ -58,7 +62,8 @@ public sealed record AssinaturaDetalhe(
     MeioDePagamento Meio,
     PlanoResumo? ProximoPlano,
     bool CartaoAguardandoAutorizacao,
-    CupomAplicavel? Cupom = null
+    CupomAplicavel? Cupom = null,
+    DateTime? DesistenciaAte = null
 );
 
 /// <summary>Um pagamento do plano, como o histórico da tela o mostra.</summary>

@@ -45,6 +45,9 @@ public sealed class CompraDeConviteMapping : IEntityTypeConfiguration<CompraDeCo
         builder.Property(c => c.Cpf).HasMaxLength(256);
         builder.Property(c => c.CpfDoPagador).HasMaxLength(256);
         builder.Property<string?>(PropriedadeDoHmac).HasMaxLength(64);
+        builder.Property(c => c.VersaoDaPoliticaLida).IsRequired().HasMaxLength(40);
+        builder.Property(c => c.IpDaLeituraDaPolitica).HasMaxLength(45);
+        builder.Property(c => c.UserAgentDaLeituraDaPolitica).HasMaxLength(512);
 
         builder.HasIndex(c => c.ChaveDeIdempotencia).IsUnique();
         builder.HasIndex(PropriedadeDoHmac, nameof(CompraDeConvite.ItemDeCobrancaId));

@@ -6,13 +6,20 @@ namespace Backend.Business.Cobrancas.Validators;
 
 /// <summary>Forma do nome e das regras de atraso do plano.</summary>
 /// <remarks>
-/// Percentuais de 0 a 100% (base 10.000), sem teto de mercado: a decisão de 14/09/2026 foi deixar
-/// livre e só avisar na tela acima de 2% de multa ou 1% de juros ao mês.
+/// Multa até 2% e juros até 1% ao mês (base 10.000), decisão de 09/10/2026 que substitui a de 14/09
+/// (livre, só com aviso): é o teto do CDC (art. 52, §1º) e o que os Termos prometem. Se a relação entre
+/// formando e comissão não for de consumo, o parecer jurídico pode afrouxar — aqui e nos Termos, juntos.
 /// </remarks>
 public sealed class DadosDoPlanoValidator : AbstractValidator<DadosDoPlano>
 {
     /// <summary>100%, em base 10.000.</summary>
     public const int PercentualMaximo = 10_000;
+
+    /// <summary>Teto da multa por atraso: 2%, em base 10.000.</summary>
+    public const int MultaMaxima = 200;
+
+    /// <summary>Teto dos juros de mora: 1% ao mês, em base 10.000.</summary>
+    public const int JurosMaximosAoMes = 100;
 
     /// <summary>Registra as regras de validação.</summary>
     public DadosDoPlanoValidator()
@@ -23,8 +30,8 @@ public sealed class DadosDoPlanoValidator : AbstractValidator<DadosDoPlano>
             .MaximumLength(120)
             .WithMessage("O nome deve ter no máximo 120 caracteres.");
 
-        RuleFor(x => x.PercentualDeMulta).InclusiveBetween(0, PercentualMaximo).WithMessage("A multa deve ficar entre 0% e 100%.");
-        RuleFor(x => x.PercentualDeJurosAoMes).InclusiveBetween(0, PercentualMaximo).WithMessage("Os juros devem ficar entre 0% e 100% ao mês.");
+        RuleFor(x => x.PercentualDeMulta).InclusiveBetween(0, MultaMaxima).WithMessage("A multa deve ficar entre 0% e 2%.");
+        RuleFor(x => x.PercentualDeJurosAoMes).InclusiveBetween(0, JurosMaximosAoMes).WithMessage("Os juros devem ficar entre 0% e 1% ao mês.");
         RuleFor(x => x.CarenciaEmDias).InclusiveBetween(0, 60).WithMessage("A carência deve ficar entre 0 e 60 dias.");
         RuleFor(x => x.PercentualDeDescontoPorAntecipacao)
             .InclusiveBetween(0, PercentualMaximo)

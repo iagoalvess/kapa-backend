@@ -14,6 +14,10 @@ namespace Backend.Business.Loja.Models;
 /// <param name="Meio">Como paga — um de <see cref="MeiosDePagamento.Ligados"/>.</param>
 /// <param name="ChaveDeIdempotencia">O id que a tela sorteou ao abrir o formulário (decisão 7).</param>
 /// <param name="Convidados">Quem vai usar cada convite, na ordem dos convites: um por unidade, com nome e documento.</param>
+/// <param name="LeuAPolitica">
+/// Se o comprador marcou "Li como meus dados são usados", ao lado do link para a Política de Privacidade. Sem a
+/// marcação a compra é recusada; com ela, a compra grava a prova (<see cref="CienciaDaPolitica"/>).
+/// </param>
 public sealed record DadosDaCompra(
     Guid ItemDeCobrancaId,
     int Quantidade,
@@ -22,8 +26,16 @@ public sealed record DadosDaCompra(
     string Cpf,
     MeioDePagamento Meio,
     Guid ChaveDeIdempotencia,
-    IReadOnlyList<DadosDoConvidado> Convidados
+    IReadOnlyList<DadosDoConvidado> Convidados,
+    bool LeuAPolitica
 );
+
+/// <summary>A prova de que o comprador leu como os dados dele são usados, gravada na compra.</summary>
+/// <param name="Versao">A versão da Política de Privacidade vigente na hora da compra — a que o link da tela abria.</param>
+/// <param name="Em">Quando, em UTC.</param>
+/// <param name="EnderecoIp">IP de onde veio a compra.</param>
+/// <param name="UserAgent">Navegador que enviou a compra, já truncado.</param>
+public sealed record CienciaDaPolitica(string Versao, DateTime Em, string? EnderecoIp, string? UserAgent);
 
 /// <summary>A loja da turma, como a página pública a mostra.</summary>
 /// <param name="Turma">Nome da turma — quem vende (P5).</param>

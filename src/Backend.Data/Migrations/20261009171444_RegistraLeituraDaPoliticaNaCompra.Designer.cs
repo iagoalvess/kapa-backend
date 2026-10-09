@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Backend.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Backend.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261009171444_RegistraLeituraDaPoliticaNaCompra")]
+    partial class RegistraLeituraDaPoliticaNaCompra
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3260,6 +3263,52 @@ namespace Backend.Data.Migrations
                     b.ToTable("notificacoes_enviadas", (string)null);
                 });
 
+            modelBuilder.Entity("Backend.Business.Notificacoes.Models.PreferenciaDeNotificacao", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Ativa")
+                        .HasColumnType("boolean")
+                        .HasColumnName("ativa");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tipo");
+
+                    b.Property<Guid>("VinculoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vinculo_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_preferencias_de_notificacao");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_preferencias_de_notificacao_formatura_id");
+
+                    b.HasIndex("VinculoId", "Tipo")
+                        .IsUnique()
+                        .HasDatabaseName("ix_preferencias_de_notificacao_vinculo_id_tipo");
+
+                    b.ToTable("preferencias_de_notificacao", (string)null);
+                });
+
             modelBuilder.Entity("Backend.Business.Notificacoes.Models.RegraDeNotificacao", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5112,6 +5161,23 @@ namespace Backend.Data.Migrations
                         .HasForeignKey("VinculoId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_notificacoes_enviadas_vinculos_vinculo_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Notificacoes.Models.PreferenciaDeNotificacao", b =>
+                {
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_preferencias_de_notificacao_formaturas_formatura_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.VinculoDeFormatura", null)
+                        .WithMany()
+                        .HasForeignKey("VinculoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_preferencias_de_notificacao_vinculos_vinculo_id");
                 });
 
             modelBuilder.Entity("Backend.Business.Notificacoes.Models.RegraDeNotificacao", b =>

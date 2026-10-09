@@ -9,15 +9,14 @@ namespace Backend.Business.Privacidade.Models;
 /// se cria conta tem direito de saber para onde o dado dele vai, e uma lista atrás do login só é
 /// legível por quem já concordou.
 /// <para>
-/// Em código, e não em configuração: esta lista precisa bater com a seção correspondente da
-/// Política de Privacidade, que é uma linha versionada em <c>documentos_legais</c>. Duas fontes
-/// editáveis em lugares diferentes discordam no dia em que alguém troca de provedor com pressa.
-/// Trocar de operador é publicar versão nova da Política <b>e</b> mudar aqui, no mesmo commit.
+/// Em código, e não em configuração: esta lista precisa bater com a seção 6 da Política de
+/// Privacidade, que é uma linha versionada em <c>documentos_legais</c>. Duas fontes editáveis em
+/// lugares diferentes discordam no dia em que alguém troca de provedor com pressa. Trocar de operador
+/// é publicar versão nova da Política <b>e</b> mudar aqui, no mesmo commit.
 /// </para>
 /// <para>
-/// <c>ponytail:</c> quando o PSP da assinatura for escolhido (P2 da Sprint 16), o nome dele entra
-/// no lugar de "Provedor de pagamento". O provedor de modelos entrou com a Sprint 24 (decisão 12),
-/// junto do trecho dele na Política (seção 6).
+/// <c>ponytail:</c> o provedor de hospedagem da API e do banco ainda não foi contratado; quando for, o
+/// nome dele entra aqui e na Política.
 /// </para>
 /// </remarks>
 public static class OperadoresDaKapa
@@ -27,28 +26,28 @@ public static class OperadoresDaKapa
     [
         new("Provedor de hospedagem", "Executar a aplicação e guardar o banco de dados.", "Todos os dados da plataforma, cifrados em repouso."),
         new(
-            "Provedor de e-mail",
-            "Entregar confirmação de conta, redefinição de senha, avisos de cobrança e as mensagens da régua.",
+            "Mercado Pago",
+            "Cobrar a assinatura da Kapa e, quando a comissão conecta a conta da turma, criar as cobranças das parcelas e as vendas da loja na conta Mercado Pago da turma. O dinheiro da turma vai direto para a conta dela.",
+            "Nome, e-mail e CPF de quem paga, e o valor e a descrição da cobrança."
+        ),
+        new(
+            "Cloudflare",
+            "Publicar o site e o aplicativo, guardar os arquivos enviados e gerados, verificar que não é um robô e guardar a lista de espera.",
+            "Fotos, comprovantes, documentos, relatórios e exportações; endereço IP de quem acessa; os dados informados na lista de espera."
+        ),
+        new(
+            "MillionSend",
+            "Entregar confirmação de conta, códigos de acesso, avisos de cobrança e as mensagens da régua.",
             "Nome e endereço de e-mail do destinatário, e o conteúdo da mensagem."
         ),
         new(
-            "Provedor de armazenamento de arquivos",
-            "Guardar foto de perfil, comprovante de pagamento, documento do acervo e os arquivos gerados pela plataforma.",
-            "Os arquivos enviados pelos usuários e os relatórios e exportações gerados."
+            "Grafana Cloud",
+            "Guardar os registros técnicos de funcionamento e de erro do sistema.",
+            "Endereço IP e identificadores internos que aparecem nos registros."
         ),
         new(
-            "Provedor de pagamento",
-            "Cobrar a assinatura da plataforma da comissão. O dinheiro dos formandos não passa por ele: ele vai direto para a chave PIX informada pela comissão.",
-            "Dados de cobrança de quem contrata a assinatura."
-        ),
-        new(
-            "Mercado Pago da turma",
-            "Emitir o PIX com confirmação automática, quando a comissão conecta a conta Mercado Pago da turma. O dinheiro vai direto para a conta da turma; o Kapa só emite a cobrança e consulta se ela foi paga.",
-            "E-mail do formando que paga e o valor da cobrança."
-        ),
-        new(
-            "Provedor de modelos de inteligência artificial (OpenRouter)",
-            "Gerar o resumo do termo de adesão exibido ao formando antes do aceite.",
+            "OpenRouter",
+            "Gerar o resumo do termo de adesão exibido ao formando antes do aceite, só com provedores de modelo que não guardam o texto.",
             "O texto do termo redigido pela comissão (razão social, CNPJ, endereço e nomes da comissão). Nenhum dado de formando."
         ),
     ];

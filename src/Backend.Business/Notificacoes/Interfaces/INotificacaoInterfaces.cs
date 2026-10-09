@@ -78,22 +78,6 @@ public interface INotificacaoService
         CancellationToken ct = default
     );
 
-    /// <summary>O que o titular escolheu receber. Tipo sem linha gravada vem ligado.</summary>
-    /// <param name="formaturaId">Formatura da sessão.</param>
-    /// <param name="usuarioId">Titular.</param>
-    Task<Result<IReadOnlyList<PreferenciaResumo>>> ListarPreferencias(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
-
-    /// <summary>Grava as escolhas do titular. Desligar cobrança devolve 409.</summary>
-    /// <param name="formaturaId">Formatura da sessão.</param>
-    /// <param name="usuarioId">Titular.</param>
-    /// <param name="dados">Um item por tipo.</param>
-    Task<Result<IReadOnlyList<PreferenciaResumo>>> SalvarPreferencias(
-        Guid formaturaId,
-        Guid usuarioId,
-        DadosDasPreferencias dados,
-        CancellationToken ct = default
-    );
-
     /// <summary>
     /// Cobra uma parcela agora, à mão, com o degrau de atraso mais próximo.
     /// </summary>
@@ -172,12 +156,4 @@ public interface INotificacaoRepository
     /// <param name="paginacao">Página pedida, já normalizada.</param>
     /// <param name="filtro">Situação, período e busca.</param>
     Task<PaginaDe<NotificacaoNoHistorico>> ListarHistorico(PaginacaoRequest paginacao, FiltroDeNotificacoes filtro, CancellationToken ct = default);
-
-    /// <summary>As preferências gravadas do vínculo, rastreadas.</summary>
-    /// <param name="vinculoId">Titular.</param>
-    Task<IReadOnlyList<PreferenciaDeNotificacao>> ListarPreferenciasParaEdicao(Guid vinculoId, CancellationToken ct = default);
-
-    /// <summary>Marca preferências novas para inclusão.</summary>
-    /// <param name="preferencias">Preferências.</param>
-    Task AdicionarPreferencias(IReadOnlyList<PreferenciaDeNotificacao> preferencias, CancellationToken ct = default);
 }

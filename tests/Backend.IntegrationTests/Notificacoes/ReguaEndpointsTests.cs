@@ -30,7 +30,6 @@ public sealed class ReguaEndpointsTests(ApiFactory fabrica)
 {
     private const string Regras = "/api/v1/notificacoes/regras";
     private const string Historico = "/api/v1/notificacoes/historico";
-    private const string Preferencias = "/api/v1/notificacoes/preferencias/eu";
 
     private const long Mensalidade = 340_000;
 
@@ -202,39 +201,6 @@ public sealed class ReguaEndpointsTests(ApiFactory fabrica)
         turmas.Select(t => t.Id).ShouldNotContain(suspensaId);
     }
 
-    /// <summary>
-    /// Critério de aceite: a notificação de cobrança não pode ser desativada pelo formando; a do mural pode.
-    /// </summary>
-    [Fact]
-    public async Task O_formando_desliga_o_aviso_do_mural_mas_nao_a_cobranca()
-    {
-        var turma = await TurmaPronta();
-        var ana = await FormandoQueAderiu(turma, "Ana Preferencias");
-
-        var atual = await Ler<IReadOnlyList<PreferenciaDTO>>(await ana.Membro.Cliente.GetAsync(Preferencias, Ct));
-        atual.ShouldContain(p => p.Tipo == TipoDeNotificacao.Cobranca && p.Obrigatoria && p.Ativa);
-
-        var recusa = await ana.Membro.Cliente.PutAsJsonAsync(
-            Preferencias,
-            new PreferenciasRequestDTO([new PreferenciaRequestDTO(TipoDeNotificacao.Cobranca, false)]),
-            Json,
-            Ct
-        );
-        recusa.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-
-        var salvas = await Ler<IReadOnlyList<PreferenciaDTO>>(
-            await ana.Membro.Cliente.PutAsJsonAsync(
-                Preferencias,
-                new PreferenciasRequestDTO([new PreferenciaRequestDTO(TipoDeNotificacao.Aviso, false)]),
-                Json,
-                Ct
-            )
-        );
-
-        salvas.ShouldContain(p => p.Tipo == TipoDeNotificacao.Aviso && !p.Ativa);
-        salvas.ShouldContain(p => p.Tipo == TipoDeNotificacao.Cobranca && p.Ativa);
-    }
-
     /// <summary>Configurar é da Tesouraria; auditar, da Gestão. O formando não passa em nenhum dos dois.</summary>
     [Fact]
     public async Task O_formando_nao_configura_a_regua_nem_le_o_historico()
@@ -251,7 +217,6 @@ public sealed class ReguaEndpointsTests(ApiFactory fabrica)
 
         (await comissao.Cliente.GetAsync(Regras, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await comissao.Cliente.GetAsync(Historico, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await ana.Membro.Cliente.GetAsync(Preferencias, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     /// <summary>O disparo avulso da tesouraria passa pelas mesmas barreiras: uma vez por dia, e não cobra quem pagou.</summary>

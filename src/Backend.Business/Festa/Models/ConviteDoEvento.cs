@@ -66,7 +66,7 @@ public class ConviteDoEvento : EntidadeDaFormatura
     public string? EmailDoConvidado { get; private set; }
 
     /// <summary>
-    /// O que a comissão precisa saber do convidado — restrição alimentar, acessibilidade. Cifrada no banco e
+    /// O que a comissão precisa saber do convidado. Cifrada no banco e
     /// apagada com o documento (P5.1): pode ser dado de saúde de terceiro.
     /// </summary>
     public string? Observacoes { get; private set; }

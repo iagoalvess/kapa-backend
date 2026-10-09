@@ -24,12 +24,11 @@ namespace Backend.Api.Controllers.V1.Notificacoes;
 /// próprio titular, lida e gravada pelo vínculo dele.
 /// </remarks>
 /// <param name="notificacaoService">Regras da régua.</param>
-/// <param name="usuarioAtual">Quem chama.</param>
 [ApiVersion("1.0")]
 [ExigeModulo(Modulo.Avisos)]
 [Route("api/v{version:apiVersion}/notificacoes")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-public sealed class NotificacaoController(INotificacaoService notificacaoService, IUsuarioAtual usuarioAtual) : MainController
+public sealed class NotificacaoController(INotificacaoService notificacaoService) : MainController
 {
     /// <summary>A régua da turma: os degraus do Kapa, cada um ligado ou não.</summary>
     [HttpGet("regras")]
@@ -69,30 +68,6 @@ public sealed class NotificacaoController(INotificacaoService notificacaoService
         return Responder(resultado.Map(pagina => pagina.ParaDTO(item => item.Adapt<NotificacaoDTO>())));
     }
 
-    /// <summary>O que o próprio membro escolheu receber.</summary>
-    [HttpGet("preferencias/eu")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
-    [ProducesResponseType(typeof(IReadOnlyList<PreferenciaDTO>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> MinhasPreferencias(CancellationToken ct) =>
-        Responder((await notificacaoService.ListarPreferencias(FormaturaId, usuarioAtual.Id, ct)).Map(Preferencias));
-
-    /// <summary>Grava as escolhas do próprio membro. Desligar a cobrança devolve 409.</summary>
-    /// <param name="requisicao">Um item por tipo.</param>
-    [HttpPut("preferencias/eu")]
-    [Authorize(Policy = Politicas.MembroDaFormatura)]
-    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
-    [ProducesResponseType(typeof(IReadOnlyList<PreferenciaDTO>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> SalvarPreferencias([FromBody] PreferenciasRequestDTO requisicao, CancellationToken ct)
-    {
-        var dados = new DadosDasPreferencias([.. (requisicao.Preferencias ?? []).Select(p => new PreferenciaEscolhida(p.Tipo, p.Ativa))]);
-
-        return Responder((await notificacaoService.SalvarPreferencias(FormaturaId, usuarioAtual.Id, dados, ct)).Map(Preferencias));
-    }
-
     /// <summary>Cobra uma parcela agora, à mão, com o degrau de atraso mais próximo.</summary>
     /// <param name="parcelaId">Parcela a cobrar.</param>
     [HttpPost("cobrar/{parcelaId:guid}")]
@@ -106,7 +81,4 @@ public sealed class NotificacaoController(INotificacaoService notificacaoService
         Responder(await notificacaoService.Cobrar(FormaturaId, parcelaId, ct));
 
     private static ReguaDTO Regua(IReadOnlyList<RegraResumo> regras) => new([.. regras.Select(regra => regra.Adapt<RegraDTO>())]);
-
-    private static IReadOnlyList<PreferenciaDTO> Preferencias(IReadOnlyList<PreferenciaResumo> preferencias) =>
-        [.. preferencias.Select(preferencia => preferencia.Adapt<PreferenciaDTO>())];
 }

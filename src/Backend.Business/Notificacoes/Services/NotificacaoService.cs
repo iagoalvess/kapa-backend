@@ -7,42 +7,32 @@ using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
 using Backend.Business.Pagamentos.Models;
-using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Backend.Business.Notificacoes.Services;
 
 /// <summary>
-/// A régua como a comissão a governa: os degraus, o histórico, as preferências e o disparo avulso.
+/// A régua como a comissão a governa: os degraus, o histórico e o disparo avulso.
 /// </summary>
 /// <param name="notificacoes">Régua, histórico e seleção de parcelas.</param>
 /// <param name="parcelas">Regras de atraso aceitas na adesão, e se a parcela existe na turma.</param>
-/// <param name="vinculos">Vínculo de quem chama.</param>
 /// <param name="formaturas">Nome da turma, que vai na variável <c>{formatura}</c>.</param>
 /// <param name="canal">Por onde a mensagem sai.</param>
-/// <param name="validadorDasPreferencias">Forma das preferências.</param>
 /// <param name="aplicacao">Identidade da aplicação, para os links.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class NotificacaoService(
     INotificacaoRepository notificacoes,
     IParcelaRepository parcelas,
-    IVinculoRepository vinculos,
     IFormaturaRepository formaturas,
     ICanalDeNotificacao canal,
-    IValidator<DadosDasPreferencias> validadorDasPreferencias,
     IOptions<AplicacaoSettings> aplicacao,
     IUnitOfWork unitOfWork,
     ILogger<NotificacaoService> logger
 ) : INotificacaoService
 {
     private static readonly Erro RegraNaoEncontrada = Erro.NaoEncontrado("notificacao.regra_nao_encontrada", "Degrau da régua não encontrado.");
-
-    private static readonly Erro CobrancaObrigatoria = Erro.Conflito(
-        "notificacao.cobranca_obrigatoria",
-        "O aviso de parcela é comunicação do termo de adesão e não pode ser desligado."
-    );
 
     private static readonly Erro ParcelaNaoCobravel = Erro.Conflito(
         "notificacao.parcela_nao_cobravel",
@@ -73,56 +63,6 @@ public sealed class NotificacaoService(
         FiltroDeNotificacoes filtro,
         CancellationToken ct = default
     ) => Result.Ok(await notificacoes.ListarHistorico(paginacao.Normalizar(), filtro, ct));
-
-    /// <inheritdoc />
-    public async Task<Result<IReadOnlyList<PreferenciaResumo>>> ListarPreferencias(Guid formaturaId, Guid usuarioId, CancellationToken ct = default)
-    {
-        if (await vinculos.ObterAtivoParaEdicao(usuarioId, formaturaId, ct) is not { } vinculo)
-            return Result.Falha<IReadOnlyList<PreferenciaResumo>>(Erro.Proibido("notificacao.sem_vinculo", "Você não participa desta formatura."));
-
-        return Result.Ok(Montar(await notificacoes.ListarPreferenciasParaEdicao(vinculo.Id, ct)));
-    }
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// Decisão 7: lembrete de assembleia e aviso do mural o formando desliga; cobrança de parcela
-    /// vencida, não — é comunicação contratual, prevista no termo de adesão.
-    /// </remarks>
-    public async Task<Result<IReadOnlyList<PreferenciaResumo>>> SalvarPreferencias(
-        Guid formaturaId,
-        Guid usuarioId,
-        DadosDasPreferencias dados,
-        CancellationToken ct = default
-    )
-    {
-        var validacao = validadorDasPreferencias.Validar(dados);
-        if (validacao.Falhou)
-            return Result.Falha<IReadOnlyList<PreferenciaResumo>>(validacao.Erros);
-
-        if (dados.Preferencias.Any(p => !p.Ativa && !TiposDeNotificacao.Opcional(p.Tipo)))
-            return Result.Falha<IReadOnlyList<PreferenciaResumo>>(CobrancaObrigatoria);
-
-        if (await vinculos.ObterAtivoParaEdicao(usuarioId, formaturaId, ct) is not { } vinculo)
-            return Result.Falha<IReadOnlyList<PreferenciaResumo>>(Erro.Proibido("notificacao.sem_vinculo", "Você não participa desta formatura."));
-
-        var gravadas = await notificacoes.ListarPreferenciasParaEdicao(vinculo.Id, ct);
-        var porTipo = gravadas.ToDictionary(p => p.Tipo);
-
-        List<PreferenciaDeNotificacao> novas = [];
-
-        foreach (var escolha in dados.Preferencias.Where(p => TiposDeNotificacao.Opcional(p.Tipo)))
-        {
-            if (porTipo.TryGetValue(escolha.Tipo, out var existente))
-                existente.Definir(escolha.Ativa);
-            else
-                novas.Add(PreferenciaDeNotificacao.Nova(vinculo.Id, escolha.Tipo, escolha.Ativa));
-        }
-
-        await notificacoes.AdicionarPreferencias(novas, ct);
-        await unitOfWork.SalvarAsync(ct);
-
-        return Result.Ok(Montar([.. gravadas, .. novas]));
-    }
 
     /// <inheritdoc />
     public async Task<Result> Cobrar(Guid formaturaId, Guid parcelaId, CancellationToken ct = default)
@@ -194,17 +134,6 @@ public sealed class NotificacaoService(
 
         return candidatas.Where(r => r.DiasDeDeslocamento <= atraso).MaxBy(r => r.DiasDeDeslocamento) ?? candidatas.MinBy(r => r.DiasDeDeslocamento);
     }
-
-    /// <summary>Um item por tipo opcional, mais a cobrança, que aparece marcada e travada.</summary>
-    private static IReadOnlyList<PreferenciaResumo> Montar(IReadOnlyList<PreferenciaDeNotificacao> gravadas) =>
-        [
-            .. Enum.GetValues<TipoDeNotificacao>()
-                .Select(tipo => new PreferenciaResumo(
-                    tipo,
-                    !TiposDeNotificacao.Opcional(tipo) || gravadas.FirstOrDefault(p => p.Tipo == tipo)?.Ativa != false,
-                    !TiposDeNotificacao.Opcional(tipo)
-                )),
-        ];
 
     private async Task<string> NomeDaFormatura(Guid formaturaId, CancellationToken ct) =>
         await formaturas.ObterNome(formaturaId, ct) ?? _aplicacao.Nome;

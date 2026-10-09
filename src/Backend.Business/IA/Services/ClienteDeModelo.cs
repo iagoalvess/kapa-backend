@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Backend.Business.Abstractions;
 using Backend.Business.IA.Interfaces;
 using Backend.Business.IA.Models;
@@ -20,8 +21,11 @@ namespace Backend.Business.IA.Services;
 /// <c>DependenciasBusiness</c>), e cada chamada tem o próprio tempo limite, em
 /// <see cref="IaSettings.SegundosDeEspera"/>.
 /// <para>
-/// O corpo leva só <c>model</c> e as duas mensagens — instrução e texto. Nada além do que a feature pôs
-/// no <see cref="PedidoAoModelo"/> sai da plataforma, e o teste da requisição confere.
+/// O corpo leva só <c>model</c>, as duas mensagens — instrução e texto — e <c>provider.data_collection =
+/// deny</c>: o OpenRouter só roteia para provedores que não guardam nem treinam com o texto, como a Política
+/// de Privacidade promete. Modelo cujos provedores guardam simplesmente não responde e cai para o próximo.
+/// Nada além do que a feature pôs no <see cref="PedidoAoModelo"/> sai da plataforma, e o teste da requisição
+/// confere.
 /// </para>
 /// </remarks>
 /// <param name="http">Cliente HTTP compartilhado.</param>
@@ -53,7 +57,7 @@ public sealed class ClienteDeModelo(HttpClient http, IOptions<IaSettings> option
 
     private async Task<string?> Pedir(string modelo, PedidoAoModelo pedido, CancellationToken ct)
     {
-        var corpo = new Corpo(modelo, [new Mensagem("system", pedido.Instrucao), new Mensagem("user", pedido.Texto)]);
+        var corpo = new Corpo(modelo, [new Mensagem("system", pedido.Instrucao), new Mensagem("user", pedido.Texto)], SemRetencao);
 
         using var requisicao = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(_config.BaseUrl), "chat/completions"))
         {
@@ -89,7 +93,11 @@ public sealed class ClienteDeModelo(HttpClient http, IOptions<IaSettings> option
         }
     }
 
-    private sealed record Corpo(string Model, IReadOnlyList<Mensagem> Messages);
+    private static readonly Roteamento SemRetencao = new("deny");
+
+    private sealed record Corpo(string Model, IReadOnlyList<Mensagem> Messages, Roteamento Provider);
+
+    private sealed record Roteamento([property: JsonPropertyName("data_collection")] string DataCollection);
 
     private sealed record Mensagem(string Role, string? Content);
 

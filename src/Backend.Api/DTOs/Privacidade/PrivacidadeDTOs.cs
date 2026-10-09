@@ -102,17 +102,11 @@ public sealed record MinhaParcelaDTO(
 /// <param name="EnderecoIp">IP de onde veio o aceite.</param>
 public sealed record MinhaAdesaoDTO(int Versao, DateTime AceitoEm, string EnderecoIp);
 
-/// <summary>Preferências de comunicação e o que já foi mandado.</summary>
-/// <param name="Preferencias">O que a pessoa deixou ligado, por turma.</param>
+/// <summary>O que já foi mandado e as novidades do Kapa.</summary>
 /// <param name="NotificacoesEnviadas">Quantas notificações já saíram para ela.</param>
 /// <param name="UltimaEnviadaEm">Quando saiu a última. Nulo se nunca saiu nenhuma.</param>
 /// <param name="DoKapa">"Receber novidades do Kapa": preferência, histórico e e-mails de marketing mandados.</param>
-public sealed record MinhasComunicacoesDTO(
-    IReadOnlyList<MinhaPreferenciaDTO> Preferencias,
-    int NotificacoesEnviadas,
-    DateTime? UltimaEnviadaEm,
-    ComunicacaoDoKapaDTO DoKapa
-);
+public sealed record MinhasComunicacoesDTO(int NotificacoesEnviadas, DateTime? UltimaEnviadaEm, ComunicacaoDoKapaDTO DoKapa);
 
 /// <summary>A preferência de marketing do Kapa, o histórico dela e o que já foi mandado (Sprint 40).</summary>
 /// <param name="Receber">Se recebe hoje.</param>
@@ -136,12 +130,6 @@ public sealed record RegistroDaComunicacaoDoKapaDTO(bool Aceito, string Origem, 
 /// <param name="Formatura">A turma de que ele falava.</param>
 /// <param name="EnviadoEm">Quando, em UTC.</param>
 public sealed record EnvioDoKapaDTO(string Jornada, string Formatura, DateTime EnviadoEm);
-
-/// <summary>Uma preferência de notificação.</summary>
-/// <param name="FormaturaId">Turma.</param>
-/// <param name="Tipo">Tipo de notificação.</param>
-/// <param name="Ativa">Se está ligada.</param>
-public sealed record MinhaPreferenciaDTO(Guid FormaturaId, string Tipo, bool Ativa);
 
 /// <summary>Uma solicitação do titular.</summary>
 /// <param name="Id">Identificador.</param>

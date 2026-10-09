@@ -276,6 +276,51 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         (await denovo.Codigo(Ct)).ShouldBe("estorno.cobranca_nao_paga");
     }
 
+    /// <summary>
+    /// Art. 49 do CDC pelo mesmo meio da contratação: o Presidente desiste no app nos 7 dias, a renovação para, o ciclo
+    /// volta inteiro e a turma fica só para consulta — o mesmo efeito do estorno integral do suporte.
+    /// </summary>
+    [Fact]
+    public async Task Presidente_desiste_nos_sete_dias_e_recebe_o_ciclo_inteiro()
+    {
+        // Arrange
+        var falso = new MercadoPagoFalso();
+        await using var api = falso.CobrandoOsPlanos(fabrica);
+        var (presidente, recorrencia) = await NoCartao(api, falso, "premium");
+        var formaturaId = await FormaturaDa(presidente);
+        var antes = await Ler<AssinaturaDTO>(await presidente.GetAsync(Assinatura, Ct));
+
+        // Act
+        var desistencia = await presidente.PostAsync($"{Assinatura}/desistir", null, Ct);
+
+        // Assert
+        antes.DesistenciaAte.ShouldNotBeNull();
+        var depois = await Ler<AssinaturaDTO>(desistencia);
+        depois.Status.ShouldBe(StatusDaAssinatura.Vencida);
+        depois.DesistenciaAte.ShouldBeNull();
+        falso.Estornos.ShouldHaveSingleItem().Valor.ShouldBe(17900);
+        falso.Recorrencias[recorrencia].Situacao.ShouldBe(SituacaoDaRecorrencia.Cancelada);
+        (await StatusDa(formaturaId)).ShouldBe(StatusDaFormatura.Suspensa);
+    }
+
+    /// <summary>Desistir mexe em dinheiro da turma: é do Presidente, como contratar e cancelar.</summary>
+    [Fact]
+    public async Task Desistir_so_o_presidente()
+    {
+        // Arrange
+        var formaturaId = await fabrica.CriarFormatura(Ct);
+        var tesoureiro = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Tesoureiro, Ct);
+        var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
+
+        // Act
+        var doTesoureiro = await tesoureiro.Cliente.PostAsync($"{Assinatura}/desistir", null, Ct);
+        var doFormando = await formando.Cliente.PostAsync($"{Assinatura}/desistir", null, Ct);
+
+        // Assert
+        doTesoureiro.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        doFormando.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
     /// <summary>P6: a planilha do mês sai em .xlsx para o suporte, com o pagamento da turma.</summary>
     [Fact]
     public async Task Planilha_da_nota_sai_para_o_suporte()

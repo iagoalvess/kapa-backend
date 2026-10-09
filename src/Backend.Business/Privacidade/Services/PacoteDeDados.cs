@@ -67,7 +67,6 @@ public static class PacoteDeDados
                 Csv(["turma", "item", "numero", "vencimento", "valor", "situacao", "valor_pago", "pago_em"], Parcelas(dados))
             );
             Gravar(zip, "consentimentos.csv", Csv(["documento", "versao", "registrado_em", "revogacao"], Consentimentos(dados)));
-            Gravar(zip, "comunicacoes.csv", Csv(["turma", "tipo", "ativa"], Comunicacoes(dados)));
             Gravar(zip, "novidades-do-kapa.csv", Csv(["registro", "detalhe", "em"], NovidadesDoKapa(dados.Comunicacoes.DoKapa)));
         }
 
@@ -153,14 +152,6 @@ public static class PacoteDeDados
             (string[])[consentimento.Tipo, consentimento.Versao, DataHora(consentimento.AceitoEm), consentimento.Revogado ? "revogação" : "aceite"]
         );
 
-    private static IEnumerable<string[]> Comunicacoes(MeusDados dados) =>
-        dados.Comunicacoes.Preferencias.Select(preferencia =>
-        {
-            var turma = dados.Turmas.FirstOrDefault(t => t.FormaturaId == preferencia.FormaturaId);
-
-            return (string[])[turma?.Formatura ?? preferencia.FormaturaId.ToString(), preferencia.Tipo, Sim(preferencia.Ativa)];
-        });
-
     /// <summary>A preferência de marketing: o estado atual, cada aceite e oposição, e cada e-mail mandado (Sprint 40).</summary>
     /// <param name="doKapa">Preferência, histórico e envios.</param>
     private static IEnumerable<string[]> NovidadesDoKapa(ComunicacaoDoKapa doKapa) =>
@@ -201,7 +192,6 @@ public static class PacoteDeDados
             cadastro.csv        Seu cadastro em cada turma: documentos, endereço e contato de emergência.
             parcelas.csv        Uma linha por parcela, com vencimento, valor e situação.
             consentimentos.csv  Cada aceite e cada revogação de Termos de Uso e Política de Privacidade.
-            comunicacoes.csv    Quais avisos você deixou ligados em cada turma.
             novidades-do-kapa.csv  Se você recebe as novidades do Kapa, quando aceitou ou saiu, e o que já mandamos.
 
             Os arquivos .csv usam ponto e vírgula e abrem direto no Excel.

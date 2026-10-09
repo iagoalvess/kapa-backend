@@ -11,6 +11,8 @@ using Backend.Business.Festa.Models;
 using Backend.Business.Festa.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Legal.Interfaces;
+using Backend.Business.Legal.Models;
 using Backend.Business.Loja.Interfaces;
 using Backend.Business.Loja.Models;
 using Backend.Business.MercadoPago.Models;
@@ -21,6 +23,7 @@ using Backend.Business.Recebimentos.Models;
 using Backend.Business.Recebimentos.Services;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
+using DocumentoLegal = Backend.Business.Legal.Models.TipoDeDocumento;
 
 namespace Backend.Business.Loja.Services;
 
@@ -56,6 +59,7 @@ namespace Backend.Business.Loja.Services;
 /// <param name="cartaoValidator">Forma do cartão tokenizado.</param>
 /// <param name="escopo">A turma da requisição anônima.</param>
 /// <param name="fila">A fila de escrita da turma (decisão 8).</param>
+/// <param name="legal">A versão vigente da Política de Privacidade, que a compra grava como lida.</param>
 /// <param name="validator">Forma da compra.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
@@ -76,6 +80,7 @@ public sealed class LojaService(
     IValidator<CartaoTokenizado> cartaoValidator,
     FormaturaDoProcessamento escopo,
     IFilaDaTurma fila,
+    ILegalRepository legal,
     IValidator<DadosDaCompra> validator,
     IUnitOfWork unitOfWork,
     ILogger<LojaService> logger
@@ -84,6 +89,14 @@ public sealed class LojaService(
     /// <summary>Quanto a reserva do PIX passa da validade do documento: o PIX vence antes, nunca depois (decisão 9).</summary>
     /// <remarks>O Mercado Pago aceita 30 minutos de mínimo, contados em minutos inteiros; a folga cobre o arredondamento.</remarks>
     public static readonly TimeSpan FolgaDaReserva = TimeSpan.FromMinutes(1);
+
+    /// <summary>Tamanho da coluna do navegador; o cabeçalho é escrito pelo cliente e não tem teto.</summary>
+    private const int TamanhoMaximoDoUserAgent = 512;
+
+    private static readonly Erro SemPolitica = Erro.Conflito(
+        "loja.sem_politica",
+        "A loja está fora do ar por um instante. Tente de novo em alguns minutos."
+    );
 
     private static readonly Erro LojaNaoEncontrada = Erro.NaoEncontrado("loja.nao_encontrada", "Esta loja não existe ou não está vendendo.");
 
@@ -141,7 +154,7 @@ public sealed class LojaService(
     }
 
     /// <inheritdoc />
-    public async Task<Result<CompraCriada>> Comprar(Guid formaturaId, DadosDaCompra dados, CancellationToken ct = default)
+    public async Task<Result<CompraCriada>> Comprar(Guid formaturaId, DadosDaCompra dados, OrigemDoAceite origem, CancellationToken ct = default)
     {
         var compra = Normalizar(dados);
 
@@ -179,9 +192,13 @@ public sealed class LojaService(
         if (!MeiosDePagamento.DaTurma(credencial).Contains(compra.Meio))
             return CartaoDesligado;
 
+        if (await legal.VersaoVigente(DocumentoLegal.PoliticaDePrivacidade, agora, ct) is not { } politica)
+            return SemPolitica;
+
+        var ciencia = new CienciaDaPolitica(politica, agora, origem.EnderecoIp, TextoUtils.Truncar(origem.UserAgent, TamanhoMaximoDoUserAgent));
         var prazos = Prazos(agora);
         var vendedor = await emails.Vendedor(formaturaId, ct);
-        var reservada = await NaFila(formaturaId, compra, item, prazos.Reserva, vendedor, ct);
+        var reservada = await NaFila(formaturaId, compra, item, prazos.Reserva, vendedor, ciencia, ct);
 
         if (reservada.Falhou)
             return Result.Falha<CompraCriada>(reservada.Erros);
@@ -209,6 +226,7 @@ public sealed class LojaService(
         ItemDeCobranca item,
         DateTime reservaAte,
         Vendedor vendedor,
+        CienciaDaPolitica ciencia,
         CancellationToken ct
     )
     {
@@ -234,7 +252,7 @@ public sealed class LojaService(
                 if (item.LimitePorFormando is { } limite && await compras.ContarDoCpf(item.Id, compra.Cpf, token) + compra.Quantidade > limite)
                     return Result.Falha<CompraDeConvite>(LimitePorPessoa(limite));
 
-                var nova = new CompraDeConvite(compra, item.PrecoNaLoja, reservaAte);
+                var nova = new CompraDeConvite(compra, item.PrecoNaLoja, reservaAte, ciencia);
                 await compras.Adicionar(nova, token);
                 await emails.Reservada(nova, vendedor, token);
                 await unitOfWork.SalvarAsync(token);

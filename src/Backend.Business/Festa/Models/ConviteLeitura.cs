@@ -9,7 +9,7 @@ namespace Backend.Business.Festa.Models;
 /// <param name="TipoDoDocumento">CPF ou RG; nulo enquanto o documento não foi informado.</param>
 /// <param name="NumeroDoDocumento">O número — normalizado pelo service antes de gravar.</param>
 /// <param name="Email">Para onde mandar o convite; opcional (decisão 17).</param>
-/// <param name="Observacoes">Restrição alimentar, acessibilidade — o recado para a comissão; opcional.</param>
+/// <param name="Observacoes">O recado para a comissão; opcional.</param>
 public sealed record DadosDoConvidado(
     string Nome,
     TipoDeDocumento? TipoDoDocumento,
@@ -205,7 +205,7 @@ public sealed record EntradaNaPortaria(Guid CheckInId, DateTime ValidadoEm, stri
 /// <param name="MotivoDaRevogacao">Por que não vale, quando não vale.</param>
 /// <param name="Entrada">A entrada ativa, se houver.</param>
 /// <param name="EntrouSemRedeDuasVezes">Se dois aparelhos sem rede deixaram este convite entrar (decisão 16).</param>
-/// <param name="Observacoes">O recado para a comissão — restrição alimentar, acessibilidade.</param>
+/// <param name="Observacoes">O recado para a comissão.</param>
 public sealed record ConviteNaPortaria(
     Guid Id,
     Guid EventoId,

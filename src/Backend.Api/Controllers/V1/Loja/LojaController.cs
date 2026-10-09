@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Festa;
 using Backend.Api.DTOs.Loja;
+using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Festa.Models;
 using Backend.Business.Loja.Interfaces;
@@ -24,10 +25,11 @@ namespace Backend.Api.Controllers.V1.Loja;
 /// <see cref="RateLimitConfig.Vitrine"/>).
 /// </remarks>
 /// <param name="loja">Regras da loja.</param>
+/// <param name="usuarioAtual">IP e navegador do comprador anônimo — a prova de que ele leu a Política.</param>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/loja")]
 [AllowAnonymous]
-public sealed class LojaController(ILojaService loja) : MainController
+public sealed class LojaController(ILojaService loja, IUsuarioAtual usuarioAtual) : MainController
 {
     /// <summary>A vitrine: os convites à venda, quantos restam e o relógio do servidor.</summary>
     /// <remarks>
@@ -61,7 +63,7 @@ public sealed class LojaController(ILojaService loja) : MainController
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> Comprar(Guid formaturaId, [FromBody] CompraRequestDTO requisicao, CancellationToken ct) =>
-        Responder((await loja.Comprar(formaturaId, requisicao.ParaModelo(), ct)).Map(criada => criada.Adapt<CompraCriadaDTO>()));
+        Responder((await loja.Comprar(formaturaId, requisicao.ParaModelo(), usuarioAtual.Origem, ct)).Map(criada => criada.Adapt<CompraCriadaDTO>()));
 
     /// <summary>Reenvia o link das compras deste e-mail — e o anterior deixa de abrir.</summary>
     /// <remarks>204 exista compra ou não: a rota não diz se alguém comprou (decisão 10).</remarks>

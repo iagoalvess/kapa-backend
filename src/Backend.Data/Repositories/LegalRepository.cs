@@ -39,6 +39,16 @@ public sealed class LegalRepository(AppDbContext db) : ILegalRepository
     }
 
     /// <inheritdoc />
+    public Task<string?> VersaoVigente(string tipo, DateTime agora, CancellationToken ct = default) =>
+        db
+            .DocumentosLegais.AsNoTracking()
+            .Where(d => d.Tipo == tipo && d.VigenteDesde <= agora)
+            .OrderByDescending(d => d.VigenteDesde)
+            .ThenByDescending(d => d.Id)
+            .Select(d => d.Versao)
+            .FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
     public Task<VersaoDeDocumento?> ObterVersao(string tipo, string versao, CancellationToken ct = default) =>
         db
             .DocumentosLegais.AsNoTracking()

@@ -1,9 +1,13 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Admin.Models;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Assinaturas.Settings;
 using Backend.Business.Common;
 using Backend.Business.Common.Datas;
+using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Eventos.Models;
+using Backend.Business.Eventos.Services;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Pagamentos.Models;
@@ -25,6 +29,8 @@ namespace Backend.Business.Assinaturas.Services;
 /// <param name="trocaValidator">Forma do pedido de troca de plano.</param>
 /// <param name="settings">Configuração da assinatura.</param>
 /// <param name="aplicacao">Endereço do front, para a URL de retorno.</param>
+/// <param name="estorno">A devolução do pagamento, a mesma do estorno pelo suporte.</param>
+/// <param name="eventos">Trilha de auditoria, para a desistência.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 public sealed class AssinaturaService(
     IAssinaturaRepository assinaturaRepository,
@@ -37,6 +43,8 @@ public sealed class AssinaturaService(
     IValidator<TrocaDePlano> trocaValidator,
     IOptions<AssinaturaSettings> settings,
     IOptions<AplicacaoSettings> aplicacao,
+    EstornoDaAssinatura estorno,
+    IEventoRepository eventos,
     IUnitOfWork unitOfWork
 ) : IAssinaturaService
 {
@@ -64,8 +72,14 @@ public sealed class AssinaturaService(
             : Erro.NaoEncontrado("plano.nao_encontrado", "O catálogo não tem o plano desta turma.");
 
     /// <inheritdoc />
+    /// <remarks>O fim da desistência que já passou sai nulo: é o que esconde o botão na tela.</remarks>
     public async Task<Result<AssinaturaDetalhe>> ObterAtual(CancellationToken ct = default) =>
-        await assinaturaRepository.ObterDetalheDaMaisRecente(ct) is { } detalhe ? detalhe : NaoEncontrada;
+        await assinaturaRepository.ObterDetalheDaMaisRecente(ct) switch
+        {
+            null => NaoEncontrada,
+            { DesistenciaAte: { } ate } detalhe when ate <= DateTime.UtcNow => detalhe with { DesistenciaAte = null },
+            { } detalhe => detalhe,
+        };
 
     /// <inheritdoc />
     /// <remarks>
@@ -498,4 +512,55 @@ public sealed class AssinaturaService(
 
         return await ObterAtual(ct);
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// O mesmo estorno integral do suporte (<see cref="EstornoDaAssinatura"/>), pela porta do Presidente: desistir pelo
+    /// mesmo meio da contratação (Decreto 7.962/2013, art. 5º). A assinatura cancelada ainda desiste — cancelar a
+    /// renovação não tira o direito ao reembolso dentro do prazo.
+    /// </remarks>
+    public Task<Result<AssinaturaDetalhe>> Desistir(Guid autorId, CancellationToken ct = default) =>
+        unitOfWork.EmTransacaoAsync<Result<AssinaturaDetalhe>>(
+            async token =>
+            {
+                var assinatura = await assinaturaRepository.ObterMaisRecenteParaEdicao(token);
+
+                if (assinatura is null)
+                    return NaoEncontrada;
+
+                var agora = DateTime.UtcNow;
+                var cobranca = assinatura.Status is StatusDaAssinatura.Ativa or StatusDaAssinatura.Cancelada
+                    ? await assinaturaRepository.ObterUltimoCicloPagoParaEdicao(assinatura.Id, token)
+                    : null;
+
+                if (cobranca is not { PagaEm: { } pagaEm } || !EstornoDaAssinatura.DentroDaDesistencia(pagaEm, agora))
+                    return Erro.Conflito(
+                        "assinatura.fora_da_desistencia",
+                        "A desistência com reembolso vale até 7 dias depois do pagamento. Depois disso, cancele a renovação."
+                    );
+
+                var devolvido = await estorno.Devolver(assinatura, cobranca, ModoDeEstorno.Integral, agora, token);
+                if (devolvido.Falhou)
+                    return Result.Falha<AssinaturaDetalhe>(devolvido.Erros);
+
+                await eventos.Auditar(
+                    NomesDeAuditoria.AssinaturaDesistencia,
+                    autorId,
+                    new
+                    {
+                        formaturaId = assinatura.FormaturaId,
+                        assinaturaId = assinatura.Id,
+                        cobrancaId = cobranca.Id,
+                        modo = nameof(ModoDeEstorno.Integral),
+                        valorEmCentavos = devolvido.Valor,
+                    },
+                    token
+                );
+
+                await unitOfWork.SalvarAsync(token);
+
+                return await ObterAtual(token);
+            },
+            ct
+        );
 }

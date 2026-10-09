@@ -48,21 +48,6 @@ public sealed record NotificacaoNoHistorico(
     int DiasDeDeslocamento
 );
 
-/// <summary>O que o titular escolheu receber, um item por tipo opcional.</summary>
-/// <param name="Tipo">Assunto.</param>
-/// <param name="Ativa">Se recebe.</param>
-/// <param name="Obrigatoria">Se não pode ser desligado — cobrança de parcela.</param>
-public sealed record PreferenciaResumo(TipoDeNotificacao Tipo, bool Ativa, bool Obrigatoria);
-
-/// <summary>O que o titular quer mudar.</summary>
-/// <param name="Preferencias">Um item por tipo. Tipo ausente fica como está.</param>
-public sealed record DadosDasPreferencias(IReadOnlyList<PreferenciaEscolhida> Preferencias);
-
-/// <summary>A escolha do titular para um tipo.</summary>
-/// <param name="Tipo">Assunto.</param>
-/// <param name="Ativa">Se quer receber.</param>
-public sealed record PreferenciaEscolhida(TipoDeNotificacao Tipo, bool Ativa);
-
 /// <summary>Uma parcela que um degrau da régua alcançou hoje.</summary>
 /// <remarks>Já sai do banco sem as pagas, sem as canceladas e sem as que têm informe pendente.</remarks>
 /// <param name="ParcelaId">Parcela.</param>

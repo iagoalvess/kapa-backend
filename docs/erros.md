@@ -113,6 +113,7 @@ nossa, e o `trace_id` é o que o resolve.
 | Código | Status | Quando acontece |
 | --- | --- | --- |
 | <a id="assinatura.cobranca_ja_paga"></a>`assinatura.cobranca_ja_paga` | 409 | Esta cobrança já foi paga. |
+| <a id="assinatura.fora_da_desistencia"></a>`assinatura.fora_da_desistencia` | 409 | A desistência com reembolso vale até 7 dias depois do pagamento. Depois disso, cancele a renovação. |
 | <a id="assinatura.ja_ativa"></a>`assinatura.ja_ativa` | 409 | Esta formatura já tem uma assinatura ativa. |
 | <a id="assinatura.mesmo_meio"></a>`assinatura.mesmo_meio` | 409 | A assinatura já é paga por este meio. |
 | <a id="assinatura.nao_ativa"></a>`assinatura.nao_ativa` | 409 | Só uma assinatura ativa pode ser cancelada. |
@@ -387,9 +388,11 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | <a id="loja.nao_encontrada"></a>`loja.nao_encontrada` | 404 | A turma não existe, não está ativa, não vende nada pela loja ou o plano dela não inclui a festa. |
 | <a id="loja.pedido_ja_respondido"></a>`loja.pedido_ja_respondido` | 409 | O pedido de cancelamento já foi aprovado ou recusado. |
 | <a id="loja.pedido_nao_encontrado"></a>`loja.pedido_nao_encontrado` | 404 | Pedido de cancelamento não encontrado nesta turma. |
+| <a id="loja.politica_nao_lida"></a>`loja.politica_nao_lida` | 400 | A compra chegou sem <code>leu_a_politica</code> verdadeiro. Com ele, a compra grava a versão vigente da Política de Privacidade, a data, o IP e o navegador. |
 | <a id="loja.reserva_no_fim"></a>`loja.reserva_no_fim` | 409 | Não dá mais para gerar o pagamento desta reserva. Faça uma compra nova. |
 | <a id="loja.sem_mercado_pago"></a>`loja.sem_mercado_pago` | 409 | A loja pública precisa do Mercado Pago da turma conectado. |
 | <a id="loja.sem_pagamento"></a>`loja.sem_pagamento` | 409 | A loja está sem meio de pagamento agora. |
+| <a id="loja.sem_politica"></a>`loja.sem_politica` | 409 | Não há Política de Privacidade publicada: sem a versão vigente, a compra não tem o que gravar como lido. Não deveria acontecer — a migration publica a versão 1. |
 | <a id="loja.so_convite"></a>`loja.so_convite` | 400 | A loja pública vende só o convite da festa (tipo <code>ConviteExtra</code>). |
 
 ### membro
@@ -405,12 +408,10 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
-| <a id="notificacao.cobranca_obrigatoria"></a>`notificacao.cobranca_obrigatoria` | 409 | O aviso de parcela é comunicação do termo de adesão e não pode ser desligado. |
 | <a id="notificacao.ja_cobrada_hoje"></a>`notificacao.ja_cobrada_hoje` | 409 | Esta parcela já foi cobrada hoje. |
 | <a id="notificacao.parcela_nao_cobravel"></a>`notificacao.parcela_nao_cobravel` | 409 | Esta parcela não pode ser cobrada agora: ela já foi paga, foi cancelada ou tem um aviso de pagamento esperando conferência. |
 | <a id="notificacao.regra_nao_encontrada"></a>`notificacao.regra_nao_encontrada` | 404 | Degrau da régua não encontrado. |
 | <a id="notificacao.sem_degrau"></a>`notificacao.sem_degrau` | 409 | A régua não tem nenhum degrau ativo para usar nesta cobrança. |
-| <a id="notificacao.sem_vinculo"></a>`notificacao.sem_vinculo` | 403 | Você não participa desta formatura. |
 
 ### pagamento
 
@@ -510,6 +511,7 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | Código | Status | Quando acontece |
 | --- | --- | --- |
 | <a id="relatorio.nao_disponivel"></a>`relatorio.nao_disponivel` | 404 | Este relatório não está disponível para download. |
+| <a id="relatorio.sem_dados"></a>`relatorio.sem_dados` | 400 | Não há dados para este relatório no período e filtros selecionados. |
 
 ### suporte
 

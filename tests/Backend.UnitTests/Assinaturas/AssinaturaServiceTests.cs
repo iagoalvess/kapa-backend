@@ -6,6 +6,7 @@ using Backend.Business.Assinaturas.Settings;
 using Backend.Business.Assinaturas.Validators;
 using Backend.Business.Common;
 using Backend.Business.Eventos.Interfaces;
+using Backend.Business.Eventos.Models;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Pagamentos.Models;
@@ -28,6 +29,7 @@ public sealed class AssinaturaServiceTests
     private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly ICupomRepository _cupons = Substitute.For<ICupomRepository>();
+    private readonly IEventoRepository _eventos = Substitute.For<IEventoRepository>();
 
     private static readonly Plano Premium = new()
     {
@@ -57,6 +59,8 @@ public sealed class AssinaturaServiceTests
             new TrocaDePlanoValidator(),
             Options.Create(new AssinaturaSettings()),
             Options.Create(new AplicacaoSettings { UrlDoFrontend = "https://app.kapa" }),
+            new EstornoDaAssinatura(_assinaturas, _formaturas, _provedor),
+            _eventos,
             _unitOfWork
         );
 
@@ -578,5 +582,143 @@ public sealed class AssinaturaServiceTests
         // Assert
         resultado.PrimeiroErro.Codigo.ShouldBe("cupom.ja_aplicado");
         await _provedor.DidNotReceive().CriarCheckout(Arg.Any<PedidoDeCheckout>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>O último ciclo da assinatura, pago há <paramref name="diasPagos"/> dias, devolvido pelo repositório.</summary>
+    private CobrancaDaAssinatura CicloPagoHa(Assinatura assinatura, double diasPagos)
+    {
+        var cobranca = CobrancaDaAssinatura.Abrir(assinatura.Id, assinatura.PlanoId, MotivoDaCobranca.Ciclo, assinatura.Meio, 17900);
+        cobranca.Pagar("pag_1", null, DateTime.UtcNow.AddDays(-diasPagos));
+
+        _assinaturas.ObterUltimoCicloPagoParaEdicao(assinatura.Id, Arg.Any<CancellationToken>()).Returns(cobranca);
+        _unitOfWork
+            .EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<AssinaturaDetalhe>>>>(), Arg.Any<CancellationToken>())
+            .Returns(chamada => chamada.Arg<Func<CancellationToken, Task<Result<AssinaturaDetalhe>>>>()(CancellationToken.None));
+        _provedor.Estornar(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Result.Ok());
+
+        return cobranca;
+    }
+
+    /// <summary>A janela da desistência: 7 dias contados do pagamento, o sétimo dia inteiro dentro.</summary>
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(6.9, true)]
+    [InlineData(7, true)]
+    [InlineData(7.01, false)]
+    [InlineData(30, false)]
+    public void Desistencia_vale_ate_sete_dias_do_pagamento(double diasDesdeOPagamento, bool dentro)
+    {
+        // Arrange
+        var agora = new DateTime(2026, 10, 9, 12, 0, 0, DateTimeKind.Utc);
+
+        // Act
+        var resultado = EstornoDaAssinatura.DentroDaDesistencia(agora.AddDays(-diasDesdeOPagamento), agora);
+
+        // Assert
+        resultado.ShouldBe(dentro);
+    }
+
+    /// <summary>
+    /// Dentro dos 7 dias, o Presidente desiste: a renovação é cancelada antes do estorno, o ciclo volta inteiro, a
+    /// assinatura encerra, a turma fica só para consulta e a trilha registra quem pediu.
+    /// </summary>
+    [Fact]
+    public async Task Desistir_nos_sete_dias_estorna_o_ciclo_inteiro_e_encerra()
+    {
+        // Arrange
+        var formatura = FormaturaEm(StatusDaFormatura.Ativa);
+        var assinatura = AtivaEm(Premium, diasPagos: 3);
+        _formaturas.ObterParaEdicao(assinatura.FormaturaId, Arg.Any<CancellationToken>()).Returns(formatura);
+        var cobranca = CicloPagoHa(assinatura, 3);
+        var presidente = Guid.CreateVersion7();
+
+        // Act
+        var resultado = await Servico.Desistir(presidente, Ct);
+
+        // Assert
+        resultado.Sucesso.ShouldBeTrue();
+        Received.InOrder(() =>
+        {
+            _provedor.Cancelar("pre_1", Arg.Any<CancellationToken>());
+            _provedor.Estornar("pag_1", 17900, cobranca.Id, Arg.Any<CancellationToken>());
+        });
+        cobranca.Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Estornada);
+        assinatura.Status.ShouldBe(StatusDaAssinatura.Vencida);
+        assinatura.IdExterno.ShouldBeNull();
+        formatura.Status.ShouldBe(StatusDaFormatura.Suspensa);
+        await _eventos
+            .Received(1)
+            .Adicionar(
+                Arg.Is<Evento>(e => e.Nome == NomesDeAuditoria.AssinaturaDesistencia && e.UsuarioId == presidente),
+                Arg.Any<CancellationToken>()
+            );
+        await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Passados os 7 dias, sobra o cancelamento: nada chega ao provedor e nada é gravado.</summary>
+    [Fact]
+    public async Task Desistir_depois_dos_sete_dias_e_conflito_sem_chamar_o_provedor()
+    {
+        // Arrange
+        var assinatura = AtivaEm(Premium, diasPagos: 8);
+        CicloPagoHa(assinatura, 8);
+
+        // Act
+        var resultado = await Servico.Desistir(Guid.CreateVersion7(), Ct);
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("assinatura.fora_da_desistencia");
+        await _provedor.DidNotReceiveWithAnyArgs().Cancelar(default!, Ct);
+        await _provedor.DidNotReceiveWithAnyArgs().Estornar(default!, default, default, Ct);
+        await _unitOfWork.DidNotReceive().SalvarAsync(Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Assinatura já vencida não desiste, ainda que o pagamento seja recente: não há o que encerrar.</summary>
+    [Fact]
+    public async Task Desistir_de_assinatura_vencida_e_conflito()
+    {
+        // Arrange
+        var assinatura = AtivaEm(Premium, diasPagos: 2);
+        assinatura.Vencer();
+        CicloPagoHa(assinatura, 2);
+
+        // Act
+        var resultado = await Servico.Desistir(Guid.CreateVersion7(), Ct);
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("assinatura.fora_da_desistencia");
+        await _provedor.DidNotReceiveWithAnyArgs().Estornar(default!, default, default, Ct);
+    }
+
+    /// <summary>O fim da desistência que já passou sai nulo — é o que esconde o botão na tela.</summary>
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(-1, false)]
+    public async Task Assinatura_atual_so_mostra_a_desistencia_dentro_do_prazo(int diasAteOFim, bool mostra)
+    {
+        // Arrange
+        var fim = DateTime.UtcNow.AddDays(diasAteOFim);
+        _assinaturas
+            .ObterDetalheDaMaisRecente(Arg.Any<CancellationToken>())
+            .Returns(
+                new AssinaturaDetalhe(
+                    Guid.CreateVersion7(),
+                    StatusDaAssinatura.Ativa,
+                    null!,
+                    null,
+                    null,
+                    null,
+                    MeioDePagamento.Cartao,
+                    null,
+                    false,
+                    DesistenciaAte: fim
+                )
+            );
+
+        // Act
+        var resultado = await Servico.ObterAtual(Ct);
+
+        // Assert
+        resultado.Valor.DesistenciaAte.ShouldBe(mostra ? fim : null);
     }
 }

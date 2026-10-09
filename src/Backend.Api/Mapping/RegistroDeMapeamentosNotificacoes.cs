@@ -18,6 +18,5 @@ public sealed class RegistroDeMapeamentosNotificacoes : IRegister
     {
         config.NewConfig<RegraResumo, RegraDTO>();
         config.NewConfig<NotificacaoNoHistorico, NotificacaoDTO>();
-        config.NewConfig<PreferenciaResumo, PreferenciaDTO>();
     }
 }

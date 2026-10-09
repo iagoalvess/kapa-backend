@@ -35,6 +35,13 @@ public interface IAssinaturaService
     Task<Result<AssinaturaDetalhe>> Cancelar(CancellationToken ct = default);
 
     /// <summary>
+    /// A desistência nos 7 dias do último ciclo pago (art. 49 do CDC): cancela a renovação, devolve esse pagamento
+    /// inteiro e encerra a assinatura. Fora do prazo, sobra o <see cref="Cancelar"/>.
+    /// </summary>
+    /// <param name="autorId">O Presidente que desistiu, para a auditoria.</param>
+    Task<Result<AssinaturaDetalhe>> Desistir(Guid autorId, CancellationToken ct = default);
+
+    /// <summary>
     /// Troca o plano da assinatura ativa (P4): a subida cobra a diferença proporcional e vale quando ela for paga; a
     /// descida vale na próxima renovação, se a turma couber.
     /// </summary>

@@ -335,6 +335,7 @@ public static class DependenciasBusiness
         services.AddScoped<IAssinaturaService, AssinaturaService>();
         services.AddScoped<CupomService>();
         services.AddScoped<VagasDoPlano>();
+        services.AddScoped<EstornoDaAssinatura>();
         services.AddScoped<IWebhookService, WebhookService>();
         services.AddScoped<EmailsDeAssinatura>();
 

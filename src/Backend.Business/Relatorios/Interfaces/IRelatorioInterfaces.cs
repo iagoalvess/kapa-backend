@@ -63,10 +63,12 @@ public interface IRelatorioService
     Task<Result<ArquivoParaDownload>> Planilha(Guid formaturaId, TipoDeRelatorio tipo, FiltroDoRelatorio filtro, CancellationToken ct = default);
 
     /// <summary>Agenda o PDF de um relatório e devolve na hora.</summary>
+    /// <param name="formaturaId">Formatura da sessão, para validar o conteúdo antes de enfileirar.</param>
     /// <param name="tipo">Qual relatório.</param>
     /// <param name="filtro">Recorte pedido, com o período já normalizado. Vai gravado, para o worker refazê-lo.</param>
     /// <param name="solicitadaPorUsuarioId">Quem pediu.</param>
     Task<Result<SolicitacaoResumo>> Solicitar(
+        Guid formaturaId,
         TipoDeRelatorio tipo,
         FiltroDoRelatorio filtro,
         Guid solicitadaPorUsuarioId,

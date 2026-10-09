@@ -25,17 +25,7 @@ public sealed class PacoteDeDadosTests
         var nomes = Abrir(Dados()).Keys;
 
         nomes.ShouldBe(
-            [
-                "LEIA-ME.txt",
-                "dados.json",
-                "conta.csv",
-                "turmas.csv",
-                "cadastro.csv",
-                "parcelas.csv",
-                "consentimentos.csv",
-                "comunicacoes.csv",
-                "novidades-do-kapa.csv",
-            ],
+            ["LEIA-ME.txt", "dados.json", "conta.csv", "turmas.csv", "cadastro.csv", "parcelas.csv", "consentimentos.csv", "novidades-do-kapa.csv"],
             ignoreOrder: true
         );
     }
@@ -138,7 +128,7 @@ public sealed class PacoteDeDadosTests
         return leitor.ReadToEnd();
     }
 
-    /// <summary>Um titular com uma turma, uma parcela, um consentimento e uma preferência.</summary>
+    /// <summary>Um titular com uma turma, uma parcela, um consentimento e as comunicações.</summary>
     private static MeusDados Dados(string? parentesco = "mãe")
     {
         var formaturaId = Guid.CreateVersion7();
@@ -181,7 +171,6 @@ public sealed class PacoteDeDadosTests
             ],
             [new ConsentimentoDoUsuario(Guid.CreateVersion7(), TipoDeDocumento.PoliticaDePrivacidade, "1", Agora, false)],
             new MinhasComunicacoes(
-                [new MinhaPreferencia(formaturaId, "ParcelaAVencer", true)],
                 3,
                 Agora,
                 new ComunicacaoDoKapa(

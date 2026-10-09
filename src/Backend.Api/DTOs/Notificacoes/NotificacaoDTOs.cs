@@ -53,18 +53,3 @@ public sealed record FiltroDeNotificacoesDTO(StatusDaNotificacao? Status = null,
     /// <summary>Converte para o filtro da camada de negócio.</summary>
     public FiltroDeNotificacoes ParaModelo() => new(Status, De, Ate, Busca);
 }
-
-/// <summary>O que o titular escolheu receber.</summary>
-/// <param name="Tipo">Assunto.</param>
-/// <param name="Ativa">Se recebe.</param>
-/// <param name="Obrigatoria">Se não pode ser desligado — cobrança de parcela.</param>
-public sealed record PreferenciaDTO(TipoDeNotificacao Tipo, bool Ativa, bool Obrigatoria);
-
-/// <summary>A escolha do titular para um tipo.</summary>
-/// <param name="Tipo">Assunto.</param>
-/// <param name="Ativa">Se quer receber.</param>
-public sealed record PreferenciaRequestDTO(TipoDeNotificacao Tipo, bool Ativa);
-
-/// <summary>O corpo da gravação das preferências.</summary>
-/// <param name="Preferencias">Um item por tipo. Tipo ausente fica como está.</param>
-public sealed record PreferenciasRequestDTO(IReadOnlyList<PreferenciaRequestDTO>? Preferencias);

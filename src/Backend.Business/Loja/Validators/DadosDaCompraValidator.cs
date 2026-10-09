@@ -61,6 +61,12 @@ public sealed class DadosDaCompraValidator : AbstractValidator<DadosDaCompra>
                 convidado.RuleFor(c => c.NumeroDoDocumento).NotEmpty().WithMessage("Informe o documento de quem vai usar o convite.")
             );
 
+        RuleFor(x => x.LeuAPolitica)
+            .Equal(true)
+            .OverridePropertyName("leu_a_politica")
+            .WithErrorCode("loja.politica_nao_lida")
+            .WithMessage("Confirme que leu como seus dados são usados.");
+
         RuleFor(x => x.ChaveDeIdempotencia)
             .NotEmpty()
             .OverridePropertyName("chave_de_idempotencia")

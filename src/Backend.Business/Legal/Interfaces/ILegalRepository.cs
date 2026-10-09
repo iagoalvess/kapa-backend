@@ -15,6 +15,12 @@ public interface ILegalRepository
     /// <param name="agora">Instante de referência, em UTC.</param>
     Task<IReadOnlyList<VersaoDeDocumento>> ListarVigentes(DateTime agora, CancellationToken ct = default);
 
+    /// <summary>Só o rótulo da versão vigente de um documento, sem o texto — o que a compra da loja grava como lido.</summary>
+    /// <param name="tipo">Documento, já na grafia oficial.</param>
+    /// <param name="agora">Instante de referência, em UTC.</param>
+    /// <returns>A versão; nula se o documento nunca foi publicado.</returns>
+    Task<string?> VersaoVigente(string tipo, DateTime agora, CancellationToken ct = default);
+
     /// <summary>Uma versão específica, vigente ou não.</summary>
     /// <param name="tipo">Documento, já na grafia oficial.</param>
     /// <param name="versao">Rótulo da versão.</param>

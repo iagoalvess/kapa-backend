@@ -108,18 +108,6 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
             select new ConsentimentoDoUsuario(consentimento.Id, documento.Tipo, consentimento.Versao, consentimento.AceitoEm, consentimento.Revogado)
         ).ToListAsync(ct);
 
-        var preferencias = await db
-            .PreferenciasDeNotificacao.IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(p => vinculoIds.Contains(p.VinculoId))
-            .Join(
-                db.Vinculos.IgnoreQueryFilters(),
-                p => p.VinculoId,
-                v => v.Id,
-                (p, v) => new MinhaPreferencia(v.FormaturaId, p.Tipo.ToString(), p.Ativa)
-            )
-            .ToListAsync(ct);
-
         var enviadas = await db
             .NotificacoesEnviadas.IgnoreQueryFilters()
             .AsNoTracking()
@@ -150,12 +138,7 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
 
         var doKapa = await ComunicacaoDoKapaRepository.DoTitular(db, usuarioId, maximoDeEnvios: null, ct);
 
-        return new MeusDados(
-            conta,
-            turmas,
-            consentimentos,
-            new MinhasComunicacoes(preferencias, enviadas?.Quantidade ?? 0, enviadas?.Ultima, doKapa)
-        );
+        return new MeusDados(conta, turmas, consentimentos, new MinhasComunicacoes(enviadas?.Quantidade ?? 0, enviadas?.Ultima, doKapa));
     }
 
     /// <inheritdoc />

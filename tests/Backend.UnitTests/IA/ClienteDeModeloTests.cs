@@ -46,7 +46,8 @@ public sealed class ClienteDeModeloTests
         provedor.Autorizacoes.ShouldBe(["Bearer sk-teste"]);
 
         using var corpo = JsonDocument.Parse(provedor.Corpos.Single());
-        corpo.RootElement.EnumerateObject().Select(p => p.Name).ShouldBe(["model", "messages"]);
+        corpo.RootElement.EnumerateObject().Select(p => p.Name).ShouldBe(["model", "messages", "provider"]);
+        corpo.RootElement.GetProperty("provider").GetProperty("data_collection").GetString().ShouldBe("deny");
         corpo.RootElement.GetProperty("model").GetString().ShouldBe("primeiro:free");
         var mensagens = corpo.RootElement.GetProperty("messages").EnumerateArray().ToList();
         mensagens.Select(m => m.GetProperty("role").GetString()).ShouldBe(["system", "user"]);

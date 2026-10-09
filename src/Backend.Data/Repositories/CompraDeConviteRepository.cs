@@ -322,6 +322,8 @@ public sealed class CompraDeConviteRepository(AppDbContext db, CifraDeCampo cifr
                         .SetProperty(c => c.Cpf, (string?)null)
                         .SetProperty(c => c.CpfDoPagador, (string?)null)
                         .SetProperty(c => c.Convidados, (string?)null)
+                        .SetProperty(c => c.IpDaLeituraDaPolitica, (string?)null)
+                        .SetProperty(c => c.UserAgentDaLeituraDaPolitica, (string?)null)
                         .SetProperty(c => EF.Property<string?>(c, CompraDeConviteMapping.PropriedadeDoHmac), (string?)null)
                         .SetProperty(c => c.DadosApagadosEm, DateTime.UtcNow)
                         .SetProperty(c => c.VersaoDoLink, c => c.VersaoDoLink + 1),

@@ -122,6 +122,21 @@ public class CompraDeConvite : EntidadeDaFormatura
     /// <summary>O comprovante do PIX de volta, no módulo de arquivos (decisão 2).</summary>
     public Guid? ComprovanteDaDevolucaoId { get; private set; }
 
+    /// <summary>
+    /// A versão da Política de Privacidade vigente quando o comprador marcou "Li como meus dados são usados" — a
+    /// que o link ao lado da caixa abria.
+    /// </summary>
+    public string VersaoDaPoliticaLida { get; private set; } = string.Empty;
+
+    /// <summary>Quando o comprador marcou que leu a Política, em UTC.</summary>
+    public DateTime PoliticaLidaEm { get; private set; }
+
+    /// <summary>IP de onde veio a marcação. Nulo depois da exclusão ou do descarte, como o e-mail.</summary>
+    public string? IpDaLeituraDaPolitica { get; private set; }
+
+    /// <summary>Navegador que enviou a marcação. Nulo depois da exclusão ou do descarte.</summary>
+    public string? UserAgentDaLeituraDaPolitica { get; private set; }
+
     /// <summary>O que o comprador de fato pagou — o valor da compra, se o Mercado Pago não informou outro.</summary>
     public long ValorPago => ValorPagoEmCentavos ?? ValorEmCentavos;
 
@@ -141,8 +156,13 @@ public class CompraDeConvite : EntidadeDaFormatura
     /// <param name="dados">Dados já validados e normalizados.</param>
     /// <param name="valorUnitarioEmCentavos">O preço da loja agora.</param>
     /// <param name="expiraEm">Fim da reserva, calculado pelo meio.</param>
-    public CompraDeConvite(DadosDaCompra dados, long valorUnitarioEmCentavos, DateTime expiraEm)
+    /// <param name="ciencia">A prova de que o comprador leu a Política de Privacidade.</param>
+    public CompraDeConvite(DadosDaCompra dados, long valorUnitarioEmCentavos, DateTime expiraEm, CienciaDaPolitica ciencia)
     {
+        VersaoDaPoliticaLida = ciencia.Versao;
+        PoliticaLidaEm = ciencia.Em;
+        IpDaLeituraDaPolitica = ciencia.EnderecoIp;
+        UserAgentDaLeituraDaPolitica = ciencia.UserAgent;
         ItemDeCobrancaId = dados.ItemDeCobrancaId;
         Quantidade = dados.Quantidade;
         ValorEmCentavos = valorUnitarioEmCentavos * dados.Quantidade;
@@ -250,7 +270,8 @@ public class CompraDeConvite : EntidadeDaFormatura
     public void GirarLink() => VersaoDoLink++;
 
     /// <summary>
-    /// Apaga o que identifica o comprador: e-mail, CPF e o CPF do pagador — e o nome, quando foi ele quem pediu.
+    /// Apaga o que identifica o comprador: e-mail, CPF, o CPF do pagador, IP e navegador da leitura da Política — e o
+    /// nome, quando foi ele quem pediu. A versão lida e a data ficam: são a prova, e não identificam ninguém.
     /// </summary>
     /// <remarks>
     /// O descarte automático guarda o nome, como o do convidado (é o histórico da festa); a exclusão pedida
@@ -264,6 +285,8 @@ public class CompraDeConvite : EntidadeDaFormatura
         Cpf = null;
         CpfDoPagador = null;
         Convidados = null;
+        IpDaLeituraDaPolitica = null;
+        UserAgentDaLeituraDaPolitica = null;
         DadosApagadosEm = agora;
         VersaoDoLink++;
 

@@ -18,6 +18,10 @@ namespace Backend.Api.DTOs.Loja;
 /// chave devolve a mesma compra (decisão 7).
 /// </param>
 /// <param name="Convidados">Quem vai usar cada convite: um por unidade, com nome e documento. O e-mail do convidado fica para depois, pelo link.</param>
+/// <param name="LeuAPolitica">
+/// Se o comprador marcou "Li como meus dados são usados", ao lado do link para a Política de Privacidade. Falso ou
+/// ausente é 400 <c>leu_a_politica</c>; verdadeiro grava na compra a versão vigente, a data, o IP e o navegador.
+/// </param>
 public sealed record CompraRequestDTO(
     Guid ItemDeCobrancaId,
     int Quantidade,
@@ -26,7 +30,8 @@ public sealed record CompraRequestDTO(
     string? Cpf,
     MeioDePagamento Meio,
     Guid ChaveDeIdempotencia,
-    IReadOnlyList<ConvidadoRequestDTO>? Convidados
+    IReadOnlyList<ConvidadoRequestDTO>? Convidados,
+    bool LeuAPolitica
 )
 {
     /// <summary>O corpo como o service o recebe.</summary>
@@ -39,7 +44,8 @@ public sealed record CompraRequestDTO(
             Cpf ?? string.Empty,
             Meio,
             ChaveDeIdempotencia,
-            [.. (Convidados ?? []).Select(c => new DadosDoConvidado(c.Nome ?? string.Empty, c.TipoDoDocumento, c.NumeroDoDocumento, null))]
+            [.. (Convidados ?? []).Select(c => new DadosDoConvidado(c.Nome ?? string.Empty, c.TipoDoDocumento, c.NumeroDoDocumento, null))],
+            LeuAPolitica
         );
 }
 

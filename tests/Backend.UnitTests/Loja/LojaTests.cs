@@ -52,11 +52,16 @@ public sealed class LojaTests
                 "52998224725",
                 MeioDePagamento.Pix,
                 Guid.CreateVersion7(),
-                [Convidado("Tia Carmem"), Convidado("Tio Beto")]
+                [Convidado("Tia Carmem"), Convidado("Tio Beto")],
+                LeuAPolitica: true
             ),
             20_000,
-            DateTime.UtcNow.AddMinutes(31)
+            DateTime.UtcNow.AddMinutes(31),
+            Ciencia
         );
+
+    /// <summary>A leitura da Política que as compras de teste gravam.</summary>
+    public static readonly CienciaDaPolitica Ciencia = new("1", new DateTime(2026, 10, 9, 12, 0, 0, DateTimeKind.Utc), "203.0.113.7", "Mozilla/5.0");
 
     /// <summary>A confirmação da compra, com as dependências de fora substituídas.</summary>
     public static PagamentoDaCompra Pagamento(
@@ -172,7 +177,35 @@ public sealed class LojaTests
         compra.Email.ShouldBeNull();
         compra.Cpf.ShouldBeNull();
         compra.NomeDoComprador.ShouldBeNull();
+        compra.IpDaLeituraDaPolitica.ShouldBeNull();
+        compra.UserAgentDaLeituraDaPolitica.ShouldBeNull();
+        compra.VersaoDaPoliticaLida.ShouldBe("1");
         link.Confere(token, compra).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Compra_grava_a_versao_da_politica_lida_com_data_ip_e_navegador()
+    {
+        var compra = Compra();
+
+        compra.VersaoDaPoliticaLida.ShouldBe("1");
+        compra.PoliticaLidaEm.ShouldBe(Ciencia.Em);
+        compra.IpDaLeituraDaPolitica.ShouldBe("203.0.113.7");
+        compra.UserAgentDaLeituraDaPolitica.ShouldBe("Mozilla/5.0");
+    }
+
+    [Fact]
+    public void Compra_sem_marcar_que_leu_a_politica_e_recusada()
+    {
+        var resultado = new DadosDaCompraValidator().Validate(Dados() with { LeuAPolitica = false });
+
+        resultado.Errors.ShouldContain(erro => erro.ErrorCode == "loja.politica_nao_lida" && erro.PropertyName == "leu_a_politica");
+    }
+
+    [Fact]
+    public void Compra_marcando_que_leu_a_politica_passa()
+    {
+        new DadosDaCompraValidator().Validate(Dados()).IsValid.ShouldBeTrue();
     }
 
     // ---- Confirmação (decisão 9) ----
@@ -322,7 +355,8 @@ public sealed class LojaTests
             "52998224725",
             MeioDePagamento.Pix,
             Guid.CreateVersion7(),
-            [Convidado("Tia Carmem")]
+            [Convidado("Tia Carmem")],
+            LeuAPolitica: true
         );
 
     /// <summary>Um titular com RG, como a compra manda.</summary>

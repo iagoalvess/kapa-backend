@@ -125,6 +125,13 @@ public interface IAssinaturaRepository
     /// <param name="motivo">Ciclo ou diferença.</param>
     Task<CobrancaDaAssinatura?> ObterCobrancaAbertaParaEdicao(Guid assinaturaId, MotivoDaCobranca motivo, CancellationToken ct = default);
 
+    /// <summary>
+    /// O último ciclo pago, e ainda não estornado, da assinatura — a contratação ou a renovação. Rastreado, ou nulo.
+    /// Enxerga só a formatura da sessão.
+    /// </summary>
+    /// <param name="assinaturaId">Assinatura.</param>
+    Task<CobrancaDaAssinatura?> ObterUltimoCicloPagoParaEdicao(Guid assinaturaId, CancellationToken ct = default);
+
     /// <summary>As cobranças do plano da formatura da sessão, de todas as assinaturas dela, mais recentes primeiro.</summary>
     Task<IReadOnlyList<CobrancaDoPlanoResumo>> ListarCobrancas(CancellationToken ct = default);
 

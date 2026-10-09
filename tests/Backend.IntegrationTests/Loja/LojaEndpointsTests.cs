@@ -184,6 +184,11 @@ public sealed partial class LojaEndpointsTests(ApiFactory fabrica)
         await Problema(await Comprar(loja, Pedido(1, Email(), "52998224724")), HttpStatusCode.BadRequest, "cpf");
         await Problema(await Comprar(loja, Pedido(2, Email(), "52998224725") with { Convidados = [] }), HttpStatusCode.BadRequest, "convidados");
         await Problema(
+            await Comprar(loja, Pedido(1, Email(), "52998224725") with { LeuAPolitica = false }),
+            HttpStatusCode.BadRequest,
+            "leu_a_politica"
+        );
+        await Problema(
             await Comprar(loja, Pedido(1, Email(), "52998224725") with { Convidados = [new ConvidadoRequestDTO("Tia Carmem", null, null, null)] }),
             HttpStatusCode.BadRequest,
             "convidados[0].numero_do_documento"
@@ -451,7 +456,8 @@ public sealed partial class LojaEndpointsTests(ApiFactory fabrica)
             cpf,
             MeioDePagamento.Pix,
             Guid.CreateVersion7(),
-            [.. Enumerable.Range(1, quantidade).Select(i => new ConvidadoRequestDTO($"Convidado {i}", TipoDeDocumento.Rg, "1234567", null))]
+            [.. Enumerable.Range(1, quantidade).Select(i => new ConvidadoRequestDTO($"Convidado {i}", TipoDeDocumento.Rg, "1234567", null))],
+            LeuAPolitica: true
         );
 
     private static Task<HttpResponseMessage> Comprar(Loja loja, CompraRequestDTO pedido) =>

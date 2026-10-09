@@ -61,9 +61,12 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
 
         (await membro.Cliente.GetAsync($"{Dashboard}/publico", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await membro.Cliente.GetAsync($"{Relatorios}/balancete", Ct)).StatusCode.ShouldBe(gestao);
-        (await membro.Cliente.GetAsync($"{Relatorios}/balancete.xlsx", Ct)).StatusCode.ShouldBe(gestao);
+        var exportacaoVazia = gestao == HttpStatusCode.OK ? HttpStatusCode.BadRequest : gestao;
+        (await membro.Cliente.GetAsync($"{Relatorios}/balancete.xlsx", Ct)).StatusCode.ShouldBe(exportacaoVazia);
         (await membro.Cliente.GetAsync($"{Relatorios}/solicitacoes", Ct)).StatusCode.ShouldBe(gestao);
-        (await membro.Cliente.PostAsJsonAsync($"{Relatorios}/solicitacoes", new SolicitarRelatorioDTO(), Json, Ct)).StatusCode.ShouldBe(gestao);
+        (await membro.Cliente.PostAsJsonAsync($"{Relatorios}/solicitacoes", new SolicitarRelatorioDTO(), Json, Ct)).StatusCode.ShouldBe(
+            exportacaoVazia
+        );
     }
 
     /// <summary>
@@ -112,7 +115,7 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
     }
 
     /// <summary>
-    /// Os quatro relatórios saem em .xlsx de verdade, com o tipo certo e nome de arquivo.
+    /// Os relatórios com registros saem em .xlsx de verdade, com o tipo certo e nome de arquivo.
     /// </summary>
     /// <remarks>
     /// Confere a assinatura do ZIP (<c>PK</c>), que é o que um XLSX é por dentro: uma resposta de erro
@@ -121,9 +124,8 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
     [Theory]
     [InlineData("balancete")]
     [InlineData("despesas")]
-    [InlineData("parcelas")]
     [InlineData("fornecedores")]
-    public async Task Os_quatro_relatorios_saem_em_xlsx(string tipo)
+    public async Task Os_relatorios_com_dados_saem_em_xlsx(string tipo)
     {
         var tesoureiro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
 
@@ -177,6 +179,7 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
     public async Task Solicitar_o_balancete_volta_na_hora_e_o_clique_duplo_nao_duplica()
     {
         var tesoureiro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
+        await Lancar(tesoureiro, "Despesa para o balancete", Ct);
         var periodo = new SolicitarRelatorioDTO
         {
             Tipo = TipoDeRelatorio.Balancete,
@@ -200,6 +203,7 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
     public async Task Baixar_uma_solicitacao_que_ainda_nao_ficou_pronta_responde_404()
     {
         var tesoureiro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
+        await Lancar(tesoureiro, "Despesa para o balancete", Ct);
 
         var solicitacao = await Solicitar(tesoureiro, new SolicitarRelatorioDTO());
 
@@ -221,6 +225,8 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
         var daPrimeira = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
         var daSegunda = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
 
+        await Lancar(daPrimeira, "Despesa da primeira turma", Ct);
+
         var solicitacao = await Solicitar(daPrimeira, new SolicitarRelatorioDTO());
 
         (await daSegunda.Cliente.GetAsync($"{Relatorios}/solicitacoes/{solicitacao.Id}/arquivo", Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -240,6 +246,49 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
 
         balancete.De.ShouldBe(new DateOnly(2026, 3, 1));
         balancete.Ate.ShouldBe(new DateOnly(2026, 9, 1));
+    }
+
+    /// <summary>Nenhum formato gera arquivo ou pedido quando o recorte não encontra registros.</summary>
+    [Theory]
+    [InlineData(TipoDeRelatorio.Balancete)]
+    [InlineData(TipoDeRelatorio.Despesas)]
+    [InlineData(TipoDeRelatorio.Parcelas)]
+    [InlineData(TipoDeRelatorio.Fornecedores)]
+    public async Task Relatorio_vazio_avisa_sem_gerar_planilha_nem_enfileirar_pdf(TipoDeRelatorio tipo)
+    {
+        var tesoureiro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
+        var planilha = await tesoureiro.Cliente.GetAsync($"{Relatorios}/{tipo}.xlsx", Ct);
+        var pdf = await tesoureiro.Cliente.PostAsJsonAsync($"{Relatorios}/solicitacoes", new SolicitarRelatorioDTO { Tipo = tipo }, Json, Ct);
+
+        foreach (var resposta in new[] { planilha, pdf })
+        {
+            resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+            using var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync(Ct));
+            corpo.RootElement.GetProperty("codigo").GetString().ShouldBe("relatorio.sem_dados");
+        }
+
+        var fila = await tesoureiro.Cliente.GetFromJsonAsync<List<SolicitacaoDTO>>($"{Relatorios}/solicitacoes", Json, Ct);
+        fila.ShouldNotBeNull().ShouldBeEmpty();
+    }
+
+    /// <summary>Ter despesas na turma não autoriza exportar um recorte sem nenhuma delas.</summary>
+    [Fact]
+    public async Task Categoria_sem_despesas_recusa_os_dois_formatos_sem_bloquear_o_balancete()
+    {
+        var tesoureiro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
+        await Lancar(tesoureiro, "Decoração", Ct);
+
+        var planilha = await tesoureiro.Cliente.GetAsync($"{Relatorios}/despesas.xlsx?categoria=Buffet", Ct);
+        var pdf = await tesoureiro.Cliente.PostAsJsonAsync(
+            $"{Relatorios}/solicitacoes",
+            new SolicitarRelatorioDTO { Tipo = TipoDeRelatorio.Despesas, Categoria = CategoriaDeDespesa.Buffet },
+            Json,
+            Ct
+        );
+
+        planilha.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        pdf.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await tesoureiro.Cliente.GetAsync($"{Relatorios}/balancete.xlsx?categoria=Buffet", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     private static async Task<SolicitacaoDTO> Solicitar(MembroDeTeste membro, SolicitarRelatorioDTO periodo)

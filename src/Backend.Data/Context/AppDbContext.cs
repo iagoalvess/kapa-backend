@@ -214,9 +214,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>O que a régua já disparou — o histórico, e a trava contra a segunda mensagem.</summary>
     public DbSet<NotificacaoEnviada> NotificacoesEnviadas => Set<NotificacaoEnviada>();
 
-    /// <summary>O que cada membro escolheu não receber.</summary>
-    public DbSet<PreferenciaDeNotificacao> PreferenciasDeNotificacao => Set<PreferenciaDeNotificacao>();
-
     /// <summary>
     /// Pedidos de exportação e de eliminação feitos pelos titulares.
     /// </summary>

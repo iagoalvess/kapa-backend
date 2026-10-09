@@ -113,23 +113,11 @@ public sealed record MinhaParcela(
 /// <param name="EnderecoIp">IP de onde veio o aceite.</param>
 public sealed record MinhaAdesao(int Versao, DateTime AceitoEm, string EnderecoIp);
 
-/// <summary>Preferências de comunicação e o que já foi mandado.</summary>
-/// <param name="Preferencias">O que a pessoa desligou ou deixou ligado, por turma.</param>
+/// <summary>O que já foi mandado e as novidades do Kapa.</summary>
 /// <param name="NotificacoesEnviadas">Quantas notificações já saíram para ela.</param>
 /// <param name="UltimaEnviadaEm">Quando saiu a última, em UTC.</param>
 /// <param name="DoKapa">"Receber novidades do Kapa": a preferência, o histórico e os e-mails de marketing mandados (Sprint 40).</param>
-public sealed record MinhasComunicacoes(
-    IReadOnlyList<MinhaPreferencia> Preferencias,
-    int NotificacoesEnviadas,
-    DateTime? UltimaEnviadaEm,
-    ComunicacaoDoKapa DoKapa
-);
-
-/// <summary>Uma preferência de notificação do titular.</summary>
-/// <param name="FormaturaId">Turma a que ela pertence.</param>
-/// <param name="Tipo">Tipo de notificação.</param>
-/// <param name="Ativa">Se está ligada.</param>
-public sealed record MinhaPreferencia(Guid FormaturaId, string Tipo, bool Ativa);
+public sealed record MinhasComunicacoes(int NotificacoesEnviadas, DateTime? UltimaEnviadaEm, ComunicacaoDoKapa DoKapa);
 
 /// <summary>Uma solicitação do titular, como a tela a lista.</summary>
 /// <param name="Id">Identificador.</param>

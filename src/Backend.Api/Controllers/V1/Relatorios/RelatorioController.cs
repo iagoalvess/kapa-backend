@@ -88,6 +88,7 @@ public sealed class RelatorioController(IRelatorioService relatorioService, IUsu
         Responder(
             (
                 await relatorioService.Solicitar(
+                    FormaturaId,
                     requisicao?.Tipo ?? TipoDeRelatorio.Balancete,
                     Filtro(requisicao ?? new SolicitarRelatorioDTO()),
                     usuarioAtual.Id,

@@ -133,6 +133,11 @@ public sealed class GeracaoDeRelatoriosService(
     /// <param name="solicitacao">Pedido.</param>
     private async Task<Result<byte[]>> Montar(SolicitacaoDeRelatorio solicitacao, CancellationToken ct)
     {
+        var tabela = await relatorioService.Tabela(solicitacao.FormaturaId, solicitacao.Tipo, solicitacao.Filtro, ct);
+
+        if (tabela.Falhou)
+            return Result.Falha<byte[]>(tabela.Erros);
+
         if (solicitacao.Tipo == TipoDeRelatorio.Balancete)
         {
             var balancete = await relatorioService.Balancete(solicitacao.FormaturaId, solicitacao.Periodo, solicitacao.SolicitadaPorUsuarioId, ct);
@@ -140,9 +145,7 @@ public sealed class GeracaoDeRelatoriosService(
             return balancete.Falhou ? Result.Falha<byte[]>(balancete.Erros) : BalanceteEmPdf.Gerar(balancete.Valor);
         }
 
-        var tabela = await relatorioService.Tabela(solicitacao.FormaturaId, solicitacao.Tipo, solicitacao.Filtro, ct);
-
-        return tabela.Falhou ? Result.Falha<byte[]>(tabela.Erros) : RelatorioEmPdf.Gerar(tabela.Valor);
+        return RelatorioEmPdf.Gerar(tabela.Valor);
     }
 
     /// <summary>

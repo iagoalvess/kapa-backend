@@ -2,6 +2,7 @@ using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Models;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Festa.Models;
+using Backend.Business.Legal.Models;
 using Backend.Business.Loja.Models;
 
 namespace Backend.Business.Loja.Interfaces;
@@ -34,7 +35,8 @@ public interface ILojaService
     /// </remarks>
     /// <param name="formaturaId">A turma da rota.</param>
     /// <param name="dados">Comprador, quantidade e meio.</param>
-    Task<Result<CompraCriada>> Comprar(Guid formaturaId, DadosDaCompra dados, CancellationToken ct = default);
+    /// <param name="origem">IP e navegador da requisição: com a versão vigente da Política, a prova de que o comprador a leu.</param>
+    Task<Result<CompraCriada>> Comprar(Guid formaturaId, DadosDaCompra dados, OrigemDoAceite origem, CancellationToken ct = default);
 
     /// <summary>A compra pelo link. Link errado, antigo ou de compra inexistente: o mesmo 404.</summary>
     /// <param name="token">O segredo do link.</param>
@@ -318,7 +320,8 @@ public interface ICompraDeConviteRepository
     Task<ResumoDaLoja> Resumir(CancellationToken ct = default);
 
     /// <summary>
-    /// Apaga e-mail e CPF das compras de turmas cuja festa terminou antes do dia informado (decisão 5).
+    /// Apaga e-mail, CPF e o IP e o navegador da leitura da Política das compras de turmas cuja festa terminou antes
+    /// do dia informado (decisão 5).
     /// </summary>
     /// <remarks>
     /// <c>ExecuteUpdateAsync</c> atravessando as turmas: limpeza do worker, a mesma exceção de

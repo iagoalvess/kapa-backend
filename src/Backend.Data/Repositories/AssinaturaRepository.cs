@@ -1,5 +1,6 @@
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Assinaturas.Models;
+using Backend.Business.Assinaturas.Services;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Pagamentos.Models;
 using Backend.Data.Context;
@@ -46,7 +47,8 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
     /// <inheritdoc />
     /// <remarks>
     /// A próxima cobrança só existe na ativa. No cartão é o débito automático; no PIX, o vencimento do PIX do
-    /// ciclo — a data é a mesma, o fim da vigência.
+    /// ciclo — a data é a mesma, o fim da vigência. O fim da desistência sai do último ciclo pago, enquanto a assinatura
+    /// vale; quem o apaga depois do prazo é o service.
     /// </remarks>
     public Task<AssinaturaDetalhe?> ObterDetalheDaMaisRecente(CancellationToken ct = default) =>
         (
@@ -91,7 +93,16 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
                         proximo.Recomendado
                     ),
                 assinatura.Meio == MeioDePagamento.Pix && assinatura.IdExterno != null,
-                cupom == null ? null : new CupomAplicavel(cupom.Codigo, cupom.Percentual)
+                cupom == null ? null : new CupomAplicavel(cupom.Codigo, cupom.Percentual),
+                assinatura.Status == StatusDaAssinatura.Ativa || assinatura.Status == StatusDaAssinatura.Cancelada
+                    ? db
+                        .CobrancasDaAssinatura.Where(c =>
+                            c.AssinaturaId == assinatura.Id && c.Motivo == MotivoDaCobranca.Ciclo && c.Situacao == SituacaoDaCobrancaDoPlano.Paga
+                        )
+                        .OrderByDescending(c => c.PagaEm)
+                        .Select(c => (DateTime?)c.PagaEm!.Value.AddDays(EstornoDaAssinatura.DiasDeDesistencia))
+                        .FirstOrDefault()
+                    : null
             )
         ).FirstOrDefaultAsync(ct);
 
@@ -218,6 +229,20 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
             join assinatura in db.Assinaturas on cobranca.AssinaturaId equals assinatura.Id
             where cobranca.AssinaturaId == assinaturaId && cobranca.Motivo == motivo && cobranca.Situacao == SituacaoDaCobrancaDoPlano.Aberta
             orderby cobranca.CriadoEm descending
+            select cobranca
+        ).FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    /// <remarks>A junção com a assinatura é o que prende a leitura à formatura da sessão.</remarks>
+    public Task<CobrancaDaAssinatura?> ObterUltimoCicloPagoParaEdicao(Guid assinaturaId, CancellationToken ct = default) =>
+        (
+            from cobranca in db.CobrancasDaAssinatura
+            join assinatura in db.Assinaturas on cobranca.AssinaturaId equals assinatura.Id
+            where
+                cobranca.AssinaturaId == assinaturaId
+                && cobranca.Motivo == MotivoDaCobranca.Ciclo
+                && cobranca.Situacao == SituacaoDaCobrancaDoPlano.Paga
+            orderby cobranca.PagaEm descending, cobranca.Id descending
             select cobranca
         ).FirstOrDefaultAsync(ct);
 

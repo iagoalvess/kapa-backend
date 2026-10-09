@@ -45,6 +45,7 @@ public sealed record PlanoDaTurmaDTO(string Codigo, string Nome, IReadOnlyList<s
 /// <param name="ProximoPlano">Plano que passa a valer na próxima renovação; nulo sem descida agendada.</param>
 /// <param name="CartaoAguardandoAutorizacao">Se a troca para o cartão espera a autorização na página do provedor.</param>
 /// <param name="Cupom">Cupom usado na primeira cobrança; nulo sem cupom.</param>
+/// <param name="DesistenciaAte">Até quando o Presidente pode desistir com reembolso integral, em UTC; nulo fora do prazo.</param>
 public sealed record AssinaturaDTO(
     Guid Id,
     StatusDaAssinatura Status,
@@ -55,7 +56,8 @@ public sealed record AssinaturaDTO(
     MeioDePagamento Meio,
     PlanoDTO? ProximoPlano,
     bool CartaoAguardandoAutorizacao,
-    CupomAplicavelDTO? Cupom
+    CupomAplicavelDTO? Cupom,
+    DateTime? DesistenciaAte
 );
 
 /// <summary>Um pagamento do plano, no histórico.</summary>

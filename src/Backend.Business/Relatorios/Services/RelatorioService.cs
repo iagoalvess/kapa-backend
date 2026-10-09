@@ -102,13 +102,17 @@ public sealed class RelatorioService(
         var recorte = tipo == TipoDeRelatorio.Balancete ? filtro.SomentePeriodo() : filtro;
         var subtitulo = await Subtitulo(formatura.Nome, recorte, ct);
 
-        return tipo switch
+        var tabela = tipo switch
         {
             TipoDeRelatorio.Despesas => await Despesas(subtitulo, recorte, ct),
             TipoDeRelatorio.Parcelas => await Parcelas(subtitulo, recorte, ct),
             TipoDeRelatorio.Fornecedores => await Fornecedores(subtitulo, recorte, ct),
             _ => await BalanceteEmTabela(subtitulo, recorte.Periodo, ct),
         };
+
+        return tabela.Linhas.Count == 0
+            ? Erro.Validacao("relatorio.sem_dados", "Não há dados para este relatório no período e filtros selecionados.")
+            : tabela;
     }
 
     /// <inheritdoc />
@@ -176,6 +180,7 @@ public sealed class RelatorioService(
     /// não cumpre, e dois pedidos iguais deixariam de deduplicar por causa dela.
     /// </remarks>
     public async Task<Result<SolicitacaoResumo>> Solicitar(
+        Guid formaturaId,
         TipoDeRelatorio tipo,
         FiltroDoRelatorio filtro,
         Guid solicitadaPorUsuarioId,
@@ -183,6 +188,11 @@ public sealed class RelatorioService(
     )
     {
         var recorte = tipo == TipoDeRelatorio.Balancete ? filtro.SomentePeriodo() : filtro;
+        var tabela = await Tabela(formaturaId, tipo, recorte, ct);
+
+        if (tabela.Falhou)
+            return Result.Falha<SolicitacaoResumo>(tabela.Erros);
+
         var naFila = await solicitacaoRepository.ObterNaFila(tipo, recorte, ct);
 
         if (naFila is not null)

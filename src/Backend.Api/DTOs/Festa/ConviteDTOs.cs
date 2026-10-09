@@ -8,7 +8,7 @@ namespace Backend.Api.DTOs.Festa;
 /// <param name="TipoDoDocumento"><c>Cpf</c> ou <c>Rg</c>; obrigatório junto com o número.</param>
 /// <param name="NumeroDoDocumento">Número, com ou sem pontuação.</param>
 /// <param name="Email">E-mail do convidado, para receber o convite; opcional.</param>
-/// <param name="Observacoes">Restrição alimentar, acessibilidade; opcional.</param>
+/// <param name="Observacoes">O recado para a comissão; opcional.</param>
 public sealed record ConvidadoRequestDTO(
     string? Nome,
     TipoDeDocumento? TipoDoDocumento,
@@ -24,7 +24,7 @@ public sealed record ConvidadoRequestDTO(
 /// <param name="Email">E-mail do convidado; opcional.</param>
 /// <param name="Motivo">Por que a turma está dando o convite.</param>
 /// <param name="EventoId">Evento da cortesia; ausente é a festa.</param>
-/// <param name="Observacoes">Restrição alimentar, acessibilidade; opcional.</param>
+/// <param name="Observacoes">O recado para a comissão; opcional.</param>
 public sealed record CortesiaRequestDTO(
     string? Nome,
     TipoDeDocumento? TipoDoDocumento,

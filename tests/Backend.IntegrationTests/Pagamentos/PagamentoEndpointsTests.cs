@@ -371,7 +371,7 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         (
             await turma.Tesoureiro.Cliente.PutAsJsonAsync(
                 $"/api/v1/cobrancas/planos/{turma.PlanoId}",
-                new PlanoDeCobrancaRequestDTO("Plano 2027", 1_000, 500, 0, 0, 0),
+                new PlanoDeCobrancaRequestDTO("Plano 2027", 100, 50, 0, 0, 0),
                 Json,
                 Ct
             )

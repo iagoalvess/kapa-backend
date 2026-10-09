@@ -103,6 +103,29 @@ public sealed class AssinaturaController(IAssinaturaService assinaturaService, I
     }
 
     /// <summary>
+    /// Desiste da assinatura nos 7 dias do último ciclo pago (art. 49 do CDC): cancela a renovação, devolve esse
+    /// pagamento inteiro e encerra a assinatura — a turma fica só para consulta. Fora do prazo, 409
+    /// <c>assinatura.fora_da_desistencia</c>.
+    /// </summary>
+    /// <remarks>
+    /// Exige a turma ativa, como o cancelamento: a assinatura cancelada continua com a turma ativa até o fim da
+    /// vigência, e por isso ainda desiste.
+    /// </remarks>
+    [HttpPost("desistir")]
+    [Authorize(Policy = Politicas.SomentePresidente)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [ProducesResponseType(typeof(AssinaturaDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> Desistir(CancellationToken ct)
+    {
+        var resultado = await assinaturaService.Desistir(usuarioAtual.Id, ct);
+
+        return Responder(resultado.Map(assinatura => assinatura.Adapt<AssinaturaDTO>()));
+    }
+
+    /// <summary>
     /// Troca o plano da assinatura ativa: a subida devolve a página da diferença proporcional, e o plano novo vale
     /// quando ela for paga; a descida vale na próxima renovação e devolve <c>url</c> nula.
     /// </summary>

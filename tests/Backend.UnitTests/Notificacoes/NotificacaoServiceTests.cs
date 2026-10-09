@@ -3,11 +3,9 @@ using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common;
 using Backend.Business.Formaturas.Interfaces;
-using Backend.Business.Formaturas.Models;
 using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
 using Backend.Business.Notificacoes.Services;
-using Backend.Business.Notificacoes.Validators;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -16,13 +14,11 @@ using Shouldly;
 namespace Backend.UnitTests.Notificacoes;
 
 /// <summary>
-/// As regras da tela da régua: o teste vai só para quem clicou, a cobrança não se desliga e a
-/// gravação mantém o par (gatilho, deslocamento) como identidade do degrau.
+/// As regras da tela da régua: o teste vai só para quem clicou e a gravação mantém o par (gatilho, deslocamento) como identidade do degrau.
 /// </summary>
 public sealed class NotificacaoServiceTests
 {
     private static readonly Guid FormaturaId = Guid.CreateVersion7();
-    private static readonly Guid UsuarioId = Guid.CreateVersion7();
     private static readonly Guid VinculoId = Guid.CreateVersion7();
     private static readonly Guid RegraId = Guid.CreateVersion7();
 
@@ -30,7 +26,6 @@ public sealed class NotificacaoServiceTests
 
     private readonly INotificacaoRepository _notificacoes = Substitute.For<INotificacaoRepository>();
     private readonly IParcelaRepository _parcelas = Substitute.For<IParcelaRepository>();
-    private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
     private readonly IFormaturaRepository _formaturas = Substitute.For<IFormaturaRepository>();
     private readonly ICanalDeNotificacao _canal = Substitute.For<ICanalDeNotificacao>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
@@ -42,9 +37,6 @@ public sealed class NotificacaoServiceTests
             .Returns(Result.Ok(new EntregaDaMensagem(Guid.CreateVersion7())));
 
         _notificacoes.ListarRegras(Arg.Any<CancellationToken>()).Returns([Degrau()]);
-        _notificacoes.ListarPreferenciasParaEdicao(VinculoId, Arg.Any<CancellationToken>()).Returns([]);
-
-        _vinculos.ObterAtivoParaEdicao(UsuarioId, FormaturaId, Arg.Any<CancellationToken>()).Returns(Vinculo());
 
         _formaturas.ObterNome(FormaturaId, Arg.Any<CancellationToken>()).Returns("Medicina 2027");
     }
@@ -53,28 +45,12 @@ public sealed class NotificacaoServiceTests
         new(
             _notificacoes,
             _parcelas,
-            _vinculos,
             _formaturas,
             _canal,
-            new DadosDasPreferenciasValidator(),
             Options.Create(new AplicacaoSettings { Nome = "Kapa", UrlDoFrontend = "https://kapa.dev" }),
             _unitOfWork,
             NullLogger<NotificacaoService>.Instance
         );
-
-    private static VinculoDeFormatura Vinculo()
-    {
-        var vinculo = new VinculoDeFormatura
-        {
-            UsuarioId = UsuarioId,
-            FormaturaId = FormaturaId,
-            Papel = PapelNaFormatura.Tesoureiro,
-        };
-
-        typeof(Entity).GetProperty(nameof(Entity.Id))!.SetValue(vinculo, VinculoId);
-
-        return vinculo;
-    }
 
     private static RegraResumo Degrau() => new(RegraId, GatilhoDaRegua.Vencimento, 3, true);
 
@@ -111,42 +87,6 @@ public sealed class NotificacaoServiceTests
 
         resultado.Falhou.ShouldBeTrue();
         resultado.PrimeiroErro.Tipo.ShouldBe(ETipoErro.NaoEncontrado);
-    }
-
-    /// <summary>Critério de aceite: a notificação de cobrança não pode ser desativada pelo formando.</summary>
-    [Fact]
-    public async Task Desligar_a_cobranca_devolve_409()
-    {
-        var resultado = await Servico.SalvarPreferencias(
-            FormaturaId,
-            UsuarioId,
-            new DadosDasPreferencias([new PreferenciaEscolhida(TipoDeNotificacao.Cobranca, false)]),
-            Ct
-        );
-
-        resultado.Falhou.ShouldBeTrue();
-        resultado.PrimeiroErro.Codigo.ShouldBe("notificacao.cobranca_obrigatoria");
-        resultado.PrimeiroErro.Tipo.ShouldBe(ETipoErro.Conflito);
-        await _notificacoes.DidNotReceiveWithAnyArgs().AdicionarPreferencias(default!, Ct);
-    }
-
-    /// <summary>...e o aviso do mural, sim.</summary>
-    [Fact]
-    public async Task Desligar_o_aviso_do_mural_grava()
-    {
-        var resultado = await Servico.SalvarPreferencias(
-            FormaturaId,
-            UsuarioId,
-            new DadosDasPreferencias([new PreferenciaEscolhida(TipoDeNotificacao.Aviso, false)]),
-            Ct
-        );
-
-        resultado.Sucesso.ShouldBeTrue();
-        resultado.Valor.ShouldContain(p => p.Tipo == TipoDeNotificacao.Aviso && !p.Ativa);
-        resultado.Valor.ShouldContain(p => p.Tipo == TipoDeNotificacao.Cobranca && p.Ativa && p.Obrigatoria);
-        await _notificacoes
-            .Received(1)
-            .AdicionarPreferencias(Arg.Is<IReadOnlyList<PreferenciaDeNotificacao>>(p => p.Count == 1 && p[0].Tipo == TipoDeNotificacao.Aviso), Ct);
     }
 
     [Fact]

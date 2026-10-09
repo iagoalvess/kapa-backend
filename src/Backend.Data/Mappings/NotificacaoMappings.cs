@@ -92,33 +92,3 @@ public sealed class NotificacaoEnviadaMapping : IEntityTypeConfiguration<Notific
         builder.HasOne<Formatura>().WithMany().HasForeignKey(n => n.FormaturaId).OnDelete(DeleteBehavior.Restrict);
     }
 }
-
-/// <summary>
-/// Mapeamento das preferências do titular.
-/// </summary>
-/// <remarks>
-/// Uma linha por <c>(vínculo, tipo)</c>, com índice único: a ausência de linha é "recebe", e o
-/// índice é o que impede duas escolhas contraditórias para o mesmo assunto.
-/// <para>
-/// Sem chave para o e-mail na fila em <c>NotificacaoEnviada</c>: a fila é apagada por retenção e o
-/// histórico precisa sobreviver a ela. O id fica como referência solta, e a conferência simplesmente
-/// não acha o que já sumiu.
-/// </para>
-/// </remarks>
-public sealed class PreferenciaDeNotificacaoMapping : IEntityTypeConfiguration<PreferenciaDeNotificacao>
-{
-    /// <inheritdoc />
-    public void Configure(EntityTypeBuilder<PreferenciaDeNotificacao> builder)
-    {
-        builder.ToTable("preferencias_de_notificacao");
-
-        builder.HasKey(p => p.Id);
-
-        builder.Property(p => p.Tipo).HasConversion<string>().HasMaxLength(20);
-
-        builder.HasIndex(p => new { p.VinculoId, p.Tipo }).IsUnique();
-
-        builder.HasOne<VinculoDeFormatura>().WithMany().HasForeignKey(p => p.VinculoId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne<Formatura>().WithMany().HasForeignKey(p => p.FormaturaId).OnDelete(DeleteBehavior.Restrict);
-    }
-}

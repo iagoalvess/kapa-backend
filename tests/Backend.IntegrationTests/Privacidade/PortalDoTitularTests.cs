@@ -42,10 +42,10 @@ public sealed class PortalDoTitularTests(ApiFactory fabrica)
 
         operadores.ShouldNotBeNull();
         operadores.ShouldNotBeEmpty();
-        operadores.ShouldContain(operador => operador.Nome.Contains("e-mail", StringComparison.OrdinalIgnoreCase));
-        operadores.ShouldContain(operador => operador.Nome.Contains("armazenamento", StringComparison.OrdinalIgnoreCase));
-        operadores.ShouldContain(operador => operador.Nome.Contains("pagamento", StringComparison.OrdinalIgnoreCase));
-        operadores.ShouldContain(operador => operador.Nome.Contains("inteligência artificial", StringComparison.OrdinalIgnoreCase));
+        operadores.ShouldContain(operador => operador.Nome.Contains("MillionSend", StringComparison.OrdinalIgnoreCase));
+        operadores.ShouldContain(operador => operador.Nome.Contains("Cloudflare", StringComparison.OrdinalIgnoreCase));
+        operadores.ShouldContain(operador => operador.Nome.Contains("Mercado Pago", StringComparison.OrdinalIgnoreCase));
+        operadores.ShouldContain(operador => operador.Nome.Contains("OpenRouter", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

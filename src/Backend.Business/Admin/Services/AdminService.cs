@@ -57,7 +57,7 @@ namespace Backend.Business.Admin.Services;
 /// <param name="emails">E-mails da assinatura.</param>
 /// <param name="eventos">Trilha de auditoria.</param>
 /// <param name="userManager">API do Identity, para levantar o bloqueio por tentativas.</param>
-/// <param name="provedor">O PSP da licença, para o estorno.</param>
+/// <param name="estorno">A devolução do pagamento do plano, a mesma da desistência pelo Presidente.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
 public sealed class AdminService(
@@ -70,14 +70,11 @@ public sealed class AdminService(
     EmailsDeAssinatura emails,
     IEventoRepository eventos,
     UserManager<Usuario> userManager,
-    IProvedorDeAssinatura provedor,
+    EstornoDaAssinatura estorno,
     IUnitOfWork unitOfWork,
     ILogger<AdminService> logger
 ) : IAdminService
 {
-    /// <summary>A janela da desistência com reembolso integral: 7 dias do pagamento (Termos, seção 7; art. 49 do CDC).</summary>
-    private const int DiasDeDesistencia = 7;
-
     /// <summary>O período do analytics quando a tela não diz qual: os últimos 30 dias, hoje inclusive.</summary>
     private const int DiasDoPeriodoPadrao = 30;
 
@@ -231,13 +228,8 @@ public sealed class AdminService(
 
     /// <inheritdoc />
     /// <remarks>
-    /// A ordem protege o dinheiro: a renovação é cancelada no provedor <b>antes</b> do estorno — se o provedor falhar
-    /// ali, nada foi devolvido e nada muda. Depois do estorno, o que resta é gravar; o aviso de recorrência cancelada
-    /// que o provedor manda em seguida acerta a assinatura se a gravação falhar.
-    /// <para>
-    /// O proporcional é o que falta da vigência sobre o ciclo do plano. <c>ponytail:</c> mede pela vigência atual —
-    /// estornar um ciclo antigo pelo proporcional devolve o que falta do ciclo corrente; o suporte estorna o último.
-    /// </para>
+    /// O prazo, a ordem das chamadas ao provedor e o estado que fica depois são de <see cref="EstornoDaAssinatura"/>,
+    /// o mesmo núcleo da desistência pelo Presidente.
     /// </remarks>
     public Task<Result<TurmaNoSuporte>> Estornar(
         Guid formaturaId,
@@ -257,43 +249,11 @@ public sealed class AdminService(
                 if (cobranca is null || assinatura is null || assinatura.FormaturaId != formaturaId)
                     return Erro.NaoEncontrado("suporte.pagamento_nao_encontrado", "Pagamento não encontrado nesta turma.");
 
-                if (cobranca is not { Situacao: SituacaoDaCobrancaDoPlano.Paga, IdDoPagamento: { } idDoPagamento, PagaEm: { } pagaEm })
-                    return Erro.Conflito("estorno.cobranca_nao_paga", "Só um pagamento confirmado, e ainda não estornado, pode ser estornado.");
-
-                var agora = DateTime.UtcNow;
-                var ciclo = (await assinaturaRepository.ObterPlano(assinatura.PlanoId, token))?.Ciclo ?? CicloDeCobranca.Mensal;
-
-                if (modo == ModoDeEstorno.Integral && pagaEm < agora.AddDays(-DiasDeDesistencia))
-                    return Erro.Conflito(
-                        "estorno.fora_do_prazo",
-                        "O reembolso integral vale até 7 dias depois do pagamento. Depois disso, só o proporcional, nos casos dos Termos."
-                    );
-
-                var valor =
-                    modo == ModoDeEstorno.Integral
-                        ? cobranca.ValorEmCentavos
-                        : (long)Math.Round(cobranca.ValorEmCentavos * assinatura.FracaoRestante(agora, ciclo));
-
-                if (valor <= 0)
-                    return Erro.Conflito("estorno.nada_a_devolver", "A vigência deste pagamento já acabou: não há o que devolver pelo proporcional.");
-
-                if (assinatura.IdExterno is { } recorrencia)
-                {
-                    var cancelada = await provedor.Cancelar(recorrencia, token);
-                    if (cancelada.Falhou)
-                        return Result.Falha<TurmaNoSuporte>(cancelada.Erros);
-                }
-
-                var devolvido = await provedor.Estornar(idDoPagamento, valor, cobranca.Id, token);
+                var devolvido = await estorno.Devolver(assinatura, cobranca, modo, DateTime.UtcNow, token);
                 if (devolvido.Falhou)
                     return Result.Falha<TurmaNoSuporte>(devolvido.Erros);
 
-                cobranca.Estornar(valor, agora);
-                assinatura.IdExterno = null;
-                assinatura.Encerrar(agora);
-
-                var formatura = await formaturaRepository.ObterParaEdicao(formaturaId, token);
-                formatura?.Transicionar(StatusDaFormatura.Suspensa);
+                var valor = devolvido.Valor;
 
                 await eventos.Auditar(
                     NomesDeAuditoria.SuportePagamentoEstornado,

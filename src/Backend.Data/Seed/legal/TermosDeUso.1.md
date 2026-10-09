@@ -1,6 +1,6 @@
 # Termos de Uso da Kapa
 
-Estes Termos de Uso regem o acesso e o uso da plataforma Kapa, operada por **KAPA FORMATURAS INOVA SIMPLES (I.S.)**, inscrita no CNPJ sob o nº **69.334.998/0001-67**, com sede em **Rua Carlos Alves, 16, apto 102, São José, Belo Horizonte/MG, CEP 31275-120** ("Kapa", "nós").
+Estes Termos de Uso regem o acesso e o uso da plataforma Kapa, operada por **KAPA FORMATURAS INOVA SIMPLES (I.S.)**, inscrita no CNPJ sob o nº **69.334.998/0001-67** ("Kapa", "nós").
 
 Ao criar uma conta, você declara que leu, entendeu e concorda com estes Termos e com a Política de Privacidade, que é parte integrante deles. Se não concordar, não utilize a plataforma.
 
@@ -18,12 +18,17 @@ A Kapa nunca pede sua senha por e-mail, telefone ou mensagem.
 
 A Kapa é uma plataforma de software (SaaS) para organizar a formatura de uma turma. Ela permite que a comissão de formatura:
 
-- cadastre a formatura e convide os formandos;
-- configure as contribuições da turma e o termo de adesão;
-- informe a chave PIX da turma, gere o código PIX de cada parcela e confirme os pagamentos recebidos;
-- registre despesas, fornecedores e o fluxo de caixa;
+- cadastre a formatura, convide os formandos e colha a assinatura de cada um no termo de adesão da turma, inclusive nos aditivos de pacotes e itens extras contratados depois;
+- defina as parcelas, os pacotes e os itens extras e cobre os formandos, por PIX na chave da comissão ou, se a comissão conectar a conta Mercado Pago da turma, por PIX e cartão de crédito com confirmação automática (seção 5);
+- registre despesas, fornecedores, outras receitas e o fluxo de caixa, e emita recibos dos pagamentos;
+- organize a festa: convites com QR Code, lista de convidados, controle de entrada, mesas e agenda;
+- venda convites avulsos a terceiros numa loja pública da turma (seção 5);
 - publique avisos e documentos no mural da turma;
 - ofereça aos formandos transparência sobre o caixa e a adimplência da turma.
+
+Antes de assinar o termo de adesão, o formando vê um resumo do termo gerado por inteligência artificial. O resumo serve só para orientar a leitura, pode conter erros e não faz parte do que se aceita: vale o texto completo do termo.
+
+Algumas funções dependem do plano contratado (seção 6).
 
 A Kapa fornece a **ferramenta**. A organização da formatura, a contratação de fornecedores, a realização de eventos e a gestão do dinheiro da turma são responsabilidade da comissão de formatura.
 
@@ -31,7 +36,7 @@ A Kapa fornece a **ferramenta**. A organização da formatura, a contratação d
 
 Para usar a Kapa, você precisa criar uma conta informando nome, e-mail e senha, e se compromete a fornecer dados verdadeiros e mantê-los atualizados.
 
-A plataforma é destinada a maiores de 18 anos com plena capacidade civil. Formandos entre 16 e 18 anos podem utilizá-la desde que assistidos por seu responsável legal, que responde pelos atos praticados e pelos compromissos financeiros assumidos na turma. Não é permitido o cadastro de menores de 16 anos; contas nessa situação serão encerradas assim que identificadas.
+A plataforma é destinada exclusivamente a maiores de 18 anos com plena capacidade civil. Ao criar a conta, você declara ter 18 anos ou mais. Contas de menores de 18 anos serão encerradas assim que identificadas.
 
 Suas credenciais são pessoais e intransferíveis. Você é responsável por mantê-las em sigilo e pelas atividades realizadas na sua conta, exceto quando o uso indevido decorrer de falha de segurança atribuível à Kapa. Se suspeitar de acesso indevido, troque a senha e avise o suporte imediatamente.
 
@@ -41,12 +46,14 @@ Uma mesma conta pode participar de mais de uma formatura, com um papel diferente
 
 Cada formatura é um espaço isolado: o que é lançado em uma turma não é visível para outra. Dentro de uma formatura, cada pessoa tem um papel, que define o que ela pode fazer:
 
-- **Presidente:** administra a formatura, a assinatura da Kapa, a chave PIX de recebimento da turma, os membros e os papéis. Pode tudo o que os demais papéis podem.
-- **Tesoureiro:** configura cobranças, confirma pagamentos, lança despesas e fornecedores e registra baixas manuais e renegociações.
-- **Comissão:** consulta o extrato dos formandos e publica avisos e documentos.
+- **Presidente:** administra a formatura, a assinatura da Kapa, o modo de cobrança da turma (a chave PIX de recebimento ou a conexão com o Mercado Pago da turma), os membros e os papéis, e é o único que pode desligar um formando. Pode tudo o que os demais papéis podem.
+- **Tesoureiro:** configura cobranças, confirma pagamentos, lança despesas e fornecedores, registra baixas manuais e renegociações e decide os pedidos de cancelamento.
+- **Comissão:** consulta o extrato dos formandos, organiza a festa e publica avisos e documentos.
 - **Formando:** acompanha o próprio extrato, as próprias cobranças e os indicadores gerais da turma.
 
-Quem cria a formatura se torna o primeiro Presidente. Toda formatura precisa ter ao menos um Presidente ativo.
+Quem cria a formatura se torna o primeiro Presidente. Toda formatura precisa ter ao menos um Presidente ativo. A nomeação de um novo Presidente só tem efeito depois de confirmada pelo link enviado ao e-mail de quem nomeia.
+
+Todo papel, inclusive o de formando, ocupa uma vaga do plano contratado. O plano gratuito admite até 5 pessoas, todas da comissão, e não admite formandos.
 
 A comissão (Presidente, Tesoureiro e membros da Comissão) é responsável:
 
@@ -59,29 +66,40 @@ Remover um membro desativa o acesso dele à formatura, mas preserva o histórico
 
 ## 5. Dinheiro da turma e pagamentos
 
-**O dinheiro da turma nunca transita pela Kapa.** Os formandos pagam as contribuições por PIX diretamente para a conta indicada pela comissão, identificada pela chave PIX que ela cadastra na plataforma. A Kapa não é instituição financeira nem instituição de pagamento: não recebe, não custodia e não repassa valores, não tem acesso à conta da comissão e não é parte na relação entre a comissão e os formandos.
+**O dinheiro da turma nunca entra numa conta da Kapa.** A Kapa não é instituição financeira nem instituição de pagamento: não recebe, não custodia e não repassa valores dos formandos ou dos compradores da loja, não cobra porcentagem sobre eles e não é parte na relação entre a comissão e os formandos.
 
-A comissão é responsável pela chave PIX que informa e pela conta a que ela pertence. A plataforma recomenda que a comissão confira a chave com um pagamento de teste antes de a turma começar a pagar, e toda troca de chave é avisada por e-mail aos membros da comissão. Antes de confirmar um pagamento no aplicativo do banco, confira se o nome do recebedor é o que a plataforma mostra.
+Cada turma escolhe um de dois modos de cobrança, e nunca usa os dois ao mesmo tempo:
 
-A plataforma gera, para cada parcela, um código PIX (QR Code e "copia e cola") com a chave, o valor e a identificação da parcela. Como a Kapa não enxerga a conta da comissão, **quem confirma o pagamento é a tesouraria**, a partir do extrato do banco: o formando pode avisar na plataforma que pagou, e a parcela passa a constar como paga depois dessa confirmação. Pagamentos feitos por outros meios (dinheiro, transferência) também são registrados pela tesouraria. Toda confirmação e toda baixa manual ficam registradas com autor, data e hora.
+- **Modo manual (PIX na chave da comissão).** A comissão informa a chave PIX da conta onde quer receber. A plataforma gera, para cada parcela, um código PIX (QR Code e "copia e cola") com a chave, o valor e a identificação da parcela, e o formando paga diretamente nessa conta. Nesse modo, a Kapa não tem acesso à conta, e **quem confirma o pagamento é a tesouraria**, a partir do extrato do banco: o formando pode avisar na plataforma que pagou, e a parcela passa a constar como paga depois dessa confirmação.
+- **Modo automático (Mercado Pago da turma).** A comissão conecta à Kapa a conta Mercado Pago da turma, por autorização dada no próprio site do Mercado Pago. Com essa autorização, a Kapa guarda, cifrada, uma credencial de acesso à conta e a usa apenas para criar as cobranças das parcelas, por PIX ou por cartão de crédito em até 12 vezes, e para consultar se foram pagas. O pagamento cai direto na conta Mercado Pago da turma, e a parcela é marcada como paga automaticamente quando o Mercado Pago confirma. A comissão pode desconectar a conta a qualquer momento.
 
-Valores, parcelas, vencimentos, multas e juros das contribuições são definidos pela comissão no termo de adesão da turma, que é um contrato entre o formando e a comissão, distinto destes Termos. Devoluções, estornos e reembolsos de contribuições são tratados entre o formando e a comissão.
+No modo automático, a taxa do cartão pode ser absorvida pela turma ou repassada ao formando, num percentual definido pela comissão. Quando há repasse, o formando vê o valor com e sem o acréscimo antes de escolher como pagar.
 
-A situação das parcelas na plataforma segue as confirmações da tesouraria e pode levar algum tempo para acompanhar o extrato do banco.
+A comissão é responsável pela chave PIX e pela conta Mercado Pago que informa ou conecta. A troca da chave PIX e a conexão do Mercado Pago só têm efeito depois de confirmadas pelo link enviado ao e-mail de quem as pediu, e toda troca é avisada aos membros da comissão. A plataforma recomenda que a comissão confira a chave com um pagamento de teste antes de a turma começar a pagar. Antes de confirmar um pagamento no aplicativo do banco, confira se o nome do recebedor é o que a plataforma mostra.
 
-## 6. Assinatura da Kapa, preços e renovação
+Pagamentos feitos por outros meios (dinheiro, transferência) são registrados pela tesouraria. Toda confirmação, baixa manual e cancelamento fica registrado com autor, data e hora, e a plataforma emite recibo dos pagamentos em nome da turma, que não é documento fiscal.
 
-O uso da plataforma pela formatura depende de uma assinatura contratada pela comissão. Os planos, preços e ciclos disponíveis são apresentados antes da contratação.
+**Loja pública da turma.** A comissão pode vender convites avulsos a terceiros numa página pública. A venda é feita pela turma, e não pela Kapa: o comprador paga na conta Mercado Pago da turma, e trocas, cancelamentos e devoluções são tratados com a comissão. A Kapa fornece a página e registra os pedidos.
 
-O pagamento da assinatura é feito em ambiente do provedor de pagamentos; dados de cartão não passam pelos servidores da Kapa.
+**Pacotes, itens extras e cancelamentos.** Valores, parcelas, vencimentos, multas, juros, pacotes, itens extras e regras de cancelamento das contribuições são definidos pela comissão no termo de adesão da turma e nos seus aditivos, que são contratos entre o formando e a comissão, distintos destes Termos. A plataforma limita a multa por atraso a 2% e os juros a 1% ao mês. Os pedidos de cancelamento são decididos pela comissão na plataforma.
+
+**Devoluções.** A Kapa não devolve valores de formandos nem de compradores. Quando há cancelamento, estorno ou reembolso, a plataforma registra o valor "a devolver", e a devolução é feita pela comissão. A única devolução feita pela própria Kapa é a da sua assinatura (seção 7).
+
+A situação das parcelas na plataforma segue as confirmações da tesouraria ou do Mercado Pago e pode levar algum tempo para acompanhar o extrato.
+
+## 6. Assinatura da Kapa, planos, preços e renovação
+
+O uso da plataforma pela formatura depende de um plano, contratado e pago pelo Presidente. Há um plano gratuito, sem formandos e com até 5 pessoas da comissão, e planos pagos, mensais ou anuais, que diferem no número de formandos e nas funções disponíveis. Os planos, preços, limites e ciclos são apresentados antes da contratação. Pode haver cupom de desconto, aplicado somente à primeira cobrança.
+
+O pagamento da assinatura é feito por PIX ou cartão de crédito, no ambiente do Mercado Pago, provedor de pagamentos da Kapa; dados de cartão não passam pelos servidores da Kapa. A nota fiscal é emitida em nome do Presidente.
 
 Salvo cancelamento, a assinatura se renova automaticamente ao fim de cada ciclo, pelo mesmo período e pelo preço vigente. Alterações de preço serão comunicadas com antecedência mínima de 30 dias e só valem a partir da renovação seguinte; você pode cancelar antes disso.
 
-Se a assinatura não for paga ou for cancelada, a formatura passa ao modo **somente leitura**: todos os dados continuam acessíveis para consulta, mas não é possível registrar novas operações até a regularização. Uma formatura encerrada permanece disponível para consulta e exportação por 5 anos.
+Se a renovação não for paga, há uma carência de 7 dias, com avisos ao Presidente. Depois dela, a formatura é **suspensa**: os dados continuam acessíveis para consulta, mas não é possível registrar novas operações nem usar as funções do plano pago, como convidar formandos, vender na loja ou enviar a régua de cobrança, até a regularização. Uma formatura suspensa por 12 meses é encerrada automaticamente. Uma formatura encerrada permanece disponível para consulta e exportação por 5 anos.
 
 ## 7. Direito de arrependimento e reembolso da assinatura
 
-Quando a contratação for feita por pessoa física na condição de consumidora, é possível desistir em até 7 dias corridos da contratação ou da renovação, com reembolso integral, conforme o art. 49 do Código de Defesa do Consumidor. O pedido é feito pelo e-mail de suporte.
+Quando a contratação for feita por pessoa física na condição de consumidora, é possível desistir em até 7 dias corridos da contratação ou da renovação, com reembolso integral, conforme o art. 49 do Código de Defesa do Consumidor. A desistência é feita pelo Presidente na própria plataforma, na tela da assinatura, e também pode ser pedida pelo e-mail de suporte.
 
 O reembolso encerra a assinatura correspondente. Fora desse prazo, o cancelamento interrompe as cobranças futuras e o acesso completo permanece até o fim do ciclo já pago.
 
@@ -95,9 +113,9 @@ O extrato individual de cada formando é visível apenas para o próprio formand
 
 ## 9. Comunicações
 
-A Kapa envia mensagens por e-mail sobre sua conta, sua formatura, cobranças e pagamentos, incluindo lembretes de vencimento configurados pela comissão. Essas comunicações são parte do serviço e não podem ser desativadas enquanto houver vínculo ativo com uma formatura.
+A Kapa envia mensagens por e-mail sobre sua conta, sua formatura, cobranças e pagamentos, incluindo os lembretes de vencimento e de atraso que a comissão escolhe ligar. Esses lembretes têm texto fixo escrito pela Kapa, que a comissão não edita, e nunca revelam a outros formandos quem está em atraso. Essas comunicações são parte do serviço e não podem ser desativadas enquanto houver vínculo ativo com uma formatura.
 
-Comunicações de novidades e ofertas da própria Kapa podem ser recusadas a qualquer momento pelo link de descadastro presente nas mensagens.
+Novidades e ofertas da própria Kapa só são enviadas a quem as aceitou no cadastro, e o aceite pode ser revogado a qualquer momento pelo link de descadastro presente nas mensagens.
 
 ## 10. Uso aceitável
 
@@ -110,7 +128,10 @@ Comunicações de novidades e ofertas da própria Kapa podem ser recusadas a qua
 - realizar engenharia reversa, descompilar ou copiar a plataforma;
 - sobrecarregar deliberadamente a plataforma, inclusive por automações não autorizadas;
 - enviar conteúdo ilícito, ofensivo, discriminatório, malicioso ou com código nocivo, inclusive em avisos e documentos do mural;
+- informar dados de terceiros, como convidados, sem que eles estejam cientes;
 - violar direitos de propriedade intelectual, de imagem ou de privacidade de terceiros.
+
+Conteúdo ilícito ou ofensivo publicado na plataforma pode ser denunciado pelo link "Denunciar este aviso", no próprio aviso, ou pelo e-mail de suporte, informando onde ele está. A Kapa analisa a denúncia e pode remover o conteúdo, avisando quem o publicou.
 
 A violação destas regras sujeita a conta às medidas da seção 13, sem prejuízo da responsabilidade por danos comprovados.
 
@@ -128,8 +149,10 @@ A Kapa responde, nos termos da lei, pelos serviços que presta. A Kapa não é r
 
 - decisões da comissão sobre o dinheiro da turma, a contratação de fornecedores ou a realização dos eventos da formatura;
 - a exatidão das informações lançadas pelos usuários, inclusive a chave PIX de recebimento, as confirmações de pagamento e as baixas manuais;
+- o conteúdo do termo de adesão e dos aditivos redigidos pela comissão, e as decisões dela sobre pedidos de cancelamento e devoluções;
+- a venda de convites pela loja da turma, a realização dos eventos e as devoluções aos compradores, que cabem à comissão;
 - o inadimplemento de formandos, de fornecedores ou da comissão;
-- indisponibilidade, atrasos ou erros das instituições financeiras, do sistema PIX ou do provedor de pagamentos da assinatura;
+- indisponibilidade, atrasos ou erros das instituições financeiras, do sistema PIX ou do Mercado Pago;
 - indisponibilidades temporárias para manutenção, que buscaremos programar e comunicar para minimizar o impacto;
 - caso fortuito, força maior ou culpa exclusiva do usuário ou de terceiros (art. 14, § 3º, do Código de Defesa do Consumidor).
 
@@ -149,7 +172,7 @@ Após o encerramento, cessam o acesso e a licença de uso. Continuam válidas as
 
 Os Termos não são editados: cada alteração é publicada como uma nova versão, e todas as versões anteriores continuam disponíveis para consulta em endereço permanente.
 
-Quando uma nova versão for publicada, você será solicitado a lê-la e aceitá-la no seu próximo acesso. Alterações relevantes serão comunicadas com antecedência mínima de 30 dias. Se não concordar com a nova versão, você pode encerrar sua conta e, se for o caso, cancelar a assinatura com reembolso proporcional do período não utilizado.
+Quando uma nova versão for publicada, você será levado a lê-la e aceitá-la no seu próximo acesso, antes de continuar usando a plataforma. Alterações relevantes serão comunicadas com antecedência mínima de 30 dias. Se não concordar com a nova versão, você pode encerrar sua conta e, se for o caso, cancelar a assinatura com reembolso proporcional do período não utilizado.
 
 ## 15. Privacidade
 

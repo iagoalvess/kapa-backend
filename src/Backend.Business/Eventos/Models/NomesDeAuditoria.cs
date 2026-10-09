@@ -145,6 +145,12 @@ public static class NomesDeAuditoria
     /// <remarks>Leva a <c>formaturaId</c>, como a ativação: a comissão vê na trilha dela quem devolveu e quanto.</remarks>
     public const string SuportePagamentoEstornado = "suporte.pagamento_estornado";
 
+    /// <summary>
+    /// O Presidente desistiu da assinatura nos 7 dias do pagamento, e o pagamento voltou inteiro (art. 49 do CDC).
+    /// </summary>
+    /// <remarks>Mesmo corpo do <see cref="SuportePagamentoEstornado"/>: a diferença é quem pediu.</remarks>
+    public const string AssinaturaDesistencia = "assinatura.desistencia";
+
     /// <summary>Cupom de desconto criado pelo Administrador (Sprint 51). Da plataforma: sai sem <c>formaturaId</c>.</summary>
     public const string CupomCriado = "suporte.cupom_criado";
 
@@ -248,6 +254,7 @@ public static class NomesDeAuditoria
         SuporteRedefinicaoDisparada,
         SuporteContaDesbloqueada,
         SuportePagamentoEstornado,
+        AssinaturaDesistencia,
         CupomCriado,
         CupomDesativado,
     ];
