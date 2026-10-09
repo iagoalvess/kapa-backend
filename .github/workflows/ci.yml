@@ -65,6 +65,8 @@ jobs:
   segredos:
     # Varre o histórico inteiro com as regras padrão do gitleaks. Os segredos de
     # appsettings.Development.json são de dev, versionados de propósito, e não casam com elas.
+    # O binário vem do release, e não da imagem Docker: o pull anônimo do Docker Hub falhava no
+    # runner (exit 125) e derrubava o job.
     runs-on: ubuntu-latest
 
     steps:
@@ -72,8 +74,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Instalar o gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
+
       - name: Varrer segredos
-        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest git /repo --redact
+        run: gitleaks git . --redact
 
   imagens:
     # Só confirma que as imagens constroem. Publicar é outro workflow, com credenciais.
