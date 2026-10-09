@@ -2,6 +2,7 @@ using Backend.Api.Configuration;
 using Backend.Business;
 using Backend.Data;
 using Backend.Data.Seed;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,7 +21,7 @@ app.AvisarConfiguracaoDeProducao();
 app.UseApi();
 app.UseDocumentacao();
 
-app.MapHealthChecks("/health").AllowAnonymous();
+app.MapHealthChecks("/health").AllowAnonymous().RequireRateLimiting(RateLimitConfig.Saude);
 
 app.RecusarConfiguracaoInseguraDeProducao();
 

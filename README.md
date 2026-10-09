@@ -82,6 +82,7 @@ Tudo por variável de ambiente (`Secao__Chave`) ou `appsettings.json`.
 | `CookieDeSessao__SameSite` | não | `Lax`; use `None` só com front e API em sites registráveis diferentes |
 | `Rede__ProxiesConfiaveis__0` | atrás de proxy | vazio = `X-Forwarded-For` ignorado. IP ou CIDR (`10.0.0.0/8`) |
 | `RateLimit__PadraoPorMinuto` | não | `120` |
+| `RateLimit__SaudeRajada` / `RateLimit__SaudePorMinuto` | não | `30` / `60` — `/health`, anônimo, por IP: a sonda passa, o laço de requisições não |
 | `RateLimit__AutenticacaoPorMinuto` | não | `10` — esqueci-senha, reenviar confirmação, redefinir e alterar senha |
 | `RateLimit__EntradaRajada` / `RateLimit__EntradaPorMinuto` | não | `100` / `10` — cadastro, login e confirmar e-mail: rajada por IP para a assembleia no mesmo Wi-Fi |
 | `RateLimit__FilaPorTurmaSimultaneas` / `RateLimit__FilaPorTurmaEspera` | não | `4` / `500` — escritas por turma que chegam juntas ao banco nas rotas `[FilaPorTurma]` (pedido, aceite do link); o resto espera em memória, em ordem de chegada |

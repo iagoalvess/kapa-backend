@@ -123,6 +123,19 @@ public static class RateLimitConfig
     /// </remarks>
     public const string Vitrine = "vitrine";
 
+    /// <summary>
+    /// Limite do <c>/health</c>: a sonda do orquestrador passa, o spam de requisições não.
+    /// </summary>
+    /// <remarks>
+    /// O health check é anônimo e nenhum <c>[EnableRateLimiting]</c> o marca, então sem esta política
+    /// ele seria o único endpoint sem teto — um laço de requisições ali segura conexão e consulta o
+    /// banco à toa, sem autenticação para barrar. Balde de fichas por IP: <c>SaudeRajada</c> cobre
+    /// algumas sondas juntas (o load balancer aquecendo, a sondagem inicial do orquestrador) e
+    /// <c>SaudePorMinuto</c> é o ritmo que sobra depois da rajada. Folgado para uma sonda a cada
+    /// poucos segundos, estreito para não virar amplificador.
+    /// </remarks>
+    public const string Saude = "saude";
+
     /// <summary>Seção de configuração que ajusta os limites por ambiente.</summary>
     public const string Secao = "RateLimit";
 
@@ -153,6 +166,8 @@ public static class RateLimitConfig
         var rajadaLoja = configuration.GetValue($"{Secao}:LojaRajada", 300);
         var porMinutoVitrine = configuration.GetValue($"{Secao}:VitrinePorMinuto", 300);
         var rajadaVitrine = configuration.GetValue($"{Secao}:VitrineRajada", 600);
+        var porMinutoSaude = configuration.GetValue($"{Secao}:SaudePorMinuto", 60);
+        var rajadaSaude = configuration.GetValue($"{Secao}:SaudeRajada", 30);
 
         services.AddSingleton(_ => new FilaPorTurma(simultaneasPorTurma, esperaPorTurma));
         services.Replace(ServiceDescriptor.Singleton<IFilaDaTurma>(sp => sp.GetRequiredService<FilaPorTurma>()));
@@ -206,6 +221,8 @@ public static class RateLimitConfig
             opcoes.AddPolicy(Loja, contexto => BaldePor($"loja:{Ip(contexto)}", rajadaLoja, porMinutoLoja));
 
             opcoes.AddPolicy(Vitrine, contexto => BaldePor($"vitrine:{Ip(contexto)}", rajadaVitrine, porMinutoVitrine));
+
+            opcoes.AddPolicy(Saude, contexto => BaldePor($"saude:{Ip(contexto)}", rajadaSaude, porMinutoSaude));
         });
 
         return services;
