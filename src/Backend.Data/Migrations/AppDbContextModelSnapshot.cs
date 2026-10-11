@@ -693,6 +693,93 @@ namespace Backend.Data.Migrations
                     b.ToTable("eventos_de_cobranca", (string)null);
                 });
 
+            modelBuilder.Entity("Backend.Business.Assinaturas.Models.PedidoDeReembolso", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AssinaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assinatura_id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid>("CobrancaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cobranca_id");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<string>("EmailDoSolicitante")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("email_do_solicitante");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<string>("IdDoPagamento")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("id_do_pagamento");
+
+                    b.Property<string>("Meio")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("meio");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("motivo");
+
+                    b.Property<DateTime>("PagaEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paga_em");
+
+                    b.Property<Guid>("SolicitanteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("solicitante_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<long>("ValorEmCentavos")
+                        .HasColumnType("bigint")
+                        .HasColumnName("valor_em_centavos");
+
+                    b.HasKey("Id")
+                        .HasName("pk_pedidos_de_reembolso");
+
+                    b.HasIndex("AssinaturaId")
+                        .HasDatabaseName("ix_pedidos_de_reembolso_assinatura_id");
+
+                    b.HasIndex("CobrancaId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_pedidos_de_reembolso_cobranca_id");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_pedidos_de_reembolso_formatura_id");
+
+                    b.HasIndex("Status", "CriadoEm")
+                        .HasDatabaseName("ix_pedidos_de_reembolso_status_criado_em");
+
+                    b.ToTable("pedidos_de_reembolso", (string)null);
+                });
+
             modelBuilder.Entity("Backend.Business.Assinaturas.Models.Plano", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1680,6 +1767,227 @@ namespace Backend.Data.Migrations
                         .HasFilter("status = 0");
 
                     b.ToTable("emails_fila", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Enquetes.Models.Enquete", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime?>("CanceladaEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelada_em");
+
+                    b.Property<Guid>("CriadaPorUsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criada_por_usuario_id");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<string>("Descricao")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("descricao");
+
+                    b.Property<DateTime>("EncerraEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("encerra_em");
+
+                    b.Property<DateTime?>("EncerradaEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("encerrada_em");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<int?>("MaximoDeEscolhas")
+                        .HasColumnType("integer")
+                        .HasColumnName("maximo_de_escolhas");
+
+                    b.Property<string>("Pergunta")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("pergunta");
+
+                    b.Property<DateTime?>("PrimeiraRespostaEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("primeira_resposta_em");
+
+                    b.Property<int>("QuorumMinimoPercentual")
+                        .HasColumnType("integer")
+                        .HasColumnName("quorum_minimo_percentual");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("tipo");
+
+                    b.Property<int>("TotalAptosNaPublicacao")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_aptos_na_publicacao");
+
+                    b.HasKey("Id")
+                        .HasName("pk_enquetes");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_enquetes_formatura_id");
+
+                    b.HasIndex("FormaturaId", "EncerraEm")
+                        .HasDatabaseName("ix_enquetes_formatura_id_encerra_em");
+
+                    b.ToTable("enquetes", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_enquetes_escolhas", "(tipo = 'UnicaEscolha' AND maximo_de_escolhas IS NULL) OR (tipo = 'MultiplaEscolha' AND maximo_de_escolhas BETWEEN 1 AND 10)");
+
+                            t.HasCheckConstraint("ck_enquetes_quorum", "quorum_minimo_percentual BETWEEN 1 AND 100");
+                        });
+                });
+
+            modelBuilder.Entity("Backend.Business.Enquetes.Models.EscolhaDaResposta", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<Guid>("OpcaoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("opcao_id");
+
+                    b.Property<Guid>("RespostaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resposta_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_escolhas_de_enquetes");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_escolhas_de_enquetes_formatura_id");
+
+                    b.HasIndex("OpcaoId")
+                        .HasDatabaseName("ix_escolhas_de_enquetes_opcao_id");
+
+                    b.HasIndex("RespostaId", "OpcaoId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_escolhas_de_enquetes_resposta_id_opcao_id");
+
+                    b.ToTable("escolhas_de_enquetes", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Enquetes.Models.OpcaoDaEnquete", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid>("EnqueteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("enquete_id");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<int>("Ordem")
+                        .HasColumnType("integer")
+                        .HasColumnName("ordem");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("texto");
+
+                    b.HasKey("Id")
+                        .HasName("pk_opcoes_de_enquetes");
+
+                    b.HasIndex("EnqueteId")
+                        .HasDatabaseName("ix_opcoes_de_enquetes_enquete_id");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_opcoes_de_enquetes_formatura_id");
+
+                    b.ToTable("opcoes_de_enquetes", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Enquetes.Models.RespostaDaEnquete", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid>("EnqueteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("enquete_id");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<DateTime>("RespondidaEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("respondida_em");
+
+                    b.Property<Guid?>("VinculoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vinculo_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_respostas_de_enquetes");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_respostas_de_enquetes_formatura_id");
+
+                    b.HasIndex("VinculoId")
+                        .HasDatabaseName("ix_respostas_de_enquetes_vinculo_id");
+
+                    b.HasIndex("EnqueteId", "VinculoId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_respostas_de_enquetes_enquete_id_vinculo_id")
+                        .HasFilter("vinculo_id IS NOT NULL");
+
+                    b.ToTable("respostas_de_enquetes", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Business.Eventos.Models.Evento", b =>
@@ -4522,6 +4830,30 @@ namespace Backend.Data.Migrations
                         .HasConstraintName("fk_cobrancas_da_assinatura_planos_plano_id");
                 });
 
+            modelBuilder.Entity("Backend.Business.Assinaturas.Models.PedidoDeReembolso", b =>
+                {
+                    b.HasOne("Backend.Business.Assinaturas.Models.Assinatura", null)
+                        .WithMany()
+                        .HasForeignKey("AssinaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_pedidos_de_reembolso_assinaturas_assinatura_id");
+
+                    b.HasOne("Backend.Business.Assinaturas.Models.CobrancaDaAssinatura", null)
+                        .WithMany()
+                        .HasForeignKey("CobrancaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_pedidos_de_reembolso_cobrancas_da_assinatura_cobranca_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_pedidos_de_reembolso_formaturas_formatura_id");
+                });
+
             modelBuilder.Entity("Backend.Business.Auth.Models.RefreshToken", b =>
                 {
                     b.HasOne("Backend.Business.Usuarios.Models.Usuario", null)
@@ -4732,6 +5064,80 @@ namespace Backend.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_convites_formaturas_formatura_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Enquetes.Models.Enquete", b =>
+                {
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_enquetes_formaturas_formatura_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Enquetes.Models.EscolhaDaResposta", b =>
+                {
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_escolhas_de_enquetes_formaturas_formatura_id");
+
+                    b.HasOne("Backend.Business.Enquetes.Models.OpcaoDaEnquete", null)
+                        .WithMany()
+                        .HasForeignKey("OpcaoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_escolhas_de_enquetes_opcoes_de_enquetes_opcao_id");
+
+                    b.HasOne("Backend.Business.Enquetes.Models.RespostaDaEnquete", null)
+                        .WithMany("Escolhas")
+                        .HasForeignKey("RespostaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_escolhas_de_enquetes_respostas_de_enquetes_resposta_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Enquetes.Models.OpcaoDaEnquete", b =>
+                {
+                    b.HasOne("Backend.Business.Enquetes.Models.Enquete", null)
+                        .WithMany("Opcoes")
+                        .HasForeignKey("EnqueteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_opcoes_de_enquetes_enquetes_enquete_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_opcoes_de_enquetes_formaturas_formatura_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Enquetes.Models.RespostaDaEnquete", b =>
+                {
+                    b.HasOne("Backend.Business.Enquetes.Models.Enquete", null)
+                        .WithMany()
+                        .HasForeignKey("EnqueteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_respostas_de_enquetes_enquetes_enquete_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_respostas_de_enquetes_formaturas_formatura_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.VinculoDeFormatura", null)
+                        .WithMany()
+                        .HasForeignKey("VinculoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_respostas_de_enquetes_vinculos_vinculo_id");
                 });
 
             modelBuilder.Entity("Backend.Business.Festa.Models.CheckIn", b =>
@@ -5410,6 +5816,16 @@ namespace Backend.Data.Migrations
             modelBuilder.Entity("Backend.Business.Cobrancas.Models.PlanoDeCobranca", b =>
                 {
                     b.Navigation("Itens");
+                });
+
+            modelBuilder.Entity("Backend.Business.Enquetes.Models.Enquete", b =>
+                {
+                    b.Navigation("Opcoes");
+                });
+
+            modelBuilder.Entity("Backend.Business.Enquetes.Models.RespostaDaEnquete", b =>
+                {
+                    b.Navigation("Escolhas");
                 });
 #pragma warning restore 612, 618
         }

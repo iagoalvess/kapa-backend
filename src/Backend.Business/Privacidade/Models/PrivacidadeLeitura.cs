@@ -1,3 +1,4 @@
+using Backend.Business.Enquetes.Models;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Legal.Models;
 using Backend.Business.Marketing.Models;
@@ -62,7 +63,8 @@ public sealed record MeusDadosDaTurma(
     bool Ativo,
     PerfilExportado? Perfil,
     MeuFinanceiro Financeiro,
-    MinhaAdesao? Adesao
+    MinhaAdesao? Adesao,
+    IReadOnlyList<MinhaRespostaExportada>? Enquetes = null
 );
 
 /// <summary>O cadastro, campo a campo — inclusive o CPF, que é da própria pessoa.</summary>

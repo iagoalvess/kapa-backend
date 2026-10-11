@@ -61,7 +61,15 @@ public static class SeedDePlanos
     private static readonly string[] ModulosDoEssencial = [.. ModulosDoGratuito, Modulo.Festa];
 
     /// <summary>O que o Premium acrescenta: os diferenciais, não o necessário.</summary>
-    private static readonly string[] DiferenciaisDoPremium = [Modulo.Mesas, Modulo.Mural, Modulo.Avisos, Modulo.Relatorios, Modulo.Auditoria];
+    private static readonly string[] DiferenciaisDoPremium =
+    [
+        Modulo.Mesas,
+        Modulo.Mural,
+        Modulo.Avisos,
+        Modulo.Relatorios,
+        Modulo.Auditoria,
+        Modulo.Enquetes,
+    ];
 
     /// <summary>Código do plano com que toda turma nasce.</summary>
     public const string CodigoGratuito = Plano.CodigoGratuito;

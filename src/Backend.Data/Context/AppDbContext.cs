@@ -9,6 +9,7 @@ using Backend.Business.Cobrancas.Models;
 using Backend.Business.Comunicacao.Models;
 using Backend.Business.Convites.Models;
 using Backend.Business.Emails.Models;
+using Backend.Business.Enquetes.Models;
 using Backend.Business.Eventos.Models;
 using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Models;
@@ -58,6 +59,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Chaves do DataProtection, compartilhadas entre réplicas e deploys.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
+    /// <summary>Consultas da turma e suas alternativas e respostas.</summary>
+    public DbSet<Enquete> Enquetes => Set<Enquete>();
+
+    /// <summary>Alternativas sem contador persistido.</summary>
+    public DbSet<OpcaoDaEnquete> OpcoesDeEnquetes => Set<OpcaoDaEnquete>();
+
+    /// <summary>Uma resposta por vínculo e consulta.</summary>
+    public DbSet<RespostaDaEnquete> RespostasDeEnquetes => Set<RespostaDaEnquete>();
+
+    /// <summary>Escolhas normalizadas das respostas.</summary>
+    public DbSet<EscolhaDaResposta> EscolhasDeEnquetes => Set<EscolhaDaResposta>();
+
     /// <summary>Refresh tokens emitidos.</summary>
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
@@ -90,6 +103,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
 
     /// <summary>Assinaturas da licença, por formatura.</summary>
     public DbSet<Assinatura> Assinaturas => Set<Assinatura>();
+
+    /// <summary>Solicitações de reembolso para análise manual.</summary>
+    public DbSet<PedidoDeReembolso> PedidosDeReembolso => Set<PedidoDeReembolso>();
 
     /// <summary>Cupons de desconto da primeira cobrança (Sprint 51).</summary>
     public DbSet<Cupom> Cupons => Set<Cupom>();

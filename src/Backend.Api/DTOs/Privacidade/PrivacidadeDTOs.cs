@@ -1,5 +1,6 @@
 using Backend.Api.DTOs.Formandos;
 using Backend.Api.DTOs.Legal;
+using Backend.Business.Enquetes.Models;
 using Backend.Business.Privacidade.Models;
 
 namespace Backend.Api.DTOs.Privacidade;
@@ -51,7 +52,8 @@ public sealed record MeusDadosDaTurmaDTO(
     bool Ativo,
     PerfilExportadoDTO? Perfil,
     MeuFinanceiroDTO Financeiro,
-    MinhaAdesaoDTO? Adesao
+    MinhaAdesaoDTO? Adesao,
+    IReadOnlyList<MinhaRespostaExportada>? Enquetes
 );
 
 /// <summary>O cadastro, campo a campo.</summary>

@@ -151,6 +151,9 @@ public static class NomesDeAuditoria
     /// <remarks>Mesmo corpo do <see cref="SuportePagamentoEstornado"/>: a diferença é quem pediu.</remarks>
     public const string AssinaturaDesistencia = "assinatura.desistencia";
 
+    /// <summary>Pedido de reembolso registrado para análise manual pelo suporte.</summary>
+    public const string AssinaturaReembolsoSolicitado = "assinatura.reembolso_solicitado";
+
     /// <summary>Cupom de desconto criado pelo Administrador (Sprint 51). Da plataforma: sai sem <c>formaturaId</c>.</summary>
     public const string CupomCriado = "suporte.cupom_criado";
 
@@ -255,6 +258,7 @@ public static class NomesDeAuditoria
         SuporteContaDesbloqueada,
         SuportePagamentoEstornado,
         AssinaturaDesistencia,
+        AssinaturaReembolsoSolicitado,
         CupomCriado,
         CupomDesativado,
     ];

@@ -6,6 +6,7 @@ using Backend.Business.Assinaturas.Models;
 using Backend.Business.Cobrancas.Models;
 using Backend.Business.Comunicacao.Models;
 using Backend.Business.Convites.Models;
+using Backend.Business.Enquetes.Models;
 using Backend.Business.Festa.Models;
 using Backend.Business.Financeiro.Models;
 using Backend.Business.Formandos.Models;
@@ -37,6 +38,10 @@ public sealed class RetencaoDeFormaturasRepository(AppDbContext db) : IRetencaoD
     /// </remarks>
     public static readonly Type[] Apagadas =
     [
+        typeof(EscolhaDaResposta),
+        typeof(RespostaDaEnquete),
+        typeof(OpcaoDaEnquete),
+        typeof(Enquete),
         typeof(PropostaDoItem),
         typeof(CheckIn),
         typeof(ConviteDoEvento),
@@ -81,6 +86,7 @@ public sealed class RetencaoDeFormaturasRepository(AppDbContext db) : IRetencaoD
         typeof(TermoDaFormatura),
         typeof(Convite),
         typeof(Assinatura),
+        typeof(PedidoDeReembolso),
     ];
 
     private static readonly MethodInfo ApagarDaTurma = typeof(RetencaoDeFormaturasRepository).GetMethod(

@@ -1,5 +1,6 @@
 using Backend.Business.Abstractions;
 using Backend.Business.Arquivos.Models;
+using Backend.Business.Enquetes.Models;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Privacidade.Models;
 
@@ -70,6 +71,9 @@ public interface IPrivacidadeService
 /// </remarks>
 public interface IPrivacidadeRepository
 {
+    /// <summary>Respostas do titular, rastreadas para remover o vínculo sem alterar o resultado.</summary>
+    Task<IReadOnlyList<RespostaDaEnquete>> ListarRespostasParaAnonimizarDeTodasAsFormaturas(Guid usuarioId, CancellationToken ct = default);
+
     /// <summary>Tudo o que a Kapa guarda sobre o titular, montado a partir de todas as turmas dele.</summary>
     /// <param name="usuarioId">Titular.</param>
     Task<MeusDados?> ObterMeusDadosDeTodasAsFormaturas(Guid usuarioId, CancellationToken ct = default);

@@ -30,6 +30,8 @@ using Backend.Business.Convites.Services;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Services;
 using Backend.Business.Emails.Settings;
+using Backend.Business.Enquetes.Interfaces;
+using Backend.Business.Enquetes.Services;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Services;
 using Backend.Business.Festa.Interfaces;
@@ -282,6 +284,7 @@ public static class DependenciasBusiness
         services.AddScoped<EmailsDeRecebimento>();
         services.AddScoped<IItemDaFestaService, ItemDaFestaService>();
         services.AddScoped<IAgendaService, AgendaService>();
+        services.AddScoped<IEnqueteService, EnqueteService>();
         services.AddScoped<IPropostaService, PropostaService>();
         services.AddScoped<IFornecedorService, FornecedorService>();
         services.AddScoped<IDespesaService, DespesaService>();

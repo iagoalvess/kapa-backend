@@ -111,6 +111,34 @@ public sealed class AssinaturaRepository(AppDbContext db) : IAssinaturaRepositor
         db.Assinaturas.OrderByDescending(a => a.CriadoEm).ThenByDescending(a => a.Id).FirstOrDefaultAsync(ct);
 
     /// <inheritdoc />
+    /// <remarks>A trava transacional faz dois cliques esperarem entre si antes da consulta e inclusão do pedido.</remarks>
+    public Task TravarPedidosDeReembolso(Guid assinaturaId, CancellationToken ct = default) =>
+        db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({assinaturaId.ToString("N")}, 0))", ct);
+
+    /// <inheritdoc />
+    public Task<PedidoDeReembolso?> ObterPedidoDeReembolso(Guid assinaturaId, CancellationToken ct = default) =>
+        db
+            .PedidosDeReembolso.AsNoTracking()
+            .Where(p =>
+                p.AssinaturaId == assinaturaId
+                && p.CobrancaId
+                    == db.CobrancasDaAssinatura.Where(c => c.AssinaturaId == assinaturaId && c.Motivo == MotivoDaCobranca.Ciclo && c.PagaEm != null)
+                        .OrderByDescending(c => c.PagaEm)
+                        .ThenByDescending(c => c.Id)
+                        .Select(c => c.Id)
+                        .FirstOrDefault()
+            )
+            .FirstOrDefaultAsync(ct);
+
+    /// <inheritdoc />
+    public Task<PedidoDeReembolso?> ObterPedidoDeReembolsoDaCobranca(Guid cobrancaId, CancellationToken ct = default) =>
+        db.PedidosDeReembolso.AsNoTracking().FirstOrDefaultAsync(p => p.CobrancaId == cobrancaId, ct);
+
+    /// <inheritdoc />
+    public async Task AdicionarPedidoDeReembolso(PedidoDeReembolso pedido, CancellationToken ct = default) =>
+        await db.PedidosDeReembolso.AddAsync(pedido, ct);
+
+    /// <inheritdoc />
     public async Task Adicionar(Assinatura assinatura, CancellationToken ct = default) => await db.Assinaturas.AddAsync(assinatura, ct);
 
     /// <inheritdoc />

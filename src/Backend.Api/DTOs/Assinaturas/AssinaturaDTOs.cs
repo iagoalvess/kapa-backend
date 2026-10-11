@@ -45,7 +45,8 @@ public sealed record PlanoDaTurmaDTO(string Codigo, string Nome, IReadOnlyList<s
 /// <param name="ProximoPlano">Plano que passa a valer na próxima renovação; nulo sem descida agendada.</param>
 /// <param name="CartaoAguardandoAutorizacao">Se a troca para o cartão espera a autorização na página do provedor.</param>
 /// <param name="Cupom">Cupom usado na primeira cobrança; nulo sem cupom.</param>
-/// <param name="DesistenciaAte">Até quando o Presidente pode desistir com reembolso integral, em UTC; nulo fora do prazo.</param>
+/// <param name="DesistenciaAte">Até quando o Presidente pode solicitar a análise do reembolso, em UTC; nulo fora do prazo.</param>
+/// <param name="PedidoDeReembolso">Protocolo e situação do pedido do último ciclo pago; nulo sem pedido.</param>
 public sealed record AssinaturaDTO(
     Guid Id,
     StatusDaAssinatura Status,
@@ -57,7 +58,8 @@ public sealed record AssinaturaDTO(
     PlanoDTO? ProximoPlano,
     bool CartaoAguardandoAutorizacao,
     CupomAplicavelDTO? Cupom,
-    DateTime? DesistenciaAte
+    DateTime? DesistenciaAte,
+    PedidoDeReembolsoResumo? PedidoDeReembolso
 );
 
 /// <summary>Um pagamento do plano, no histórico.</summary>
@@ -136,3 +138,6 @@ public sealed record CupomDTO(Guid Id, string Codigo, int Percentual, DateTime V
 /// <param name="ValidoAte">Último dia em que vale (<c>aaaa-mm-dd</c>, no horário de Brasília).</param>
 /// <param name="LimiteDeUsos">Quantas turmas podem usar, de 1 a 1000.</param>
 public sealed record NovoCupomRequestDTO(string Codigo, int Percentual, DateOnly ValidoAte, int LimiteDeUsos);
+
+/// <summary>Motivo do pedido de reembolso; o contato vem da sessão autenticada.</summary>
+public sealed record PedidoDeReembolsoRequestDTO(string? Motivo);

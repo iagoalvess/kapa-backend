@@ -65,6 +65,9 @@ public static class Modulo
     /// <summary>Portal LGPD e trilha de auditoria.</summary>
     public const string Auditoria = "auditoria";
 
+    /// <summary>Consultas secretas à turma, exclusivas do Premium.</summary>
+    public const string Enquetes = "enquetes";
+
     /// <summary>Todos os códigos. É sobre esta lista que as políticas são registradas.</summary>
     public static readonly IReadOnlyList<string> Todos =
     [
@@ -80,5 +83,6 @@ public static class Modulo
         Avisos,
         Relatorios,
         Auditoria,
+        Enquetes,
     ];
 }

@@ -12,6 +12,7 @@ using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Comunicacao.Interfaces;
 using Backend.Business.Convites.Interfaces;
 using Backend.Business.Emails.Interfaces;
+using Backend.Business.Enquetes.Interfaces;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Financeiro.Interfaces;
@@ -175,6 +176,7 @@ public static class DependenciasData
         services.AddScoped<IValorADevolverRepository, ValorADevolverRepository>();
         services.AddScoped<IItemDaFestaRepository, ItemDaFestaRepository>();
         services.AddScoped<IEventoDaTurmaRepository, EventoDaTurmaRepository>();
+        services.AddScoped<IEnqueteRepository, EnqueteRepository>();
         services.AddScoped<IPropostaRepository, PropostaRepository>();
         services.AddScoped<IFornecedorRepository, FornecedorRepository>();
         services.AddScoped<IDespesaRepository, DespesaRepository>();

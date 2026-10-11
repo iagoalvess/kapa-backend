@@ -128,6 +128,10 @@ public sealed class AnonimizacaoDeTitular(
     /// <param name="usuarioId">Titular.</param>
     private async Task AnonimizarCadastros(Guid usuarioId, CancellationToken ct)
     {
+        var respostas = await privacidadeRepository.ListarRespostasParaAnonimizarDeTodasAsFormaturas(usuarioId, ct);
+        foreach (var resposta in respostas)
+            resposta.Anonimizar();
+
         var perfis = await privacidadeRepository.ListarPerfisParaAnonimizarDeTodasAsFormaturas(usuarioId, ct);
 
         foreach (var perfil in perfis)

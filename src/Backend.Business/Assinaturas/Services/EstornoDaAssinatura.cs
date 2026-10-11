@@ -9,12 +9,11 @@ using Backend.Business.Pagamentos.Models;
 namespace Backend.Business.Assinaturas.Services;
 
 /// <summary>
-/// A devolução de um pagamento do plano, com o fim da assinatura: o núcleo do estorno pelo suporte e da desistência
-/// pelo Presidente.
+/// A devolução de um pagamento do plano pelo suporte, com o fim da assinatura.
 /// </summary>
 /// <remarks>
-/// Quem chama abre a transação, grava a auditoria com o nome dela e salva. Aqui fica só o que é igual nas duas
-/// portas: o prazo dos 7 dias, a ordem das chamadas ao provedor e o estado que fica depois.
+/// Quem chama abre a transação, grava a auditoria e salva. Aqui ficam o prazo dos 7 dias, a ordem das chamadas
+/// ao provedor e o estado que fica depois. Pedidos do Presidente são registrados separadamente para análise.
 /// </remarks>
 /// <param name="assinaturaRepository">O plano, para o ciclo do proporcional.</param>
 /// <param name="formaturaRepository">A turma, que fica só para consulta.</param>

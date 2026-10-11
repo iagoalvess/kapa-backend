@@ -59,7 +59,7 @@ public sealed class AssinaturaServiceTests
             new TrocaDePlanoValidator(),
             Options.Create(new AssinaturaSettings()),
             Options.Create(new AplicacaoSettings { UrlDoFrontend = "https://app.kapa" }),
-            new EstornoDaAssinatura(_assinaturas, _formaturas, _provedor),
+            new PedidoDeReembolsoValidator(),
             _eventos,
             _unitOfWork
         );
@@ -619,11 +619,10 @@ public sealed class AssinaturaServiceTests
     }
 
     /// <summary>
-    /// Dentro dos 7 dias, o Presidente desiste: a renovação é cancelada antes do estorno, o ciclo volta inteiro, a
-    /// assinatura encerra, a turma fica só para consulta e a trilha registra quem pediu.
+    /// Dentro dos 7 dias, registra o pedido com o valor efetivamente pago e o autor, sem movimentar dinheiro.
     /// </summary>
     [Fact]
-    public async Task Desistir_nos_sete_dias_estorna_o_ciclo_inteiro_e_encerra()
+    public async Task Pedido_nos_sete_dias_registra_valor_pago_e_nao_altera_assinatura()
     {
         // Arrange
         var formatura = FormaturaEm(StatusDaFormatura.Ativa);
@@ -633,23 +632,39 @@ public sealed class AssinaturaServiceTests
         var presidente = Guid.CreateVersion7();
 
         // Act
-        var resultado = await Servico.Desistir(presidente, Ct);
+        var resultado = await Servico.SolicitarReembolso(
+            presidente,
+            new PedidoDeReembolsoDados("  Não preciso mais do plano.  ", "ana@exemplo.com"),
+            Ct
+        );
 
         // Assert
         resultado.Sucesso.ShouldBeTrue();
-        Received.InOrder(() =>
-        {
-            _provedor.Cancelar("pre_1", Arg.Any<CancellationToken>());
-            _provedor.Estornar("pag_1", 17900, cobranca.Id, Arg.Any<CancellationToken>());
-        });
-        cobranca.Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Estornada);
-        assinatura.Status.ShouldBe(StatusDaAssinatura.Vencida);
-        assinatura.IdExterno.ShouldBeNull();
-        formatura.Status.ShouldBe(StatusDaFormatura.Suspensa);
+        await _provedor.DidNotReceiveWithAnyArgs().Cancelar(default!, Ct);
+        await _provedor.DidNotReceiveWithAnyArgs().Estornar(default!, default, default, Ct);
+        cobranca.Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Paga);
+        assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
+        assinatura.IdExterno.ShouldBe("pre_1");
+        formatura.Status.ShouldBe(StatusDaFormatura.Ativa);
+        await _assinaturas
+            .Received(1)
+            .AdicionarPedidoDeReembolso(
+                Arg.Is<PedidoDeReembolso>(p =>
+                    p.AssinaturaId == assinatura.Id
+                    && p.CobrancaId == cobranca.Id
+                    && p.SolicitanteId == presidente
+                    && p.EmailDoSolicitante == "ana@exemplo.com"
+                    && p.Motivo == "Não preciso mais do plano."
+                    && p.ValorEmCentavos == 17900
+                    && p.IdDoPagamento == "pag_1"
+                    && p.Status == StatusDoPedidoDeReembolso.Pendente
+                ),
+                Arg.Any<CancellationToken>()
+            );
         await _eventos
             .Received(1)
             .Adicionar(
-                Arg.Is<Evento>(e => e.Nome == NomesDeAuditoria.AssinaturaDesistencia && e.UsuarioId == presidente),
+                Arg.Is<Evento>(e => e.Nome == NomesDeAuditoria.AssinaturaReembolsoSolicitado && e.UsuarioId == presidente),
                 Arg.Any<CancellationToken>()
             );
         await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
@@ -664,7 +679,7 @@ public sealed class AssinaturaServiceTests
         CicloPagoHa(assinatura, 8);
 
         // Act
-        var resultado = await Servico.Desistir(Guid.CreateVersion7(), Ct);
+        var resultado = await Servico.SolicitarReembolso(Guid.CreateVersion7(), new PedidoDeReembolsoDados("Não preciso mais do plano.", null), Ct);
 
         // Assert
         resultado.PrimeiroErro.Codigo.ShouldBe("assinatura.fora_da_desistencia");
@@ -683,11 +698,46 @@ public sealed class AssinaturaServiceTests
         CicloPagoHa(assinatura, 2);
 
         // Act
-        var resultado = await Servico.Desistir(Guid.CreateVersion7(), Ct);
+        var resultado = await Servico.SolicitarReembolso(Guid.CreateVersion7(), new PedidoDeReembolsoDados("Não preciso mais do plano.", null), Ct);
 
         // Assert
         resultado.PrimeiroErro.Codigo.ShouldBe("assinatura.fora_da_desistencia");
         await _provedor.DidNotReceiveWithAnyArgs().Estornar(default!, default, default, Ct);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Pedido_sem_motivo_nao_grava(string? motivo)
+    {
+        var resultado = await Servico.SolicitarReembolso(Guid.CreateVersion7(), new PedidoDeReembolsoDados(motivo, null), Ct);
+        resultado.Falhou.ShouldBeTrue();
+        await _assinaturas.DidNotReceiveWithAnyArgs().AdicionarPedidoDeReembolso(default!, Ct);
+    }
+
+    [Fact]
+    public async Task Pedido_duplicado_nao_grava_de_novo()
+    {
+        var assinatura = AtivaEm(Premium, diasPagos: 2);
+        var cobranca = CicloPagoHa(assinatura, 2);
+        _assinaturas.ObterPedidoDeReembolsoDaCobranca(cobranca.Id, Arg.Any<CancellationToken>()).Returns(new PedidoDeReembolso());
+        var resultado = await Servico.SolicitarReembolso(Guid.CreateVersion7(), new PedidoDeReembolsoDados("Motivo", null), Ct);
+        resultado.PrimeiroErro.Codigo.ShouldBe("reembolso.ja_solicitado");
+        await _assinaturas.DidNotReceiveWithAnyArgs().AdicionarPedidoDeReembolso(default!, Ct);
+        await _provedor.DidNotReceiveWithAnyArgs().Estornar(default!, default, default, Ct);
+    }
+
+    [Fact]
+    public async Task Renovacao_cancelada_ainda_pode_pedir_reembolso()
+    {
+        var assinatura = AtivaEm(Premium, diasPagos: 2);
+        assinatura.Cancelar(DateTime.UtcNow);
+        CicloPagoHa(assinatura, 2);
+        var resultado = await Servico.SolicitarReembolso(Guid.CreateVersion7(), new PedidoDeReembolsoDados("Motivo", null), Ct);
+        resultado.Sucesso.ShouldBeTrue();
+        await _assinaturas.Received(1).AdicionarPedidoDeReembolso(Arg.Any<PedidoDeReembolso>(), Arg.Any<CancellationToken>());
+        assinatura.Status.ShouldBe(StatusDaAssinatura.Cancelada);
     }
 
     /// <summary>O fim da desistência que já passou sai nulo — é o que esconde o botão na tela.</summary>

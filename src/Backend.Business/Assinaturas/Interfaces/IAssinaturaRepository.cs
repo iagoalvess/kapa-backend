@@ -116,6 +116,18 @@ public interface IAssinaturaRepository
     /// <param name="limite">Máximo de linhas.</param>
     Task<IReadOnlyList<Assinatura>> ListarVencendoDeTodasAsFormaturas(DateTime vigentesAte, int limite, CancellationToken ct = default);
 
+    /// <summary>Serializa solicitações para a assinatura dentro da transação de quem chama.</summary>
+    Task TravarPedidosDeReembolso(Guid assinaturaId, CancellationToken ct = default);
+
+    /// <summary>Pedido mais recente da assinatura da turma, para acompanhamento.</summary>
+    Task<PedidoDeReembolso?> ObterPedidoDeReembolso(Guid assinaturaId, CancellationToken ct = default);
+
+    /// <summary>Pedido existente da cobrança da turma, para impedir repetição.</summary>
+    Task<PedidoDeReembolso?> ObterPedidoDeReembolsoDaCobranca(Guid cobrancaId, CancellationToken ct = default);
+
+    /// <summary>Marca o pedido para inclusão; quem persiste é o service.</summary>
+    Task AdicionarPedidoDeReembolso(PedidoDeReembolso pedido, CancellationToken ct = default);
+
     /// <summary>Marca uma cobrança do plano para inclusão.</summary>
     /// <param name="cobranca">Cobrança nova.</param>
     Task AdicionarCobranca(CobrancaDaAssinatura cobranca, CancellationToken ct = default);

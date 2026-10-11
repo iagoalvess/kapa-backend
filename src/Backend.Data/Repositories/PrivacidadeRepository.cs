@@ -1,4 +1,5 @@
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Enquetes.Models;
 using Backend.Business.Formandos.Models;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Legal.Models;
@@ -24,6 +25,17 @@ namespace Backend.Data.Repositories;
 /// <param name="db">Contexto de dados do escopo.</param>
 public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeRepository
 {
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<RespostaDaEnquete>> ListarRespostasParaAnonimizarDeTodasAsFormaturas(
+        Guid usuarioId,
+        CancellationToken ct = default
+    ) =>
+        await db
+            .RespostasDeEnquetes.IgnoreQueryFilters()
+            .Where(r => db.Vinculos.IgnoreQueryFilters().Any(v => v.Id == r.VinculoId && v.UsuarioId == usuarioId))
+            .Include(r => r.Escolhas)
+            .ToListAsync(ct);
+
     /// <inheritdoc />
     /// <remarks>
     /// Quatro consultas, e não uma: a conta, os vínculos com cadastro, as parcelas e as preferências.
@@ -55,6 +67,28 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
             .ToListAsync(ct);
 
         var vinculoIds = vinculos.ConvertAll(x => x.Vinculo.Id);
+
+        var respostas = await (
+            from resposta in db.RespostasDeEnquetes.IgnoreQueryFilters().AsNoTracking()
+            join enquete in db.Enquetes.IgnoreQueryFilters() on resposta.EnqueteId equals enquete.Id
+            where resposta.VinculoId != null && vinculoIds.Contains(resposta.VinculoId.Value)
+            select new
+            {
+                resposta.VinculoId,
+                resposta.Id,
+                resposta.EnqueteId,
+                enquete.Pergunta,
+                resposta.RespondidaEm,
+            }
+        ).ToListAsync(ct);
+        var respostaIds = respostas.Select(r => r.Id).ToArray();
+        var escolhas = await (
+            from escolha in db.EscolhasDeEnquetes.IgnoreQueryFilters().AsNoTracking()
+            join opcao in db.OpcoesDeEnquetes.IgnoreQueryFilters() on escolha.OpcaoId equals opcao.Id
+            where respostaIds.Contains(escolha.RespostaId)
+            orderby opcao.Ordem
+            select new { escolha.RespostaId, opcao.Texto }
+        ).ToListAsync(ct);
 
         var perfis = await db.PerfisDeFormandos.IgnoreQueryFilters().AsNoTracking().Where(p => vinculoIds.Contains(p.VinculoId)).ToListAsync(ct);
 
@@ -132,7 +166,16 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
                     doVinculo.Sum(p => p.Linha.ValorPagoEmCentavos ?? 0),
                     [.. doVinculo.Select(p => p.Linha)]
                 ),
-                adesoes.FirstOrDefault(a => a.VinculoId == x.Vinculo.Id)?.Adesao
+                adesoes.FirstOrDefault(a => a.VinculoId == x.Vinculo.Id)?.Adesao,
+                respostas
+                    .Where(r => r.VinculoId == x.Vinculo.Id)
+                    .Select(r => new MinhaRespostaExportada(
+                        r.EnqueteId,
+                        r.Pergunta,
+                        r.RespondidaEm,
+                        escolhas.Where(e => e.RespostaId == r.Id).Select(e => e.Texto).ToArray()
+                    ))
+                    .ToArray()
             );
         });
 

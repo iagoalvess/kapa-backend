@@ -58,6 +58,16 @@ public static class PacoteDeDados
         {
             Gravar(zip, "LEIA-ME.txt", Encoding.UTF8.GetBytes(LeiaMe(dados, geradoEm)));
             Gravar(zip, "dados.json", JsonSerializer.SerializeToUtf8Bytes(dados, Json));
+            Gravar(
+                zip,
+                "enquetes.csv",
+                Csv(
+                    ["turma", "pergunta", "respondida_em", "escolhas"],
+                    dados.Turmas.SelectMany(t =>
+                        (t.Enquetes ?? []).Select(r => new[] { t.Formatura, r.Pergunta, DataHora(r.RespondidaEm), string.Join(" | ", r.Escolhas) })
+                    )
+                )
+            );
             Gravar(zip, "conta.csv", Csv(["campo", "valor"], Conta(dados.Conta)));
             Gravar(zip, "turmas.csv", Csv(["turma", "instituicao", "papel", "vinculo_ativo", "aderiu_em", "total", "pago"], Turmas(dados)));
             Gravar(zip, "cadastro.csv", Csv(CabecalhoDoCadastro, Cadastros(dados)));

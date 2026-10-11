@@ -113,7 +113,7 @@ nossa, e o `trace_id` é o que o resolve.
 | Código | Status | Quando acontece |
 | --- | --- | --- |
 | <a id="assinatura.cobranca_ja_paga"></a>`assinatura.cobranca_ja_paga` | 409 | Esta cobrança já foi paga. |
-| <a id="assinatura.fora_da_desistencia"></a>`assinatura.fora_da_desistencia` | 409 | A desistência com reembolso vale até 7 dias depois do pagamento. Depois disso, cancele a renovação. |
+| <a id="assinatura.fora_da_desistencia"></a>`assinatura.fora_da_desistencia` | 409 | O pedido de reembolso vale até 7 dias depois do pagamento. Depois disso, cancele a renovação. |
 | <a id="assinatura.ja_ativa"></a>`assinatura.ja_ativa` | 409 | Esta formatura já tem uma assinatura ativa. |
 | <a id="assinatura.mesmo_meio"></a>`assinatura.mesmo_meio` | 409 | A assinatura já é paga por este meio. |
 | <a id="assinatura.nao_ativa"></a>`assinatura.nao_ativa` | 409 | Só uma assinatura ativa pode ser cancelada. |
@@ -553,3 +553,23 @@ Esta tabela é escrita à mão. Código novo entra aqui na mesma alteração que
 sem linha nesta tabela é um `type` apontando para uma âncora que não existe. O teste
 `CatalogoDeErrosTests` (em `tests/Backend.UnitTests/Documentacao`) varre `src/` e falha quando um
 código emitido não tem âncora aqui, ou quando uma âncora aponta para um código que nada mais emite.
+
+### reembolso
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| <a id="reembolso.ja_solicitado"></a>`reembolso.ja_solicitado` | 409 | Já existe um pedido de reembolso para este pagamento. |
+
+### enquete
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| <a id="enquete.nao_encontrada"></a>`enquete.nao_encontrada` | 404 | Enquete inexistente ou de outra turma. |
+| <a id="enquete.encerrada"></a>`enquete.encerrada` | 409 | Prazo encerrado ou consulta cancelada. |
+| <a id="enquete.opcoes_travadas"></a>`enquete.opcoes_travadas` | 409 | Regras ou prazo encurtado depois do primeiro voto. |
+| <a id="enquete.resposta_invalida"></a>`enquete.resposta_invalida` | 400 | Resposta vazia ou com opções repetidas. |
+| <a id="enquete.opcao_de_outra_enquete"></a>`enquete.opcao_de_outra_enquete` | 400 | Opção não pertence à consulta. |
+| <a id="enquete.escolhas_demais"></a>`enquete.escolhas_demais` | 400 | Mais escolhas que o limite permitido. |
+| <a id="enquete.email_nao_confirmado"></a>`enquete.email_nao_confirmado` | 403 | E-mail ainda não confirmado. |
+| <a id="enquete.prazo_invalido"></a>`enquete.prazo_invalido` | 400 | Prazo fora da janela permitida. |
+| <a id="adesao.obrigatoria"></a>`adesao.obrigatoria` | 403 | Aceite o termo da turma para responder. |

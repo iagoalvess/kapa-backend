@@ -34,12 +34,10 @@ public interface IAssinaturaService
     /// <summary>Cancela a renovação. A vigência paga continua até o fim.</summary>
     Task<Result<AssinaturaDetalhe>> Cancelar(CancellationToken ct = default);
 
-    /// <summary>
-    /// A desistência nos 7 dias do último ciclo pago (art. 49 do CDC): cancela a renovação, devolve esse pagamento
-    /// inteiro e encerra a assinatura. Fora do prazo, sobra o <see cref="Cancelar"/>.
-    /// </summary>
-    /// <param name="autorId">O Presidente que desistiu, para a auditoria.</param>
-    Task<Result<AssinaturaDetalhe>> Desistir(Guid autorId, CancellationToken ct = default);
+    /// <summary>Registra o pedido de reembolso nos 7 dias do último ciclo pago, para análise manual.</summary>
+    /// <param name="autorId">Presidente que solicitou.</param>
+    /// <param name="dados">Motivo informado e contato da sessão.</param>
+    Task<Result<AssinaturaDetalhe>> SolicitarReembolso(Guid autorId, PedidoDeReembolsoDados dados, CancellationToken ct = default);
 
     /// <summary>
     /// Troca o plano da assinatura ativa (P4): a subida cobra a diferença proporcional e vale quando ela for paga; a

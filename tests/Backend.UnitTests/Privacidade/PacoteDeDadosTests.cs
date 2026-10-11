@@ -25,7 +25,17 @@ public sealed class PacoteDeDadosTests
         var nomes = Abrir(Dados()).Keys;
 
         nomes.ShouldBe(
-            ["LEIA-ME.txt", "dados.json", "conta.csv", "turmas.csv", "cadastro.csv", "parcelas.csv", "consentimentos.csv", "novidades-do-kapa.csv"],
+            [
+                "LEIA-ME.txt",
+                "dados.json",
+                "enquetes.csv",
+                "conta.csv",
+                "turmas.csv",
+                "cadastro.csv",
+                "parcelas.csv",
+                "consentimentos.csv",
+                "novidades-do-kapa.csv",
+            ],
             ignoreOrder: true
         );
     }

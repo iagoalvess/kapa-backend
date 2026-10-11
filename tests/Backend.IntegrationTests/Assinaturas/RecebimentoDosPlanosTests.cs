@@ -276,36 +276,66 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         (await denovo.Codigo(Ct)).ShouldBe("estorno.cobranca_nao_paga");
     }
 
-    /// <summary>
-    /// Art. 49 do CDC pelo mesmo meio da contratação: o Presidente desiste no app nos 7 dias, a renovação para, o ciclo
-    /// volta inteiro e a turma fica só para consulta — o mesmo efeito do estorno integral do suporte.
-    /// </summary>
-    [Fact]
-    public async Task Presidente_desiste_nos_sete_dias_e_recebe_o_ciclo_inteiro()
+    /// <summary>O pedido guarda as informações para análise e deixa pagamento, recorrência e acesso intactos.</summary>
+    [Theory]
+    [InlineData("reembolsos")]
+    [InlineData("desistir")]
+    public async Task Presidente_solicita_reembolso_sem_estorno_automatico(string rota)
     {
-        // Arrange
         var falso = new MercadoPagoFalso();
         await using var api = falso.CobrandoOsPlanos(fabrica);
         var (presidente, recorrencia) = await NoCartao(api, falso, "premium");
         var formaturaId = await FormaturaDa(presidente);
         var antes = await Ler<AssinaturaDTO>(await presidente.GetAsync(Assinatura, Ct));
 
-        // Act
-        var desistencia = await presidente.PostAsync($"{Assinatura}/desistir", null, Ct);
+        var respostas = await Task.WhenAll(
+            Enumerable
+                .Range(0, 2)
+                .Select(_ => presidente.PostAsJsonAsync($"{Assinatura}/{rota}", new { motivo = "Não preciso mais do plano." }, Json, Ct))
+        );
 
-        // Assert
-        antes.DesistenciaAte.ShouldNotBeNull();
-        var depois = await Ler<AssinaturaDTO>(desistencia);
-        depois.Status.ShouldBe(StatusDaAssinatura.Vencida);
-        depois.DesistenciaAte.ShouldBeNull();
-        falso.Estornos.ShouldHaveSingleItem().Valor.ShouldBe(17900);
-        falso.Recorrencias[recorrencia].Situacao.ShouldBe(SituacaoDaRecorrencia.Cancelada);
-        (await StatusDa(formaturaId)).ShouldBe(StatusDaFormatura.Suspensa);
+        respostas.Count(r => r.StatusCode == HttpStatusCode.OK).ShouldBe(1);
+        var repetido = respostas.Single(r => r.StatusCode == HttpStatusCode.Conflict);
+        (await repetido.Codigo(Ct)).ShouldBe("reembolso.ja_solicitado");
+        var depois = await Ler<AssinaturaDTO>(respostas.Single(r => r.StatusCode == HttpStatusCode.OK));
+        depois.Status.ShouldBe(StatusDaAssinatura.Ativa);
+        depois.VigenteAte.ShouldBe(antes.VigenteAte);
+        depois.PedidoDeReembolso.ShouldNotBeNull();
+        depois.PedidoDeReembolso.Status.ShouldBe(StatusDoPedidoDeReembolso.Pendente);
+        falso.Estornos.ShouldBeEmpty();
+        falso.Recorrencias[recorrencia].Situacao.ShouldNotBe(SituacaoDaRecorrencia.Cancelada);
+        (await StatusDa(formaturaId)).ShouldBe(StatusDaFormatura.Ativa);
+
+        await using var db = fabrica.ContextoDe(formaturaId);
+        var pedido = await db.PedidosDeReembolso.SingleAsync(Ct);
+        pedido.SolicitanteId.ShouldNotBe(Guid.Empty);
+        pedido.EmailDoSolicitante.ShouldNotBeNullOrWhiteSpace();
+        pedido.Motivo.ShouldBe("Não preciso mais do plano.");
+        pedido.ValorEmCentavos.ShouldBe(17900);
+        var cobranca = await db.CobrancasDaAssinatura.SingleAsync(c => c.Id == pedido.CobrancaId, Ct);
+        cobranca.Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Paga);
+        pedido.IdDoPagamento.ShouldBe(cobranca.IdDoPagamento);
+
+        await using var deOutraTurma = fabrica.ContextoDe(Guid.CreateVersion7());
+        (await deOutraTurma.PedidosDeReembolso.AnyAsync(Ct)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Rota_antiga_sem_motivo_nao_executa_reembolso()
+    {
+        var falso = new MercadoPagoFalso();
+        await using var api = falso.CobrandoOsPlanos(fabrica);
+        var (presidente, _) = await NoCartao(api, falso, "premium");
+        var resposta = await presidente.PostAsJsonAsync($"{Assinatura}/desistir", new { }, Json, Ct);
+        resposta.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        falso.Estornos.ShouldBeEmpty();
     }
 
     /// <summary>Desistir mexe em dinheiro da turma: é do Presidente, como contratar e cancelar.</summary>
-    [Fact]
-    public async Task Desistir_so_o_presidente()
+    [Theory]
+    [InlineData("desistir")]
+    [InlineData("reembolsos")]
+    public async Task Desistir_so_o_presidente(string rota)
     {
         // Arrange
         var formaturaId = await fabrica.CriarFormatura(Ct);
@@ -313,8 +343,8 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         var formando = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Formando, Ct);
 
         // Act
-        var doTesoureiro = await tesoureiro.Cliente.PostAsync($"{Assinatura}/desistir", null, Ct);
-        var doFormando = await formando.Cliente.PostAsync($"{Assinatura}/desistir", null, Ct);
+        var doTesoureiro = await tesoureiro.Cliente.PostAsync($"{Assinatura}/{rota}", null, Ct);
+        var doFormando = await formando.Cliente.PostAsync($"{Assinatura}/{rota}", null, Ct);
 
         // Assert
         doTesoureiro.StatusCode.ShouldBe(HttpStatusCode.Forbidden);

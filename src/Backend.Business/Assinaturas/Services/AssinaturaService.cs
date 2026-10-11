@@ -29,8 +29,8 @@ namespace Backend.Business.Assinaturas.Services;
 /// <param name="trocaValidator">Forma do pedido de troca de plano.</param>
 /// <param name="settings">Configuração da assinatura.</param>
 /// <param name="aplicacao">Endereço do front, para a URL de retorno.</param>
-/// <param name="estorno">A devolução do pagamento, a mesma do estorno pelo suporte.</param>
-/// <param name="eventos">Trilha de auditoria, para a desistência.</param>
+/// <param name="reembolsoValidator">Forma do motivo do pedido de análise manual.</param>
+/// <param name="eventos">Trilha de auditoria, para o pedido de reembolso.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 public sealed class AssinaturaService(
     IAssinaturaRepository assinaturaRepository,
@@ -43,7 +43,7 @@ public sealed class AssinaturaService(
     IValidator<TrocaDePlano> trocaValidator,
     IOptions<AssinaturaSettings> settings,
     IOptions<AplicacaoSettings> aplicacao,
-    EstornoDaAssinatura estorno,
+    IValidator<PedidoDeReembolsoDados> reembolsoValidator,
     IEventoRepository eventos,
     IUnitOfWork unitOfWork
 ) : IAssinaturaService
@@ -72,14 +72,20 @@ public sealed class AssinaturaService(
             : Erro.NaoEncontrado("plano.nao_encontrado", "O catálogo não tem o plano desta turma.");
 
     /// <inheritdoc />
-    /// <remarks>O fim da desistência que já passou sai nulo: é o que esconde o botão na tela.</remarks>
-    public async Task<Result<AssinaturaDetalhe>> ObterAtual(CancellationToken ct = default) =>
-        await assinaturaRepository.ObterDetalheDaMaisRecente(ct) switch
+    /// <remarks>O prazo para solicitar reembolso que já passou sai nulo: é o que esconde a ação na tela.</remarks>
+    public async Task<Result<AssinaturaDetalhe>> ObterAtual(CancellationToken ct = default)
+    {
+        var detalhe = await assinaturaRepository.ObterDetalheDaMaisRecente(ct);
+        if (detalhe is null)
+            return NaoEncontrada;
+
+        var pedido = await assinaturaRepository.ObterPedidoDeReembolso(detalhe.Id, ct);
+        return detalhe with
         {
-            null => NaoEncontrada,
-            { DesistenciaAte: { } ate } detalhe when ate <= DateTime.UtcNow => detalhe with { DesistenciaAte = null },
-            { } detalhe => detalhe,
+            DesistenciaAte = detalhe.DesistenciaAte <= DateTime.UtcNow ? null : detalhe.DesistenciaAte,
+            PedidoDeReembolso = pedido is null ? null : new PedidoDeReembolsoResumo(pedido.Id, pedido.Status, pedido.CriadoEm),
         };
+    }
 
     /// <inheritdoc />
     /// <remarks>
@@ -514,53 +520,65 @@ public sealed class AssinaturaService(
     }
 
     /// <inheritdoc />
-    /// <remarks>
-    /// O mesmo estorno integral do suporte (<see cref="EstornoDaAssinatura"/>), pela porta do Presidente: desistir pelo
-    /// mesmo meio da contratação (Decreto 7.962/2013, art. 5º). A assinatura cancelada ainda desiste — cancelar a
-    /// renovação não tira o direito ao reembolso dentro do prazo.
-    /// </remarks>
-    public Task<Result<AssinaturaDetalhe>> Desistir(Guid autorId, CancellationToken ct = default) =>
-        unitOfWork.EmTransacaoAsync<Result<AssinaturaDetalhe>>(
+    /// <remarks>Somente registra para análise. A trava e o índice único impedem pedidos em dobro; nenhum PSP é chamado.</remarks>
+    public async Task<Result<AssinaturaDetalhe>> SolicitarReembolso(Guid autorId, PedidoDeReembolsoDados dados, CancellationToken ct = default)
+    {
+        var validacao = reembolsoValidator.Validar(dados);
+        if (validacao.Falhou)
+            return Result.Falha<AssinaturaDetalhe>(validacao.Erros);
+
+        return await unitOfWork.EmTransacaoAsync<Result<AssinaturaDetalhe>>(
             async token =>
             {
                 var assinatura = await assinaturaRepository.ObterMaisRecenteParaEdicao(token);
-
                 if (assinatura is null)
                     return NaoEncontrada;
 
+                await assinaturaRepository.TravarPedidosDeReembolso(assinatura.Id, token);
                 var agora = DateTime.UtcNow;
                 var cobranca = assinatura.Status is StatusDaAssinatura.Ativa or StatusDaAssinatura.Cancelada
                     ? await assinaturaRepository.ObterUltimoCicloPagoParaEdicao(assinatura.Id, token)
                     : null;
 
-                if (cobranca is not { PagaEm: { } pagaEm } || !EstornoDaAssinatura.DentroDaDesistencia(pagaEm, agora))
+                if (cobranca is not { PagaEm: { } pagaEm, IdDoPagamento: { } pagamento } || !EstornoDaAssinatura.DentroDaDesistencia(pagaEm, agora))
                     return Erro.Conflito(
                         "assinatura.fora_da_desistencia",
-                        "A desistência com reembolso vale até 7 dias depois do pagamento. Depois disso, cancele a renovação."
+                        "O pedido de reembolso vale até 7 dias depois do pagamento. Depois disso, cancele a renovação."
                     );
 
-                var devolvido = await estorno.Devolver(assinatura, cobranca, ModoDeEstorno.Integral, agora, token);
-                if (devolvido.Falhou)
-                    return Result.Falha<AssinaturaDetalhe>(devolvido.Erros);
+                if (await assinaturaRepository.ObterPedidoDeReembolsoDaCobranca(cobranca.Id, token) is not null)
+                    return Erro.Conflito("reembolso.ja_solicitado", "Já existe um pedido de reembolso para este pagamento.");
 
+                var pedido = new PedidoDeReembolso
+                {
+                    AssinaturaId = assinatura.Id,
+                    CobrancaId = cobranca.Id,
+                    SolicitanteId = autorId,
+                    EmailDoSolicitante = dados.EmailDoSolicitante,
+                    Motivo = dados.Motivo!.Trim(),
+                    IdDoPagamento = pagamento,
+                    ValorEmCentavos = cobranca.ValorEmCentavos,
+                    Meio = cobranca.Meio,
+                    PagaEm = pagaEm,
+                };
+                await assinaturaRepository.AdicionarPedidoDeReembolso(pedido, token);
                 await eventos.Auditar(
-                    NomesDeAuditoria.AssinaturaDesistencia,
+                    NomesDeAuditoria.AssinaturaReembolsoSolicitado,
                     autorId,
                     new
                     {
                         formaturaId = assinatura.FormaturaId,
                         assinaturaId = assinatura.Id,
                         cobrancaId = cobranca.Id,
-                        modo = nameof(ModoDeEstorno.Integral),
-                        valorEmCentavos = devolvido.Valor,
+                        pedidoId = pedido.Id,
+                        valorEmCentavos = pedido.ValorEmCentavos,
                     },
                     token
                 );
-
                 await unitOfWork.SalvarAsync(token);
-
                 return await ObterAtual(token);
             },
             ct
         );
+    }
 }
