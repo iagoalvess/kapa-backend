@@ -926,6 +926,108 @@ namespace Backend.Data.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("Backend.Business.Auth.Models.TentativaGoogle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<bool>("AutoridadeSobreEmail")
+                        .HasColumnType("boolean")
+                        .HasColumnName("autoridade_sobre_email");
+
+                    b.Property<string>("ComprovanteHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("comprovante_hash");
+
+                    b.Property<DateTime?>("ConsumidaEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consumida_em");
+
+                    b.Property<string>("Convite")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("convite");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("email");
+
+                    b.Property<string>("Etapa")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("etapa");
+
+                    b.Property<bool>("ExigeRecuperacao")
+                        .HasColumnType("boolean")
+                        .HasColumnName("exige_recuperacao");
+
+                    b.Property<DateTime>("ExpiraEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expira_em");
+
+                    b.Property<string>("NavegadorHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("navegador_hash");
+
+                    b.Property<string>("Nome")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("nome");
+
+                    b.Property<string>("Nonce")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("nonce");
+
+                    b.Property<string>("SecurityStamp")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("security_stamp");
+
+                    b.Property<string>("Sub")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("sub");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("token_hash");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tentativas_google");
+
+                    b.HasIndex("ExpiraEm")
+                        .HasDatabaseName("ix_tentativas_google_expira_em");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_tentativas_google_token_hash");
+
+                    b.ToTable("tentativas_google", (string)null);
+                });
+
             modelBuilder.Entity("Backend.Business.Cobrancas.Models.EscolhaDaCesta", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4534,6 +4636,7 @@ namespace Backend.Data.Migrations
                         .HasDatabaseName("ix_usuarios_nome");
 
                     b.HasIndex("NormalizedEmail")
+                        .IsUnique()
                         .HasDatabaseName("EmailIndex");
 
                     b.HasIndex("NormalizedUserName")

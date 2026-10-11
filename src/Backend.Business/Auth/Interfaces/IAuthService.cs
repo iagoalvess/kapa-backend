@@ -9,13 +9,19 @@ namespace Backend.Business.Auth.Interfaces;
 /// </summary>
 public interface IAuthService
 {
+    /// <summary>Finalização comum depois da comprovação da identidade; Google nunca autentica administrador.</summary>
+    Task<Result<Entrada>> FinalizarEntrada(Guid usuarioId, string? ipDeOrigem, bool peloGoogle, CancellationToken ct = default);
+
+    /// <summary>Cria sem senha, com vínculo Google e consentimentos na mesma transação.</summary>
+    Task<Result<ParDeTokens>> RegistrarComGoogle(RegistroComGoogle dados, OrigemDoAceite origem, CancellationToken ct = default);
+
     /// <summary>Cria uma conta com o consentimento aos documentos legais e já devolve a sessão.</summary>
     /// <param name="dados">Nome, e-mail, senha e as versões aceitas.</param>
     /// <param name="origem">IP e navegador do solicitante, gravados no consentimento e na sessão.</param>
     Task<Result<ParDeTokens>> Registrar(RegistrarUsuario dados, OrigemDoAceite origem, CancellationToken ct = default);
 
     /// <summary>
-    /// Autentica por e-mail e senha. Para administrador e presidente, a sessão só sai com o código mandado ao e-mail
+    /// Autentica por e-mail e senha. Para administrador, a sessão só sai com o código mandado ao e-mail
     /// (<see cref="ConfirmarCodigo"/>).
     /// </summary>
     /// <param name="credenciais">E-mail e senha.</param>

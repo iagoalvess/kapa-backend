@@ -51,7 +51,9 @@ public sealed class AgendaController(IAgendaService agenda) : MainController
     [ProducesResponseType(typeof(ResumoDaAgendaDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Resumir(CancellationToken ct) =>
-        Responder((await agenda.Resumir(ct)).Map(resumo => new ResumoDaAgendaDTO(resumo.Proximos.Select(evento => evento.Adapt<EventoDTO>()))));
+        Responder(
+            (await agenda.Resumir(ct)).Map(resumo => new ResumoDaAgendaDTO(resumo.Proximos.Select(evento => evento.Adapt<EventoDTO>()).ToList()))
+        );
 
     /// <summary>Um evento da agenda.</summary>
     /// <param name="id">Evento.</param>

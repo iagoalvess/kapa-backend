@@ -52,6 +52,7 @@ services:
       Jwt__ChaveSecreta: ${JWT_CHAVE_SECRETA:?defina JWT_CHAVE_SECRETA no .env}
       Criptografia__ChaveDeDados: ${CRIPTOGRAFIA_CHAVE:?defina CRIPTOGRAFIA_CHAVE no .env}
       Documentacao__Habilitada: "true"
+      Google__ClientId: ${Google__ClientId:-}
       Seed__AoIniciar: "true"
       Seed__AdminEmail: ${ADMIN_EMAIL:-admin@localhost}
       Seed__AdminSenha: ${ADMIN_SENHA:?defina ADMIN_SENHA no .env}

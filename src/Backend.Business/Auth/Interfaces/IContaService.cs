@@ -13,6 +13,9 @@ namespace Backend.Business.Auth.Interfaces;
 /// </remarks>
 public interface IContaService
 {
+    /// <summary>Dados de acesso do próprio titular, inclusive se já definiu uma senha.</summary>
+    Task<Result<AcessoDaConta>> ObterAcesso(Guid usuarioId, CancellationToken ct = default);
+
     /// <summary>
     /// Dispara o e-mail de redefinição de senha.
     /// </summary>
@@ -57,6 +60,9 @@ public interface IContaService
 /// </remarks>
 public interface IEmailsDeConta
 {
+    /// <summary>Link específico de vínculo Google; recuperação adicional para conta antiga não confirmada.</summary>
+    Task EnfileirarVinculoGoogle(Usuario usuario, string comprovante, bool recuperarSenha, string? convite, CancellationToken ct = default);
+
     /// <summary>Enfileira o e-mail de confirmação de endereço.</summary>
     /// <param name="usuario">Destinatário.</param>
     /// <param name="token">Token de confirmação, ainda não codificado.</param>

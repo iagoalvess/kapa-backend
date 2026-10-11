@@ -65,7 +65,7 @@ public sealed class AuthController(IAuthService authService, IUsuarioAtual usuar
 
     /// <summary>Autentica por e-mail e senha.</summary>
     /// <remarks>
-    /// Administrador e presidente não recebem a sessão aqui: 202 com o desafio, e o código de seis dígitos vai ao
+    /// Administrador não recebe a sessão aqui: 202 com o desafio, e o código de seis dígitos vai ao
     /// e-mail da conta (login em duas etapas, revisão de segurança de 05/10/2026). A sessão sai em
     /// <c>POST login/codigo</c>.
     /// </remarks>

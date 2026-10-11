@@ -28,7 +28,7 @@ public sealed record EventoRequestDTO(
 /// espaço é do que vai acontecer.
 /// </remarks>
 /// <param name="Proximos">Até três datas, da mais perto para a mais longe.</param>
-public sealed record ResumoDaAgendaDTO(IEnumerable<EventoDTO> Proximos);
+public sealed record ResumoDaAgendaDTO(IReadOnlyList<EventoDTO> Proximos);
 
 /// <summary>
 /// Um evento da agenda, como a turma o vê.

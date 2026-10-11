@@ -91,7 +91,7 @@ public static class ClienteExtensions
         return (await resposta.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, ct))!;
     }
 
-    /// <summary>Autentica uma conta registrada por <see cref="RegistrarComEmail"/>; presidente passa pelo código.</summary>
+    /// <summary>Autentica uma conta registrada por <see cref="RegistrarComEmail"/>; administrador passa pelo código.</summary>
     /// <param name="cliente">Cliente HTTP da API de teste.</param>
     /// <param name="fabrica">Onde está a fila de e-mails, de onde sai o código.</param>
     /// <param name="email">E-mail da conta.</param>
@@ -255,7 +255,7 @@ public static class ClienteExtensions
 
         return await presidente.PostAsJsonAsync(
             "/api/v1/recebimentos/conta/confirmar",
-            new ConfirmacaoPorEmailDTO(await fabrica.TokenDoUltimoEmail(ct)),
+            new ConfirmacaoPorEmailRequestDTO(await fabrica.TokenDoUltimoEmail(ct)),
             Json,
             ct
         );
@@ -283,7 +283,7 @@ public static class ClienteExtensions
 
         return await presidente.PostAsJsonAsync(
             "/api/v1/formaturas/atual/membros/presidente/confirmar",
-            new ConfirmacaoDePresidenteDTO(await fabrica.TokenDoUltimoEmail(ct)),
+            new ConfirmacaoDePresidenteRequestDTO(await fabrica.TokenDoUltimoEmail(ct)),
             Json,
             ct
         );

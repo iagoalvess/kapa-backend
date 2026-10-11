@@ -60,7 +60,7 @@ public sealed class PrivacidadeController(IPrivacidadeService privacidadeService
     [HttpPost("solicitacoes")]
     [RegistrarEvento("privacidade.solicitacao_aberta")]
     [ProducesResponseType(typeof(SolicitacaoDePrivacidadeDTO), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Solicitar([FromBody] SolicitarPrivacidadeDTO? requisicao, CancellationToken ct) =>
+    public async Task<IActionResult> Solicitar([FromBody] SolicitarPrivacidadeRequestDTO? requisicao, CancellationToken ct) =>
         Responder(
             (await privacidadeService.Solicitar(requisicao?.Tipo ?? TipoDeSolicitacao.Exportacao, usuarioAtual.Id, requisicao?.Senha, ct)).Map(s =>
                 s.Adapt<SolicitacaoDePrivacidadeDTO>()

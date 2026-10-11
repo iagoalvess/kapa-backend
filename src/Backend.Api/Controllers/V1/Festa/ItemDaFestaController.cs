@@ -75,7 +75,7 @@ public sealed class ItemDaFestaController(IItemDaFestaService itemService, IUsua
         Responder(
             (await itemService.ObterDetalhe(id, ct)).Map(detalhe => new ItemDaFestaDetalheDTO(
                 detalhe.Item.Adapt<ItemDaFestaDTO>(),
-                detalhe.Propostas.Select(proposta => proposta.Adapt<PropostaDTO>())
+                detalhe.Propostas.Select(proposta => proposta.Adapt<PropostaDTO>()).ToList()
             ))
         );
 

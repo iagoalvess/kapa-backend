@@ -110,4 +110,4 @@ public sealed record PropostaDTO(Guid Id, string Titulo, long ValorEmCentavos, s
 /// <summary>Um item com as candidatas levantadas para ele — o painel de detalhe da tela.</summary>
 /// <param name="Item">O item, como a lista o mostra.</param>
 /// <param name="Propostas">As candidatas, da mais votada para a menos.</param>
-public sealed record ItemDaFestaDetalheDTO(ItemDaFestaDTO Item, IEnumerable<PropostaDTO> Propostas);
+public sealed record ItemDaFestaDetalheDTO(ItemDaFestaDTO Item, IReadOnlyList<PropostaDTO> Propostas);

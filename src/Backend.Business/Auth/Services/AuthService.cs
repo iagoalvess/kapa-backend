@@ -40,6 +40,7 @@ namespace Backend.Business.Auth.Services;
 /// <param name="tentativas">Erros de senha por conta e origem, e de código por conta.</param>
 /// <param name="confirmacao">A assinatura do desafio entre os dois passos do login.</param>
 /// <param name="logger">Log estruturado.</param>
+/// <param name="tentativasGoogle">Trava por e-mail, comum aos cadastros por senha e Google.</param>
 public sealed class AuthService(
     UserManager<Usuario> userManager,
     ITokenService tokenService,
@@ -55,7 +56,8 @@ public sealed class AuthService(
     IEventoRepository eventos,
     TentativasDeSenha tentativas,
     ConfirmacaoPorEmail confirmacao,
-    ILogger<AuthService> logger
+    ILogger<AuthService> logger,
+    ITentativaGoogleRepository tentativasGoogle
 ) : IAuthService
 {
     private static readonly Erro CredenciaisInvalidas = Erro.NaoAutenticado("auth.credenciais_invalidas", "E-mail ou senha incorretos.");
@@ -100,10 +102,16 @@ public sealed class AuthService(
 
         var email = dados.Email.Trim();
 
-        if (await userManager.FindByEmailAsync(email) is not null)
-            return Erro.Conflito("usuario.email_em_uso", "Já existe uma conta com este e-mail.");
-
-        var resultado = await unitOfWork.EmTransacaoAsync(token => CriarConta(dados, email, origem, token), ct);
+        var resultado = await unitOfWork.EmTransacaoAsync(
+            async token =>
+            {
+                await tentativasGoogle.TravarIdentidade("email:" + userManager.NormalizeEmail(email), token);
+                if (await userManager.FindByEmailAsync(email) is not null)
+                    return Result.Falha<ParDeTokens>(Erro.Conflito("usuario.email_em_uso", "Já existe uma conta com este e-mail."));
+                return await CriarConta(dados, email, origem, token);
+            },
+            ct
+        );
 
         if (resultado.Sucesso)
             logger.LogInformation("Conta criada para {Email}.", TextoUtils.MascararEmail(email));
@@ -181,7 +189,21 @@ public sealed class AuthService(
 
         tentativas.Limpar(credenciais.Email, ipDeOrigem);
 
-        if (await ExigeCodigo(usuario, ct))
+        return await FinalizarEntrada(usuario.Id, ipDeOrigem, false, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<Entrada>> FinalizarEntrada(Guid usuarioId, string? ipDeOrigem, bool peloGoogle, CancellationToken ct = default)
+    {
+        var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+        if (usuario is null || !usuario.Ativo || usuario.AnonimizadoEm is not null)
+            return CredenciaisInvalidas;
+        var administrador = await userManager.IsInRoleAsync(usuario, PerfisPadrao.Administrador);
+        if (peloGoogle && administrador)
+            return Erro.Proibido("auth.google_nao_permitido", "Use e-mail e senha para entrar nesta conta.");
+        if (contaOptions.Value.ExigirEmailConfirmado && !usuario.EmailConfirmed)
+            return Erro.Proibido("auth.email_nao_confirmado", "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.");
+        if (administrador)
             return new Entrada(null, await EnviarCodigo(usuario, ct));
 
         return (await EmitirSessao(usuario, ipDeOrigem, formaturaId: null, papel: null, substituido: null, desligadoEm: null, ct)).Map(
@@ -242,15 +264,6 @@ public sealed class AuthService(
 
         return await EnviarCodigo(usuario, ct);
     }
-
-    /// <summary>
-    /// Administrador e presidente entram com código (revisão de segurança de 05/10/2026): são as contas que trocam
-    /// para onde vai o dinheiro da turma e que veem todas as turmas.
-    /// </summary>
-    /// <remarks>Presidente desligado não conta: na turma da qual saiu ele não preside mais nada.</remarks>
-    private async Task<bool> ExigeCodigo(Usuario usuario, CancellationToken ct) =>
-        await userManager.IsInRoleAsync(usuario, PerfisPadrao.Administrador)
-        || (await vinculoRepository.ListarDoUsuario(usuario.Id, ct)).Any(f => f.Papel == PapelNaFormatura.Presidente && f.DesligadoEm is null);
 
     /// <summary>Gera o código, enfileira o e-mail e devolve o desafio que liga o segundo passo a este login.</summary>
     /// <remarks>
@@ -412,20 +425,36 @@ public sealed class AuthService(
     /// <param name="email">E-mail normalizado.</param>
     /// <param name="origem">IP e navegador, gravados no consentimento e no refresh token.</param>
     /// <param name="ct">Token de cancelamento da tentativa.</param>
-    private async Task<Result<ParDeTokens>> CriarConta(RegistrarUsuario dados, string email, OrigemDoAceite origem, CancellationToken ct)
+    private async Task<Result<ParDeTokens>> CriarConta(
+        RegistrarUsuario dados,
+        string email,
+        OrigemDoAceite origem,
+        CancellationToken ct,
+        UserLoginInfo? login = null,
+        bool emailConfirmado = false
+    )
     {
         var usuario = new Usuario
         {
             Nome = dados.Nome.Trim(),
             Email = email,
             UserName = email,
+            EmailConfirmed = emailConfirmado,
         };
 
-        var criacao = await userManager.CreateAsync(usuario, dados.Senha);
+        var criacao = login is null ? await userManager.CreateAsync(usuario, dados.Senha) : await userManager.CreateAsync(usuario);
         if (!criacao.Succeeded)
             return Result.Falha<ParDeTokens>(TraduzirErrosDoIdentity(criacao));
 
-        await userManager.AddToRoleAsync(usuario, PerfisPadrao.Usuario);
+        var perfil = await userManager.AddToRoleAsync(usuario, PerfisPadrao.Usuario);
+        if (!perfil.Succeeded)
+            return Result.Falha<ParDeTokens>(TraduzirErrosDoIdentity(perfil));
+        if (login is not null)
+        {
+            var vinculo = await userManager.AddLoginAsync(usuario, login);
+            if (!vinculo.Succeeded)
+                return Result.Falha<ParDeTokens>(TraduzirErrosDoIdentity(vinculo));
+        }
 
         var aceite = await legalService.RegistrarAceites(usuario.Id, dados.Aceites, origem, ct);
         if (aceite.Falhou)
@@ -444,10 +473,28 @@ public sealed class AuthService(
                 return Result.Falha<ParDeTokens>(marketing.Erros);
         }
 
-        var confirmacao = await userManager.GenerateEmailConfirmationTokenAsync(usuario);
-        await emailsDeConta.EnfileirarConfirmacao(usuario, confirmacao, ct);
+        if (!emailConfirmado)
+        {
+            var confirmacao = await userManager.GenerateEmailConfirmationTokenAsync(usuario);
+            await emailsDeConta.EnfileirarConfirmacao(usuario, confirmacao, ct);
+        }
 
         return await EmitirSessao(usuario, origem.EnderecoIp, formaturaId: null, papel: null, substituido: null, desligadoEm: null, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<ParDeTokens>> RegistrarComGoogle(RegistroComGoogle dados, OrigemDoAceite origem, CancellationToken ct = default)
+    {
+        var cadastro = new RegistrarUsuario(dados.Nome, dados.Email, string.Empty, dados.Aceites, dados.ReceberComunicacaoDoKapa);
+        var validacao = registrarValidator.Validate(cadastro, opcoes => opcoes.IncludeProperties(x => x.Nome, x => x.Email, x => x.Aceites));
+        if (!validacao.IsValid)
+            return Result.Falha<ParDeTokens>(validacao.ParaErros());
+        if (await userManager.FindByEmailAsync(dados.Email) is not null)
+            return Erro.Conflito("usuario.email_em_uso", "Já existe uma conta com este e-mail. Entre ou use Esqueci minha senha.");
+        return await unitOfWork.EmTransacaoAsync(
+            token => CriarConta(cadastro, dados.Email, origem, token, new UserLoginInfo("Google", dados.Sub, "Google"), dados.EmailConfirmado),
+            ct
+        );
     }
 
     /// <summary>

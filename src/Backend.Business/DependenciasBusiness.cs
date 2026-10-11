@@ -88,6 +88,10 @@ namespace Backend.Business;
 /// </remarks>
 public static class DependenciasBusiness
 {
+    /// <summary>Registra a entrada Google somente no host HTTP que fornece a validação do ID token.</summary>
+    /// <remarks>O worker limpa contextos pelo repositório e não autentica identidades externas.</remarks>
+    public static IServiceCollection AddEntradaGoogle(this IServiceCollection services) => services.AddScoped<IGoogleService, GoogleService>();
+
     /// <summary>Registra services, validadores e configurações da camada de negócio.</summary>
     /// <param name="services">Coleção de serviços.</param>
     /// <param name="configuration">Configuração da aplicação.</param>
@@ -97,6 +101,7 @@ public static class DependenciasBusiness
 
         services.AddOptions<SmtpSettings>().Bind(configuration.GetSection(SmtpSettings.Secao));
         services.AddOptions<ContaSettings>().Bind(configuration.GetSection(ContaSettings.Secao));
+        services.AddOptions<GoogleSettings>().Bind(configuration.GetSection(GoogleSettings.Secao));
         services.AddOptions<AplicacaoSettings>().Bind(configuration.GetSection(AplicacaoSettings.Secao));
         services.AddOptions<ArmazenamentoSettings>().Bind(configuration.GetSection(ArmazenamentoSettings.Secao));
         services.AddOptions<AssinaturaSettings>().Bind(configuration.GetSection(AssinaturaSettings.Secao));

@@ -85,4 +85,4 @@ public sealed record AlteracaoDePapelDTO(string? ConfirmacaoEnviadaPara);
 
 /// <summary>O token do link que confirma um Presidente novo.</summary>
 /// <param name="Token">Como veio no link.</param>
-public sealed record ConfirmacaoDePresidenteDTO(string? Token);
+public sealed record ConfirmacaoDePresidenteRequestDTO(string? Token);

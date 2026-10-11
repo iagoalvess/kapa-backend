@@ -5,9 +5,12 @@ using Backend.Api.DTOs.Auth;
 using Backend.Api.DTOs.Formaturas;
 using Backend.Business.Auth.Services;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Usuarios.Models;
 using Backend.IntegrationTests.Infra;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Shouldly;
 
@@ -273,12 +276,10 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
     private async Task<Guid> OutroUsuario() => IdDoUsuario((await fabrica.CreateClient().RegistrarUsuarioComum(Ct)).AccessToken);
 
     /// <summary>
-    /// Login em duas etapas (revisão de segurança de 05/10/2026): o presidente acerta a senha e não leva sessão nem
-    /// cookie — leva o desafio, e o código vai ao e-mail. Código errado não entra, cinco erros fecham o passo, e o
-    /// certo devolve a sessão com a turma. O formando entra direto.
+    /// Presidente entra diretamente com a turma; o código de entrada é exclusivo do administrador do Kapa.
     /// </summary>
     [Fact]
-    public async Task Presidente_so_entra_com_o_codigo_do_email()
+    public async Task Presidente_entra_diretamente_com_a_formatura()
     {
         // Arrange
         var cliente = fabrica.CreateClient();
@@ -289,27 +290,11 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
 
         // Act
         var login = await anonimo.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Senha@Teste123"), Json, Ct);
-        var desafio = (await login.Content.ReadFromJsonAsync<CodigoDeEntradaDTO>(Json, Ct))!;
-        var codigo = await fabrica.CodigoDoUltimoEmail(Ct);
-        var errado = codigo == "000000" ? "111111" : "000000";
-        var comErrado = await anonimo.PostAsJsonAsync("/api/v1/auth/login/codigo", new CodigoDeEntradaRequestDTO(desafio.Desafio, errado), Json, Ct);
-        var adulterado = await anonimo.PostAsJsonAsync(
-            "/api/v1/auth/login/codigo",
-            new CodigoDeEntradaRequestDTO(desafio.Desafio + "x", codigo),
-            Json,
-            Ct
-        );
-        var certo = await anonimo.PostAsJsonAsync("/api/v1/auth/login/codigo", new CodigoDeEntradaRequestDTO(desafio.Desafio, codigo), Json, Ct);
 
         // Assert
-        login.StatusCode.ShouldBe(HttpStatusCode.Accepted);
-        login.Headers.Contains("Set-Cookie").ShouldBeFalse();
-        (await login.Content.ReadAsStringAsync(Ct)).ShouldNotContain("access_token");
-        codigo.Length.ShouldBe(6);
-        (await comErrado.Codigo(Ct)).ShouldBe("auth.codigo_incorreto");
-        (await adulterado.Codigo(Ct)).ShouldBe("auth.desafio_invalido");
-        certo.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var tokens = (await certo.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, Ct))!;
+        login.StatusCode.ShouldBe(HttpStatusCode.OK);
+        login.Headers.Contains("Set-Cookie").ShouldBeTrue();
+        var tokens = (await login.Content.ReadFromJsonAsync<TokenResponseDTO>(Json, Ct))!;
         Claim(tokens.AccessToken, TokenService.ClaimDeFormatura).ShouldBe(formaturaId.ToString());
     }
 
@@ -319,9 +304,11 @@ public sealed class FormaturaEndpointsTests(ApiFactory fabrica)
     {
         // Arrange
         var cliente = fabrica.CreateClient();
-        var email = $"bloqueio-{Guid.CreateVersion7():N}@testes.local";
-        var usuarioId = IdDoUsuario((await cliente.RegistrarComEmail(email, Ct)).AccessToken);
-        await CriarFormaturaCom(usuarioId, PapelNaFormatura.Presidente, ativo: true);
+        var email = $"admin-bloqueio-{Guid.CreateVersion7():N}@testes.local";
+        await cliente.RegistrarComEmail(email, Ct);
+        using var escopo = fabrica.Services.CreateScope();
+        var usuarios = escopo.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
+        await usuarios.AddToRoleAsync((await usuarios.FindByEmailAsync(email))!, PerfisPadrao.Administrador);
         var login = await cliente.PostAsJsonAsync("/api/v1/auth/login", new LoginRequestDTO(email, "Senha@Teste123"), Json, Ct);
         var desafio = (await login.Content.ReadFromJsonAsync<CodigoDeEntradaDTO>(Json, Ct))!.Desafio;
         var codigo = await fabrica.CodigoDoUltimoEmail(Ct);

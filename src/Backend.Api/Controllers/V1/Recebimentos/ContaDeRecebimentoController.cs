@@ -82,7 +82,7 @@ public sealed class ContaDeRecebimentoController(IContaDeRecebimentoService cont
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Confirmar([FromBody] ConfirmacaoPorEmailDTO requisicao, CancellationToken ct) =>
+    public async Task<IActionResult> Confirmar([FromBody] ConfirmacaoPorEmailRequestDTO requisicao, CancellationToken ct) =>
         Responder(
             (await contaService.Confirmar(FormaturaId, usuarioAtual.Id, requisicao.Token, ct)).Map(conta => conta.Adapt<ContaDeRecebimentoDTO>())
         );

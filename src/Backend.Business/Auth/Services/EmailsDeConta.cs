@@ -31,6 +31,35 @@ public sealed class EmailsDeConta(IEmailService emailService, IOptions<Aplicacao
     private readonly ContaSettings _conta = conta.Value;
 
     /// <inheritdoc />
+    public async Task EnfileirarVinculoGoogle(
+        Usuario usuario,
+        string comprovante,
+        bool recuperarSenha,
+        string? convite,
+        CancellationToken ct = default
+    )
+    {
+        var parametros = new List<KeyValuePair<string, string>> { new("comprovante_google", comprovante) };
+        if (!string.IsNullOrWhiteSpace(convite))
+            parametros.Add(new("convite", convite));
+        var link = _aplicacao.MontarUrl("/login", parametros);
+        var corpo = Modelo(
+            "Confirme sua entrada com Google",
+            $"Olá, {Texto(usuario.Nome)}. Você pediu para usar Google na sua conta Kapa. "
+                + (recuperarSenha ? "Primeiro redefina sua senha pelo outro e-mail que enviamos. Depois, " : "")
+                + "abra este link no mesmo navegador em que iniciou a entrada. Ele vale por 15 minutos. "
+                + "Se não foi você, ignore esta mensagem.",
+            "Vincular Google",
+            link,
+            Mascote.Cadeado
+        );
+        await emailService.Enfileirar(
+            new NovoEmail(usuario.Email!, "Confirme o vínculo Google — " + _aplicacao.Nome, corpo, EEmailPrioridade.Alta),
+            ct
+        );
+    }
+
+    /// <inheritdoc />
     public async Task EnfileirarConfirmacao(Usuario usuario, string token, CancellationToken ct = default)
     {
         var link = MontarLink(_conta.CaminhoDeConfirmacao, usuario.Email!, token);

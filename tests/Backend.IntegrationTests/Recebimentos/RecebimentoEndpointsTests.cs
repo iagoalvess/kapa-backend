@@ -208,15 +208,15 @@ public sealed class RecebimentoEndpointsTests(ApiFactory fabrica)
         var pedido = await Ler<GravacaoDaContaDTO>(await presidente.Cliente.PutAsJsonAsync(Rota, ChaveCelular, Json, Ct));
         var token = await fabrica.TokenDoUltimoEmail(Ct);
         var lidaNoMeio = await presidente.Cliente.GetFromJsonAsync<ContaDeRecebimentoDaTurmaDTO>(Rota, Json, Ct);
-        var peloOutro = await outroPresidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token), Json, Ct);
-        var peloTesoureiro = await tesoureiro.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token), Json, Ct);
-        var adulterado = await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token + "x"), Json, Ct);
+        var peloOutro = await outroPresidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailRequestDTO(token), Json, Ct);
+        var peloTesoureiro = await tesoureiro.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailRequestDTO(token), Json, Ct);
+        var adulterado = await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailRequestDTO(token + "x"), Json, Ct);
         var confirmada = await Ler<ContaDeRecebimentoDTO>(
-            await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token), Json, Ct)
+            await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailRequestDTO(token), Json, Ct)
         );
-        var deNovo = await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token), Json, Ct);
+        var deNovo = await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailRequestDTO(token), Json, Ct);
         (await presidente.Cliente.GravarMeios(fabrica, ChaveCpf, Ct)).EnsureSuccessStatusCode();
-        var naVolta = await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailDTO(token), Json, Ct);
+        var naVolta = await presidente.Cliente.PostAsJsonAsync($"{Rota}/confirmar", new ConfirmacaoPorEmailRequestDTO(token), Json, Ct);
 
         // Assert
         pedido.ConfirmacaoEnviadaPara.ShouldNotBeNull();

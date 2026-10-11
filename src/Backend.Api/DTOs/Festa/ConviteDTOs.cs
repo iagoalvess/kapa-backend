@@ -124,7 +124,7 @@ public sealed record MeuConviteDTO(
 /// <param name="ListaAberta">Se ainda pode trocar nomes.</param>
 /// <param name="Convites">Os convites válidos.</param>
 /// <param name="AguardandoPagamento">Unidades pedidas que ainda não viraram convite.</param>
-public sealed record MeusConvitesDTO(EventoDoConviteDTO? Evento, bool ListaAberta, IEnumerable<MeuConviteDTO> Convites, int AguardandoPagamento);
+public sealed record MeusConvitesDTO(EventoDoConviteDTO? Evento, bool ListaAberta, IReadOnlyList<MeuConviteDTO> Convites, int AguardandoPagamento);
 
 /// <summary>A entrada de um convite.</summary>
 /// <param name="CheckInId">Entrada, para desfazer.</param>
@@ -181,7 +181,7 @@ public sealed record ListaDaPortariaDTO(
     int SemTitular,
     bool JanelaAberta,
     DateTime GeradaEm,
-    IEnumerable<ConviteNaPortariaDTO> Convites
+    IReadOnlyList<ConviteNaPortariaDTO> Convites
 );
 
 /// <summary>Resultado da sincronização.</summary>

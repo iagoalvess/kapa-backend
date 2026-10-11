@@ -1,5 +1,8 @@
 namespace Backend.Business.Auth.Models;
 
+/// <summary>Informação privada de acesso, usada em Meu cadastro.</summary>
+public sealed record AcessoDaConta(string Email, bool TemSenha);
+
 /// <summary>Pedido de redefinição de senha ou de reenvio de confirmação.</summary>
 /// <param name="Email">E-mail da conta.</param>
 public sealed record PedidoPorEmail(string Email);

@@ -84,13 +84,13 @@ public sealed class RelatorioController(IRelatorioService relatorioService, IUsu
     [RegistrarEvento("relatorio.solicitado")]
     [ProducesResponseType(typeof(SolicitacaoDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> Solicitar([FromBody] SolicitarRelatorioDTO? requisicao, CancellationToken ct) =>
+    public async Task<IActionResult> Solicitar([FromBody] SolicitarRelatorioRequestDTO? requisicao, CancellationToken ct) =>
         Responder(
             (
                 await relatorioService.Solicitar(
                     FormaturaId,
                     requisicao?.Tipo ?? TipoDeRelatorio.Balancete,
-                    Filtro(requisicao ?? new SolicitarRelatorioDTO()),
+                    Filtro(requisicao ?? new SolicitarRelatorioRequestDTO()),
                     usuarioAtual.Id,
                     ct
                 )

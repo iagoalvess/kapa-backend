@@ -38,6 +38,15 @@ public sealed class ContaService(
     /// </summary>
     private const string OrigemDaTroca = "alterar-senha";
 
+    /// <inheritdoc />
+    public async Task<Result<AcessoDaConta>> ObterAcesso(Guid usuarioId, CancellationToken ct = default)
+    {
+        var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+        if (usuario is null || !usuario.Ativo || usuario.AnonimizadoEm is not null)
+            return ErrosDeUsuario.UsuarioNaoEncontrado;
+        return new AcessoDaConta(usuario.Email!, await userManager.HasPasswordAsync(usuario));
+    }
+
     private static readonly Erro LinkInvalido = Erro.Validacao("conta.link_invalido", "Este link é inválido ou expirou. Solicite um novo.", "token");
 
     /// <inheritdoc />

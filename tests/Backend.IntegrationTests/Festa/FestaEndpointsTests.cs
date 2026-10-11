@@ -120,7 +120,7 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         );
         nova.StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
-        (await ObterDetalhe(tesoureiro, item.Id, Ct)).Propostas.Count().ShouldBe(1);
+        (await ObterDetalhe(tesoureiro, item.Id, Ct)).Propostas.Count.ShouldBe(1);
     }
 
     /// <summary>O formando lê as propostas, mas não as cadastra — escrever é da Gestão.</summary>

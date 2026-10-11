@@ -103,7 +103,7 @@ public sealed partial class LojaEndpointsTests(ApiFactory fabrica)
         (await Avisar(loja, loja.Falso.Pedidos.Single().Key)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var nomeado = await Ler<MeuConviteDTO>(
             await loja.Anonimo.PutAsJsonAsync(
-                $"/api/v1/loja/compras/{criada.Token}/convites/{paga.Convites.First().Id}/convidado",
+                $"/api/v1/loja/compras/{criada.Token}/convites/{paga.Convites[0].Id}/convidado",
                 new ConvidadoRequestDTO("Tia Carmem", TipoDeDocumento.Cpf, "111.444.777-35", null),
                 Json,
                 Ct
@@ -113,7 +113,7 @@ public sealed partial class LojaEndpointsTests(ApiFactory fabrica)
         // Assert — o aviso repetido não emitiu mais nada nem desfez a troca, e o convite trocado tem código novo
         nomeado.NomeDoConvidado.ShouldBe("Tia Carmem");
         nomeado.Token.ShouldNotBeNull();
-        nomeado.Codigo.ShouldNotBe(paga.Convites.First().Codigo);
+        nomeado.Codigo.ShouldNotBe(paga.Convites[0].Codigo);
         await using (var contexto = fabrica.ContextoDe(loja.Turma.FormaturaId))
         {
             (await contexto.ConvitesDoEvento.CountAsync(c => c.CompraId == criada.Compra.Id && c.RevogadoEm == null, Ct)).ShouldBe(2);
@@ -405,7 +405,7 @@ public sealed partial class LojaEndpointsTests(ApiFactory fabrica)
 
         // Assert — paga na hora, com os convites, a venda pelo preço e o acréscimo à parte
         paga.Status.ShouldBe(StatusDaCompra.Paga);
-        paga.Convites.Count().ShouldBe(2);
+        paga.Convites.Count.ShouldBe(2);
         paga.Cartao.ShouldBeNull();
         await using (var contexto = fabrica.ContextoDe(loja.Turma.FormaturaId))
         {

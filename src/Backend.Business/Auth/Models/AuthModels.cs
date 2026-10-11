@@ -43,7 +43,7 @@ public sealed record AccessTokenGerado(string Token, DateTime ExpiraEm);
 public sealed record RefreshTokenGerado(string Token, string Hash, DateTime ExpiraEm);
 
 /// <summary>
-/// O que o login deu: a sessão, ou — para administrador e presidente — o pedido do código que foi ao e-mail
+/// O que o login deu: a sessão, ou — para administrador — o pedido do código que foi ao e-mail
 /// (login em duas etapas, revisão de segurança de 05/10/2026).
 /// </summary>
 /// <param name="Sessao">O par de tokens; nulo enquanto falta o código.</param>

@@ -368,16 +368,16 @@ public sealed class MembroEndpointsTests(ApiFactory fabrica)
         );
         var token = await fabrica.TokenDoUltimoEmail(Ct);
         var antesDoLink = await PapelDe(formaturaId, comissao.UsuarioId);
-        var peloOutro = await outroPresidente.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteDTO(token), Json, Ct);
-        var peloPromovido = await comissao.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteDTO(token), Json, Ct);
-        var confirmada = await presidente.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteDTO(token), Json, Ct);
+        var peloOutro = await outroPresidente.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteRequestDTO(token), Json, Ct);
+        var peloPromovido = await comissao.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteRequestDTO(token), Json, Ct);
+        var confirmada = await presidente.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteRequestDTO(token), Json, Ct);
         await presidente.Cliente.PutAsJsonAsync(
             $"{Rota}/{comissao.UsuarioId}/papel",
             new AlterarPapelRequestDTO(PapelNaFormatura.Comissao),
             Json,
             Ct
         );
-        var deNovo = await presidente.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteDTO(token), Json, Ct);
+        var deNovo = await presidente.Cliente.PostAsJsonAsync(Confirmar, new ConfirmacaoDePresidenteRequestDTO(token), Json, Ct);
 
         // Assert
         (await pedido.Content.ReadFromJsonAsync<AlteracaoDePapelDTO>(Json, Ct))!.ConfirmacaoEnviadaPara.ShouldNotBeNull();

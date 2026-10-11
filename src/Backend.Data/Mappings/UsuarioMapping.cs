@@ -26,6 +26,7 @@ public sealed class UsuarioMapping : IEntityTypeConfiguration<Usuario>
         builder.Property(u => u.AtualizadoEm).IsRequired();
 
         builder.HasIndex(u => u.Nome);
+        builder.HasIndex(u => u.NormalizedEmail).HasDatabaseName("EmailIndex").IsUnique();
     }
 }
 

@@ -107,7 +107,7 @@ public sealed class MembroController(IMembroService membroService, IUsuarioAtual
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> ConfirmarPresidente([FromBody] ConfirmacaoDePresidenteDTO requisicao, CancellationToken ct) =>
+    public async Task<IActionResult> ConfirmarPresidente([FromBody] ConfirmacaoDePresidenteRequestDTO requisicao, CancellationToken ct) =>
         Responder(await membroService.ConfirmarPresidente(FormaturaId, usuarioAtual.Id, requisicao.Token, ct));
 
     /// <summary>Desativa o vínculo de um membro. O histórico financeiro dele permanece.</summary>

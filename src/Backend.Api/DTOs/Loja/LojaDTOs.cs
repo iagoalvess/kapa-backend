@@ -86,9 +86,9 @@ public sealed record LojaDTO(
     string Instituicao,
     EventoDoConviteDTO? Festa,
     string? ContatoDaComissao,
-    IEnumerable<MeioDePagamento> Meios,
+    IReadOnlyList<MeioDePagamento> Meios,
     DateTime Agora,
-    IEnumerable<ItemDaLojaDTO> Itens
+    IReadOnlyList<ItemDaLojaDTO> Itens
 );
 
 /// <summary>A cobrança para pagar.</summary>
@@ -138,7 +138,7 @@ public sealed record CompraDTO(
     CobrancaDaCompraDTO? Cobranca,
     bool ListaAberta,
     bool PodeApagarDados,
-    IEnumerable<MeuConviteDTO> Convites,
+    IReadOnlyList<MeuConviteDTO> Convites,
     Guid FormaturaId,
     int ConvitesCancelados,
     long ValorADevolverEmCentavos,

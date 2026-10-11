@@ -32,6 +32,12 @@ namespace Backend.Api.Controllers.V1.Conta;
 [EnableRateLimiting(RateLimitConfig.Autenticacao)]
 public sealed class ContaController(IContaService contaService, IUsuarioAtual usuarioAtual) : MainController
 {
+    /// <summary>Dados de acesso somente do usuário autenticado.</summary>
+    [Authorize]
+    [HttpGet("acesso")]
+    [EnableRateLimiting(RateLimitConfig.Padrao)]
+    public async Task<IActionResult> ObterAcesso(CancellationToken ct) => Responder(await contaService.ObterAcesso(usuarioAtual.Id, ct));
+
     /// <summary>
     /// Envia o e-mail com o link de redefinição de senha.
     /// </summary>

@@ -303,7 +303,7 @@ public sealed class CestaDoFormandoEndpointsTests(ApiFactory fabrica)
         cesta.ShouldNotBeNull().Select(pacote => pacote.ItemId).ShouldBe([catalogo.Foto, catalogo.Colacao], ignoreOrder: true);
         cesta.Sum(pacote => pacote.ConvitesDaFesta).ShouldBe(0);
         (await Devido(catalogo, carla)).ShouldBe(80_000 + 30_000);
-        (await Meus(carla, TipoDeEvento.Colacao)).Convites.Count().ShouldBe(3);
+        (await Meus(carla, TipoDeEvento.Colacao)).Convites.Count.ShouldBe(3);
         (await Meus(carla, TipoDeEvento.Festa)).Convites.ShouldBeEmpty();
     }
 
@@ -371,8 +371,8 @@ public sealed class CestaDoFormandoEndpointsTests(ApiFactory fabrica)
         // Assert
         (await ConvitesNoBanco(catalogo, semAdesao)).ShouldBeEmpty();
         (await Meus(soFesta, TipoDeEvento.Colacao)).Convites.ShouldBeEmpty();
-        (await Meus(soFesta, TipoDeEvento.Festa)).Convites.Count().ShouldBe(10);
-        (await Meus(comColacao, TipoDeEvento.Colacao)).Convites.Count().ShouldBe(3);
+        (await Meus(soFesta, TipoDeEvento.Festa)).Convites.Count.ShouldBe(10);
+        (await Meus(comColacao, TipoDeEvento.Colacao)).Convites.Count.ShouldBe(3);
     }
 
     /// <summary>D15: o convite extra comprado em pedido entra na conta de lugares ao lado dos benefícios e das cortesias.</summary>

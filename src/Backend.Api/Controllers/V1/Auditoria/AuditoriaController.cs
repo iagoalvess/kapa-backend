@@ -44,11 +44,11 @@ public sealed class AuditoriaController(IAuditoriaService auditoriaService) : Ma
     [HttpGet]
     [ProducesResponseType(typeof(PaginaDTO<LinhaDeAuditoriaDTO>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> Listar([FromQuery] PaginacaoRequest paginacao, [FromQuery] FiltroDeAuditoriaDTO filtro, CancellationToken ct)
+    public async Task<IActionResult> Listar([FromQuery] PaginacaoRequestDTO paginacao, [FromQuery] FiltroDeAuditoriaDTO filtro, CancellationToken ct)
     {
         var resultado = await auditoriaService.Listar(
             FormaturaId,
-            paginacao,
+            paginacao.ParaModelo(),
             new FiltroDeAuditoria(filtro.De, filtro.Ate, filtro.Autor, filtro.Nome, filtro.Busca),
             ct
         );

@@ -3,9 +3,11 @@ using Backend.Api.Analytics;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Enquetes;
 using Backend.Api.Extensions;
+using Backend.Business.Abstractions;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Enquetes.Interfaces;
 using Backend.Business.Enquetes.Models;
+using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -25,37 +27,54 @@ public sealed class EnquetesController(IEnqueteService enquetes, IUsuarioAtual u
     /// <summary>Abertas e histórico, com participação e resposta do próprio usuário.</summary>
     [HttpGet]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
-    [ProducesResponseType(typeof(IReadOnlyList<EnqueteResumo>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Listar(CancellationToken ct) => Responder(await enquetes.Listar(usuario.Id, ct));
+    [ProducesResponseType(typeof(IReadOnlyList<EnqueteResumoDTO>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Listar(CancellationToken ct) =>
+        Responder((await enquetes.Listar(usuario.Id, ct)).Map(lista => lista.Adapt<IReadOnlyList<EnqueteResumoDTO>>()));
 
     /// <summary>Detalhe e resultado agregado ao vivo.</summary>
     [HttpGet("{id:guid}", Name = RotaDaEnquete)]
     [Authorize(Policy = Politicas.MembroDaFormatura)]
-    [ProducesResponseType(typeof(EnqueteDetalhe), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Obter(Guid id, CancellationToken ct) => Responder(await enquetes.Obter(id, usuario.Id, ct));
+    [ProducesResponseType(typeof(EnqueteDetalheDTO), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Obter(Guid id, CancellationToken ct) =>
+        Responder((await enquetes.Obter(id, usuario.Id, ct)).Map(detalhe => detalhe.Adapt<EnqueteDetalheDTO>()));
 
     /// <summary>Publica uma enquete nova.</summary>
     [HttpPost]
     [Authorize(Policy = Politicas.Gestao)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [RegistrarEvento("enquete.criada")]
-    [ProducesResponseType(typeof(EnqueteDetalhe), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(EnqueteDetalheDTO), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Criar(EnqueteRequestDTO requisicao, CancellationToken ct) =>
-        Criado(await enquetes.Criar(ParaModelo(requisicao), usuario.Id, ct), RotaDaEnquete, dto => dto.Enquete.Id);
+        Criado(
+            (await enquetes.Criar(ParaModelo(requisicao), usuario.Id, ct)).Map(detalhe => detalhe.Adapt<EnqueteDetalheDTO>()),
+            RotaDaEnquete,
+            dto => dto.Enquete.Id
+        );
 
     /// <summary>Corrige o cadastro dentro das regras do primeiro voto.</summary>
     [HttpPut("{id:guid}")]
     [Authorize(Policy = Politicas.Gestao)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [RegistrarEvento("enquete.alterada", CamposDaRota = ["id"])]
+    [ProducesResponseType(typeof(EnqueteDetalheDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Atualizar(Guid id, EnqueteRequestDTO requisicao, CancellationToken ct) =>
-        Responder(await enquetes.Atualizar(id, ParaModelo(requisicao), usuario.Id, ct));
+        Responder((await enquetes.Atualizar(id, ParaModelo(requisicao), usuario.Id, ct)).Map(detalhe => detalhe.Adapt<EnqueteDetalheDTO>()));
 
     /// <summary>Encerra antes do prazo.</summary>
     [HttpPost("{id:guid}/encerrar")]
     [Authorize(Policy = Politicas.Gestao)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [RegistrarEvento("enquete.encerrada", CamposDaRota = ["id"])]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Encerrar(Guid id, CancellationToken ct) => Responder(await enquetes.Encerrar(id, ct));
 
     /// <summary>Cancela, mantendo as respostas para a Gestão.</summary>
@@ -63,6 +82,10 @@ public sealed class EnquetesController(IEnqueteService enquetes, IUsuarioAtual u
     [Authorize(Policy = Politicas.Gestao)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [RegistrarEvento("enquete.cancelada", CamposDaRota = ["id"])]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Cancelar(Guid id, CancellationToken ct) => Responder(await enquetes.Cancelar(id, ct));
 
     /// <summary>Envia ou muda a resposta do próprio usuário; a auditoria nunca inclui escolhas.</summary>
@@ -70,6 +93,11 @@ public sealed class EnquetesController(IEnqueteService enquetes, IUsuarioAtual u
     [Authorize(Policy = Politicas.MembroDaFormatura)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [RegistrarEvento("enquete.respondida", CamposDaRota = ["id"])]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Responder(Guid id, RespostaDaEnqueteRequestDTO requisicao, CancellationToken ct) =>
         Responder(await enquetes.Responder(id, usuario.Id, requisicao.Opcoes ?? [], ct));
 
@@ -78,6 +106,10 @@ public sealed class EnquetesController(IEnqueteService enquetes, IUsuarioAtual u
     [Authorize(Policy = Politicas.MembroDaFormatura)]
     [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
     [RegistrarEvento("enquete.resposta_retirada", CamposDaRota = ["id"])]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Retirar(Guid id, CancellationToken ct) => Responder(await enquetes.Retirar(id, usuario.Id, ct));
 
     /// <summary>Normaliza campos ausentes antes da validação de domínio.</summary>

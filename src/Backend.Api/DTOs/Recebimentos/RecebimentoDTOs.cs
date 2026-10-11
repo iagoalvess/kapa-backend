@@ -56,7 +56,7 @@ public sealed record GravacaoDaContaDTO(ContaDeRecebimentoDTO? Conta, string? Co
 
 /// <summary>O token do link de confirmação que chegou por e-mail.</summary>
 /// <param name="Token">Como veio no link.</param>
-public sealed record ConfirmacaoPorEmailDTO(string? Token);
+public sealed record ConfirmacaoPorEmailRequestDTO(string? Token);
 
 /// <summary>O PIX de teste.</summary>
 /// <param name="CopiaECola">O BR Code — a tela desenha o QR a partir dele, no navegador.</param>

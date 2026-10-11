@@ -141,6 +141,18 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="auth.sem_permissao"></a>`auth.sem_permissao` | 403 | Você não tem permissão para esta operação. |
 | <a id="auth.sessao_invalida"></a>`auth.sessao_invalida` | 401 | Sessão expirada. Faça login novamente. |
 
+| <a id="auth.cadastro_necessario"></a>`auth.cadastro_necessario` | 409 | Google validado sem conta. Concluir cadastro com contexto curto, nome e aceites; não há sessão ainda. |
+| <a id="auth.google_credencial_invalida"></a>`auth.google_credencial_invalida` | 401 | Assinatura, emissor, público, expiração ou nonce inválido. |
+| <a id="auth.google_email_nao_verificado"></a>`auth.google_email_nao_verificado` | 403 | Google não comprovou o e-mail. |
+| <a id="auth.google_contexto_invalido"></a>`auth.google_contexto_invalido` | 401 | Tentativa de outro navegador, vencida, consumida ou comprovante incorreto. |
+| <a id="auth.google_origem_invalida"></a>`auth.google_origem_invalida` | 403 | A requisição deve partir de uma origem permitida do app. |
+| <a id="auth.google_convite_invalido"></a>`auth.google_convite_invalido` | 400 | Referência de convite ultrapassa o limite permitido. |
+| <a id="auth.google_nao_permitido"></a>`auth.google_nao_permitido` | 403 | Administrador, conta inativa ou anonimizada não pode iniciar vínculo. Administrador nunca usa SSO. |
+| <a id="auth.google_recuperacao_necessaria"></a>`auth.google_recuperacao_necessaria` | 403 | Conta antiga não confirmada precisa redefinir senha antes de concluir vínculo. |
+| <a id="auth.google_vinculo_necessario"></a>`auth.google_vinculo_necessario` | 409 | Comprovar o e-mail antes do vínculo. dados contém o contexto de uso único, sem sessão. |
+| <a id="auth.google_desligado"></a>`auth.google_desligado` | 404 | Cliente Google não configurado; continuar com e-mail e senha. |
+| <a id="auth.google_indisponivel"></a>`auth.google_indisponivel` | 503 | Não foi possível consultar a configuração/chaves oficiais. Tentar depois ou usar senha. |
+
 ### cobranca
 
 | Código | Status | Quando acontece |

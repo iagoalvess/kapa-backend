@@ -47,6 +47,10 @@ public sealed class LimpezaRefreshTokensJob(IServiceScopeFactory scopeFactory, L
         var repositorio = escopo.ServiceProvider.GetRequiredService<IRefreshTokenRepository>();
 
         var removidos = await repositorio.RemoverInativosAnterioresA(DateTime.UtcNow - Retencao, ct);
+        var google = escopo.ServiceProvider.GetRequiredService<ITentativaGoogleRepository>();
+        var contextos = await google.RemoverExpiradas(DateTime.UtcNow, ct);
+        if (contextos > 0)
+            Logger.LogInformation("Limpeza de contextos Google removeu {Removidos} registros.", contextos);
 
         if (removidos > 0)
             Logger.LogInformation("Limpeza de refresh tokens removeu {Removidos} registros.", removidos);

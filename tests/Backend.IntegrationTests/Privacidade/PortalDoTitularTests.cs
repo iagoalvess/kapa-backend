@@ -168,7 +168,7 @@ public sealed class PortalDoTitularTests(ApiFactory fabrica)
 
         var resposta = await formando.Cliente.PostAsJsonAsync(
             "/api/v1/privacidade/solicitacoes",
-            new SolicitarPrivacidadeDTO(TipoDeSolicitacao.Exclusao, null),
+            new SolicitarPrivacidadeRequestDTO(TipoDeSolicitacao.Exclusao, null),
             Json,
             Ct
         );
@@ -184,7 +184,7 @@ public sealed class PortalDoTitularTests(ApiFactory fabrica)
 
         var resposta = await formando.Cliente.PostAsJsonAsync(
             "/api/v1/privacidade/solicitacoes",
-            new SolicitarPrivacidadeDTO(TipoDeSolicitacao.Exclusao, "Nao@Ehessa123"),
+            new SolicitarPrivacidadeRequestDTO(TipoDeSolicitacao.Exclusao, "Nao@Ehessa123"),
             Json,
             Ct
         );
@@ -325,7 +325,12 @@ public sealed class PortalDoTitularTests(ApiFactory fabrica)
 
     private static async Task<SolicitacaoDePrivacidadeDTO> Solicitar(MembroDeTeste membro, TipoDeSolicitacao tipo)
     {
-        var resposta = await membro.Cliente.PostAsJsonAsync("/api/v1/privacidade/solicitacoes", new SolicitarPrivacidadeDTO(tipo, null), Json, Ct);
+        var resposta = await membro.Cliente.PostAsJsonAsync(
+            "/api/v1/privacidade/solicitacoes",
+            new SolicitarPrivacidadeRequestDTO(tipo, null),
+            Json,
+            Ct
+        );
 
         resposta.EnsureSuccessStatusCode();
 

@@ -1,5 +1,7 @@
 using System.Text;
 using System.Text.Json;
+using Backend.Business;
+using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Services;
 using Backend.Business.Auth.Settings;
 using Backend.Business.Usuarios.Models;
@@ -10,6 +12,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Backend.Api.Configuration;
@@ -48,6 +52,15 @@ public static class AuthConfig
         services.AddValidadeDosLinks(conta);
         services.AddJwtBearerConfigurado(jwt);
         services.AddPoliticas();
+        services.AddScoped<GoogleHttp>();
+        services.AddEntradaGoogle();
+        services.AddSingleton<IConfigurationManager<OpenIdConnectConfiguration>>(
+            new ConfigurationManager<OpenIdConnectConfiguration>(
+                "https://accounts.google.com/.well-known/openid-configuration",
+                new OpenIdConnectConfigurationRetriever()
+            )
+        );
+        services.AddSingleton<IValidadorGoogle, ValidadorGoogle>();
 
         return services;
     }

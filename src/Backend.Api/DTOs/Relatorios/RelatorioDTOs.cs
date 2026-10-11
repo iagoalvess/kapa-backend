@@ -147,7 +147,7 @@ public sealed record OpcoesDeFiltroDTO(
 );
 
 /// <summary>O relatório e o recorte pedidos no corpo da solicitação de PDF.</summary>
-public sealed record SolicitarRelatorioDTO : RecorteDoRelatorioDTO
+public sealed record SolicitarRelatorioRequestDTO : RecorteDoRelatorioDTO
 {
     /// <summary>Qual relatório. Ausente, o balancete.</summary>
     public TipoDeRelatorio? Tipo { get; init; }

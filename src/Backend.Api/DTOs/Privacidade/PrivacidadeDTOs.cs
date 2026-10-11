@@ -167,7 +167,7 @@ public sealed record SolicitacaoDePrivacidadeDTO(
 /// Senha da conta. Obrigatória <b>só</b> na exclusão — a sessão prova quem entrou, não quem está na
 /// frente da tela agora, e a eliminação é irreversível.
 /// </param>
-public sealed record SolicitarPrivacidadeDTO(TipoDeSolicitacao? Tipo, string? Senha);
+public sealed record SolicitarPrivacidadeRequestDTO(TipoDeSolicitacao? Tipo, string? Senha);
 
 /// <summary>Um terceiro que trata dado pessoal por conta da Kapa.</summary>
 /// <param name="Nome">Quem é.</param>

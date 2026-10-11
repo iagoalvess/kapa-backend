@@ -128,7 +128,7 @@ public sealed partial class LojaEndpointsTests
         // Assert — um pedido, aberto, com os dois convites; os convites valem; formando não vê a fila
         pedida.PedidoDeCancelamento!.Status.ShouldBe(StatusDoPedidoDeCancelamento.Aberto);
         pedida.PodePedirCancelamento.ShouldBeFalse();
-        pedida.Convites.Count().ShouldBe(2);
+        pedida.Convites.Count.ShouldBe(2);
         var pedido = fila.ShouldHaveSingleItem();
         pedido.Convites.ShouldBe(2);
         pedido.Motivo.ShouldBe("Não vou poder ir");
@@ -144,7 +144,7 @@ public sealed partial class LojaEndpointsTests
             )
         ).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var recusada = await Ler<CompraDTO>(await loja.Anonimo.GetAsync($"/api/v1/loja/compras/{token}", Ct));
-        var umConvite = recusada.Convites.First().Id;
+        var umConvite = recusada.Convites[0].Id;
         await Ler<CompraDTO>(await loja.Anonimo.PostAsJsonAsync(url, new PedidoDeCancelamentoRequestDTO([umConvite], null), Json, Ct));
         var segundo = (await Ler<List<PedidoNaGestaoDTO>>(await gestao.GetAsync("/api/v1/loja/pedidos-de-cancelamento", Ct))).Single();
         var aprovada = await Ler<CompraCanceladaDTO>(

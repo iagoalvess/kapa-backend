@@ -64,7 +64,7 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
         var exportacaoVazia = gestao == HttpStatusCode.OK ? HttpStatusCode.BadRequest : gestao;
         (await membro.Cliente.GetAsync($"{Relatorios}/balancete.xlsx", Ct)).StatusCode.ShouldBe(exportacaoVazia);
         (await membro.Cliente.GetAsync($"{Relatorios}/solicitacoes", Ct)).StatusCode.ShouldBe(gestao);
-        (await membro.Cliente.PostAsJsonAsync($"{Relatorios}/solicitacoes", new SolicitarRelatorioDTO(), Json, Ct)).StatusCode.ShouldBe(
+        (await membro.Cliente.PostAsJsonAsync($"{Relatorios}/solicitacoes", new SolicitarRelatorioRequestDTO(), Json, Ct)).StatusCode.ShouldBe(
             exportacaoVazia
         );
     }
@@ -180,7 +180,7 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
     {
         var tesoureiro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
         await Lancar(tesoureiro, "Despesa para o balancete", Ct);
-        var periodo = new SolicitarRelatorioDTO
+        var periodo = new SolicitarRelatorioRequestDTO
         {
             Tipo = TipoDeRelatorio.Balancete,
             De = new DateOnly(Hoje.Year, 1, 1),
@@ -205,7 +205,7 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
         var tesoureiro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
         await Lancar(tesoureiro, "Despesa para o balancete", Ct);
 
-        var solicitacao = await Solicitar(tesoureiro, new SolicitarRelatorioDTO());
+        var solicitacao = await Solicitar(tesoureiro, new SolicitarRelatorioRequestDTO());
 
         var resposta = await tesoureiro.Cliente.GetAsync($"{Relatorios}/solicitacoes/{solicitacao.Id}/arquivo", Ct);
 
@@ -227,7 +227,7 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
 
         await Lancar(daPrimeira, "Despesa da primeira turma", Ct);
 
-        var solicitacao = await Solicitar(daPrimeira, new SolicitarRelatorioDTO());
+        var solicitacao = await Solicitar(daPrimeira, new SolicitarRelatorioRequestDTO());
 
         (await daSegunda.Cliente.GetAsync($"{Relatorios}/solicitacoes/{solicitacao.Id}/arquivo", Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
@@ -258,7 +258,7 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
     {
         var tesoureiro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
         var planilha = await tesoureiro.Cliente.GetAsync($"{Relatorios}/{tipo}.xlsx", Ct);
-        var pdf = await tesoureiro.Cliente.PostAsJsonAsync($"{Relatorios}/solicitacoes", new SolicitarRelatorioDTO { Tipo = tipo }, Json, Ct);
+        var pdf = await tesoureiro.Cliente.PostAsJsonAsync($"{Relatorios}/solicitacoes", new SolicitarRelatorioRequestDTO { Tipo = tipo }, Json, Ct);
 
         foreach (var resposta in new[] { planilha, pdf })
         {
@@ -281,7 +281,7 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
         var planilha = await tesoureiro.Cliente.GetAsync($"{Relatorios}/despesas.xlsx?categoria=Buffet", Ct);
         var pdf = await tesoureiro.Cliente.PostAsJsonAsync(
             $"{Relatorios}/solicitacoes",
-            new SolicitarRelatorioDTO { Tipo = TipoDeRelatorio.Despesas, Categoria = CategoriaDeDespesa.Buffet },
+            new SolicitarRelatorioRequestDTO { Tipo = TipoDeRelatorio.Despesas, Categoria = CategoriaDeDespesa.Buffet },
             Json,
             Ct
         );
@@ -291,7 +291,7 @@ public sealed class RelatorioEndpointsTests(ApiFactory fabrica)
         (await tesoureiro.Cliente.GetAsync($"{Relatorios}/balancete.xlsx?categoria=Buffet", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
-    private static async Task<SolicitacaoDTO> Solicitar(MembroDeTeste membro, SolicitarRelatorioDTO periodo)
+    private static async Task<SolicitacaoDTO> Solicitar(MembroDeTeste membro, SolicitarRelatorioRequestDTO periodo)
     {
         var resposta = await membro.Cliente.PostAsJsonAsync($"{Relatorios}/solicitacoes", periodo, Json, Ct);
         resposta.EnsureSuccessStatusCode();

@@ -147,6 +147,7 @@ public static class DependenciasData
     {
         services.AddScoped<IUsuarioRepository, UsuarioRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<ITentativaGoogleRepository, TentativaGoogleRepository>();
         services.AddScoped<IAdminRepository, AdminRepository>();
         services.AddScoped<IEmailFilaRepository, EmailFilaRepository>();
         services.AddScoped<IEventoRepository, EventoRepository>();
