@@ -17,6 +17,16 @@ builder.Services.AddDocumentacao();
 
 var app = builder.Build();
 
+// O bootstrap não sobe o servidor: cria o primeiro administrador e sai. Fica antes das recusas de
+// produção de propósito — é o caminho que a recusa do seed em produção deixa em aberto (ver
+// BootstrapDoAdministrador).
+if (BootstrapDoAdministrador.EhPedido(args))
+{
+    using var escopo = app.Services.CreateScope();
+    Environment.ExitCode = await BootstrapDoAdministrador.ExecutarAsync(escopo.ServiceProvider);
+    return;
+}
+
 app.AvisarConfiguracaoDeProducao();
 app.UseApi();
 app.UseDocumentacao();

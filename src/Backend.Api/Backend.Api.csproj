@@ -36,4 +36,12 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
+
+  <!-- appsettings.Development.json carrega segredos de desenvolvimento (JWT, chave do CPF, segredo do
+       convite) e o seed do administrador. Ele não pode ir para a imagem: se o container subir como
+       Development por engano, liga tudo isso de uma vez e cria um admin com senha publicada no repo.
+       O ambiente de desenvolvimento roda da fonte, não do publicado. -->
+  <ItemGroup>
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
 </Project>

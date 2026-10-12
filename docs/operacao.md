@@ -77,16 +77,41 @@ assinado com a chave nova. Troque fora do horário de pico e não precisa de mai
 
 ## Primeiro administrador
 
-Não existe usuário padrão embutido. Para criar o primeiro:
+Não existe usuário padrão embutido.
+
+**Em produção, pelo comando de bootstrap.** A API se recusa a subir com `Seed:AoIniciar` ligado em
+produção (`RecusasDeProducao`): seed automático é a conta de administrador com senha de arquivo de
+configuração. O primeiro administrador nasce por um processo que **não sobe o servidor** e sai:
 
 ```bash
-Seed__AoIniciar=true
-Seed__AdminEmail=admin@empresa.com
-Seed__AdminSenha=<senha forte>
+Seed__AdminEmail=admin@empresa.com \
+Seed__AdminSenha='<senha forte>' \
+dotnet Backend.Api.dll bootstrap-admin
 ```
 
-Suba uma vez, confirme que autentica e **remova as três variáveis**. O seed é idempotente: se a
-conta já existir, não faz nada.
+No deploy, é um `docker run` da mesma imagem da API, com o argumento no fim:
+
+```bash
+docker run --rm \
+  -e ConnectionStrings__Postgres="$CONEXAO" \
+  -e Jwt__ChaveSecreta="$JWT" \
+  -e Criptografia__ChaveDeDados="$CHAVE_DO_CPF" \
+  -e Seed__AdminEmail="admin@empresa.com" \
+  -e Seed__AdminSenha="<senha forte>" \
+  minha-imagem-api bootstrap-admin
+```
+
+O comando lê `Seed__AdminEmail` e `Seed__AdminSenha`, cria os perfis e a conta (idempotente) e
+**recusa se já existir administrador ativo** — para um segundo administrador, promova pela API. Ele
+precisa das mesmas variáveis que a API para subir (a string de conexão e as chaves
+`Jwt__ChaveSecreta` e `Criptografia__ChaveDeDados`), porque constrói o mesmo container de injeção.
+`Seed__AoIniciar` **não** é usado pelo comando e não precisa ser ligado. Depois, **remova as
+variáveis `Seed__`** do ambiente.
+
+**Em desenvolvimento**, o seed continua automático: `Seed:AoIniciar=true` em
+`appsettings.Development.json` cria `admin@localhost`. O seed é idempotente: se a conta já existir,
+não faz nada. `docker compose --profile bootstrap run --rm bootstrap` exercita o mesmo comando que a
+produção usa.
 
 A partir daí a promoção de administrador é pela API
 (`PUT /api/v1/usuarios/{id}/perfis`), com as travas contra ficar sem administrador.

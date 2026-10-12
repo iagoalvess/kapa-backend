@@ -108,7 +108,7 @@ Tudo por variável de ambiente (`Secao__Chave`) ou `appsettings.json`.
 | `Armazenamento__S3__Bucket` / `__Regiao` | provedor S3 | — |
 | `Armazenamento__S3__ServiceUrl` | não | vazio = AWS; preencha para MinIO, R2 ou B2 |
 | `Seed__AoIniciar` | não | `false` |
-| `Seed__AdminEmail` / `Seed__AdminSenha` | não | vazio = nenhum admin é criado |
+| `Seed__AdminEmail` / `Seed__AdminSenha` | não | vazio = nenhum admin é criado; em produção, use o comando `bootstrap-admin` (`docs/operacao.md`) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | não | vazio = telemetria não exportada |
 
 A aplicação **não sobe** sem `Jwt__ChaveSecreta` válida ou sem string de conexão. É proposital:

@@ -17,4 +17,11 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
   </ItemGroup>
+
+  <!-- appsettings.Development.json traz segredos de desenvolvimento e o desvio de e-mail
+       (Smtp:RedirecionarPara) para uma caixa real. Não pode ir para a imagem: um worker que suba
+       como Development por engano manda todo e-mail de produção para essa caixa. -->
+  <ItemGroup>
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
 </Project>

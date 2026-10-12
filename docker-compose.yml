@@ -70,9 +70,39 @@ services:
       # Provedor Local guarda no disco do container; o volume faz os arquivos
       # sobreviverem ao restart. Em produção o provedor é o S3.
       - arquivos-dados:/app/arquivos
+      # appsettings.Development.json não vai mais na imagem (ver Backend.Api.csproj): ele traz os
+      # segredos de dev e o seed do admin, e não pode ir para produção. Em desenvolvimento ele é
+      # montado aqui, para o container ter CORS, cookie SameSite=None, segredo do convite e o resto
+      # sem depender de um arquivo com segredo dentro da imagem.
+      - ./src/Backend.Api/appsettings.Development.json:/app/appsettings.Development.json:ro
     depends_on:
       migrations:
         condition: service_completed_successfully
+
+  # Cria o primeiro administrador, uma vez. Não roda no "up": só quando chamado.
+  #
+  #   docker compose --profile bootstrap run --rm bootstrap
+  #
+  # Em desenvolvimento a API já cria o admin pelo seed; este serviço existe para exercitar o mesmo
+  # comando que a produção usa — lá a API se recusa a subir com Seed__AoIniciar (RecusasDeProducao).
+  bootstrap:
+    profiles: ["bootstrap"]
+    build:
+      context: .
+      target: api
+    command: ["bootstrap-admin"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Postgres: *conexao
+      Jwt__ChaveSecreta: ${JWT_CHAVE_SECRETA:?defina JWT_CHAVE_SECRETA no .env}
+      Criptografia__ChaveDeDados: ${CRIPTOGRAFIA_CHAVE:?defina CRIPTOGRAFIA_CHAVE no .env}
+      Festa__SegredoDoConvite: ${FESTA_SEGREDO_DO_CONVITE:-VU6PKg0QR+dtQxvOjR0BJ2jKa4Lccg5X1WJ2ybS2qO0=}
+      Seed__AdminEmail: ${ADMIN_EMAIL:-admin@localhost}
+      Seed__AdminSenha: ${ADMIN_SENHA:?defina ADMIN_SENHA no .env}
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    restart: "no"
 
   worker:
     build:
@@ -90,6 +120,10 @@ services:
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-}
+    volumes:
+      # Mesmo motivo da API: o arquivo saiu da imagem e é montado só no desenvolvimento. Sem ele o
+      # worker perderia o desvio de e-mail (Smtp:RedirecionarPara) e mandaria e-mail para gente real.
+      - ./src/Backend.Worker/appsettings.Development.json:/app/appsettings.Development.json:ro
     depends_on:
       migrations:
         condition: service_completed_successfully
