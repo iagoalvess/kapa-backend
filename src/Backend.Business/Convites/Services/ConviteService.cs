@@ -7,6 +7,7 @@ using Backend.Business.Assinaturas.Services;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
 using Backend.Business.Cobrancas.Interfaces;
+using Backend.Business.Cobrancas.Models;
 using Backend.Business.Common;
 using Backend.Business.Common.Datas;
 using Backend.Business.Common.Texto;
@@ -33,6 +34,7 @@ namespace Backend.Business.Convites.Services;
 /// <param name="vagas">As vagas do plano, conferidas na criação e no aceite.</param>
 /// <param name="adesaoRepository">O termo publicado, que o convite de formando exige (Sprint 47, D34).</param>
 /// <param name="planoRepository">O catálogo vigente, que o convite de formando exige (D34).</param>
+/// <param name="condicoes">O desconto preparado no convite pessoal, que passa para o vínculo no aceite (Sprint 54).</param>
 /// <param name="usuarioRepository">E-mail da conta que aceita o convite nominal.</param>
 /// <param name="authService">Emissão da sessão dentro da turma nova.</param>
 /// <param name="tokenService">Hash do token, o mesmo do refresh token.</param>
@@ -47,6 +49,7 @@ public sealed class ConviteService(
     VagasDoPlano vagas,
     IAdesaoRepository adesaoRepository,
     IPlanoDeCobrancaRepository planoRepository,
+    ICondicaoFinanceiraRepository condicoes,
     IUsuarioRepository usuarioRepository,
     IAuthService authService,
     ITokenService tokenService,
@@ -226,6 +229,11 @@ public sealed class ConviteService(
     /// voltar reativava o vínculo sem as parcelas que o desligamento cancelou. Removido — quem saiu
     /// sem ter aderido — continua voltando pelo convite pessoal.
     /// </para>
+    /// <para>
+    /// O desconto preparado para o e-mail do convite pessoal (Sprint 54) passa para o vínculo novo: o e-mail já foi
+    /// conferido, então encaminhar o link não entrega o benefício a outro. <c>ponytail:</c> quem volta religando um
+    /// vínculo removido não leva a condição do convite — a tesouraria a concede de novo na ficha; tratar quando aparecer.
+    /// </para>
     /// </remarks>
     public async Task<Result<ParDeTokens>> Aceitar(
         Guid usuarioId,
@@ -285,6 +293,17 @@ public sealed class ConviteService(
                         Papel = convite.Papel,
                     };
                     await vinculoRepository.Adicionar(vinculo, tentativa);
+
+                    if (
+                        convite.Email is not null
+                        && await condicoes.ObterDoConvidadoDeTodasAsFormaturas(
+                            convite.FormaturaId,
+                            CondicaoFinanceira.NormalizarEmail(convite.Email),
+                            tentativa
+                        )
+                            is { } condicao
+                    )
+                        condicao.TransferirPara(vinculo.Id);
                 }
                 else
                 {

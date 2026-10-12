@@ -65,6 +65,8 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="adesao.aditivo_sem_adesao"></a>`adesao.aditivo_sem_adesao` | 409 | Aditivo é mudança de uma adesão: o formando ainda não aderiu ao termo. |
 | <a id="adesao.aditivo_sem_pacote"></a>`adesao.aditivo_sem_pacote` | 400 | O aditivo veio sem pacote. Escolha ao menos um para acrescentar. |
 | <a id="adesao.aditivo_so_acrescenta"></a>`adesao.aditivo_so_acrescenta` | 409 | O pacote escolhido não custa mais que a faixa que ele substituiria: o aditivo só acrescenta (D38). Descer de faixa ou tirar um pacote é solicitação de cancelamento. |
+| <a id="adesao.apenas_gestao_com_adesao"></a>`adesao.apenas_gestao_com_adesao` | 409 | Quem já aderiu não marca "apenas gestão": a saída de quem contratou é a solicitação de cancelamento (Sprint 54, P1). |
+| <a id="adesao.apenas_gestao_sem_papel"></a>`adesao.apenas_gestao_sem_papel` | 403 | Só Presidente, Tesoureiro e Comissão participam apenas da gestão; o Formando adere (Sprint 54, P1). |
 | <a id="adesao.cadastro_incompleto"></a>`adesao.cadastro_incompleto` | 409 | Para aderir, informe no seu cadastro o nome completo, o CPF e a data de nascimento. |
 | <a id="adesao.cesta_sem_escolha"></a>`adesao.cesta_sem_escolha` | 400 | Escolha ao menos um pacote para aderir (Sprint 47, D33). |
 | <a id="adesao.codigo_invalido"></a>`adesao.codigo_invalido` | 409 | O código não confere ou já expirou. Peça um código novo e use o mais recente que chegou no seu e-mail. |
@@ -161,6 +163,14 @@ nossa, e o `trace_id` é o que o resolve.
 | <a id="cobranca.antecedencia_obrigatoria"></a>`cobranca.antecedencia_obrigatoria` | 400 | Diga com quantos dias de antecedência o desconto vale — senão ele sai para quem pagar um dia antes. |
 | <a id="cobranca.cancelamento_fora_do_prazo"></a>`cobranca.cancelamento_fora_do_prazo` | 409 | Passou o "cancelável até" do item: o formando não abre mais solicitação de cancelamento (Sprint 48, D36). |
 | <a id="cobranca.cesta_duplicada"></a>`cobranca.cesta_duplicada` | 400 | O mesmo pacote foi escolhido duas vezes. |
+| <a id="cobranca.condicao_fora_do_catalogo"></a>`cobranca.condicao_fora_do_catalogo` | 400 | Algum pacote da condição financeira não está mais à venda no catálogo (Sprint 54). |
+| <a id="cobranca.condicao_forma_invalida"></a>`cobranca.condicao_forma_invalida` | 400 | Cada benefício da condição financeira tem percentual ou valor fixo — um dos dois (Sprint 54, P2). |
+| <a id="cobranca.condicao_grupo_repetido"></a>`cobranca.condicao_grupo_repetido` | 400 | Dois benefícios no mesmo grupo de faixas: escolha uma faixa só, e o benefício vale para o grupo até o preço dela (Sprint 54, P3). |
+| <a id="cobranca.condicao_pacote_repetido"></a>`cobranca.condicao_pacote_repetido` | 400 | O mesmo pacote apareceu duas vezes na condição financeira. |
+| <a id="cobranca.condicao_percentual_invalido"></a>`cobranca.condicao_percentual_invalido` | 400 | O percentual da condição vai de 0,01% a 100% (base 10.000). |
+| <a id="cobranca.condicao_sem_beneficio"></a>`cobranca.condicao_sem_beneficio` | 400 | A condição financeira precisa de ao menos um pacote com desconto ou isenção. |
+| <a id="cobranca.condicao_sem_pessoa"></a>`cobranca.condicao_sem_pessoa` | 400 | A condição do convidado veio sem o `email` do convite pessoal. |
+| <a id="cobranca.condicao_valor_invalido"></a>`cobranca.condicao_valor_invalido` | 400 | O valor fixo do desconto precisa ser maior que zero. |
 | <a id="cobranca.credito_acima_do_pago"></a>`cobranca.credito_acima_do_pago` | 400 | O crédito não pode passar do que o formando já pagou neste pedido. |
 | <a id="cobranca.credito_da_tesouraria"></a>`cobranca.credito_da_tesouraria` | 403 | Só a tesouraria lança crédito de um pedido já pago. |
 | <a id="cobranca.credito_invalido"></a>`cobranca.credito_invalido` | 400 | O crédito não pode ser negativo. |

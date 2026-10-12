@@ -137,6 +137,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Os pacotes que cada formando escolheu na adesão (Sprint 47).</summary>
     public DbSet<EscolhaDaCesta> EscolhasDaCesta => Set<EscolhaDaCesta>();
 
+    /// <summary>Descontos e isenções individuais (Sprint 54).</summary>
+    public DbSet<CondicaoFinanceira> CondicoesFinanceiras => Set<CondicaoFinanceira>();
+
     /// <summary>Parcelas devidas pelos formandos, uma por vencimento.</summary>
     public DbSet<Parcela> Parcelas => Set<Parcela>();
 

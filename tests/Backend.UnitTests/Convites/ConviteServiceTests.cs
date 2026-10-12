@@ -10,6 +10,7 @@ using Backend.Business.Assinaturas.Services;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
 using Backend.Business.Cobrancas.Interfaces;
+using Backend.Business.Cobrancas.Services;
 using Backend.Business.Common;
 using Backend.Business.Convites.Interfaces;
 using Backend.Business.Convites.Models;
@@ -52,6 +53,7 @@ public sealed class ConviteServiceTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IAdesaoRepository _adesoes = Substitute.For<IAdesaoRepository>();
     private readonly IPlanoDeCobrancaRepository _planos = Substitute.For<IPlanoDeCobrancaRepository>();
+    private readonly ICondicaoFinanceiraRepository _condicoes = Substitute.For<ICondicaoFinanceiraRepository>();
 
     public ConviteServiceTests()
     {
@@ -77,6 +79,7 @@ public sealed class ConviteServiceTests
             new VagasDoPlano(_assinaturas, _vinculos),
             _adesoes,
             _planos,
+            _condicoes,
             _usuarios,
             _auth,
             _tokens,

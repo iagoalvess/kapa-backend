@@ -36,13 +36,17 @@ public sealed record PublicarTermo(string Conteudo);
 /// Os pacotes que o formando já contratou numa adesão anterior: a re-adesão a uma versão nova do termo mantém a mesma
 /// cesta, e mudá-la é a Sprint 48. Vazia para quem nunca aderiu.
 /// </param>
+/// <param name="TemCondicao">A tesouraria concedeu um desconto ou uma isenção à pessoa (Sprint 54).</param>
+/// <param name="ApenasGestao">Se a pessoa da gestão disse que vai apenas ajudar a organizar, sem aderir (Sprint 54, P1).</param>
 public sealed record ConteudoParaAdesao(
     VersaoDoTermo? Termo,
     SnapshotDoPlano? Plano,
     string? HashDoConteudo,
     string? Resumo,
     IReadOnlyList<PacoteDoCatalogo> Catalogo,
-    IReadOnlyList<Guid> CestaContratada
+    IReadOnlyList<Guid> CestaContratada,
+    bool TemCondicao = false,
+    bool ApenasGestao = false
 );
 
 /// <summary>Um pacote como o formando o vê na adesão.</summary>
@@ -54,6 +58,7 @@ public sealed record ConteudoParaAdesao(
 /// <param name="NumeroDeParcelas">Em quantas parcelas quem adere hoje paga — menos que o item, para quem chega tarde.</param>
 /// <param name="ConvitesDaFesta">Convites da festa que o pacote concede.</param>
 /// <param name="ConvitesDaColacao">Convites da colação que o pacote concede.</param>
+/// <param name="DescontoEmCentavos">Quanto a condição financeira da pessoa desconta deste pacote, se ela o escolher (Sprint 54).</param>
 public sealed record PacoteDoCatalogo(
     Guid Id,
     string? Grupo,
@@ -62,7 +67,8 @@ public sealed record PacoteDoCatalogo(
     long ValorEmCentavos,
     int NumeroDeParcelas,
     int ConvitesDaFesta,
-    int ConvitesDaColacao
+    int ConvitesDaColacao,
+    long DescontoEmCentavos = 0
 );
 
 /// <summary>Pedido de aceite.</summary>
@@ -135,6 +141,9 @@ public sealed record AdesaoComTermo(AdesaoDoFormando Adesao, string ConteudoDoTe
 /// <param name="Versao">Versão aceita na adesão mais recente.</param>
 /// <param name="AceitoEm">Momento dela, em UTC.</param>
 /// <param name="Cesta">Os pacotes da cesta, com o detalhe livre de cada um (Sprint 48, D40).</param>
+/// <param name="ApenasGestao">Da comissão, disse que vai apenas ajudar a organizar, sem aderir (Sprint 54, P1).</param>
+/// <param name="TemCondicao">Tem desconto ou isenção autorizada pela tesouraria (Sprint 54).</param>
+/// <param name="DescontoEmCentavos">O desconto que a condição deu na cesta contratada; igual ao preço é isenção.</param>
 public sealed record SituacaoDeAdesao(
     Guid UsuarioId,
     string Nome,
@@ -143,7 +152,10 @@ public sealed record SituacaoDeAdesao(
     Guid? AdesaoId,
     int? Versao,
     DateTime? AceitoEm,
-    IReadOnlyList<PacoteEscolhido>? Cesta = null
+    IReadOnlyList<PacoteEscolhido>? Cesta = null,
+    bool ApenasGestao = false,
+    bool TemCondicao = false,
+    long DescontoEmCentavos = 0
 );
 
 /// <summary>Um pacote na cesta de um formando, como a Gestão o lê no painel de adesões (D40).</summary>
@@ -158,7 +170,7 @@ public sealed record PacoteEscolhido(Guid ItemDeCobrancaId, string Rotulo, strin
 public sealed record FiltroDeAdesoes(bool? Aderiu = null, string? Busca = null);
 
 /// <summary>O número que a comissão olha toda semana: quantos aderiram, de quantos.</summary>
-/// <param name="Membros">Membros ativos da turma.</param>
+/// <param name="Membros">Membros ativos da turma, menos quem da comissão vai apenas ajudar na gestão (Sprint 54).</param>
 /// <param name="Aderiram">Membros ativos com alguma adesão.</param>
 public sealed record ResumoDeAdesoes(int Membros, int Aderiram);
 

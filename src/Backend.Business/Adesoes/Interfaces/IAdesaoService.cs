@@ -70,4 +70,13 @@ public interface IAdesaoService
     /// <param name="formaturaId">Formatura da sessão.</param>
     /// <param name="usuarioId">Membro lembrado.</param>
     Task<Result> Lembrar(Guid formaturaId, Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>
+    /// A pessoa da gestão diz que vai apenas ajudar a organizar, sem aderir — ou volta atrás (Sprint 54, P1).
+    /// </summary>
+    /// <remarks>Só Presidente, Tesoureiro e Comissão, e só sem adesão: quem já contratou sai pelo cancelamento.</remarks>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="usuarioId">O próprio.</param>
+    /// <param name="apenasGestao">Marca ou desmarca.</param>
+    Task<Result> DefinirApenasGestao(Guid formaturaId, Guid usuarioId, bool apenasGestao, CancellationToken ct = default);
 }

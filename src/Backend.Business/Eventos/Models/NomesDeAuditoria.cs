@@ -208,6 +208,9 @@ public static class NomesDeAuditoria
     /// <summary>O formando aceitou um aditivo: a cesta cresceu, com parcelas novas (D38).</summary>
     public const string AditivoAceito = "adesao.aditivo_aceito";
 
+    /// <summary>A tesouraria concedeu, alterou ou revogou o desconto ou a isenção de uma pessoa (Sprint 54).</summary>
+    public const string CondicaoFinanceira = "cobranca.condicao_financeira";
+
     /// <summary>Todos os nomes auditáveis.</summary>
     public static readonly IReadOnlyList<string> Todos =
     [
@@ -247,6 +250,7 @@ public static class NomesDeAuditoria
         CancelamentoRecusado,
         LancamentoAvulso,
         AditivoAceito,
+        CondicaoFinanceira,
         TermoPublicado,
         DespesaCancelada,
         OutraReceitaCancelada,

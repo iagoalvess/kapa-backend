@@ -480,7 +480,13 @@ public sealed class CobrancaEndpointsTests(ApiFactory fabrica)
 
         await using var contexto = fabrica.ContextoDe(formaturaId);
         var plano = await new PlanoDeCobrancaRepository(contexto).ObterVigente(Ct);
-        var resultado = await new GeracaoDeParcelasService(new ParcelaRepository(contexto)).Gerar(vinculoId, plano!, plano!.Pacotes(), Ct);
+        var resultado = await new GeracaoDeParcelasService(new ParcelaRepository(contexto)).Gerar(
+            vinculoId,
+            plano!,
+            plano!.Pacotes(),
+            new Dictionary<Guid, long>(),
+            Ct
+        );
         await new UnitOfWork(contexto).SalvarAsync(Ct);
 
         return resultado.Valor;

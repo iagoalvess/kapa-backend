@@ -3,6 +3,7 @@ using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Models;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Cobrancas.Services;
 using Backend.Business.Common.Datas;
 using Backend.Business.Common.Texto;
 using Backend.Business.Festa.Services;
@@ -32,6 +33,8 @@ namespace Backend.Business.Adesoes.Services;
 /// <param name="perfilRepository">Membro e cadastro de quem adere.</param>
 /// <param name="formaturaRepository">Nome da turma, para os e-mails.</param>
 /// <param name="geracaoDeParcelas">Parcelas do plano no nome do formando.</param>
+/// <param name="descontosDaAdesao">O desconto da condição financeira em cada pacote (Sprint 54).</param>
+/// <param name="vinculoRepository">O vínculo, para "apenas gestão".</param>
 /// <param name="emails">E-mails da adesão.</param>
 /// <param name="convites">Os convites que os pacotes da cesta concedem, emitidos na adesão (Sprint 47, D24).</param>
 /// <param name="userManager">Contas: gera e confere o código de confirmação do aceite.</param>
@@ -44,6 +47,8 @@ public sealed class AdesaoService(
     IPerfilRepository perfilRepository,
     IFormaturaRepository formaturaRepository,
     IGeracaoDeParcelasService geracaoDeParcelas,
+    DescontosDaAdesao descontosDaAdesao,
+    IVinculoRepository vinculoRepository,
     EmailsDeAdesao emails,
     EmissaoDeConvites convites,
     UserManager<Usuario> userManager,
@@ -132,7 +137,8 @@ public sealed class AdesaoService(
         if (cesta.Falhou)
             return Result.Falha<AdesaoDetalhe>(cesta.Erros);
 
-        var snapshot = SnapshotDoPlano.De(plano, cesta.Valor, DataUtils.Hoje());
+        var descontos = await descontosDaAdesao.Da(membro.VinculoId, plano, cesta.Valor, contratada.Count > 0, ct);
+        var snapshot = SnapshotDoPlano.De(plano, cesta.Valor, DataUtils.Hoje(), descontos);
         var planoJson = snapshot.ParaJson();
         var hash = AdesaoDoFormando.CalcularHash(termo.Conteudo, planoJson);
 
@@ -185,15 +191,23 @@ public sealed class AdesaoService(
             {
                 await adesaoRepository.Adicionar(adesao, token);
 
+                if (await vinculoRepository.ObterAtivoParaEdicao(usuarioId, formaturaId, token) is { ApenasGestao: true } gestor)
+                    gestor.ApenasGestao = false;
+
                 if (contratada.Count == 0)
                     await planoRepository.AdicionarEscolhas(
                         cesta.Valor.Select(pacote =>
-                            EscolhaDaCesta.Nova(membro.VinculoId, pacote.Id, dados.Observacoes?.FirstOrDefault(o => o.PacoteId == pacote.Id)?.Texto)
+                            EscolhaDaCesta.Nova(
+                                membro.VinculoId,
+                                pacote.Id,
+                                dados.Observacoes?.FirstOrDefault(o => o.PacoteId == pacote.Id)?.Texto,
+                                descontos.GetValueOrDefault(pacote.Id)
+                            )
                         ),
                         token
                     );
 
-                var geradas = await geracaoDeParcelas.Gerar(membro.VinculoId, plano, cesta.Valor, token);
+                var geradas = await geracaoDeParcelas.Gerar(membro.VinculoId, plano, cesta.Valor, descontos, token);
                 if (geradas.Falhou)
                     return geradas;
 
@@ -342,6 +356,37 @@ public sealed class AdesaoService(
         await emails.Lembrete(membro.Email, formatura?.Nome ?? string.Empty, ct);
 
         await unitOfWork.SalvarAsync(ct);
+
+        return Result.Ok();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Marcar não apaga nada: sem adesão não há contratação, parcela nem convite de participante. Quem já aderiu tem
+    /// contrato, e a saída dele é a solicitação de cancelamento — a indicação não é atalho para apagar dívida.
+    /// </remarks>
+    public async Task<Result> DefinirApenasGestao(Guid formaturaId, Guid usuarioId, bool apenasGestao, CancellationToken ct = default)
+    {
+        if (await vinculoRepository.ObterAtivoParaEdicao(usuarioId, formaturaId, ct) is not { } vinculo)
+            return Result.Falha(ErrosDeFormatura.MembroNaoEncontrado);
+
+        if (!PapelNaFormatura.Gestao.Contains(vinculo.Papel))
+            return Result.Falha(
+                Erro.Proibido("adesao.apenas_gestao_sem_papel", "Só quem é da comissão pode participar apenas da gestão, sem aderir.")
+            );
+
+        if (apenasGestao && await adesaoRepository.JaAderiuAlgumaVez(vinculo.Id, ct))
+            return Result.Falha(
+                Erro.Conflito(
+                    "adesao.apenas_gestao_com_adesao",
+                    "Você já aderiu: para deixar de participar, peça o cancelamento dos pacotes à tesouraria."
+                )
+            );
+
+        vinculo.ApenasGestao = apenasGestao;
+        await unitOfWork.SalvarAsync(ct);
+
+        logger.LogInformation("Vínculo {VinculoId}: apenas gestão = {ApenasGestao}.", vinculo.Id, apenasGestao);
 
         return Result.Ok();
     }

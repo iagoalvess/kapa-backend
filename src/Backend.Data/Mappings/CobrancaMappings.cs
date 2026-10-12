@@ -125,6 +125,35 @@ public sealed class EscolhaDaCestaMapping : IEntityTypeConfiguration<EscolhaDaCe
     }
 }
 
+/// <summary>Mapeamento das condições financeiras (Sprint 54).</summary>
+/// <remarks>
+/// Uma por pessoa: os índices únicos parciais seguram uma por vínculo e uma por e-mail de convidado, e o <c>CHECK</c>
+/// exige exatamente um dos dois. Os benefícios vão em <c>jsonb</c>, como os elementos do salão: lidos e gravados inteiros.
+/// </remarks>
+public sealed class CondicaoFinanceiraMapping : IEntityTypeConfiguration<CondicaoFinanceira>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<CondicaoFinanceira> builder)
+    {
+        builder.ToTable(
+            "condicoes_financeiras",
+            tabela => tabela.HasCheckConstraint("ck_condicoes_financeiras_dono", "(vinculo_id is null) <> (email is null)")
+        );
+
+        builder.HasKey(c => c.Id);
+
+        builder.Property(c => c.Email).HasMaxLength(256);
+
+        builder.ComplexCollection(c => c.Beneficios, beneficio => beneficio.ToJson("beneficios"));
+
+        builder.HasIndex(c => c.VinculoId).IsUnique().HasFilter("vinculo_id is not null");
+        builder.HasIndex(c => new { c.FormaturaId, c.Email }).IsUnique().HasFilter("email is not null");
+
+        builder.HasOne<VinculoDeFormatura>().WithMany().HasForeignKey(c => c.VinculoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Formatura>().WithMany().HasForeignKey(c => c.FormaturaId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 /// <summary>
 /// Mapeamento dos pedidos dos opcionais.
 /// </summary>

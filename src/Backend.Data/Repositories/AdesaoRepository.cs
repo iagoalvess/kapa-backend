@@ -160,6 +160,7 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
                 Nome = perfil != null && perfil.NomeCompleto != null ? perfil.NomeCompleto : usuario.Nome,
                 Email = usuario.Email ?? string.Empty,
                 vinculo.Papel,
+                ApenasGestao = vinculo.ApenasGestao && vinculo.Papel != PapelNaFormatura.Formando,
                 AdesaoId = db
                     .Adesoes.Where(a => a.VinculoId == vinculo.Id)
                     .OrderByDescending(a => a.Versao)
@@ -174,7 +175,9 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
             };
 
         if (filtro.Aderiu is { } aderiu)
-            consulta = aderiu ? consulta.Where(linha => linha.AdesaoId != null) : consulta.Where(linha => linha.AdesaoId == null);
+            consulta = aderiu
+                ? consulta.Where(linha => linha.AdesaoId != null)
+                : consulta.Where(linha => linha.AdesaoId == null && !linha.ApenasGestao);
 
         if (!string.IsNullOrWhiteSpace(filtro.Busca))
         {
@@ -215,9 +218,17 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
                 item.Tipo,
                 item.Descricao,
                 escolha.Observacao,
+                escolha.DescontoEmCentavos,
             }
         ).ToListAsync(ct);
         var cestas = escolhas.ToLookup(escolha => escolha.VinculoId);
+        var comCondicao = (
+            await db
+                .CondicoesFinanceiras.AsNoTracking()
+                .Where(condicao => condicao.VinculoId != null && vinculos.Contains(condicao.VinculoId.Value))
+                .Select(condicao => condicao.VinculoId!.Value)
+                .ToListAsync(ct)
+        ).ToHashSet();
 
         return new PaginaDe<SituacaoDeAdesao>(
             [
@@ -238,7 +249,10 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
                                     : $"{escolha.Grupo} — {RotuloDoItem.De(escolha.Tipo, escolha.Descricao)}",
                                 escolha.Observacao
                             )),
-                    ]
+                    ],
+                    linha.ApenasGestao,
+                    comCondicao.Contains(linha.VinculoId),
+                    cestas[linha.VinculoId].Sum(escolha => escolha.DescontoEmCentavos)
                 )),
             ],
             paginacao.Pagina,
@@ -251,8 +265,9 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
     public async Task<(int Membros, int Aderiram)> Contar(Guid formaturaId, CancellationToken ct = default)
     {
         var membros = db.Vinculos.AsNoTracking().Where(v => v.FormaturaId == formaturaId && v.Ativo);
+        var participantes = membros.Where(v => !v.ApenasGestao || v.Papel == PapelNaFormatura.Formando || db.Adesoes.Any(a => a.VinculoId == v.Id));
 
-        return (await membros.CountAsync(ct), await membros.CountAsync(v => db.Adesoes.Any(a => a.VinculoId == v.Id), ct));
+        return (await participantes.CountAsync(ct), await membros.CountAsync(v => db.Adesoes.Any(a => a.VinculoId == v.Id), ct));
     }
 
     /// <summary>A adesão mais recente do recorte, junto do texto da versão que ela aceitou.</summary>

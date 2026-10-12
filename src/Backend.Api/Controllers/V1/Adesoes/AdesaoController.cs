@@ -205,6 +205,21 @@ public sealed class AdesaoController(ITermoService termoService, IAdesaoService 
         return Arquivo(resultado.Map(pdf => new ArquivoParaDownload(new MemoryStream(pdf.Conteudo), pdf.NomeDoArquivo, "application/pdf")));
     }
 
+    /// <summary>A pessoa da comissão diz que vai apenas ajudar na gestão, sem aderir — ou volta atrás (Sprint 54, P1).</summary>
+    /// <remarks>
+    /// Formando, 403 <c>adesao.apenas_gestao_sem_papel</c>; quem já aderiu, 409 <c>adesao.apenas_gestao_com_adesao</c> — a
+    /// saída de quem contratou é o cancelamento.
+    /// </remarks>
+    /// <param name="requisicao">Marca ou desmarca.</param>
+    [HttpPut("apenas-gestao")]
+    [Authorize(Policy = Politicas.Gestao)]
+    [Authorize(Policy = Politicas.ExigeFormaturaAtiva)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DefinirApenasGestao([FromBody] ApenasGestaoRequestDTO requisicao, CancellationToken ct) =>
+        Responder(await adesaoService.DefinirApenasGestao(FormaturaId, usuarioAtual.Id, requisicao.ApenasGestao, ct));
+
     /// <summary>Lembra por e-mail um membro que ainda não aderiu à versão vigente.</summary>
     /// <param name="usuarioId">Membro lembrado.</param>
     [HttpPost("{usuarioId:guid}/lembrete")]

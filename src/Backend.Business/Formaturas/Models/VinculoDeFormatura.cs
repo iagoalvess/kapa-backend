@@ -65,6 +65,15 @@ public class VinculoDeFormatura : Entity
     public void VerMural(DateTime agoraUtc) => MuralVistoEm = agoraUtc;
 
     /// <summary>
+    /// Se a pessoa da gestão disse que vai apenas ajudar a organizar, sem contratar participação (Sprint 54, P1).
+    /// </summary>
+    /// <remarks>
+    /// Separa "não vai aderir" de "ainda não aderiu": tira a pessoa da conta de quem falta aderir, sem dispensar a vaga
+    /// do plano. Só vale com papel de Gestão — o Formando não contorna a adesão obrigatória se declarando gestor.
+    /// </remarks>
+    public bool ApenasGestao { get; set; }
+
+    /// <summary>
     /// Desliga da turma: inativa o vínculo e grava o porquê.
     /// </summary>
     /// <remarks>

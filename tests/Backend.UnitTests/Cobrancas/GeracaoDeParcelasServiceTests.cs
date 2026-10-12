@@ -12,6 +12,8 @@ public sealed class GeracaoDeParcelasServiceTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    private static readonly IReadOnlyDictionary<Guid, long> SemDesconto = new Dictionary<Guid, long>();
+
     private static readonly Guid VinculoId = Guid.CreateVersion7();
 
     private readonly IParcelaRepository _parcelas = Substitute.For<IParcelaRepository>();
@@ -42,7 +44,7 @@ public sealed class GeracaoDeParcelasServiceTests
         _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([]);
 
         // Act
-        var resultado = await Servico.Gerar(VinculoId, plano, plano.Pacotes(), Ct);
+        var resultado = await Servico.Gerar(VinculoId, plano, plano.Pacotes(), SemDesconto, Ct);
 
         // Assert
         resultado.Valor.ShouldBe(25);
@@ -65,7 +67,7 @@ public sealed class GeracaoDeParcelasServiceTests
         _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([.. Enumerable.Range(1, 24)]);
 
         // Act
-        var resultado = await Servico.Gerar(VinculoId, plano, plano.Pacotes(), Ct);
+        var resultado = await Servico.Gerar(VinculoId, plano, plano.Pacotes(), SemDesconto, Ct);
 
         // Assert
         resultado.Valor.ShouldBe(0);
@@ -80,7 +82,7 @@ public sealed class GeracaoDeParcelasServiceTests
         _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([.. Enumerable.Range(1, 20)]);
 
         // Act
-        await Servico.Gerar(VinculoId, plano, plano.Pacotes(), Ct);
+        await Servico.Gerar(VinculoId, plano, plano.Pacotes(), SemDesconto, Ct);
 
         // Assert
         await _parcelas
@@ -168,7 +170,7 @@ public sealed class GeracaoDeParcelasServiceTests
         _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([]);
 
         // Act
-        var resultado = await Servico.Gerar(VinculoId, plano, plano.Pacotes(), Ct);
+        var resultado = await Servico.Gerar(VinculoId, plano, plano.Pacotes(), SemDesconto, Ct);
 
         // Assert — só as 24 da mensalidade.
         resultado.Valor.ShouldBe(24);
@@ -186,7 +188,7 @@ public sealed class GeracaoDeParcelasServiceTests
         _parcelas.ListarNumerosGerados(VinculoId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns([]);
 
         // Act
-        var resultado = await Servico.Gerar(VinculoId, plano, [foto], Ct);
+        var resultado = await Servico.Gerar(VinculoId, plano, [foto], SemDesconto, Ct);
 
         // Assert
         resultado.Valor.ShouldBe(4);
@@ -197,7 +199,7 @@ public sealed class GeracaoDeParcelasServiceTests
     public async Task Plano_em_montagem_nao_gera_parcela()
     {
         // Act
-        var resultado = await Servico.Gerar(VinculoId, Plano(false, Mensalidade), [], Ct);
+        var resultado = await Servico.Gerar(VinculoId, Plano(false, Mensalidade), [], SemDesconto, Ct);
 
         // Assert
         resultado.PrimeiroErro.Codigo.ShouldBe("cobranca.sem_plano_vigente");

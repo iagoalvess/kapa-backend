@@ -25,15 +25,26 @@ public class EscolhaDaCesta : EntidadeDaFormatura
     /// <remarks>Fora do snapshot e do hash: é detalhe de entrega, não preço, e corrigi-lo não muda o contrato.</remarks>
     public string? Observacao { get; private set; }
 
+    /// <summary>
+    /// Quanto a condição financeira da pessoa descontou deste pacote no aceite, em centavos (Sprint 54).
+    /// </summary>
+    /// <remarks>
+    /// O contratado é a soma das parcelas, já com o desconto; o preço cheio é ela mais este valor. É o que o aditivo
+    /// lê para não cobrar de volta o benefício na troca de faixa. Num grupo de faixas, acumula o das faixas anteriores.
+    /// </remarks>
+    public long DescontoEmCentavos { get; private set; }
+
     /// <summary>A escolha de um pacote por um vínculo.</summary>
     /// <param name="vinculoId">Quem escolheu.</param>
     /// <param name="itemDeCobrancaId">Pacote.</param>
     /// <param name="observacao">Detalhe livre, se houver.</param>
-    public static EscolhaDaCesta Nova(Guid vinculoId, Guid itemDeCobrancaId, string? observacao = null) =>
+    /// <param name="descontoEmCentavos">O desconto da condição financeira aplicado no aceite.</param>
+    public static EscolhaDaCesta Nova(Guid vinculoId, Guid itemDeCobrancaId, string? observacao = null, long descontoEmCentavos = 0) =>
         new()
         {
             VinculoId = vinculoId,
             ItemDeCobrancaId = itemDeCobrancaId,
             Observacao = string.IsNullOrWhiteSpace(observacao) ? null : observacao.Trim(),
+            DescontoEmCentavos = descontoEmCentavos,
         };
 }

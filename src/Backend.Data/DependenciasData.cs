@@ -163,6 +163,7 @@ public static class DependenciasData
         services.AddScoped<IPerfilRepository, PerfilRepository>();
         services.AddScoped<IPlanoDeCobrancaRepository, PlanoDeCobrancaRepository>();
         services.AddScoped<IParcelaRepository, ParcelaRepository>();
+        services.AddScoped<ICondicaoFinanceiraRepository, CondicaoFinanceiraRepository>();
         services.AddScoped<IPedidoRepository, PedidoRepository>();
         services.AddScoped<ISolicitacaoDeCancelamentoRepository, SolicitacaoDeCancelamentoRepository>();
         services.AddScoped<IConviteDoEventoRepository, ConviteDoEventoRepository>();

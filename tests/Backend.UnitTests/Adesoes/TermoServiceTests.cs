@@ -5,9 +5,11 @@ using Backend.Business.Adesoes.Services;
 using Backend.Business.Adesoes.Validators;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Cobrancas.Services;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
 using Backend.Business.Formandos.Interfaces;
+using Backend.Business.Formaturas.Interfaces;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -33,6 +35,9 @@ public sealed class TermoServiceTests
             _adesoes,
             _planos,
             Substitute.For<IPerfilRepository>(),
+            Substitute.For<ICondicaoFinanceiraRepository>(),
+            new DescontosDaAdesao(Substitute.For<ICondicaoFinanceiraRepository>(), _planos),
+            Substitute.For<IVinculoRepository>(),
             new PublicarTermoValidator(),
             _eventos,
             _formatura,

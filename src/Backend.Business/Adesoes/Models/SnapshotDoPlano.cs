@@ -38,6 +38,11 @@ namespace Backend.Business.Adesoes.Models;
 /// Os pacotes escolhidos — o quadro de escolhas do termo (Sprint 47, D3). Por último e com padrão, como o campo acima:
 /// nos snapshots anteriores à cesta ele não existe, e a lista vazia é exatamente o que aquelas pessoas contrataram.
 /// </param>
+/// <param name="Descontos">
+/// O desconto da condição financeira em cada pacote alcançado (Sprint 54). Por último e com padrão, como os dois acima;
+/// nulo quando não houve desconto. Os <see cref="Itens"/> já vêm pelo líquido, e o pacote isento sai deles: a
+/// <see cref="Cesta"/> mostra o preço cheio, e o que a pessoa deve é a grade.
+/// </param>
 public sealed record SnapshotDoPlano(
     int VersaoDoEsquema,
     Guid PlanoId,
@@ -50,7 +55,8 @@ public sealed record SnapshotDoPlano(
     IReadOnlyList<ParcelaSimulada> Parcelas,
     long TotalEmCentavos,
     int DiasMinimosParaDesconto = 0,
-    IReadOnlyList<PacoteDaCesta>? Cesta = null
+    IReadOnlyList<PacoteDaCesta>? Cesta = null,
+    IReadOnlyList<DescontoDoPacote>? Descontos = null
 )
 {
     /// <summary>Versão atual da forma do JSON.</summary>
@@ -79,10 +85,18 @@ public sealed record SnapshotDoPlano(
     /// <param name="plano">Plano em vigor, com os itens.</param>
     /// <param name="cesta">Pacotes escolhidos, já conferidos.</param>
     /// <param name="hoje">Dia da adesão.</param>
-    public static SnapshotDoPlano De(PlanoDeCobranca plano, IReadOnlyCollection<ItemDeCobranca> cesta, DateOnly hoje)
+    /// <param name="descontos">Desconto da condição financeira por pacote (Sprint 54); nulo é sem desconto.</param>
+    public static SnapshotDoPlano De(
+        PlanoDeCobranca plano,
+        IReadOnlyCollection<ItemDeCobranca> cesta,
+        DateOnly hoje,
+        IReadOnlyDictionary<Guid, long>? descontos = null
+    )
     {
-        var itens = plano.ItensDoFormando(cesta).Select(item => item.ParaDados()).ToList();
+        descontos ??= new Dictionary<Guid, long>();
+        var itens = plano.ItensLiquidosDoFormando(cesta, descontos).Select(par => par.Dados).ToList();
         var parcelas = GradeDeParcelas.DoFormando(itens, hoje);
+        var cestaCongelada = plano.ItensDoFormando(cesta).Where(item => item.Pacote).ToList();
 
         return new SnapshotDoPlano(
             EsquemaAtual,
@@ -96,7 +110,10 @@ public sealed record SnapshotDoPlano(
             parcelas,
             parcelas.Sum(parcela => parcela.ValorEmCentavos),
             plano.DiasMinimosParaDesconto,
-            [.. plano.ItensDoFormando(cesta).Where(item => item.Pacote).Select(PacoteDaCesta.De)]
+            [.. cestaCongelada.Select(PacoteDaCesta.De)],
+            descontos.Count == 0
+                ? null
+                : [.. cestaCongelada.Where(item => descontos.ContainsKey(item.Id)).Select(item => new DescontoDoPacote(item.Id, descontos[item.Id]))]
         );
     }
 
@@ -146,6 +163,11 @@ public sealed record SnapshotDoPlano(
         return $"{atraso} Desconto de {FormatosBrasileiros.Percentual(PercentualDeDescontoPorAntecipacao)} para pagamento {antecedencia}.";
     }
 }
+
+/// <summary>O desconto da condição financeira num pacote, como o termo o congela (Sprint 54).</summary>
+/// <param name="ItemId">Pacote.</param>
+/// <param name="DescontoEmCentavos">Quanto saiu do preço cheio; igual ao preço é isenção.</param>
+public sealed record DescontoDoPacote(Guid ItemId, long DescontoEmCentavos);
 
 /// <summary>Um pacote como o termo o congela: o nome, o preço e o que ele concede (Sprint 47).</summary>
 /// <param name="ItemId">Pacote de origem — é o que a re-adesão relê para manter a mesma cesta.</param>

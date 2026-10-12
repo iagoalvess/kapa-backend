@@ -41,7 +41,11 @@ public sealed class EmailsDeAdesao(IEmailService emailService, IOptions<Aplicaca
 
         var mensagem =
             $"Você aderiu à versão {versao} do termo de <strong>{ModeloDeEmail.Texto(formatura)}</strong>. "
-            + $"Total de {FormatosBrasileiros.Reais(plano.TotalEmCentavos)} em {plano.Parcelas.Count} parcelas.{detalhe} "
+            + (
+                plano.Parcelas.Count == 0
+                    ? "A sua participação é isenta: não há parcela a pagar. "
+                    : $"Total de {FormatosBrasileiros.Reais(plano.TotalEmCentavos)} em {plano.Parcelas.Count} parcelas.{detalhe} "
+            )
             + ModeloDeEmail.Texto(plano.RegrasDeAtrasoPorExtenso());
 
         return Enfileirar(email, $"Adesão registrada — {formatura}", "Adesão registrada", mensagem, "Ver meu termo", Mascote.Canudo, ct);

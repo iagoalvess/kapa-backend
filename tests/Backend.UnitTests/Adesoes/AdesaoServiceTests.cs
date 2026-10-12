@@ -6,6 +6,7 @@ using Backend.Business.Adesoes.Validators;
 using Backend.Business.Agenda.Interfaces;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Cobrancas.Services;
 using Backend.Business.Common;
 using Backend.Business.Common.Datas;
 using Backend.Business.Emails.Interfaces;
@@ -44,6 +45,8 @@ public sealed class AdesaoServiceTests
     private readonly IAdesaoRepository _adesoes = Substitute.For<IAdesaoRepository>();
     private readonly IPlanoDeCobrancaRepository _planos = Substitute.For<IPlanoDeCobrancaRepository>();
     private readonly IPerfilRepository _perfis = Substitute.For<IPerfilRepository>();
+    private readonly ICondicaoFinanceiraRepository _condicoes = Substitute.For<ICondicaoFinanceiraRepository>();
+    private readonly IVinculoRepository _vinculos = Substitute.For<IVinculoRepository>();
     private readonly IFormaturaRepository _formaturas = Substitute.For<IFormaturaRepository>();
     private readonly IGeracaoDeParcelasService _geracao = Substitute.For<IGeracaoDeParcelasService>();
     private readonly IEmailService _email = Substitute.For<IEmailService>();
@@ -75,7 +78,13 @@ public sealed class AdesaoServiceTests
         _perfis.ObterTitular(FormaturaId, UsuarioId, Arg.Any<CancellationToken>()).Returns(membro);
         _perfis.ObterDoVinculo(VinculoId, Arg.Any<CancellationToken>()).Returns(Perfil());
         _geracao
-            .Gerar(VinculoId, Arg.Any<PlanoDeCobranca>(), Arg.Any<IReadOnlyCollection<ItemDeCobranca>>(), Arg.Any<CancellationToken>())
+            .Gerar(
+                VinculoId,
+                Arg.Any<PlanoDeCobranca>(),
+                Arg.Any<IReadOnlyCollection<ItemDeCobranca>>(),
+                Arg.Any<IReadOnlyDictionary<Guid, long>>(),
+                Arg.Any<CancellationToken>()
+            )
             .Returns(Result.Ok(24));
         _planos.ListarCesta(VinculoId, Arg.Any<CancellationToken>()).Returns([]);
         _formaturas
@@ -103,6 +112,8 @@ public sealed class AdesaoServiceTests
             _perfis,
             _formaturas,
             _geracao,
+            new DescontosDaAdesao(_condicoes, _planos),
+            _vinculos,
             new EmailsDeAdesao(_email, Options.Create(new AplicacaoSettings())),
             new EmissaoDeConvites(
                 _convites,
@@ -184,7 +195,13 @@ public sealed class AdesaoServiceTests
             );
         await _geracao
             .Received(1)
-            .Gerar(VinculoId, _plano, Arg.Is<IReadOnlyCollection<ItemDeCobranca>>(cesta => cesta.Single() == _plano.Itens[0]), Ct);
+            .Gerar(
+                VinculoId,
+                _plano,
+                Arg.Is<IReadOnlyCollection<ItemDeCobranca>>(cesta => cesta.Single() == _plano.Itens[0]),
+                Arg.Any<IReadOnlyDictionary<Guid, long>>(),
+                Ct
+            );
         await _planos
             .Received(1)
             .AdicionarEscolhas(Arg.Is<IEnumerable<EscolhaDaCesta>>(escolhas => escolhas.Single().ItemDeCobrancaId == _plano.Itens[0].Id), Ct);
@@ -211,7 +228,15 @@ public sealed class AdesaoServiceTests
         var plano = resultado.Valor.Plano;
         plano.TotalEmCentavos.ShouldBe(420_000);
         plano.Cesta.ShouldNotBeNull().ShouldHaveSingleItem().ConvitesDaFesta.ShouldBe(15);
-        await _geracao.Received(1).Gerar(VinculoId, _plano, Arg.Is<IReadOnlyCollection<ItemDeCobranca>>(cesta => cesta.Single() == festa15), Ct);
+        await _geracao
+            .Received(1)
+            .Gerar(
+                VinculoId,
+                _plano,
+                Arg.Is<IReadOnlyCollection<ItemDeCobranca>>(cesta => cesta.Single() == festa15),
+                Arg.Any<IReadOnlyDictionary<Guid, long>>(),
+                Ct
+            );
         await _convites.Received(1).EmitirDosPacotes(FormaturaId, VinculoId, Arg.Any<string>(), Ct);
     }
 
@@ -365,7 +390,13 @@ public sealed class AdesaoServiceTests
     public async Task Geracao_recusada_nao_salva_a_adesao()
     {
         _geracao
-            .Gerar(VinculoId, Arg.Any<PlanoDeCobranca>(), Arg.Any<IReadOnlyCollection<ItemDeCobranca>>(), Arg.Any<CancellationToken>())
+            .Gerar(
+                VinculoId,
+                Arg.Any<PlanoDeCobranca>(),
+                Arg.Any<IReadOnlyCollection<ItemDeCobranca>>(),
+                Arg.Any<IReadOnlyDictionary<Guid, long>>(),
+                Arg.Any<CancellationToken>()
+            )
             .Returns(Result.Falha<int>(Erro.Conflito("cobranca.sem_plano_vigente", "Sem plano.")));
 
         (await Aderir()).Falhou.ShouldBeTrue();
@@ -445,7 +476,7 @@ public sealed class AdesaoServiceTests
     private async Task NadaFoiGravado()
     {
         await _adesoes.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
-        await _geracao.DidNotReceiveWithAnyArgs().Gerar(default, default!, default!, Ct);
+        await _geracao.DidNotReceiveWithAnyArgs().Gerar(default, default!, default!, default!, Ct);
         await _unitOfWork.DidNotReceiveWithAnyArgs().SalvarAsync(Ct);
     }
 }

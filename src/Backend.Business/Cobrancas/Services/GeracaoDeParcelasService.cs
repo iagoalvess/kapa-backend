@@ -21,6 +21,7 @@ public sealed class GeracaoDeParcelasService(IParcelaRepository parcelaRepositor
         Guid vinculoId,
         PlanoDeCobranca plano,
         IReadOnlyCollection<ItemDeCobranca> cesta,
+        IReadOnlyDictionary<Guid, long> descontos,
         CancellationToken ct = default
     )
     {
@@ -30,13 +31,13 @@ public sealed class GeracaoDeParcelasService(IParcelaRepository parcelaRepositor
         var hoje = DataUtils.Hoje();
         var novas = new List<Parcela>();
 
-        foreach (var item in plano.ItensDoFormando(cesta))
+        foreach (var (item, dados) in plano.ItensLiquidosDoFormando(cesta, descontos))
         {
             var geradas = await parcelaRepository.ListarNumerosGerados(vinculoId, item.Id, ct);
 
             novas.AddRange(
                 GradeDeParcelas
-                    .DeQuemAdereEm(item.ParaDados(), hoje)
+                    .DeQuemAdereEm(dados, hoje)
                     .Where(prevista => !geradas.Contains(prevista.Numero))
                     .Select(prevista => Parcela.Nova(vinculoId, item.Id, prevista))
             );

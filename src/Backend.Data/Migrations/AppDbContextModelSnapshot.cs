@@ -1028,6 +1028,75 @@ namespace Backend.Data.Migrations
                     b.ToTable("tentativas_google", (string)null);
                 });
 
+            modelBuilder.Entity("Backend.Business.Cobrancas.Models.CondicaoFinanceira", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid>("ConcedidaPorUsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("concedida_por_usuario_id");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("email");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<Guid?>("VinculoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vinculo_id");
+
+                    b.ComplexCollection(typeof(List<Dictionary<string, object>>), "Beneficios", "Backend.Business.Cobrancas.Models.CondicaoFinanceira.Beneficios#BeneficioDaCondicao", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid>("ItemDeCobrancaId");
+
+                            b1.Property<int?>("Percentual");
+
+                            b1.Property<long?>("ValorEmCentavos");
+
+                            b1
+                                .ToJson("beneficios")
+                                .HasColumnType("jsonb");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_condicoes_financeiras");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_condicoes_financeiras_formatura_id");
+
+                    b.HasIndex("VinculoId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_condicoes_financeiras_vinculo_id")
+                        .HasFilter("vinculo_id is not null");
+
+                    b.HasIndex("FormaturaId", "Email")
+                        .IsUnique()
+                        .HasDatabaseName("ix_condicoes_financeiras_formatura_id_email")
+                        .HasFilter("email is not null");
+
+                    b.ToTable("condicoes_financeiras", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_condicoes_financeiras_dono", "(vinculo_id is null) <> (email is null)");
+                        });
+                });
+
             modelBuilder.Entity("Backend.Business.Cobrancas.Models.EscolhaDaCesta", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1042,6 +1111,10 @@ namespace Backend.Data.Migrations
                     b.Property<DateTime>("CriadoEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("criado_em");
+
+                    b.Property<long>("DescontoEmCentavos")
+                        .HasColumnType("bigint")
+                        .HasColumnName("desconto_em_centavos");
 
                     b.Property<Guid>("FormaturaId")
                         .HasColumnType("uuid")
@@ -3074,6 +3147,10 @@ namespace Backend.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<bool>("ApenasGestao")
+                        .HasColumnType("boolean")
+                        .HasColumnName("apenas_gestao");
+
                     b.Property<bool>("Ativo")
                         .HasColumnType("boolean")
                         .HasColumnName("ativo");
@@ -4965,6 +5042,22 @@ namespace Backend.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_refresh_tokens_asp_net_users_usuario_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Cobrancas.Models.CondicaoFinanceira", b =>
+                {
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_condicoes_financeiras_formaturas_formatura_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.VinculoDeFormatura", null)
+                        .WithMany()
+                        .HasForeignKey("VinculoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_condicoes_financeiras_vinculos_vinculo_id");
                 });
 
             modelBuilder.Entity("Backend.Business.Cobrancas.Models.EscolhaDaCesta", b =>

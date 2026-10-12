@@ -3,11 +3,14 @@ using Backend.Business.Adesoes.Interfaces;
 using Backend.Business.Adesoes.Models;
 using Backend.Business.Cobrancas.Interfaces;
 using Backend.Business.Cobrancas.Models;
+using Backend.Business.Cobrancas.Services;
 using Backend.Business.Common.Datas;
 using Backend.Business.Eventos.Interfaces;
 using Backend.Business.Eventos.Models;
 using Backend.Business.Eventos.Services;
 using Backend.Business.Formandos.Interfaces;
+using Backend.Business.Formaturas.Interfaces;
+using Backend.Business.Formaturas.Models;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
@@ -23,6 +26,9 @@ namespace Backend.Business.Adesoes.Services;
 /// <param name="adesaoRepository">Termos e adesões.</param>
 /// <param name="planoRepository">Plano vigente e a cesta já contratada.</param>
 /// <param name="perfilRepository">O vínculo de quem lê, para a cesta que ele já contratou.</param>
+/// <param name="condicoes">A condição financeira de quem lê (Sprint 54).</param>
+/// <param name="descontosDaAdesao">O desconto de cada pacote, a mesma conta do aceite.</param>
+/// <param name="vinculoRepository">Se a pessoa disse que vai apenas ajudar na gestão.</param>
 /// <param name="validator">Forma do texto.</param>
 /// <param name="eventos">Trilha de auditoria.</param>
 /// <param name="formaturaAtual">Turma da sessão — o termo é novo, e o contexto só carimba a dele no commit.</param>
@@ -32,6 +38,9 @@ public sealed class TermoService(
     IAdesaoRepository adesaoRepository,
     IPlanoDeCobrancaRepository planoRepository,
     IPerfilRepository perfilRepository,
+    ICondicaoFinanceiraRepository condicoes,
+    DescontosDaAdesao descontosDaAdesao,
+    IVinculoRepository vinculoRepository,
     IValidator<PublicarTermo> validator,
     IEventoRepository eventos,
     IFormaturaAtual formaturaAtual,
@@ -142,16 +151,31 @@ public sealed class TermoService(
             return Result.Falha<ConteudoParaAdesao>(cesta.Erros);
 
         var hoje = DataUtils.Hoje();
-        var plano = SnapshotDoPlano.De(vigente, cesta.Valor, hoje);
+        var condicao = membro is null ? null : await condicoes.ObterDoVinculo(membro.VinculoId, ct);
+        var descontos = membro is null
+            ? new Dictionary<Guid, long>()
+            : await descontosDaAdesao.Da(membro.VinculoId, vigente, cesta.Valor, contratada.Count > 0, ct);
+        var plano = SnapshotDoPlano.De(vigente, cesta.Valor, hoje, descontos);
         var hash = termo is null ? null : AdesaoDoFormando.CalcularHash(termo.Conteudo, plano.ParaJson());
+        var vinculo = membro is null ? null : await vinculoRepository.ObterParaEdicao(usuarioId, formaturaId, ct);
 
-        return new ConteudoParaAdesao(termo, plano, hash, resumo, [.. vigente.Pacotes().Select(pacote => NoCatalogo(pacote, hoje))], contratada);
+        return new ConteudoParaAdesao(
+            termo,
+            plano,
+            hash,
+            resumo,
+            [.. vigente.Pacotes().Select(pacote => NoCatalogo(pacote, hoje, condicao?.DescontoDe(pacote, vigente.Itens) ?? 0))],
+            contratada,
+            condicao is not null,
+            vinculo is { ApenasGestao: true } && PapelNaFormatura.Gestao.Contains(vinculo.Papel)
+        );
     }
 
     /// <summary>O pacote como o formando o vê, com as parcelas que restam a quem adere hoje.</summary>
     /// <param name="pacote">Pacote do catálogo.</param>
     /// <param name="hoje">Dia de referência.</param>
-    private static PacoteDoCatalogo NoCatalogo(ItemDeCobranca pacote, DateOnly hoje) =>
+    /// <param name="desconto">O que a condição financeira da pessoa desconta dele.</param>
+    private static PacoteDoCatalogo NoCatalogo(ItemDeCobranca pacote, DateOnly hoje, long desconto) =>
         new(
             pacote.Id,
             pacote.Grupo,
@@ -160,6 +184,7 @@ public sealed class TermoService(
             pacote.ValorEmCentavos,
             GradeDeParcelas.DeQuemAdereEm(pacote.ParaDados(), hoje).Count,
             pacote.ConvitesDaFesta,
-            pacote.ConvitesDaColacao
+            pacote.ConvitesDaColacao,
+            desconto
         );
 }

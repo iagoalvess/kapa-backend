@@ -53,6 +53,7 @@ public sealed class RetencaoDeFormaturasRepository(AppDbContext db) : IRetencaoD
         typeof(CompraDeConvite),
         typeof(NotificacaoEnviada),
         typeof(InformeDePagamento),
+        typeof(CondicaoFinanceira),
         typeof(EscolhaDaCesta),
         typeof(Parcela),
         typeof(Pedido),

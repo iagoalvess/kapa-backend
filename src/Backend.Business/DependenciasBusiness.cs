@@ -259,6 +259,8 @@ public static class DependenciasBusiness
         services.AddScoped<AberturaDeSolicitacao>();
         services.AddScoped<ISolicitacaoDeCancelamentoService, SolicitacaoDeCancelamentoService>();
         services.AddScoped<ILancamentoAvulsoService, LancamentoAvulsoService>();
+        services.AddScoped<ICondicaoFinanceiraService, CondicaoFinanceiraService>();
+        services.AddScoped<DescontosDaAdesao>();
         services.AddScoped<EmissaoDeConvites>();
         services.AddScoped<EmailsDoConvite>();
         services.AddScoped<IConviteDoEventoService, ConviteDoEventoService>();

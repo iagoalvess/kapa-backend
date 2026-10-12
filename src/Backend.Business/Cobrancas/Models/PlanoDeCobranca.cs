@@ -72,6 +72,27 @@ public class PlanoDeCobranca : EntidadeDaFormatura
         [.. Itens.Where(cesta.Contains).OrderBy(i => i.CriadoEm).ThenBy(i => i.Id)];
 
     /// <summary>
+    /// Os itens do formando pelo que ele vai dever: o preço menos o desconto da condição financeira (Sprint 54).
+    /// </summary>
+    /// <remarks>
+    /// A única conta do líquido — o snapshot que a pessoa lê e a geração das parcelas saem daqui. O pacote isento não
+    /// entra: isenção é contratação sem dívida, e não uma parcela de zero que ficaria "em aberto" para sempre.
+    /// </remarks>
+    /// <param name="cesta">Pacotes escolhidos, já conferidos.</param>
+    /// <param name="descontos">Desconto por pacote, em centavos.</param>
+    public IReadOnlyList<(ItemDeCobranca Item, DadosDoItem Dados)> ItensLiquidosDoFormando(
+        IReadOnlyCollection<ItemDeCobranca> cesta,
+        IReadOnlyDictionary<Guid, long> descontos
+    ) =>
+        [
+            .. ItensDoFormando(cesta)
+                .Select(item =>
+                    (Item: item, Dados: item.ParaDados() with { ValorEmCentavos = item.ValorEmCentavos - descontos.GetValueOrDefault(item.Id) })
+                )
+                .Where(par => !descontos.ContainsKey(par.Item.Id) || par.Dados.ValorEmCentavos > 0),
+        ];
+
+    /// <summary>
     /// Confere a escolha do formando contra o catálogo: pacotes que existem, sem repetição, uma faixa por grupo (D32).
     /// </summary>
     /// <remarks>

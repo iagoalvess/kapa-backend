@@ -75,6 +75,10 @@ public sealed record ItemAceitoDTO(
 /// </param>
 /// <param name="TotalEmCentavos">Soma das parcelas.</param>
 /// <param name="Cesta">O quadro de escolhas: os pacotes contratados e o que concedem. Nulo nas adesões anteriores à cesta.</param>
+/// <param name="Descontos">
+/// O desconto da condição financeira em cada pacote alcançado (Sprint 54); nulo sem desconto. Os itens e a grade já vêm
+/// pelo líquido, e o pacote isento não tem item nem parcela.
+/// </param>
 public sealed record PlanoAceitoDTO(
     int PercentualDeMulta,
     int PercentualDeJurosAoMes,
@@ -84,8 +88,14 @@ public sealed record PlanoAceitoDTO(
     IReadOnlyList<ItemAceitoDTO> Itens,
     IReadOnlyList<ParcelaSimuladaDTO> Parcelas,
     long TotalEmCentavos,
-    IReadOnlyList<PacoteDaCestaDTO>? Cesta
+    IReadOnlyList<PacoteDaCestaDTO>? Cesta,
+    IReadOnlyList<DescontoDoPacoteDTO>? Descontos
 );
+
+/// <summary>O desconto de um pacote no plano aceito (Sprint 54).</summary>
+/// <param name="ItemId">Pacote.</param>
+/// <param name="DescontoEmCentavos">Quanto saiu do preço; igual ao preço é isenção.</param>
+public sealed record DescontoDoPacoteDTO(Guid ItemId, long DescontoEmCentavos);
 
 /// <summary>Um pacote do quadro de escolhas, como foi congelado no aceite (Sprint 47).</summary>
 /// <param name="ItemId">Pacote de origem.</param>
@@ -113,6 +123,7 @@ public sealed record PacoteDaCestaDTO(
 /// <param name="ValorEmCentavos">Preço total.</param>
 /// <param name="NumeroDeParcelas">Em quantas parcelas quem adere hoje paga.</param>
 /// <param name="ConvitesDaFesta">Convites da festa que o pacote concede.</param>
+/// <param name="DescontoEmCentavos">Quanto a condição financeira da pessoa desconta, se escolher este pacote (Sprint 54).</param>
 /// <param name="ConvitesDaColacao">Convites da colação que o pacote concede.</param>
 public sealed record PacoteDoCatalogoDTO(
     Guid Id,
@@ -122,7 +133,8 @@ public sealed record PacoteDoCatalogoDTO(
     long ValorEmCentavos,
     int NumeroDeParcelas,
     int ConvitesDaFesta,
-    int ConvitesDaColacao
+    int ConvitesDaColacao,
+    long DescontoEmCentavos
 );
 
 /// <summary>O que a tela de adesão mostra antes do aceite. Parte ausente é o que falta à turma.</summary>
@@ -135,13 +147,17 @@ public sealed record PacoteDoCatalogoDTO(
 /// </param>
 /// <param name="Catalogo">Os pacotes à venda, de onde o formando monta a cesta.</param>
 /// <param name="CestaContratada">Os pacotes que o formando já contratou: a re-adesão mantém a mesma cesta. Vazia para quem nunca aderiu.</param>
+/// <param name="TemCondicao">A tesouraria concedeu um desconto ou uma isenção à pessoa (Sprint 54).</param>
+/// <param name="ApenasGestao">Da comissão, disse que vai apenas ajudar na gestão, sem aderir (Sprint 54).</param>
 public sealed record ConteudoParaAdesaoDTO(
     VersaoDoTermoDTO? Termo,
     PlanoAceitoDTO? Plano,
     string? HashDoConteudo,
     string? Resumo,
     IReadOnlyList<PacoteDoCatalogoDTO> Catalogo,
-    IReadOnlyList<Guid> CestaContratada
+    IReadOnlyList<Guid> CestaContratada,
+    bool TemCondicao,
+    bool ApenasGestao
 );
 
 /// <summary>Uma adesão, com o termo e o plano aceitos.</summary>
@@ -186,6 +202,9 @@ public sealed record SituacaoDaMinhaAdesaoDTO(bool TermoPublicado, bool PlanoVig
 /// <param name="Versao">Versão aceita nela.</param>
 /// <param name="AceitoEm">Momento dela, em UTC.</param>
 /// <param name="Cesta">Os pacotes da cesta, com o detalhe livre de cada um (Sprint 48, D40).</param>
+/// <param name="ApenasGestao">Da comissão, vai apenas ajudar na gestão, sem aderir (Sprint 54).</param>
+/// <param name="TemCondicao">Tem desconto ou isenção autorizada (Sprint 54).</param>
+/// <param name="DescontoEmCentavos">Desconto da condição na cesta contratada.</param>
 public sealed record SituacaoDeAdesaoDTO(
     Guid UsuarioId,
     string Nome,
@@ -194,7 +213,10 @@ public sealed record SituacaoDeAdesaoDTO(
     Guid? AdesaoId,
     int? Versao,
     DateTime? AceitoEm,
-    IReadOnlyList<PacoteEscolhidoDTO> Cesta
+    IReadOnlyList<PacoteEscolhidoDTO> Cesta,
+    bool ApenasGestao,
+    bool TemCondicao,
+    long DescontoEmCentavos
 );
 
 /// <summary>Um pacote na cesta de um formando, no painel de adesões.</summary>
@@ -218,6 +240,7 @@ public sealed record ResumoDeAdesoesDTO(int Membros, int Aderiram);
 /// <param name="ConvitesDaColacao">Convites da colação que concede.</param>
 /// <param name="Observacao">O detalhe livre.</param>
 /// <param name="CancelavelAte">Último dia para pedir o cancelamento; nulo, sem trava (D36).</param>
+/// <param name="DescontoEmCentavos">Desconto da condição financeira no contratado (Sprint 54); igual ao preço é isenção.</param>
 /// <param name="CancelamentoSolicitado">Há solicitação esperando a comissão.</param>
 public sealed record PacoteNaCestaDTO(
     Guid ItemDeCobrancaId,
@@ -229,7 +252,8 @@ public sealed record PacoteNaCestaDTO(
     int ConvitesDaColacao,
     string? Observacao,
     DateOnly? CancelavelAte,
-    bool CancelamentoSolicitado
+    bool CancelamentoSolicitado,
+    long DescontoEmCentavos
 );
 
 /// <summary>Um pacote que o aditivo pode acrescentar (D38).</summary>
@@ -241,6 +265,7 @@ public sealed record PacoteNaCestaDTO(
 /// <param name="DiferencaEmCentavos">O que o aditivo cobraria: o preço menos o já contratado na faixa que sai.</param>
 /// <param name="ConvitesDaFesta">Convites da festa que concede.</param>
 /// <param name="ConvitesDaColacao">Convites da colação que concede.</param>
+/// <param name="DescontoEmCentavos">O que a condição financeira tira da diferença (Sprint 54); a diferença já vem líquida.</param>
 /// <param name="Substitui">A faixa do mesmo grupo que sai da cesta; nulo quando é pacote novo.</param>
 public sealed record PacoteDisponivelDTO(
     Guid ItemDeCobrancaId,
@@ -251,7 +276,8 @@ public sealed record PacoteDisponivelDTO(
     long DiferencaEmCentavos,
     int ConvitesDaFesta,
     int ConvitesDaColacao,
-    Guid? Substitui
+    Guid? Substitui,
+    long DescontoEmCentavos
 );
 
 /// <summary>A cesta do formando e o que ele ainda pode acrescentar.</summary>
@@ -279,8 +305,15 @@ public sealed record AceitarAditivoRequestDTO(
 /// <param name="Entra">O pacote novo.</param>
 /// <param name="Sai">A faixa que ele substitui; nula quando é pacote novo.</param>
 /// <param name="JaContratadoEmCentavos">O que a faixa que sai já soma — o que não se cobra de novo.</param>
-/// <param name="DiferencaEmCentavos">O que o aditivo cobra por ele.</param>
-public sealed record MudancaDaCestaDTO(PacoteDaCestaDTO Entra, PacoteDaCestaDTO? Sai, long JaContratadoEmCentavos, long DiferencaEmCentavos);
+/// <param name="DiferencaEmCentavos">O que o aditivo cobra por ele, já com o desconto.</param>
+/// <param name="DescontoEmCentavos">O que a condição financeira tirou desta mudança (Sprint 54).</param>
+public sealed record MudancaDaCestaDTO(
+    PacoteDaCestaDTO Entra,
+    PacoteDaCestaDTO? Sai,
+    long JaContratadoEmCentavos,
+    long DiferencaEmCentavos,
+    long DescontoEmCentavos
+);
 
 /// <summary>O aditivo como o formando o lê antes de aceitar.</summary>
 /// <param name="Mudancas">Um pacote que entra por linha.</param>
@@ -293,3 +326,7 @@ public sealed record PreviaDoAditivoDTO(
     long TotalEmCentavos,
     string HashDoConteudo
 );
+
+/// <summary>Corpo de "vou apenas ajudar na gestão" (Sprint 54, P1).</summary>
+/// <param name="ApenasGestao">Marca ou desmarca.</param>
+public sealed record ApenasGestaoRequestDTO(bool ApenasGestao);

@@ -25,8 +25,15 @@ public interface IGeracaoDeParcelasService
     /// <param name="vinculoId">Vínculo de quem adere.</param>
     /// <param name="plano">Plano vigente, com os itens.</param>
     /// <param name="cesta">Os pacotes que o formando escolheu (Sprint 47) — o que não está aqui não vira parcela dele.</param>
+    /// <param name="descontos">O desconto da condição financeira por pacote (Sprint 54), o mesmo do snapshot.</param>
     /// <returns>Quantas parcelas foram marcadas.</returns>
-    Task<Result<int>> Gerar(Guid vinculoId, PlanoDeCobranca plano, IReadOnlyCollection<ItemDeCobranca> cesta, CancellationToken ct = default);
+    Task<Result<int>> Gerar(
+        Guid vinculoId,
+        PlanoDeCobranca plano,
+        IReadOnlyCollection<ItemDeCobranca> cesta,
+        IReadOnlyDictionary<Guid, long> descontos,
+        CancellationToken ct = default
+    );
 
     /// <summary>
     /// Marca a grade de <b>um</b> item no nome de vários vínculos — o rateio extraordinário.

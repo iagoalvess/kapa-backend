@@ -38,6 +38,7 @@ namespace Backend.Business.Adesoes.Services;
 /// <param name="adesoes">Termo vigente, adesão e aditivos.</param>
 /// <param name="planos">Catálogo e cesta.</param>
 /// <param name="parcelas">As parcelas do formando.</param>
+/// <param name="condicoes">A condição financeira do formando (Sprint 54).</param>
 /// <param name="solicitacoes">As solicitações abertas, para a tela da cesta.</param>
 /// <param name="perfis">O vínculo de quem pede.</param>
 /// <param name="formaturas">Nome da turma, para o e-mail.</param>
@@ -52,6 +53,7 @@ public sealed class AditivoService(
     IAdesaoRepository adesoes,
     IPlanoDeCobrancaRepository planos,
     IParcelaRepository parcelas,
+    ICondicaoFinanceiraRepository condicoes,
     ISolicitacaoDeCancelamentoRepository solicitacoes,
     IPerfilRepository perfis,
     IFormaturaRepository formaturas,
@@ -78,7 +80,7 @@ public sealed class AditivoService(
         if (contexto.Falhou)
             return Result.Falha<MinhaCesta>(contexto.Erros);
 
-        var (membro, plano, escolhas, contratado) = contexto.Valor!;
+        var (membro, plano, escolhas, contratado, condicao) = contexto.Valor!;
         var abertas = (await solicitacoes.Listar(membro.VinculoId, StatusDoPedidoDeCancelamento.Aberto, ct))
             .Select(solicitacao => solicitacao.ItemDeCobrancaId)
             .ToHashSet();
@@ -99,7 +101,8 @@ public sealed class AditivoService(
                     item.ConvitesDaColacao,
                     escolhas[item.Id].Observacao,
                     item.CancelavelAte,
-                    abertas.Contains(item.Id)
+                    abertas.Contains(item.Id),
+                    escolhas[item.Id].DescontoEmCentavos
                 )),
         ];
 
@@ -108,8 +111,8 @@ public sealed class AditivoService(
             .. plano
                 .Pacotes()
                 .Where(pacote => !escolhas.ContainsKey(pacote.Id))
-                .Select(pacote => Mudanca(pacote, plano, escolhas, contratado))
-                .Where(mudanca => mudanca.DiferencaEmCentavos > 0)
+                .Select(pacote => Mudanca(pacote, plano, escolhas, contratado, condicao))
+                .Where(mudanca => mudanca.DiferencaEmCentavos + mudanca.DescontoEmCentavos > 0)
                 .Select(mudanca => new PacoteDisponivel(
                     mudanca.Entra.ItemId,
                     mudanca.Entra.Tipo,
@@ -119,7 +122,8 @@ public sealed class AditivoService(
                     mudanca.DiferencaEmCentavos,
                     mudanca.Entra.ConvitesDaFesta,
                     mudanca.Entra.ConvitesDaColacao,
-                    mudanca.Sai?.ItemId
+                    mudanca.Sai?.ItemId,
+                    mudanca.DescontoEmCentavos
                 )),
         ];
 
@@ -212,13 +216,20 @@ public sealed class AditivoService(
             {
                 await adesoes.AdicionarAditivo(aditivo, token);
 
-                foreach (var (entra, sai, diferenca) in mudancas)
+                foreach (var (entra, sai, diferenca, desconto) in mudancas)
                 {
+                    var descontoAnterior = 0L;
                     if (sai is not null && await planos.ObterEscolhaParaEdicao(membro.VinculoId, sai.Id, token) is { } escolhaQueSai)
+                    {
+                        descontoAnterior = escolhaQueSai.DescontoEmCentavos;
                         planos.RemoverEscolha(escolhaQueSai);
+                    }
 
                     var observacao = dados.Observacoes?.FirstOrDefault(o => o.PacoteId == entra.Id)?.Texto;
-                    await planos.AdicionarEscolhas([EscolhaDaCesta.Nova(membro.VinculoId, entra.Id, observacao)], token);
+                    await planos.AdicionarEscolhas([EscolhaDaCesta.Nova(membro.VinculoId, entra.Id, observacao, descontoAnterior + desconto)], token);
+
+                    if (diferenca <= 0)
+                        continue;
 
                     var ultimo = (await parcelas.ListarNumerosGerados(membro.VinculoId, entra.Id, token)).DefaultIfEmpty(0).Max();
                     await parcelas.Adicionar(
@@ -274,7 +285,7 @@ public sealed class AditivoService(
         if (contexto.Falhou)
             return Result.Falha<AditivoMontado>(contexto.Erros);
 
-        var (membro, plano, escolhas, contratado) = contexto.Valor!;
+        var (membro, plano, escolhas, contratado, condicao) = contexto.Valor!;
 
         if (pacoteIds.Count == 0)
             return Erro.Validacao("adesao.aditivo_sem_pacote", "Escolha ao menos um pacote para acrescentar.", campo: "pacotes");
@@ -295,17 +306,20 @@ public sealed class AditivoService(
 
         foreach (var pacote in entram.Valor!)
         {
-            var mudanca = Mudanca(pacote, plano, escolhas, contratado);
+            var mudanca = Mudanca(pacote, plano, escolhas, contratado, condicao);
 
-            if (mudanca.DiferencaEmCentavos <= 0)
+            if (mudanca.DiferencaEmCentavos + mudanca.DescontoEmCentavos <= 0)
                 return Erro.Conflito(
                     "adesao.aditivo_so_acrescenta",
                     "O aditivo só acrescenta: para descer de faixa ou tirar um pacote, peça o cancelamento à comissão."
                 );
 
-            var grade = GradeDeParcelas.DeQuemAdereEm(pacote.ParaDados() with { ValorEmCentavos = mudanca.DiferencaEmCentavos }, hoje);
-            if (ItemDeCobranca.PassaDoLimite(grade[^1].Vencimento, pacote.UltimoVencimento) is { } tarde)
-                return tarde;
+            if (mudanca.DiferencaEmCentavos > 0)
+            {
+                var grade = GradeDeParcelas.DeQuemAdereEm(pacote.ParaDados() with { ValorEmCentavos = mudanca.DiferencaEmCentavos }, hoje);
+                if (ItemDeCobranca.PassaDoLimite(grade[^1].Vencimento, pacote.UltimoVencimento) is { } tarde)
+                    return tarde;
+            }
 
             mudancas.Add(mudanca);
         }
@@ -314,7 +328,9 @@ public sealed class AditivoService(
             return SemAdesao;
 
         var parcelasNovas = GradeDeParcelas.DoFormando(
-            entram.Valor!.Zip(mudancas, (pacote, mudanca) => pacote.ParaDados() with { ValorEmCentavos = mudanca.DiferencaEmCentavos }),
+            entram
+                .Valor!.Zip(mudancas, (pacote, mudanca) => pacote.ParaDados() with { ValorEmCentavos = mudanca.DiferencaEmCentavos })
+                .Where(dados => dados.ValorEmCentavos > 0),
             hoje
         );
         var snapshot = new SnapshotDoAditivo(
@@ -336,7 +352,8 @@ public sealed class AditivoService(
             [
                 .. entram.Valor!.Zip(
                     mudancas,
-                    (pacote, mudanca) => (pacote, plano.Itens.Find(item => item.Id == mudanca.Sai?.ItemId), mudanca.DiferencaEmCentavos)
+                    (pacote, mudanca) =>
+                        (pacote, plano.Itens.Find(item => item.Id == mudanca.Sai?.ItemId), mudanca.DiferencaEmCentavos, mudanca.DescontoEmCentavos)
                 ),
             ],
             plano
@@ -351,24 +368,30 @@ public sealed class AditivoService(
     /// <param name="plano">Plano vigente.</param>
     /// <param name="escolhas">A cesta, por pacote.</param>
     /// <param name="contratado">O que cada item soma nas parcelas do formando.</param>
+    /// <remarks>
+    /// Com condição financeira (Sprint 54), o acréscimo é o preço cheio de cá menos o preço cheio de lá — o contratado
+    /// mais o desconto que a faixa que sai já teve —, e o benefício tira dele só o que a faixa nova ganha <b>a mais</b>.
+    /// Isenção "até a Festa 10": subir da 10 (isenta) para a 15 cobra os R$ 1.000 de diferença de catálogo, e não os
+    /// R$ 6.000 da 15 menos zero contratado. A diferença líquida pode ser zero: o pacote entra sem parcela.
+    /// </remarks>
+    /// <param name="condicao">A condição da pessoa, se vale hoje.</param>
     private static MudancaDaCesta Mudanca(
         ItemDeCobranca pacote,
         PlanoDeCobranca plano,
         IReadOnlyDictionary<Guid, EscolhaDaCesta> escolhas,
-        IReadOnlyDictionary<Guid, long> contratado
+        IReadOnlyDictionary<Guid, long> contratado,
+        CondicaoFinanceira? condicao
     )
     {
         var sai = pacote.Grupo is null
             ? null
             : plano.Itens.FirstOrDefault(item => escolhas.ContainsKey(item.Id) && string.Equals(item.Grupo, pacote.Grupo, StringComparison.Ordinal));
         var jaContratado = sai is null ? 0 : JaContratado(sai, plano, contratado);
+        var acrescimo = pacote.ValorEmCentavos - jaContratado - (sai is null ? 0 : escolhas[sai.Id].DescontoEmCentavos);
+        var aMais = condicao is null ? 0 : condicao.DescontoDe(pacote, plano.Itens) - (sai is null ? 0 : condicao.DescontoDe(sai, plano.Itens));
+        var desconto = Math.Clamp(aMais, 0, Math.Max(acrescimo, 0));
 
-        return new MudancaDaCesta(
-            PacoteDaCesta.De(pacote),
-            sai is null ? null : PacoteDaCesta.De(sai),
-            jaContratado,
-            pacote.ValorEmCentavos - jaContratado
-        );
+        return new MudancaDaCesta(PacoteDaCesta.De(pacote), sai is null ? null : PacoteDaCesta.De(sai), jaContratado, acrescimo - desconto, desconto);
     }
 
     /// <summary>
@@ -405,7 +428,9 @@ public sealed class AditivoService(
             .GroupBy(parcela => parcela.ItemDeCobrancaId)
             .ToDictionary(grupo => grupo.Key, grupo => grupo.Sum(parcela => parcela.ValorOriginalEmCentavos));
 
-        return new ContextoDaCesta(membro, plano, escolhas, contratado);
+        var condicao = await condicoes.ObterDoVinculo(membro.VinculoId, ct);
+
+        return new ContextoDaCesta(membro, plano, escolhas, contratado, condicao);
     }
 
     /// <summary>O que a leitura da cesta junta.</summary>
@@ -413,7 +438,8 @@ public sealed class AditivoService(
         MembroDoPerfil Membro,
         PlanoDeCobranca Plano,
         IReadOnlyDictionary<Guid, EscolhaDaCesta> Escolhas,
-        IReadOnlyDictionary<Guid, long> Contratado
+        IReadOnlyDictionary<Guid, long> Contratado,
+        CondicaoFinanceira? Condicao
     );
 
     /// <summary>O aditivo montado: a prévia, e o que a gravação precisa.</summary>
@@ -421,7 +447,7 @@ public sealed class AditivoService(
         PreviaDoAditivo Previa,
         MembroDoPerfil Membro,
         Guid AdesaoId,
-        IReadOnlyList<(ItemDeCobranca Entra, ItemDeCobranca? Sai, long Diferenca)> Mudancas,
+        IReadOnlyList<(ItemDeCobranca Entra, ItemDeCobranca? Sai, long Diferenca, long Desconto)> Mudancas,
         PlanoDeCobranca Plano
     );
 }

@@ -43,5 +43,15 @@ public sealed record SnapshotDoAditivo(
 /// <param name="Entra">O pacote novo, com o preço do catálogo no dia.</param>
 /// <param name="Sai">A faixa do mesmo grupo que ele substitui; nulo quando é pacote novo.</param>
 /// <param name="JaContratadoEmCentavos">O que o grupo da faixa que sai já soma nas parcelas do formando — o que não se cobra de novo.</param>
-/// <param name="DiferencaEmCentavos">O que o aditivo cobra por este pacote: o preço menos o já contratado.</param>
-public sealed record MudancaDaCesta(PacoteDaCesta Entra, PacoteDaCesta? Sai, long JaContratadoEmCentavos, long DiferencaEmCentavos);
+/// <param name="DiferencaEmCentavos">O que o aditivo cobra por este pacote: o preço menos o já contratado e o desconto.</param>
+/// <param name="DescontoEmCentavos">
+/// O que a condição financeira tira desta mudança (Sprint 54). Por último e com padrão: nos aditivos anteriores ele não
+/// existe, e zero é o que aquelas pessoas aceitaram.
+/// </param>
+public sealed record MudancaDaCesta(
+    PacoteDaCesta Entra,
+    PacoteDaCesta? Sai,
+    long JaContratadoEmCentavos,
+    long DiferencaEmCentavos,
+    long DescontoEmCentavos = 0
+);

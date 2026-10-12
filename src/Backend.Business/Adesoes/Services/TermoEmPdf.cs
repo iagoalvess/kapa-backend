@@ -128,11 +128,18 @@ public static partial class TermoEmPdf
             .Tabela(
                 ColunasDaCesta,
                 ["Pacote", "Preço", "Concede"],
-                cesta.Select(pacote =>
-                    new[] { pacote.Rotulo(), FormatosBrasileiros.Reais(pacote.ValorEmCentavos), pacote.BeneficiosPorExtenso() ?? "—" }
-                )
+                cesta.Select(pacote => new[] { pacote.Rotulo(), Preco(pacote, plano.Descontos), pacote.BeneficiosPorExtenso() ?? "—" })
             );
     }
+
+    /// <summary>O preço do pacote no quadro, com o desconto da condição financeira quando houve (Sprint 54).</summary>
+    /// <param name="pacote">Pacote contratado.</param>
+    /// <param name="descontos">Descontos do snapshot.</param>
+    private static string Preco(PacoteDaCesta pacote, IReadOnlyList<DescontoDoPacote>? descontos) =>
+        descontos?.FirstOrDefault(desconto => desconto.ItemId == pacote.ItemId)?.DescontoEmCentavos is not { } desconto
+            ? FormatosBrasileiros.Reais(pacote.ValorEmCentavos)
+        : desconto >= pacote.ValorEmCentavos ? $"{FormatosBrasileiros.Reais(pacote.ValorEmCentavos)}, isento"
+        : $"{FormatosBrasileiros.Reais(pacote.ValorEmCentavos)} − {FormatosBrasileiros.Reais(desconto)} de desconto";
 
     /// <summary>
     /// O markdown do termo em blocos do PDF: títulos, itens e parágrafos. Negrito, itálico e código

@@ -21,6 +21,7 @@ public sealed record ObservacaoDoPacote(Guid PacoteId, string? Texto);
 /// <param name="Observacao">O detalhe livre que ele escreveu.</param>
 /// <param name="CancelavelAte">Último dia para pedir o cancelamento; nulo, sem trava (D36).</param>
 /// <param name="CancelamentoSolicitado">Há solicitação esperando a comissão.</param>
+/// <param name="DescontoEmCentavos">O desconto da condição financeira no contratado (Sprint 54); igual ao preço é isenção.</param>
 public sealed record PacoteNaCesta(
     Guid ItemDeCobrancaId,
     TipoDeCobranca Tipo,
@@ -31,7 +32,8 @@ public sealed record PacoteNaCesta(
     int ConvitesDaColacao,
     string? Observacao,
     DateOnly? CancelavelAte,
-    bool CancelamentoSolicitado
+    bool CancelamentoSolicitado,
+    long DescontoEmCentavos = 0
 );
 
 /// <summary>Um pacote do catálogo que o aditivo pode acrescentar (D38).</summary>
@@ -44,6 +46,7 @@ public sealed record PacoteNaCesta(
 /// <param name="ConvitesDaFesta">Convites da festa que concede.</param>
 /// <param name="ConvitesDaColacao">Convites da colação que concede.</param>
 /// <param name="Substitui">A faixa do mesmo grupo que sai da cesta; nulo quando é pacote novo.</param>
+/// <param name="DescontoEmCentavos">O que a condição financeira tira da diferença (Sprint 54); a diferença já vem líquida.</param>
 public sealed record PacoteDisponivel(
     Guid ItemDeCobrancaId,
     TipoDeCobranca Tipo,
@@ -53,7 +56,8 @@ public sealed record PacoteDisponivel(
     long DiferencaEmCentavos,
     int ConvitesDaFesta,
     int ConvitesDaColacao,
-    Guid? Substitui
+    Guid? Substitui,
+    long DescontoEmCentavos = 0
 );
 
 /// <summary>A cesta do formando e o que ele ainda pode acrescentar.</summary>
