@@ -46,29 +46,6 @@ public sealed class LegalServiceTests
         aceites.Pendencias.ShouldBeEmpty();
     }
 
-    /// <summary>Vale a linha mais recente: aceite seguido de revogação é pendência.</summary>
-    [Fact]
-    public async Task Revogacao_posterior_ao_aceite_e_pendencia()
-    {
-        Vigentes(Documento(TipoDeDocumento.PoliticaDePrivacidade, "1"));
-        Historico(Aceite(TipoDeDocumento.PoliticaDePrivacidade, "1", revogado: true), Aceite(TipoDeDocumento.PoliticaDePrivacidade, "1"));
-
-        var aceites = (await Servico.ObterMeusAceites(Guid.CreateVersion7(), [], Ct)).Valor;
-
-        aceites.Pendencias.Count.ShouldBe(1);
-    }
-
-    [Fact]
-    public async Task Novo_aceite_depois_da_revogacao_resolve_a_pendencia()
-    {
-        Vigentes(Documento(TipoDeDocumento.PoliticaDePrivacidade, "1"));
-        Historico(Aceite(TipoDeDocumento.PoliticaDePrivacidade, "1"), Aceite(TipoDeDocumento.PoliticaDePrivacidade, "1", revogado: true));
-
-        var aceites = (await Servico.ObterMeusAceites(Guid.CreateVersion7(), [], Ct)).Valor;
-
-        aceites.Pendencias.ShouldBeEmpty();
-    }
-
     /// <summary>Recusa um e não grava nenhum: meio aceite no rastreador esperaria o próximo commit.</summary>
     [Fact]
     public async Task Versao_desatualizada_recusa_o_pedido_inteiro_sem_gravar()
@@ -122,7 +99,7 @@ public sealed class LegalServiceTests
         await _repositorio
             .Received(1)
             .Adicionar(
-                Arg.Is<ConsentimentoRegistrado>(c => c.DocumentoLegalId == termos.Id && c.Versao == "1" && c.UserAgent.Length == 512 && !c.Revogado),
+                Arg.Is<ConsentimentoRegistrado>(c => c.DocumentoLegalId == termos.Id && c.Versao == "1" && c.UserAgent.Length == 512),
                 Arg.Any<CancellationToken>()
             );
         await _unitOfWork.Received(1).SalvarAsync(Arg.Any<CancellationToken>());
@@ -136,6 +113,5 @@ public sealed class LegalServiceTests
 
     private static VersaoDeDocumento Documento(string tipo, string versao) => new(Guid.CreateVersion7(), tipo, versao, "texto", Ontem);
 
-    private static ConsentimentoDoUsuario Aceite(string tipo, string versao, bool revogado = false) =>
-        new(Guid.CreateVersion7(), tipo, versao, Ontem, revogado);
+    private static ConsentimentoDoUsuario Aceite(string tipo, string versao) => new(Guid.CreateVersion7(), tipo, versao, Ontem);
 }

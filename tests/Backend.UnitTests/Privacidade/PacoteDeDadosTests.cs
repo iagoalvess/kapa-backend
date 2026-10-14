@@ -179,7 +179,7 @@ public sealed class PacoteDeDadosTests
                     new MinhaAdesao(2, Agora, "203.0.113.7")
                 ),
             ],
-            [new ConsentimentoDoUsuario(Guid.CreateVersion7(), TipoDeDocumento.PoliticaDePrivacidade, "1", Agora, false)],
+            [new ConsentimentoDoUsuario(Guid.CreateVersion7(), TipoDeDocumento.PoliticaDePrivacidade, "1", Agora)],
             new MinhasComunicacoes(
                 3,
                 Agora,

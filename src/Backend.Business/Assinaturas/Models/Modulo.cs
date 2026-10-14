@@ -62,7 +62,7 @@ public static class Modulo
     /// <summary>Relatórios: balancete, planilhas e PDFs da turma.</summary>
     public const string Relatorios = "relatorios";
 
-    /// <summary>Portal LGPD e trilha de auditoria.</summary>
+    /// <summary>Histórico de auditoria da turma.</summary>
     public const string Auditoria = "auditoria";
 
     /// <summary>Consultas secretas à turma, exclusivas do Premium.</summary>

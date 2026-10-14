@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using Backend.Api.DTOs.Privacidade;
 using Backend.Business.Enquetes.Models;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Privacidade.Interfaces;
@@ -101,7 +100,10 @@ public sealed class EnquetesEndpointsTests(ApiFactory fabrica)
         detalhe.Enquete.TotalAptos.ShouldBe(2);
         detalhe.Enquete.QuorumAtingido.ShouldBeFalse();
         detalhe.Opcoes.Sum(o => o.Percentual).ShouldBe(200);
-        var dados = (await aluno.Cliente.GetFromJsonAsync<MeusDadosDTO>("/api/v1/privacidade/meus-dados", JsonDaApi.Opcoes, Ct))!;
+        using var leitura = fabrica.Services.CreateScope();
+        var dados = (
+            await leitura.ServiceProvider.GetRequiredService<IPrivacidadeRepository>().ObterMeusDadosDeTodasAsFormaturas(aluno.UsuarioId, Ct)
+        )!;
         dados.Turmas.Single().Enquetes!.Single().Escolhas.ShouldBe(["Clássico", "Tropical"]);
         (await Votar(outro, enquete, enquete.Opcoes[2].Id)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await gestor.Cliente.PostAsync($"{Rota}/{enquete.Enquete.Id}/encerrar", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);

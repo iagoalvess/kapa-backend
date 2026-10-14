@@ -53,11 +53,17 @@ dotnet test tests/Backend.IntegrationTests --no-build # sobe Postgres em contain
 | **Eventos** | `[RegistrarEvento("nome")]` no controller → fila em memória → gravação em lote → job de retenção. |
 | **Observabilidade** | `ILogger` com console JSON + OpenTelemetry (traces e métricas via OTLP) + health check. |
 | **Borda** | Versionamento por URL, rate limiting nativo, CORS por configuração, OpenAPI + Scalar. |
-| **Worker** | Jobs em `src/Backend.Worker/Jobs` (e-mail, régua de cobrança, relatórios, retenção de eventos e de turmas, Mercado Pago, privacidade…), um por réplica via `LiderancaDeJob`. |
+| **Worker** | Jobs em `src/Backend.Worker/Jobs` (e-mail, régua de cobrança, relatórios, retenção de eventos e de turmas, Mercado Pago…), um por réplica via `LiderancaDeJob`. |
 | **Testes** | xUnit v3 + Shouldly + NSubstitute; integração com API e Postgres reais via Testcontainers. |
 | **Infra** | Dockerfile multi-alvo, docker compose, GitHub Actions, CSharpier, Central Package Management. |
 
 ---
+
+## Atendimento de privacidade
+
+Pedidos de titulares são atendidos pelo suporte. A exportação e a limpeza cadastral têm comandos
+internos, sem portal ou fila: veja [o procedimento](docs/privacidade-suporte.md). O descadastro de
+marketing continua no rodapé dos e-mails, sem login.
 
 ## Endpoints
 

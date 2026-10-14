@@ -65,7 +65,7 @@ public sealed class ComunicacaoDoKapaTests
         var usuario = Conta(recebe: false);
 
         // Act
-        var resultado = await Servico().DefinirPreferencia(usuario.Id, true, OrigemDoConsentimentoDeMarketing.MinhaPrivacidade, De, Ct);
+        var resultado = await Servico().DefinirPreferencia(usuario.Id, true, OrigemDoConsentimentoDeMarketing.Suporte, De, Ct);
 
         // Assert
         resultado.Sucesso.ShouldBeTrue();
@@ -74,10 +74,7 @@ public sealed class ComunicacaoDoKapaTests
             .Received(1)
             .Adicionar(
                 Arg.Is<ConsentimentoDeMarketing>(c =>
-                    c.Aceito
-                    && c.Origem == OrigemDoConsentimentoDeMarketing.MinhaPrivacidade
-                    && c.EnderecoIp == "203.0.113.7"
-                    && c.VersaoDoTexto == "1"
+                    c.Aceito && c.Origem == OrigemDoConsentimentoDeMarketing.Suporte && c.EnderecoIp == "203.0.113.7" && c.VersaoDoTexto == "1"
                 ),
                 Arg.Any<CancellationToken>()
             );
@@ -91,7 +88,7 @@ public sealed class ComunicacaoDoKapaTests
         var usuario = Conta(recebe: true);
 
         // Act
-        var resultado = await Servico().DefinirPreferencia(usuario.Id, true, OrigemDoConsentimentoDeMarketing.MinhaPrivacidade, De, Ct);
+        var resultado = await Servico().DefinirPreferencia(usuario.Id, true, OrigemDoConsentimentoDeMarketing.Suporte, De, Ct);
 
         // Assert
         resultado.Sucesso.ShouldBeTrue();

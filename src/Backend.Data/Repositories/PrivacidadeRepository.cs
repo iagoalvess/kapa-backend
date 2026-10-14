@@ -10,18 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Data.Repositories;
 
-/// <summary>
-/// Os dados do titular, atravessando todas as turmas dele, e a fila de solicitações.
-/// </summary>
-/// <remarks>
-/// <b>Todo método aqui usa <c>IgnoreQueryFilters()</c></b> — é o único repositório do projeto em que
-/// isso é a regra e não a exceção, e o sufixo <c>DeTodasAsFormaturas</c> marca os que leem dado de
-/// turma. A autorização não some junto com o filtro: o recorte passa a ser <c>usuarioId</c>, que vem
-/// do token e não da rota, e nenhuma consulta daqui aceita o identificador de outra pessoa.
-/// <para>
-/// As solicitações não têm filtro global para ignorar — a entidade não pertence a formatura nenhuma.
-/// </para>
-/// </remarks>
+/// <summary>Consultas internas do suporte, sempre recortadas pelo titular e abrangendo todas as turmas.</summary>
 /// <param name="db">Contexto de dados do escopo.</param>
 public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeRepository
 {
@@ -139,7 +128,7 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
             join documento in db.DocumentosLegais on consentimento.DocumentoLegalId equals documento.Id
             where consentimento.UsuarioId == usuarioId
             orderby consentimento.AceitoEm descending, consentimento.Id descending
-            select new ConsentimentoDoUsuario(consentimento.Id, documento.Tipo, consentimento.Versao, consentimento.AceitoEm, consentimento.Revogado)
+            select new ConsentimentoDoUsuario(consentimento.Id, documento.Tipo, consentimento.Versao, consentimento.AceitoEm)
         ).ToListAsync(ct);
 
         var enviadas = await db
@@ -185,119 +174,6 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<SolicitacaoDePrivacidade>> ListarDoTitular(Guid usuarioId, CancellationToken ct = default) =>
-        await db
-            .SolicitacoesDePrivacidade.AsNoTracking()
-            .Where(s => s.TitularUsuarioId == usuarioId)
-            .OrderByDescending(s => s.CriadoEm)
-            .ThenBy(s => s.Id)
-            .ToListAsync(ct);
-
-    /// <inheritdoc />
-    public Task<SolicitacaoDePrivacidade?> ObterDoTitular(Guid id, Guid usuarioId, CancellationToken ct = default) =>
-        db.SolicitacoesDePrivacidade.FirstOrDefaultAsync(s => s.Id == id && s.TitularUsuarioId == usuarioId, ct);
-
-    /// <inheritdoc />
-    public Task<SolicitacaoDePrivacidade?> ObterPendente(TipoDeSolicitacao tipo, Guid usuarioId, CancellationToken ct = default) =>
-        db
-            .SolicitacoesDePrivacidade.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.TitularUsuarioId == usuarioId && s.Tipo == tipo && s.Status == StatusDaSolicitacaoDePrivacidade.Pendente, ct);
-
-    /// <inheritdoc />
-    /// <remarks>Da mais antiga: pedido de titular não pode ficar para trás enquanto chegam outros.</remarks>
-    public async Task<IReadOnlyList<PrivacidadePendente>> ListarVencidas(DateTime agora, int quantidade, CancellationToken ct = default) =>
-        await db
-            .SolicitacoesDePrivacidade.AsNoTracking()
-            .Where(s => s.Status == StatusDaSolicitacaoDePrivacidade.Pendente && s.PrazoEm <= agora)
-            .OrderBy(s => s.PrazoEm)
-            .ThenBy(s => s.Id)
-            .Take(quantidade)
-            .Select(s => new PrivacidadePendente(s.Id, s.Tipo))
-            .ToListAsync(ct);
-
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<SolicitacaoDePrivacidade>> ListarArquivosVencidos(
-        DateTime agora,
-        int quantidade,
-        CancellationToken ct = default
-    ) =>
-        await db
-            .SolicitacoesDePrivacidade.Where(s => s.ArquivoId != null && s.ExpiraEm != null && s.ExpiraEm <= agora)
-            .OrderBy(s => s.ExpiraEm)
-            .Take(quantidade)
-            .ToListAsync(ct);
-
-    /// <inheritdoc />
-    public Task<SolicitacaoDePrivacidade?> Obter(Guid id, CancellationToken ct = default) =>
-        db.SolicitacoesDePrivacidade.FirstOrDefaultAsync(s => s.Id == id, ct);
-
-    /// <inheritdoc />
-    public async Task Adicionar(SolicitacaoDePrivacidade solicitacao, CancellationToken ct = default) =>
-        await db.SolicitacoesDePrivacidade.AddAsync(solicitacao, ct);
-
-    /// <inheritdoc />
-    public Task<TitularParaAviso?> ObterTitular(Guid usuarioId, CancellationToken ct = default) =>
-        db.Users.AsNoTracking().Where(u => u.Id == usuarioId).Select(u => new TitularParaAviso(u.Id, u.Nome, u.Email!)).FirstOrDefaultAsync(ct);
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// Um presidente por turma em que o titular tem vínculo — e só os ativos: avisar quem saiu da
-    /// comissão é vazar um pedido de LGPD para fora dela.
-    /// </remarks>
-    public async Task<IReadOnlyList<PresidenteParaAviso>> ListarPresidentesParaAvisoDeTodasAsFormaturas(
-        Guid usuarioId,
-        CancellationToken ct = default
-    )
-    {
-        var turmas = await db
-            .Vinculos.IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(v => v.UsuarioId == usuarioId && v.Ativo)
-            .Select(v => new { v.FormaturaId, v.Id })
-            .ToListAsync(ct);
-
-        if (turmas.Count == 0)
-            return [];
-
-        var formaturaIds = turmas.ConvertAll(t => t.FormaturaId);
-        var vinculoIds = turmas.ConvertAll(t => t.Id);
-
-        var emAberto = await db
-            .Parcelas.IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(p => vinculoIds.Contains(p.VinculoId) && (p.Status == StatusDaParcela.Aberta || p.Status == StatusDaParcela.Vencida))
-            .GroupBy(p => p.FormaturaId)
-            .Select(g => new { FormaturaId = g.Key, Total = g.Sum(p => p.ValorOriginalEmCentavos) })
-            .ToListAsync(ct);
-
-        var presidentes = await db
-            .Vinculos.IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(v => formaturaIds.Contains(v.FormaturaId) && v.Ativo && v.Papel == PapelNaFormatura.Presidente && v.UsuarioId != usuarioId)
-            .Join(db.Users, v => v.UsuarioId, u => u.Id, (v, u) => new { v.FormaturaId, u.Email })
-            .Join(
-                db.Formaturas.IgnoreQueryFilters(),
-                x => x.FormaturaId,
-                f => f.Id,
-                (x, f) =>
-                    new
-                    {
-                        x.FormaturaId,
-                        x.Email,
-                        f.Nome,
-                    }
-            )
-            .ToListAsync(ct);
-
-        return
-        [
-            .. presidentes
-                .Where(p => p.Email is not null)
-                .Select(p => new PresidenteParaAviso(p.Email!, p.Nome, emAberto.FirstOrDefault(a => a.FormaturaId == p.FormaturaId)?.Total ?? 0)),
-        ];
-    }
-
-    /// <inheritdoc />
     public async Task<IReadOnlyList<PerfilDoFormando>> ListarPerfisParaAnonimizarDeTodasAsFormaturas(Guid usuarioId, CancellationToken ct = default)
     {
         var vinculoIds = await db.Vinculos.IgnoreQueryFilters().AsNoTracking().Where(v => v.UsuarioId == usuarioId).Select(v => v.Id).ToListAsync(ct);
@@ -305,7 +181,7 @@ public sealed class PrivacidadeRepository(AppDbContext db) : IPrivacidadeReposit
         return await db.PerfisDeFormandos.IgnoreQueryFilters().Where(p => vinculoIds.Contains(p.VinculoId)).ToListAsync(ct);
     }
 
-    /// <summary>O cadastro no formato que a tela e o pacote leem.</summary>
+    /// <summary>O cadastro no formato da exportação interna.</summary>
     /// <param name="perfil">Cadastro carregado.</param>
     private static PerfilExportado Exportar(PerfilDoFormando perfil) =>
         new(

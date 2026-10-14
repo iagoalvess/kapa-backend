@@ -171,7 +171,6 @@ public sealed class SegurancaDaApiTests(ApiFactory fabrica)
         "/api/v{version:apiVersion}/legal/",
         "/api/v{version:apiVersion}/planos",
         "/api/v{version:apiVersion}/arquivos/temporario",
-        "/api/v{version:apiVersion}/privacidade/operadores",
         "/api/v{version:apiVersion}/privacidade/descadastro",
         "/api/v{version:apiVersion}/loja/",
         "/api/v{version:apiVersion}/convites/",

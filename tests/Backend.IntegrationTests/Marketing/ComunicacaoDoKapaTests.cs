@@ -2,12 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Backend.Api.DTOs.Auth;
-using Backend.Api.DTOs.Marketing;
-using Backend.Api.DTOs.Privacidade;
 using Backend.Business.Assinaturas.Models;
 using Backend.Business.Emails.Interfaces;
 using Backend.Business.Emails.Models;
 using Backend.Business.Formaturas.Models;
+using Backend.Business.Legal.Models;
 using Backend.Business.Marketing.Interfaces;
 using Backend.Business.Marketing.Models;
 using Backend.Business.Marketing.Services;
@@ -19,7 +18,7 @@ using Shouldly;
 namespace Backend.IntegrationTests.Marketing;
 
 /// <summary>
-/// O marketing do Kapa de ponta a ponta (Sprint 40): a caixa do cadastro, "Minha privacidade", o descadastro
+/// O marketing do Kapa de ponta a ponta (Sprint 40): a caixa do cadastro, o descadastro
 /// sem login e as jornadas contra o Postgres — inclusive a regra que não tem volta: formando nunca recebe.
 /// </summary>
 /// <param name="fabrica">API de teste compartilhada.</param>
@@ -27,8 +26,6 @@ namespace Backend.IntegrationTests.Marketing;
 public sealed class ComunicacaoDoKapaTests(ApiFactory fabrica)
 {
     private const string Descadastro = "/api/v1/privacidade/descadastro";
-
-    private const string Preferencia = "/api/v1/privacidade/comunicacao-do-kapa";
 
     private static readonly JsonSerializerOptions Json = JsonDaApi.Opcoes;
 
@@ -57,36 +54,6 @@ public sealed class ComunicacaoDoKapaTests(ApiFactory fabrica)
         registro.VersaoDoTexto.ShouldBe(TextoDoConsentimentoDeMarketing.Versao);
 
         (await contexto.ConsentimentosDeMarketing.AnyAsync(c => c.UsuarioId == naoMarcou.UsuarioId, Ct)).ShouldBeFalse();
-    }
-
-    [Fact]
-    public async Task Minha_privacidade_mostra_e_muda_a_preferencia_e_o_historico_so_cresce()
-    {
-        var membro = await Registrar(receber: false);
-
-        (await membro.Cliente.PutAsJsonAsync(Preferencia, new ComunicacaoDoKapaRequestDTO(true), Json, Ct)).StatusCode.ShouldBe(
-            HttpStatusCode.NoContent
-        );
-        (await membro.Cliente.PutAsJsonAsync(Preferencia, new ComunicacaoDoKapaRequestDTO(true), Json, Ct)).StatusCode.ShouldBe(
-            HttpStatusCode.NoContent
-        );
-        (await membro.Cliente.PutAsJsonAsync(Preferencia, new ComunicacaoDoKapaRequestDTO(false), Json, Ct)).StatusCode.ShouldBe(
-            HttpStatusCode.NoContent
-        );
-
-        var dados = await membro.Cliente.GetFromJsonAsync<MeusDadosDTO>("/api/v1/privacidade/meus-dados", Json, Ct);
-
-        dados!.Comunicacoes.DoKapa.Receber.ShouldBeFalse();
-        dados.Comunicacoes.DoKapa.Historico.Select(r => r.Aceito).ShouldBe([false, true]);
-        dados.Comunicacoes.DoKapa.Historico.ShouldAllBe(r => r.Origem == OrigemDoConsentimentoDeMarketing.MinhaPrivacidade);
-    }
-
-    [Fact]
-    public async Task Preferencia_exige_login()
-    {
-        var resposta = await fabrica.CreateClient().PutAsJsonAsync(Preferencia, new ComunicacaoDoKapaRequestDTO(true), Json, Ct);
-
-        resposta.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     /// <summary>
@@ -178,7 +145,19 @@ public sealed class ComunicacaoDoKapaTests(ApiFactory fabrica)
     {
         var turma = await fabrica.TurmaComPlano();
         await fabrica.ConfirmarEmail(turma.Presidente, Ct);
-        (await turma.Presidente.Cliente.PutAsJsonAsync(Preferencia, new ComunicacaoDoKapaRequestDTO(true), Json, Ct)).EnsureSuccessStatusCode();
+        using (var escopo = fabrica.Services.CreateScope())
+        {
+            var preferencia = await escopo
+                .ServiceProvider.GetRequiredService<IComunicacaoDoKapaService>()
+                .DefinirPreferencia(
+                    turma.Presidente.UsuarioId,
+                    true,
+                    OrigemDoConsentimentoDeMarketing.Suporte,
+                    new OrigemDoAceite("", "suporte-interno"),
+                    Ct
+                );
+            preferencia.Sucesso.ShouldBeTrue();
+        }
 
         await using (var contexto = fabrica.ContextoDe(turma.FormaturaId))
             await contexto.Assinaturas.ExecuteUpdateAsync(s => s.SetProperty(a => a.Status, StatusDaAssinatura.Vencida), Ct);

@@ -20,7 +20,6 @@ using Backend.Business.Loja.Models;
 using Backend.Business.Marketing.Models;
 using Backend.Business.Notificacoes.Models;
 using Backend.Business.Pagamentos.Models;
-using Backend.Business.Privacidade.Models;
 using Backend.Business.Recebimentos.Models;
 using Backend.Business.Relatorios.Models;
 using Backend.Business.Usuarios.Models;
@@ -232,15 +231,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
 
     /// <summary>O que a régua já disparou — o histórico, e a trava contra a segunda mensagem.</summary>
     public DbSet<NotificacaoEnviada> NotificacoesEnviadas => Set<NotificacaoEnviada>();
-
-    /// <summary>
-    /// Pedidos de exportação e de eliminação feitos pelos titulares.
-    /// </summary>
-    /// <remarks>
-    /// Sem <c>formatura_id</c>: o titular é a pessoa, e o pedido dela atravessa as turmas
-    /// (decisão 2 da Sprint 14).
-    /// </remarks>
-    public DbSet<SolicitacaoDePrivacidade> SolicitacoesDePrivacidade => Set<SolicitacaoDePrivacidade>();
 
     /// <summary>Histórico da preferência "Receber novidades do Kapa" (Sprint 40). Append-only.</summary>
     public DbSet<ConsentimentoDeMarketing> ConsentimentosDeMarketing => Set<ConsentimentoDeMarketing>();

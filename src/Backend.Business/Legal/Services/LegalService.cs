@@ -89,8 +89,8 @@ public sealed class LegalService(ILegalRepository legalRepository, IValidator<Re
 
     /// <inheritdoc />
     /// <remarks>
-    /// Vale a linha <b>mais recente</b> de cada versão: aceite seguido de revogação é pendência,
-    /// e revogação seguida de novo aceite não é.
+    /// Cada versão vigente exige um registro de aceite. A retirada de consentimento de marketing
+    /// é independente dos aceites contratuais.
     /// <para>
     /// O <see cref="PerfisPadrao.Administrador"/> não tem pendência (decisão de 06/10/2026): é o próprio
     /// Kapa operando a plataforma, não um usuário dela, e não participa de formatura. Os Termos de Uso e a
@@ -107,44 +107,11 @@ public sealed class LegalService(ILegalRepository legalRepository, IValidator<Re
         var historico = await legalRepository.ListarConsentimentos(usuarioId, ct);
 
         var pendencias = vigentes
-            .Where(vigente => historico.FirstOrDefault(h => h.Tipo == vigente.Tipo && h.Versao == vigente.Versao) is not { Revogado: false })
+            .Where(vigente => !historico.Any(h => h.Tipo == vigente.Tipo && h.Versao == vigente.Versao))
             .Select(vigente => new AceitePendente(vigente.Tipo, vigente.Versao))
             .ToList();
 
         return new MeusAceites(pendencias);
-    }
-
-    /// <inheritdoc />
-    public async Task<Result> Revogar(Guid usuarioId, Guid consentimentoId, OrigemDoAceite origem, CancellationToken ct = default)
-    {
-        var consentimento = await legalRepository.ObterConsentimentoDoTitular(consentimentoId, usuarioId, ct);
-
-        if (consentimento is null)
-            return Result.Falha(Erro.NaoEncontrado("legal.consentimento_nao_encontrado", "Registro de consentimento não encontrado."));
-
-        if (
-            consentimento.Revogado
-            || await legalRepository.TemRevogacaoPosterior(usuarioId, consentimento.DocumentoLegalId, consentimento.AceitoEm, ct)
-        )
-            return Result.Falha(Erro.Conflito("legal.consentimento_ja_revogado", "Este consentimento já foi revogado."));
-
-        await legalRepository.Adicionar(
-            new ConsentimentoRegistrado
-            {
-                UsuarioId = usuarioId,
-                DocumentoLegalId = consentimento.DocumentoLegalId,
-                Versao = consentimento.Versao,
-                AceitoEm = DateTime.UtcNow,
-                EnderecoIp = origem.EnderecoIp ?? string.Empty,
-                UserAgent = TextoUtils.Truncar(origem.UserAgent, TamanhoMaximoDoUserAgent) ?? string.Empty,
-                Revogado = true,
-            },
-            ct
-        );
-
-        await unitOfWork.SalvarAsync(ct);
-
-        return Result.Ok();
     }
 
     /// <summary>

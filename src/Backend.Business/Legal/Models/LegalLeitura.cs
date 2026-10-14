@@ -19,12 +19,11 @@ public sealed record AceiteDeDocumento(string Tipo, string Versao);
 public sealed record OrigemDoAceite(string? EnderecoIp, string? UserAgent);
 
 /// <summary>Uma linha do histórico de consentimento do usuário.</summary>
-/// <param name="Id">Identificador do registro — é por ele que a revogação aponta.</param>
+/// <param name="Id">Identificador do registro de aceite.</param>
 /// <param name="Tipo">Documento aceito.</param>
 /// <param name="Versao">Versão aceita.</param>
 /// <param name="AceitoEm">Momento do registro, em UTC.</param>
-/// <param name="Revogado">Se a linha registra uma revogação.</param>
-public sealed record ConsentimentoDoUsuario(Guid Id, string Tipo, string Versao, DateTime AceitoEm, bool Revogado);
+public sealed record ConsentimentoDoUsuario(Guid Id, string Tipo, string Versao, DateTime AceitoEm);
 
 /// <summary>Documento vigente que o usuário ainda não aceitou.</summary>
 /// <param name="Tipo">Documento.</param>

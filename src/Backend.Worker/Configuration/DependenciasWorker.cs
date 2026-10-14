@@ -47,7 +47,6 @@ public static class DependenciasWorker
         builder.Services.AddHostedService<ConciliacaoDeAssinaturasJob>();
         builder.Services.AddHostedService<GeracaoDeRelatoriosJob>();
         builder.Services.AddHostedService<ReguaDeCobrancaJob>();
-        builder.Services.AddHostedService<PrivacidadeJob>();
         builder.Services.AddHostedService<DescarteDeDocumentosDeConvidadosJob>();
         builder.Services.AddHostedService<ResumoDoTermoJob>();
         builder.Services.AddHostedService<CobrancasDoMercadoPagoJob>();

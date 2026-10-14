@@ -19,7 +19,6 @@ public sealed class CorsDosDominiosTests(ApiFactory fabrica)
     [Theory]
     [InlineData("/api/v1/planos")]
     [InlineData("/api/v1/legal/vigentes")]
-    [InlineData("/api/v1/privacidade/operadores")]
     public async Task O_site_le_a_vitrine(string caminho)
     {
         var resposta = await Pedir(caminho, Site);

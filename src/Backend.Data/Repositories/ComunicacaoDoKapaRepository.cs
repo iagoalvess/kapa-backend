@@ -89,7 +89,7 @@ public sealed class ComunicacaoDoKapaRepository(AppDbContext db) : IComunicacaoD
     /// A preferência de marketing do titular, com o histórico e os envios.
     /// </summary>
     /// <remarks>
-    /// Estático e interno porque é parte de duas leituras de outros repositórios — "Minha privacidade" e o painel
+    /// Estático e interno porque é parte de duas leituras de outros repositórios — a exportação interna e o painel
     /// de suporte —, e as duas precisam dizer a mesma coisa.
     /// </remarks>
     /// <param name="db">Contexto de dados.</param>

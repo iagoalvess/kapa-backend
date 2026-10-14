@@ -1,5 +1,5 @@
 using Backend.Api.DTOs.Assinaturas;
-using Backend.Api.DTOs.Privacidade;
+using Backend.Api.DTOs.Marketing;
 using Backend.Business.Admin.Models;
 
 namespace Backend.Api.DTOs.Admin;

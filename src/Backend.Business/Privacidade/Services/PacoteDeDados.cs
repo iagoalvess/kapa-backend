@@ -17,8 +17,7 @@ namespace Backend.Business.Privacidade.Services;
 /// aninhamento preservado, e é o que outro sistema consegue ler (art. 18, V). Os <c>.csv</c> são
 /// planos, abrem no Excel com dois cliques, e é o que o titular de fato olha.
 /// <para>
-/// Um ZIP e não sete anexos: o pacote é um arquivo só no módulo de arquivos, com um prazo só e uma
-/// remoção só. Sete linhas em <c>arquivos</c> por exportação seriam sete chances de sobrar órfão.
+/// O ZIP é entregue ao suporte como arquivo local, sem registrar cópias no armazenamento do produto.
 /// </para>
 /// <para>
 /// <b>CSV com ponto e vírgula e BOM.</b> É o que o Excel em português abre sem a caixa de diálogo de
@@ -43,10 +42,10 @@ public static class PacoteDeDados
     /// <summary>Os caracteres que obrigam a célula a ir entre aspas.</summary>
     private static readonly SearchValues<char> Especiais = SearchValues.Create([';', '"', '\n', '\r']);
 
-    /// <summary>Monta o ZIP a partir do que a tela "Meus dados" mostra.</summary>
+    /// <summary>Monta o ZIP a partir da consulta interna por titular.</summary>
     /// <remarks>
-    /// Recebe o mesmo objeto que a tela recebe, de propósito: exportação montada por uma consulta
-    /// própria é exportação que, um dia, deixa de trazer o campo que a tela passou a mostrar.
+    /// O suporte revisa o alcance do pedido e complementa os dados quando houver arquivos,
+    /// compras avulsas ou registros técnicos pertinentes.
     /// </remarks>
     /// <param name="dados">Tudo o que a Kapa guarda sobre o titular.</param>
     /// <param name="geradoEm">Momento da geração, em UTC, impresso no leia-me.</param>
@@ -76,7 +75,7 @@ public static class PacoteDeDados
                 "parcelas.csv",
                 Csv(["turma", "item", "numero", "vencimento", "valor", "situacao", "valor_pago", "pago_em"], Parcelas(dados))
             );
-            Gravar(zip, "consentimentos.csv", Csv(["documento", "versao", "registrado_em", "revogacao"], Consentimentos(dados)));
+            Gravar(zip, "consentimentos.csv", Csv(["documento", "versao", "registrado_em"], Consentimentos(dados)));
             Gravar(zip, "novidades-do-kapa.csv", Csv(["registro", "detalhe", "em"], NovidadesDoKapa(dados.Comunicacoes.DoKapa)));
         }
 
@@ -158,9 +157,7 @@ public static class PacoteDeDados
         );
 
     private static IEnumerable<string[]> Consentimentos(MeusDados dados) =>
-        dados.Consentimentos.Select(consentimento =>
-            (string[])[consentimento.Tipo, consentimento.Versao, DataHora(consentimento.AceitoEm), consentimento.Revogado ? "revogação" : "aceite"]
-        );
+        dados.Consentimentos.Select(consentimento => (string[])[consentimento.Tipo, consentimento.Versao, DataHora(consentimento.AceitoEm)]);
 
     /// <summary>A preferência de marketing: o estado atual, cada aceite e oposição, e cada e-mail mandado (Sprint 40).</summary>
     /// <param name="doKapa">Preferência, histórico e envios.</param>
@@ -196,12 +193,12 @@ public static class PacoteDeDados
 
             O que tem aqui
             --------------
-            dados.json          Tudo, com a estrutura preservada. É o formato para levar a outro sistema.
+            dados.json          Dados da conta e das turmas, com a estrutura preservada. É o formato para levar a outro sistema.
             conta.csv           Sua conta: nome, e-mail, telefone e quando ela foi criada.
             turmas.csv          Uma linha por turma sua, com o total cobrado e o total pago.
-            cadastro.csv        Seu cadastro em cada turma: documentos, endereço e contato de emergência.
+            cadastro.csv        Seu cadastro em cada turma: nome, CPF, telefone e contato de emergência.
             parcelas.csv        Uma linha por parcela, com vencimento, valor e situação.
-            consentimentos.csv  Cada aceite e cada revogação de Termos de Uso e Política de Privacidade.
+            consentimentos.csv  Cada aceite de Termos de Uso e Política de Privacidade.
             novidades-do-kapa.csv  Se você recebe as novidades do Kapa, quando aceitou ou saiu, e o que já mandamos.
 
             Os arquivos .csv usam ponto e vírgula e abrem direto no Excel.
@@ -210,12 +207,13 @@ public static class PacoteDeDados
             -------------------
             Dados de outras pessoas, mesmo da sua turma. Este pacote é só seu.
             Os documentos e avisos publicados pela comissão, que são da turma e não do titular.
-            Seu histórico de acesso e os registros técnicos de segurança, guardados por prazo próprio.
+            Arquivos pessoais, compras avulsas, histórico de acesso e registros técnicos de segurança.
+            Se pertinentes ao seu pedido, o suporte os fornece separadamente.
 
             Dúvidas
             -------
             A Política de Privacidade explica por que cada dado existe e por quanto tempo fica.
-            Você pode pedir correção, revogar um consentimento ou pedir eliminação na tela Meus dados.
+            Para acesso, correção, cópia, revogação de consentimento ou eliminação, fale com suporte@kapaformaturas.com.br.
             """;
 
     private static void Gravar(ZipArchive zip, string nome, byte[] conteudo)

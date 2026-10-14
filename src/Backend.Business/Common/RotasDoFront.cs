@@ -31,9 +31,6 @@ public static class RotasDoFront
     /// <summary>As parcelas da turma, na gestão — onde a tesouraria vê o estorno do Mercado Pago (Sprint 39).</summary>
     public const string ParcelasDaTurma = "/cobrancas/parcelas";
 
-    /// <summary>Portal de privacidade do titular.</summary>
-    public const string MinhaPrivacidade = "/minha-privacidade";
-
     /// <summary>O plano de cobrança da turma — o próximo passo de "criou e não voltou" (Sprint 40).</summary>
     public const string PlanoDeCobranca = "/cobrancas";
 

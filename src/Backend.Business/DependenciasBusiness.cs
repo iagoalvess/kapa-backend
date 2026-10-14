@@ -327,10 +327,7 @@ public static class DependenciasBusiness
         services.AddScoped<ILegalService, LegalService>();
         services.AddScoped<IAuditoriaService, AuditoriaService>();
         services.AddScoped<IBuscaService, BuscaService>();
-        services.AddScoped<IPrivacidadeService, PrivacidadeService>();
-        services.AddScoped<IProcessamentoDePrivacidadeService, ProcessamentoDePrivacidadeService>();
         services.AddScoped<IAnonimizacaoDeTitular, AnonimizacaoDeTitular>();
-        services.AddScoped<EmailsDePrivacidade>();
         services.AddScoped<IComunicacaoDoKapaService, ComunicacaoDoKapaService>();
         services.AddScoped<IJornadasDeMarketingService, JornadasDeMarketingService>();
         services.AddScoped<EmailsDeMarketing>();

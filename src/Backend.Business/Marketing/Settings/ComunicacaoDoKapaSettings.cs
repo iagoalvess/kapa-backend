@@ -34,7 +34,7 @@ public sealed class ComunicacaoDoKapaSettings
     /// <summary>Por quantos dias o link de descadastro vale.</summary>
     /// <remarks>
     /// Longo de propósito: o link sai num e-mail que pode ser aberto meses depois, e sair é um direito a
-    /// qualquer tempo (art. 18, §2º). Vencido, "Minha privacidade" continua ali.
+    /// qualquer tempo. Se o link vencer, o titular pode pedir o descadastro pelo suporte.
     /// </remarks>
     public int DiasDoLinkDeDescadastro { get; init; } = 365;
 }

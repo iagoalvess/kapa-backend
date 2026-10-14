@@ -104,7 +104,7 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
 
         var consentimentos = await ConsentimentosDe(email);
         consentimentos.Count.ShouldBe(2);
-        consentimentos.ShouldAllBe(c => c.EnderecoIp == "203.0.113.7" && c.UserAgent == "NavegadorDeTeste/1.0" && !c.Revogado);
+        consentimentos.ShouldAllBe(c => c.EnderecoIp == "203.0.113.7" && c.UserAgent == "NavegadorDeTeste/1.0");
         consentimentos.ShouldAllBe(c => c.AceitoEm >= antes.AddSeconds(-1) && c.AceitoEm <= DateTime.UtcNow);
         consentimentos.ShouldAllBe(c => c.Versao.Length > 0);
     }
@@ -218,7 +218,7 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
         await using var contexto = fabrica.ContextoDe(null);
 
         await Should.ThrowAsync<PostgresException>(() =>
-            contexto.Database.ExecuteSqlAsync($"UPDATE consentimentos SET revogado = true WHERE usuario_id = {usuarioId}", Ct)
+            contexto.Database.ExecuteSqlAsync($"UPDATE consentimentos SET user_agent = 'alterado' WHERE usuario_id = {usuarioId}", Ct)
         );
         await Should.ThrowAsync<PostgresException>(() =>
             contexto.Database.ExecuteSqlAsync($"DELETE FROM consentimentos WHERE usuario_id = {usuarioId}", Ct)
@@ -228,8 +228,8 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
         );
     }
 
-    private static (Guid, Guid, string, DateTime, string, string, bool) Retrato(ConsentimentoRegistrado c) =>
-        (c.Id, c.DocumentoLegalId, c.Versao, c.AceitoEm, c.EnderecoIp, c.UserAgent, c.Revogado);
+    private static (Guid, Guid, string, DateTime, string, string) Retrato(ConsentimentoRegistrado c) =>
+        (c.Id, c.DocumentoLegalId, c.Versao, c.AceitoEm, c.EnderecoIp, c.UserAgent);
 
     private static string NovoEmail() => $"legal-{Guid.CreateVersion7():N}@testes.local";
 
@@ -307,9 +307,6 @@ public sealed class ConsentimentoTests(ApiFactory fabrica)
         ) => throw new InvalidOperationException("Banco caiu no meio do cadastro.");
 
         public Task<Result<MeusAceites>> ObterMeusAceites(Guid usuarioId, IReadOnlyList<string> perfis, CancellationToken ct = default) =>
-            throw new NotSupportedException();
-
-        public Task<Result> Revogar(Guid usuarioId, Guid consentimentoId, OrigemDoAceite origem, CancellationToken ct = default) =>
             throw new NotSupportedException();
     }
 }

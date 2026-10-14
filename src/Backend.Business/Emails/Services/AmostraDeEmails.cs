@@ -14,8 +14,6 @@ using Backend.Business.Notificacoes.Interfaces;
 using Backend.Business.Notificacoes.Models;
 using Backend.Business.Pagamentos.Models;
 using Backend.Business.Pagamentos.Services;
-using Backend.Business.Privacidade.Models;
-using Backend.Business.Privacidade.Services;
 using Backend.Business.Recebimentos.Models;
 using Backend.Business.Recebimentos.Services;
 using Backend.Business.Usuarios.Models;
@@ -41,7 +39,6 @@ namespace Backend.Business.Emails.Services;
 /// <param name="adesao">E-mails da adesão.</param>
 /// <param name="assinatura">E-mails da assinatura.</param>
 /// <param name="pagamento">E-mails de pagamento.</param>
-/// <param name="privacidade">E-mails da LGPD.</param>
 /// <param name="desligamento">E-mails da saída de formando.</param>
 /// <param name="recebimento">E-mails da conta de recebimento.</param>
 /// <param name="canal">Canal da régua de cobrança.</param>
@@ -53,7 +50,6 @@ public sealed class AmostraDeEmails(
     EmailsDeAdesao adesao,
     EmailsDeAssinatura assinatura,
     EmailsDePagamento pagamento,
-    EmailsDePrivacidade privacidade,
     EmailsDeDesligamento desligamento,
     EmailsDeRecebimento recebimento,
     ICanalDeNotificacao canal,
@@ -76,7 +72,6 @@ public sealed class AmostraDeEmails(
         await DaAdesao(para, ct);
         await DaAssinatura(para, ct);
         await DoPagamento(para, ct);
-        await DaPrivacidade(para, ct);
         await DoDesligamento(para, ct);
         await DoRecebimento(para, ct);
         await DaRegua(para, ct);
@@ -131,16 +126,6 @@ public sealed class AmostraDeEmails(
         );
         await pagamento.Recusado(para, Turma, vencimento, 35_000, "Não encontramos este PIX no extrato da turma.", ct);
         await pagamento.Estornado(para, Turma, vencimento, 35_000, "Baixa lançada na parcela errada.", ct);
-    }
-
-    private async Task DaPrivacidade(string para, CancellationToken ct)
-    {
-        var prazo = DateTime.UtcNow.AddDays(15);
-
-        await privacidade.ExportacaoPronta(para, 7, ct);
-        await privacidade.ExclusaoSolicitada(para, prazo, ct);
-        await privacidade.ExclusaoParaOPresidente(new PresidenteParaAviso(para, Turma, 140_000), "Ana Beatriz", prazo, ct);
-        await privacidade.ExclusaoConcluida(para, "FORMANDO-3F9A21", ct);
     }
 
     private async Task DoDesligamento(string para, CancellationToken ct)

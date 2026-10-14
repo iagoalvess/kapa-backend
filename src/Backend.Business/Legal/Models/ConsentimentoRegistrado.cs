@@ -2,8 +2,7 @@ namespace Backend.Business.Legal.Models;
 
 /// <summary>Prova de que um usuário aceitou uma versão específica de um documento.</summary>
 /// <remarks>
-/// Nunca é atualizado. Revogar é gravar uma nova linha com <see cref="Revogado"/> verdadeiro —
-/// registro de consentimento que pode ser editado não prova nada. Pelo mesmo motivo não herda
+/// Nunca é atualizado. O aceite preserva o texto que valia no momento da contratação. Pelo mesmo motivo não herda
 /// de <c>Entity</c> (sem <c>AtualizadoEm</c>) e o banco recusa <c>UPDATE</c> e <c>DELETE</c>.
 /// </remarks>
 public class ConsentimentoRegistrado
@@ -34,7 +33,4 @@ public class ConsentimentoRegistrado
 
     /// <summary>Navegador ou cliente que enviou o aceite.</summary>
     public string UserAgent { get; init; } = string.Empty;
-
-    /// <summary>Se esta linha registra uma revogação, e não um aceite.</summary>
-    public bool Revogado { get; init; }
 }

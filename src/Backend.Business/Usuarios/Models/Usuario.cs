@@ -49,7 +49,7 @@ public class Usuario : IdentityUser<Guid>
     /// </summary>
     /// <remarks>
     /// Por conta, e não por turma (Sprint 40): o marketing é do Kapa com a pessoa. Consentimento (P1) — só
-    /// quem marcou a caixa no cadastro ou ligou em "Minha privacidade" recebe. O histórico de cada mudança
+    /// quem marcou a caixa no cadastro ou autorizou pelo suporte recebe. O histórico de cada mudança
     /// está em <c>ConsentimentoDeMarketing</c>; aqui fica só o estado, que é o que o envio confere.
     /// <para>
     /// Ligada não basta: só recebe quem é da comissão de turma do gratuito, e nunca formando.

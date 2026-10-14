@@ -1,10 +1,7 @@
 using Asp.Versioning;
-using Backend.Api.Analytics;
 using Backend.Api.Configuration;
-using Backend.Api.DTOs.Marketing;
 using Backend.Api.Extensions;
 using Backend.Business.Marketing.Interfaces;
-using Backend.Business.Marketing.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -12,11 +9,10 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Backend.Api.Controllers.V1.Marketing;
 
 /// <summary>
-/// "Receber novidades do Kapa" (Sprint 40): a preferência da conta e o descadastro de um clique do e-mail.
+/// "Receber novidades do Kapa" (Sprint 40): descadastro pelo rodapé ou pelo cliente de e-mail.
 /// </summary>
 /// <remarks>
-/// Divide o prefixo <c>privacidade</c> com o portal do titular — é lá que a pessoa liga e desliga —, mas o assunto
-/// é o marketing do Kapa. Por conta, e não por turma: nada aqui depende da formatura selecionada.
+/// O consentimento é dado no cadastro. A retirada é feita pelo e-mail, sem login, ou pelo suporte.
 /// </remarks>
 /// <param name="comunicacaoDoKapa">A preferência de marketing do Kapa e o descadastro de um clique.</param>
 /// <param name="usuarioAtual">Quem está fazendo a requisição — é o titular, sempre.</param>
@@ -26,28 +22,6 @@ namespace Backend.Api.Controllers.V1.Marketing;
 [EnableRateLimiting(RateLimitConfig.Padrao)]
 public sealed class ComunicacaoDoKapaController(IComunicacaoDoKapaService comunicacaoDoKapa, IUsuarioAtual usuarioAtual) : MainController
 {
-    /// <summary>
-    /// Liga ou desliga "Receber novidades do Kapa" (Sprint 40).
-    /// </summary>
-    /// <remarks>
-    /// Por conta, e não por turma. Grava uma linha no histórico só quando o valor muda — pedir o que já vale
-    /// responde 204 e não registra nada.
-    /// </remarks>
-    /// <param name="requisicao">O valor novo.</param>
-    [HttpPut("comunicacao-do-kapa")]
-    [RegistrarEvento("privacidade.comunicacao_do_kapa_alterada")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> DefinirComunicacaoDoKapa([FromBody] ComunicacaoDoKapaRequestDTO requisicao, CancellationToken ct) =>
-        Responder(
-            await comunicacaoDoKapa.DefinirPreferencia(
-                usuarioAtual.Id,
-                requisicao.Receber,
-                OrigemDoConsentimentoDeMarketing.MinhaPrivacidade,
-                usuarioAtual.Origem,
-                ct
-            )
-        );
-
     /// <summary>
     /// O descadastro de um clique do e-mail de marketing — sem login.
     /// </summary>

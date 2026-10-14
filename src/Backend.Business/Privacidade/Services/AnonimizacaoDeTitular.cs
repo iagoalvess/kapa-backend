@@ -10,26 +10,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Backend.Business.Privacidade.Services;
 
-/// <summary>
-/// Torna o titular irreconhecível e preserva o registro financeiro da turma.
-/// </summary>
+/// <summary>Limpeza cadastral executada internamente após análise do pedido pelo suporte.</summary>
 /// <remarks>
-/// <b>O que some:</b> nome, e-mail, telefone, CPF, RG, matrícula, data de nascimento, endereço,
-/// contato de emergência, observações e a foto — na conta e em todos os cadastros de turma.
-/// <para>
-/// <b>O que fica:</b> parcelas, recebimentos, despesas e a adesão. Quem pagou R$ 8.400 à turma não
-/// pode ter o lançamento apagado — a comissão presta contas com ele e a guarda fiscal o exige. Os
-/// lançamentos passam a apontar para um marcador (<c>Formando #a1b2c3</c>), estável e irreversível:
-/// dá para seguir o dinheiro de uma pessoa sem saber quem ela é.
-/// </para>
-/// <para>
-/// <b>O limite, escrito:</b> <c>adesoes</c> e <c>consentimentos</c> são <i>append-only</i> no banco
-/// — o gatilho recusa <c>UPDATE</c> e <c>DELETE</c>, e é essa recusa que faz delas prova. A adesão
-/// guarda o nome e o CPF do instante do aceite, porque um contrato sem quem o assinou não prova
-/// contrato nenhum (LGPD, art. 16, I e II). O que a Sprint 14 faz com eles é <b>não servi-los</b>:
-/// <c>Usuario.AnonimizadoEm</c> passa a mascarar essas leituras. A linha segue no banco, alcançável
-/// por ordem judicial e por mais ninguém.
-/// </para>
+/// Encerra o acesso e limpa conta, perfis, foto e respostas às enquetes. Preserva vínculos,
+/// lançamentos e provas de adesão/aceite. Como esses registros permitem reassociação,
+/// não há promessa de anonimização integral nem de eliminação de todos os dados.
+/// O suporte deve avaliar separadamente arquivos, compras, registros técnicos e fornecedores.
 /// </remarks>
 /// <param name="privacidadeRepository">Cadastros do titular em todas as turmas.</param>
 /// <param name="userManager">A conta do Identity.</param>
@@ -92,6 +78,8 @@ public sealed class AnonimizacaoDeTitular(
         usuario.PhoneNumberConfirmed = false;
         usuario.EmailConfirmed = false;
         usuario.Ativo = false;
+        usuario.ReceberComunicacaoDoKapa = false;
+        usuario.PasswordHash = null;
         usuario.AnonimizadoEm = DateTime.UtcNow;
 
         await userManager.UpdateSecurityStampAsync(usuario);
@@ -142,7 +130,9 @@ public sealed class AnonimizacaoDeTitular(
             var remocao = await arquivoService.Remover(foto, new SolicitanteDeArquivo(usuarioId, PeloSistema: true), ct);
 
             if (remocao.Falhou)
-                logger.LogWarning("Foto {ArquivoId} do titular {UsuarioId} não foi apagada: {Codigo}.", foto, usuarioId, remocao.PrimeiroErro.Codigo);
+                throw new IOException(
+                    $"Não foi possível remover a foto {foto}: {remocao.PrimeiroErro.Codigo}. Repita a operação após corrigir o armazenamento."
+                );
         }
     }
 

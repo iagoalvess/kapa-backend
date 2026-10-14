@@ -50,8 +50,8 @@ public static class OrigemDoConsentimentoDeMarketing
     /// <summary>O link ou o botão de descadastro do próprio e-mail.</summary>
     public const string DescadastroPeloEmail = "descadastro_pelo_email";
 
-    /// <summary>O interruptor de "Minha privacidade".</summary>
-    public const string MinhaPrivacidade = "minha_privacidade";
+    /// <summary>Atendimento de pedido expresso pelo suporte.</summary>
+    public const string Suporte = "suporte";
 }
 
 /// <summary>O texto da caixa do cadastro e a versão dele, que vai para cada registro.</summary>

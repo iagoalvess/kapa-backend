@@ -6,12 +6,12 @@ using Backend.Business.Marketing.Models;
 namespace Backend.Business.Privacidade.Models;
 
 /// <summary>
-/// Tudo o que a Kapa guarda sobre uma pessoa, por seção.
+/// Dados de conta e das turmas reunidos para o atendimento pelo suporte.
 /// </summary>
 /// <remarks>
 /// É a resposta aos direitos de confirmação e acesso (LGPD, art. 18, I e II) e o conteúdo da
-/// exportação — o mesmo objeto serve à tela e ao pacote, e é isso que garante que os dois digam a
-/// mesma coisa. Uma tela que mostra menos do que a exportação leva é uma tela que mente.
+/// exportação interna. Arquivos, compras avulsas e registros técnicos devem ser avaliados
+/// separadamente pelo suporte conforme o alcance do pedido.
 /// <para>
 /// O recorte é <b>a pessoa</b>, não a turma selecionada: <see cref="Turmas"/> traz todos os
 /// vínculos, ativos e inativos.
@@ -19,7 +19,7 @@ namespace Backend.Business.Privacidade.Models;
 /// </remarks>
 /// <param name="Conta">O que é da pessoa, e não de uma turma.</param>
 /// <param name="Turmas">Um bloco por vínculo, com cadastro, financeiro e adesão.</param>
-/// <param name="Consentimentos">Histórico de aceite e revogação, do mais recente.</param>
+/// <param name="Consentimentos">Histórico de aceite dos documentos, do mais recente.</param>
 /// <param name="Comunicacoes">Preferências e o que já foi enviado.</param>
 public sealed record MeusDados(
     DadosDaConta Conta,
@@ -109,7 +109,7 @@ public sealed record MinhaParcela(
     DateOnly? PagoEm
 );
 
-/// <summary>O aceite do termo, que é prova de contrato e não é anonimizável.</summary>
+/// <summary>O aceite do termo, retido como prova contratual conforme a análise de necessidade e prazo.</summary>
 /// <param name="Versao">Versão do termo aceita.</param>
 /// <param name="AceitoEm">Momento do aceite, em UTC.</param>
 /// <param name="EnderecoIp">IP de onde veio o aceite.</param>
@@ -120,50 +120,3 @@ public sealed record MinhaAdesao(int Versao, DateTime AceitoEm, string EnderecoI
 /// <param name="UltimaEnviadaEm">Quando saiu a última, em UTC.</param>
 /// <param name="DoKapa">"Receber novidades do Kapa": a preferência, o histórico e os e-mails de marketing mandados (Sprint 40).</param>
 public sealed record MinhasComunicacoes(int NotificacoesEnviadas, DateTime? UltimaEnviadaEm, ComunicacaoDoKapa DoKapa);
-
-/// <summary>Uma solicitação do titular, como a tela a lista.</summary>
-/// <param name="Id">Identificador.</param>
-/// <param name="Tipo">Exportação ou exclusão.</param>
-/// <param name="Status">Situação.</param>
-/// <param name="CriadoEm">Quando foi pedida, em UTC.</param>
-/// <param name="PrazoEm">Quando será executada, em UTC.</param>
-/// <param name="ConfirmadaEm">Quando o titular confirmou, antecipando o prazo.</param>
-/// <param name="ConcluidaEm">Quando foi atendida, em UTC.</param>
-/// <param name="ExpiraEm">Quando o pacote deixa de estar disponível.</param>
-/// <param name="Disponivel">Se o pacote pode ser baixado agora.</param>
-/// <param name="Motivo">Por que falhou, quando falhou.</param>
-public sealed record SolicitacaoResumo(
-    Guid Id,
-    TipoDeSolicitacao Tipo,
-    StatusDaSolicitacaoDePrivacidade Status,
-    DateTime CriadoEm,
-    DateTime PrazoEm,
-    DateTime? ConfirmadaEm,
-    DateTime? ConcluidaEm,
-    DateTime? ExpiraEm,
-    bool Disponivel,
-    string? Motivo
-);
-
-/// <summary>Uma solicitação pendente que já venceu, para o worker processar.</summary>
-/// <param name="SolicitacaoId">Identificador.</param>
-/// <param name="Tipo">O que fazer.</param>
-public sealed record PrivacidadePendente(Guid SolicitacaoId, TipoDeSolicitacao Tipo);
-
-/// <summary>Um terceiro que trata dado pessoal por conta da Kapa (LGPD, art. 18, VII).</summary>
-/// <param name="Nome">Quem é.</param>
-/// <param name="Finalidade">Para quê.</param>
-/// <param name="Dados">Que categoria de dado chega até ele.</param>
-public sealed record Operador(string Nome, string Finalidade, string Dados);
-
-/// <summary>Dados mínimos do titular usados pelos e-mails do portal.</summary>
-/// <param name="UsuarioId">Titular.</param>
-/// <param name="Nome">Nome de exibição.</param>
-/// <param name="Email">E-mail de acesso.</param>
-public sealed record TitularParaAviso(Guid UsuarioId, string Nome, string Email);
-
-/// <summary>Um presidente a avisar de um pedido de eliminação, e o quanto o titular deve na turma dele.</summary>
-/// <param name="Email">E-mail do presidente.</param>
-/// <param name="Formatura">Nome da turma.</param>
-/// <param name="EmAbertoEmCentavos">Soma das parcelas em aberto do titular naquela turma.</param>
-public sealed record PresidenteParaAviso(string Email, string Formatura, long EmAbertoEmCentavos);

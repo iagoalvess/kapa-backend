@@ -15,14 +15,6 @@ public sealed record DocumentoLegalDTO(Guid Id, string Tipo, string Versao, stri
 /// <param name="Aceites">Versões vigentes aceitas.</param>
 public sealed record RegistrarAceitesRequestDTO(IReadOnlyList<AceiteDeDocumentoDTO>? Aceites);
 
-/// <summary>Uma linha do histórico de consentimento.</summary>
-/// <param name="Id">Identificador do registro — é por ele que a revogação aponta.</param>
-/// <param name="Tipo">Documento.</param>
-/// <param name="Versao">Versão.</param>
-/// <param name="AceitoEm">Momento do registro, em UTC.</param>
-/// <param name="Revogado">Se a linha registra uma revogação.</param>
-public sealed record ConsentimentoDoUsuarioDTO(Guid Id, string Tipo, string Versao, DateTime AceitoEm, bool Revogado);
-
 /// <summary>Versão vigente ainda não aceita.</summary>
 /// <param name="Tipo">Documento.</param>
 /// <param name="Versao">Versão a aceitar.</param>

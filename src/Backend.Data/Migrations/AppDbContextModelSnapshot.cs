@@ -3229,10 +3229,6 @@ namespace Backend.Data.Migrations
                         .HasColumnType("character varying(45)")
                         .HasColumnName("endereco_ip");
 
-                    b.Property<bool>("Revogado")
-                        .HasColumnType("boolean")
-                        .HasColumnName("revogado");
-
                     b.Property<string>("UserAgent")
                         .IsRequired()
                         .HasMaxLength(512)
@@ -4100,79 +4096,6 @@ namespace Backend.Data.Migrations
                         .HasDatabaseName("ix_valores_a_devolver_vinculo_id");
 
                     b.ToTable("valores_a_devolver", (string)null);
-                });
-
-            modelBuilder.Entity("Backend.Business.Privacidade.Models.SolicitacaoDePrivacidade", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid?>("ArquivoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("arquivo_id");
-
-                    b.Property<DateTime>("AtualizadoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("atualizado_em");
-
-                    b.Property<DateTime?>("ConcluidaEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("concluida_em");
-
-                    b.Property<DateTime?>("ConfirmadaEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("confirmada_em");
-
-                    b.Property<DateTime>("CriadoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("criado_em");
-
-                    b.Property<DateTime?>("ExpiraEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("expira_em");
-
-                    b.Property<string>("Motivo")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("motivo");
-
-                    b.Property<DateTime>("PrazoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("prazo_em");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<int>("Tentativas")
-                        .HasColumnType("integer")
-                        .HasColumnName("tentativas");
-
-                    b.Property<string>("Tipo")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("tipo");
-
-                    b.Property<Guid>("TitularUsuarioId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("titular_usuario_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_solicitacoes_de_privacidade");
-
-                    b.HasIndex("PrazoEm")
-                        .HasDatabaseName("ix_solicitacoes_de_privacidade_pendentes")
-                        .HasFilter("status = 'Pendente'");
-
-                    b.HasIndex("TitularUsuarioId", "CriadoEm")
-                        .HasDatabaseName("ix_solicitacoes_de_privacidade_titular_usuario_id_criado_em");
-
-                    b.ToTable("solicitacoes_de_privacidade", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Business.Recebimentos.Models.CobrancaBancaria", b =>
@@ -5868,16 +5791,6 @@ namespace Backend.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_valores_a_devolver_vinculos_vinculo_id");
-                });
-
-            modelBuilder.Entity("Backend.Business.Privacidade.Models.SolicitacaoDePrivacidade", b =>
-                {
-                    b.HasOne("Backend.Business.Usuarios.Models.Usuario", null)
-                        .WithMany()
-                        .HasForeignKey("TitularUsuarioId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_solicitacoes_de_privacidade_asp_net_users_titular_usuario_id");
                 });
 
             modelBuilder.Entity("Backend.Business.Recebimentos.Models.CobrancaBancaria", b =>

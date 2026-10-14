@@ -382,8 +382,6 @@ Erros do ASP.NET Identity no cadastro, na troca e na redefinição de senha. O c
 | Código | Status | Quando acontece |
 | --- | --- | --- |
 | <a id="legal.aceite_obrigatorio"></a>`legal.aceite_obrigatorio` | 400 | É preciso aceitar os Termos de Uso e a Política de Privacidade para criar a conta. |
-| <a id="legal.consentimento_ja_revogado"></a>`legal.consentimento_ja_revogado` | 409 | Este consentimento já foi revogado. |
-| <a id="legal.consentimento_nao_encontrado"></a>`legal.consentimento_nao_encontrado` | 404 | Registro de consentimento não encontrado. |
 | <a id="legal.documento_nao_encontrado"></a>`legal.documento_nao_encontrado` | 404 | Documento não encontrado. |
 | <a id="legal.versao_desatualizada"></a>`legal.versao_desatualizada` | 409 | Este documento foi atualizado. Leia e aceite a versão vigente. |
 
@@ -490,11 +488,6 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | Código | Status | Quando acontece |
 | --- | --- | --- |
 | <a id="privacidade.anonimizacao_recusada"></a>`privacidade.anonimizacao_recusada` | 409 | Não foi possível anonimizar a conta. Tente de novo. |
-| <a id="privacidade.nada_a_confirmar"></a>`privacidade.nada_a_confirmar` | 409 | Só a solicitação de exclusão precisa de confirmação. |
-| <a id="privacidade.senha_invalida"></a>`privacidade.senha_invalida` | 401 | Senha incorreta. |
-| <a id="privacidade.senha_obrigatoria"></a>`privacidade.senha_obrigatoria` | 400 | Digite sua senha para confirmar. |
-| <a id="privacidade.solicitacao_encerrada"></a>`privacidade.solicitacao_encerrada` | 409 | Esta solicitação já foi atendida ou cancelada. |
-| <a id="privacidade.solicitacao_nao_encontrada"></a>`privacidade.solicitacao_nao_encontrada` | 404 | Solicitação não encontrada. |
 | <a id="privacidade.titular_nao_encontrado"></a>`privacidade.titular_nao_encontrado` | 404 | Titular não encontrado. |
 
 ### rate_limit
