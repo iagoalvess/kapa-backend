@@ -72,6 +72,26 @@ public sealed class RedeConfigTests
         opcoes.KnownProxies.ShouldBeEmpty();
     }
 
+    /// <summary>Atrás da Cloudflare, o IP sai do <c>CF-Connecting-IP</c>, não do <c>X-Forwarded-For</c>.</summary>
+    [Fact]
+    public void Cabecalho_do_ip_configurado_substitui_o_x_forwarded_for()
+    {
+        var configuracao = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?> { [$"{RedeConfig.Secao}:0"] = "0.0.0.0/0", [RedeConfig.CabecalhoDoIp] = "CF-Connecting-IP" }
+            )
+            .Build();
+
+        var opcoes = new ServiceCollection()
+            .AddOptions()
+            .AddProxyReverso(configuracao)
+            .BuildServiceProvider()
+            .GetRequiredService<IOptions<ForwardedHeadersOptions>>()
+            .Value;
+
+        opcoes.ForwardedForHeaderName.ShouldBe("CF-Connecting-IP");
+    }
+
     /// <summary>Entrada inválida derruba a subida, em vez de virar um proxy silenciosamente ignorado.</summary>
     [Fact]
     public void Entrada_invalida_falha_na_subida()

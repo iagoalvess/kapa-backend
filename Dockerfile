@@ -4,6 +4,12 @@
 #   docker build --target api        -t backend-api    .
 #   docker build --target worker     -t backend-worker .
 #   docker build --target migrations -t backend-migr   .
+#
+# O Railway não aceita --target: constrói o último estágio. Por isso o último estágio é o que o
+# build arg SERVICO apontar (api, worker ou migrations); o Railway passa a variável do serviço
+# com o mesmo nome como build arg. Sem ele, sai a API.
+#   docker build --build-arg SERVICO=worker -t backend-worker .
+ARG SERVICO=api
 
 # ---------------------------------------------------------------------------
 # Restore: copia só os arquivos de projeto primeiro.
@@ -94,3 +100,8 @@ ENV DOTNET_gcServer=1 \
 
 COPY --from=build /publicado/worker ./
 ENTRYPOINT ["dotnet", "Backend.Worker.dll"]
+
+# ---------------------------------------------------------------------------
+# Alvo escolhido por SERVICO (ver o topo). Precisa ser o último estágio.
+# ---------------------------------------------------------------------------
+FROM ${SERVICO}

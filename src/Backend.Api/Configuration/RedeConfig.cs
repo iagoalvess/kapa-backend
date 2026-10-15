@@ -30,6 +30,16 @@ public static class RedeConfig
     public const string Secao = "Rede:ProxiesConfiaveis";
 
     /// <summary>
+    /// Cabeçalho de onde sai o IP do cliente; vazio, o <c>X-Forwarded-For</c>.
+    /// </summary>
+    /// <remarks>
+    /// Atrás de Cloudflare e da borda do Railway são dois saltos, e o <c>X-Forwarded-For</c> lido de
+    /// trás para frente para no IP da Cloudflare. Em produção vale <c>CF-Connecting-IP</c>, que a
+    /// Cloudflare preenche com o IP do celular e sobrescreve se o cliente mandar.
+    /// </remarks>
+    public const string CabecalhoDoIp = "Rede:CabecalhoDoIp";
+
+    /// <summary>
     /// Registra o tratamento de cabeçalhos de proxy, se houver proxy configurado.
     /// </summary>
     /// <remarks>
@@ -50,6 +60,9 @@ public static class RedeConfig
         services.Configure<ForwardedHeadersOptions>(opcoes =>
         {
             opcoes.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+            if (configuration[CabecalhoDoIp] is { Length: > 0 } cabecalho)
+                opcoes.ForwardedForHeaderName = cabecalho;
 
             opcoes.KnownProxies.Clear();
             opcoes.KnownIPNetworks.Clear();
