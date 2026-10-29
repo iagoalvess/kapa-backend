@@ -360,6 +360,35 @@ public sealed class PagamentoServiceTests
         await _unitOfWork.Received(1).EmTransacaoAsync(Arg.Any<Func<CancellationToken, Task<Result<IReadOnlyList<ParcelaResumo>>>>>(), Ct);
     }
 
+    /// <summary>
+    /// Pen test de 28/10/2026: 1 centavo para várias parcelas punha todas em conferência e calava a régua.
+    /// Só a última pode ficar em parte, e nunca em zero.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(361_083)]
+    public async Task Valor_que_nao_cobre_as_parcelas_anteriores_a_ultima_e_recusado(long valorEmCentavos)
+    {
+        // Arrange
+        var maisAntiga = DaAna(_hoje.AddDays(-35));
+        var maisNova = DaAna(_hoje.AddDays(5));
+
+        // Act
+        var resultado = await Servico.Informar(
+            FormaturaId,
+            Ana.UsuarioId,
+            [maisAntiga.Id, maisNova.Id],
+            new NovoInforme(_hoje, valorEmCentavos, MeioDeRecebimento.Pix),
+            null,
+            Ct
+        );
+
+        // Assert
+        resultado.PrimeiroErro.Codigo.ShouldBe("pagamento.valor_do_informe");
+        resultado.PrimeiroErro.Campo.ShouldBe("valor_em_centavos");
+        await _informes.DidNotReceiveWithAnyArgs().Adicionar(default!, Ct);
+    }
+
     /// <summary>Uma parcela recusada derruba o aviso inteiro: nada é gravado pela metade.</summary>
     [Fact]
     public async Task Parcela_ja_paga_no_meio_do_lote_recusa_o_aviso_inteiro()

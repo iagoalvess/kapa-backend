@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Common.Datas;
 using Backend.Business.Recebimentos.Models;
 
 namespace Backend.Business.Pagamentos.Models;
@@ -17,6 +18,18 @@ namespace Backend.Business.Pagamentos.Models;
 /// </remarks>
 public class InformeDePagamento : EntidadeDaFormatura
 {
+    /// <summary>Por quantos dias o aviso pendente segura a cobrança da parcela.</summary>
+    /// <remarks>
+    /// Passado o prazo, a régua volta a cobrar e a parcela volta à lista do formando, mas o aviso segue na
+    /// Conferência e continua travando a baixa até a tesouraria decidir. Sem prazo, um "já paguei" de 1 centavo
+    /// calava a cobrança para sempre (pen test de 28/10/2026, achado 1).
+    /// </remarks>
+    public const int DiasQueSeguraACobranca = 7;
+
+    /// <summary>O instante a partir do qual um aviso criado ainda segura a cobrança no dia <paramref name="hoje"/>.</summary>
+    /// <param name="hoje">O dia local da consulta.</param>
+    public static DateTime SeguraACobrancaDesde(DateOnly hoje) => DataUtils.InicioDoDiaEmUtc(hoje.AddDays(-DiasQueSeguraACobranca));
+
     /// <summary>Parcela que o formando diz ter pago.</summary>
     public Guid ParcelaId { get; private set; }
 

@@ -464,6 +464,7 @@ A loja pública da Sprint 26. As rotas são anônimas: 404 vale para link errado
 | <a id="pagamento.recebimento_nao_encontrado"></a>`pagamento.recebimento_nao_encontrado` | 404 | Recebimento não encontrado. |
 | <a id="pagamento.sem_comprovante"></a>`pagamento.sem_comprovante` | 404 | Este aviso de pagamento não tem comprovante. |
 | <a id="pagamento.sem_conta"></a>`pagamento.sem_conta` | 409 | A comissão ainda está configurando a conta de recebimento da turma. Tente de novo em alguns dias. |
+| <a id="pagamento.valor_do_informe"></a>`pagamento.valor_do_informe` | 400 | O valor não cobre as parcelas escolhidas. Escolha só as que este pagamento quita — a última pode ficar em parte. |
 | <a id="pagamento.valor_mudou"></a>`pagamento.valor_mudou` | 409 | O valor mudou para *{R$ novo valor}*. Confira e pague de novo — o cartão não foi cobrado. |
 | <a id="pagamento.valor_nao_a_devolver"></a>`pagamento.valor_nao_a_devolver` | 409 | Este valor não está mais na lista a devolver. |
 | <a id="pagamento.valor_nao_encontrado"></a>`pagamento.valor_nao_encontrado` | 404 | Valor a devolver não encontrado. |

@@ -429,11 +429,18 @@ public sealed class PagamentoService(
         if (conferidas.Falhou)
             return Result.Falha<IReadOnlyList<ParcelaResumo>>(conferidas.Erros);
 
+        var parcelas = conferidas.Valor;
+
+        if (dados.ValorEmCentavos <= parcelas.SkipLast(1).Sum(Devido))
+            return Erro.Validacao(
+                "pagamento.valor_do_informe",
+                "O valor não cobre as parcelas escolhidas. Escolha só as que este pagamento quita — a última pode ficar em parte.",
+                campo: "valor_em_centavos"
+            );
+
         var arquivo = await ComprovanteDePagamento.Enviar(arquivoService, comprovante, usuarioId, ct);
         if (arquivo.Falhou)
             return Result.Falha<IReadOnlyList<ParcelaResumo>>(arquivo.Erros);
-
-        var parcelas = conferidas.Valor;
 
         var gravados = await unitOfWork.EmTransacaoAsync(
             async token =>
@@ -455,7 +462,7 @@ public sealed class PagamentoService(
 
                 foreach (var (parcela, ultima) in parcelas.Select((p, i) => (p, i == parcelas.Count - 1)))
                 {
-                    var cabe = ultima ? aDistribuir : Math.Min(aDistribuir, parcela.ValorDoDia?.TotalEmCentavos ?? parcela.ValorOriginalEmCentavos);
+                    var cabe = ultima ? aDistribuir : Math.Min(aDistribuir, Devido(parcela));
                     aDistribuir -= cabe;
 
                     var informe = InformeDePagamento.Novo(parcela.Id, parcela.VinculoId, dados.PagoEm, cabe, arquivo.Valor, dados.Meio);
@@ -479,6 +486,9 @@ public sealed class PagamentoService(
 
         return gravados;
     }
+
+    /// <summary>O que a parcela pede hoje, em centavos.</summary>
+    private static long Devido(ParcelaResumo parcela) => parcela.ValorDoDia?.TotalEmCentavos ?? parcela.ValorOriginalEmCentavos;
 
     /// <summary>
     /// As parcelas do aviso, do vencimento mais antigo ao mais novo, conferidas uma a uma.

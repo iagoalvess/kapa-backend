@@ -148,16 +148,18 @@ public sealed class NotificacaoRepository(AppDbContext db) : INotificacaoReposit
     }
 
     /// <summary>
-    /// As parcelas que a régua pode cobrar: em aberto, com dono que tem e-mail e sem informe pendente.
+    /// As parcelas que a régua pode cobrar: em aberto, com dono que tem e-mail e sem informe pendente recente.
     /// </summary>
     /// <remarks>
     /// O informe pendente é descontado <b>na consulta</b> (decisão 1): deixar isso para um <c>if</c>
     /// depois é confiar em alguém lembrar dele no próximo caminho que selecionar parcela para cobrar. Pelo mesmo
     /// motivo, a suspensa por solicitação de cancelamento (Sprint 48, D12) e o crédito (valor negativo, D23) saem aqui.
+    /// O informe só segura a cobrança por <see cref="InformeDePagamento.DiasQueSeguraACobranca"/> dias.
     /// </remarks>
     private IQueryable<LinhaCobravel> Cobraveis()
     {
         var hoje = DataUtils.Hoje();
+        var avisoSeguraDesde = InformeDePagamento.SeguraACobrancaDesde(hoje);
 
         return from devedor in ParcelaRepository.Devedores(db)
             join item in db.ItensDeCobranca.AsNoTracking() on devedor.Parcela.ItemDeCobrancaId equals item.Id
@@ -167,7 +169,9 @@ public sealed class NotificacaoRepository(AppDbContext db) : INotificacaoReposit
                 && !(devedor.Parcela.SuspensaAte >= hoje)
                 && devedor.Email != null
                 && db.Vinculos.Any(vinculo => vinculo.Id == devedor.Parcela.VinculoId && vinculo.Ativo)
-                && !db.Informes.Any(informe => informe.ParcelaId == devedor.Parcela.Id && informe.Status == StatusDoInforme.Pendente)
+                && !db.Informes.Any(informe =>
+                    informe.ParcelaId == devedor.Parcela.Id && informe.Status == StatusDoInforme.Pendente && informe.CriadoEm >= avisoSeguraDesde
+                )
             select new LinhaCobravel
             {
                 Parcela = devedor.Parcela,

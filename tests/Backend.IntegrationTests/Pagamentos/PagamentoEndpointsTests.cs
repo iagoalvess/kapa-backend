@@ -399,7 +399,7 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
 
     /// <summary>
     /// O selo do menu conta a vencida sem aviso — e ela sai da conta no instante em que o formando avisa,
-    /// sem esperar a tesouraria conferir.
+    /// sem esperar a tesouraria conferir. Aviso parado além do prazo volta a contar (pen test de 28/10/2026).
     /// </summary>
     [Fact]
     public async Task Pendencias_do_extrato_contam_a_vencida_ate_o_aviso_chegar()
@@ -414,8 +414,18 @@ public sealed class PagamentoEndpointsTests(ApiFactory fabrica)
         ).EnsureSuccessStatusCode();
         var depoisDoAviso = await Ler<PendenciasDoExtratoDTO>(await ana.Membro.Cliente.GetAsync("/api/v1/extrato/eu/pendencias", Ct));
 
+        await using (var contexto = fabrica.ContextoDe(turma.FormaturaId))
+            await contexto
+                .Informes.Where(i => i.ParcelaId == ana.Parcelas[0])
+                .ExecuteUpdateAsync(
+                    s => s.SetProperty(i => i.CriadoEm, DateTime.UtcNow.AddDays(-(InformeDePagamento.DiasQueSeguraACobranca + 1))),
+                    Ct
+                );
+        var avisoParado = await Ler<PendenciasDoExtratoDTO>(await ana.Membro.Cliente.GetAsync("/api/v1/extrato/eu/pendencias", Ct));
+
         comVencida.VencidasSemAviso.ShouldBe(1);
         depoisDoAviso.VencidasSemAviso.ShouldBe(0);
+        avisoParado.VencidasSemAviso.ShouldBe(1);
     }
 
     /// <summary>

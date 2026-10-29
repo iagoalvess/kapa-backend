@@ -141,15 +141,23 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
         );
 
     /// <inheritdoc />
-    /// <remarks>O aviso pendente sai da mesma subconsulta que alimenta <c>EmConferencia</c>, aqui no <c>WHERE</c>.</remarks>
-    public async Task<IReadOnlyList<ParcelaResumo>> ListarAPagarDoVinculo(Guid vinculoId, DateOnly hoje, CancellationToken ct = default) =>
-        NoDia(
+    /// <remarks>
+    /// O aviso pendente sai da mesma subconsulta que alimenta <c>EmConferencia</c>, aqui no <c>WHERE</c> — só
+    /// enquanto segura a cobrança (<see cref="InformeDePagamento.DiasQueSeguraACobranca"/>).
+    /// </remarks>
+    public async Task<IReadOnlyList<ParcelaResumo>> ListarAPagarDoVinculo(Guid vinculoId, DateOnly hoje, CancellationToken ct = default)
+    {
+        var avisoSeguraDesde = InformeDePagamento.SeguraACobrancaDesde(hoje);
+
+        return NoDia(
             await Projetar(
                     Linhas()
                         .Where(linha =>
                             linha.Parcela.VinculoId == vinculoId
                             && linha.Parcela.Status == StatusDaParcela.Aberta
-                            && !db.Informes.Any(i => i.ParcelaId == linha.Parcela.Id && i.Status == StatusDoInforme.Pendente)
+                            && !db.Informes.Any(i =>
+                                i.ParcelaId == linha.Parcela.Id && i.Status == StatusDoInforme.Pendente && i.CriadoEm >= avisoSeguraDesde
+                            )
                         )
                         .OrderBy(linha => linha.Parcela.Vencimento)
                         .ThenBy(linha => linha.Parcela.Numero)
@@ -158,14 +166,19 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
                 .ToListAsync(ct),
             hoje
         );
+    }
 
     /// <inheritdoc />
     /// <remarks>
     /// "Vencida" é aberta com vencimento no passado, como em toda leitura daqui; o aviso pendente sai
-    /// da mesma subconsulta que alimenta <c>EmConferencia</c> em <see cref="Linhas(AppDbContext)"/>.
+    /// da mesma subconsulta que alimenta <c>EmConferencia</c> em <see cref="Linhas(AppDbContext)"/>, e só
+    /// enquanto segura a cobrança.
     /// </remarks>
-    public Task<int> ContarVencidasSemAviso(Guid vinculoId, DateOnly hoje, CancellationToken ct = default) =>
-        db
+    public Task<int> ContarVencidasSemAviso(Guid vinculoId, DateOnly hoje, CancellationToken ct = default)
+    {
+        var avisoSeguraDesde = InformeDePagamento.SeguraACobrancaDesde(hoje);
+
+        return db
             .Parcelas.AsNoTracking()
             .CountAsync(
                 p =>
@@ -173,9 +186,10 @@ public sealed class ParcelaRepository(AppDbContext db) : IParcelaRepository
                     && p.Status == StatusDaParcela.Aberta
                     && p.Vencimento < hoje
                     && !(p.SuspensaAte >= hoje)
-                    && !db.Informes.Any(i => i.ParcelaId == p.Id && i.Status == StatusDoInforme.Pendente),
+                    && !db.Informes.Any(i => i.ParcelaId == p.Id && i.Status == StatusDoInforme.Pendente && i.CriadoEm >= avisoSeguraDesde),
                 ct
             );
+    }
 
     /// <inheritdoc />
     /// <remarks>
