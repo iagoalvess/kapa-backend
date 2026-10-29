@@ -269,6 +269,39 @@ public sealed class FinanceiroEndpointsTests(ApiFactory fabrica)
         (await tesoureiro.Cliente.GetAsync($"{Fornecedores}/{fornecedor.Id}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    /// <summary>O mesmo CNPJ com outra máscara é o mesmo fornecedor; sem documento, nada a comparar.</summary>
+    [Fact]
+    public async Task Documento_repetido_e_conflito_e_sem_documento_nao()
+    {
+        var tesoureiro = await fabrica.NovoMembro(await fabrica.CriarFormatura(Ct), PapelNaFormatura.Tesoureiro, Ct);
+        (await tesoureiro.Cliente.PostAsJsonAsync(Fornecedores, Fornecedor("Banda Um"), Json, Ct)).EnsureSuccessStatusCode();
+
+        var repetido = await tesoureiro.Cliente.PostAsJsonAsync(
+            Fornecedores,
+            Fornecedor("Banda Dois") with
+            {
+                Documento = "11222333000181",
+            },
+            Json,
+            Ct
+        );
+        var semDocumento = await tesoureiro.Cliente.PostAsJsonAsync(Fornecedores, Fornecedor("Banda Três") with { Documento = null }, Json, Ct);
+        var outroSemDocumento = await tesoureiro.Cliente.PostAsJsonAsync(
+            Fornecedores,
+            Fornecedor("Banda Quatro") with
+            {
+                Documento = null,
+            },
+            Json,
+            Ct
+        );
+
+        repetido.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await repetido.Codigo(Ct)).ShouldBe("financeiro.fornecedor_documento_em_uso");
+        semDocumento.StatusCode.ShouldBe(HttpStatusCode.Created);
+        outroSemDocumento.StatusCode.ShouldBe(HttpStatusCode.Created);
+    }
+
     [Fact]
     public async Task Despesa_de_outra_turma_nao_existe_aqui()
     {

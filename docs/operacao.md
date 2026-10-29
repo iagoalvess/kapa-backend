@@ -167,7 +167,7 @@ redirecionamento é o `fetch` do front, com o bearer na ida à API e sem ele no 
 
 | Sintoma | Onde olhar |
 |---|---|
-| 429 em uso legítimo | `RateLimit__PadraoPorMinuto`. Lembre: o limite é **por processo**, então N réplicas multiplicam por N. |
+| 429 em uso legítimo | `RateLimit__PadraoRajada` (pico de navegação) e `RateLimit__PadraoPorMinuto` (ritmo sustentado). Lembre: o limite é **por processo**, então N réplicas multiplicam por N. |
 | Login lento sob carga | O hash de senha do Identity é caro por design. Escale horizontalmente; não reduza as iterações. |
 | Consulta lenta na listagem | Confira o índice da coluna usada na ordenação e no filtro. O trace do Npgsql mostra o SQL real. |
 | Tabela `refresh_tokens` grande | O worker limpa a cada 6 horas, com retenção de 30 dias. Ajuste em `LimpezaRefreshTokensJob`. |

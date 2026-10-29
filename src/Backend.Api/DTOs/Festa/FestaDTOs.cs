@@ -44,6 +44,7 @@ public sealed record ItemDaFestaRequestDTO(
 /// <param name="PagoEmCentavos">Soma das despesas já pagas.</param>
 /// <param name="CustoEmCentavos">Quanto o item pesa no custo da festa: o contratado, ou o previsto.</param>
 /// <param name="QuantidadeDeDespesas">Despesas vinculadas — com alguma, a exclusão devolve 409.</param>
+/// <param name="QuantidadeDePropostas">Candidatas levantadas pela comissão; o detalhe traz cada uma.</param>
 /// <param name="Estado">A contratar, contratado, pago ou cancelado.</param>
 /// <param name="Cancelado">A turma desistiu: sai do custo, fica na lista.</param>
 /// <param name="Ordem">Posição na tela.</param>
@@ -68,6 +69,7 @@ public sealed record ItemDaFestaDTO(
     long PagoEmCentavos,
     long CustoEmCentavos,
     int QuantidadeDeDespesas,
+    int QuantidadeDePropostas,
     EstadoDoItem Estado,
     bool Cancelado,
     int Ordem,

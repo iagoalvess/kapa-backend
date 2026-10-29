@@ -87,6 +87,10 @@ public sealed class FornecedorRepository(AppDbContext db) : IFornecedorRepositor
     }
 
     /// <inheritdoc />
+    public Task<bool> ExisteComDocumento(string documento, Guid? exceto, CancellationToken ct = default) =>
+        db.Fornecedores.AnyAsync(f => f.Id != exceto && f.Documento == documento, ct);
+
+    /// <inheritdoc />
     public async Task<CategoriaDeDespesa?> ObterCategoria(Guid id, CancellationToken ct = default) =>
         await db.Fornecedores.AsNoTracking().Where(f => f.Id == id).Select(f => (CategoriaDeDespesa?)f.Categoria).FirstOrDefaultAsync(ct);
 

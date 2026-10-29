@@ -81,11 +81,11 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
 
         // Assert
         antes.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await antes.Content.ReadFromJsonAsync<SituacaoDaMinhaAdesaoDTO>(Json, Ct)).ShouldBe(new SituacaoDaMinhaAdesaoDTO(true, true, false));
-        depois.ShouldBe(new SituacaoDaMinhaAdesaoDTO(true, true, true));
+        (await antes.Content.ReadFromJsonAsync<SituacaoDaMinhaAdesaoDTO>(Json, Ct)).ShouldBe(new SituacaoDaMinhaAdesaoDTO(true, true, false, false));
+        depois.ShouldBe(new SituacaoDaMinhaAdesaoDTO(true, true, true, false));
     }
 
-    /// <summary>Turma sem termo nem plano: nada a aceitar, e o contrato escreve os três campos em snake_case.</summary>
+    /// <summary>Turma sem termo nem plano: nada a aceitar, e o contrato escreve os quatro campos em snake_case.</summary>
     [Fact]
     public async Task Situacao_em_turma_sem_termo_vem_toda_falsa()
     {
@@ -96,7 +96,7 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
         var corpo = await formando.Cliente.GetStringAsync($"{Rota}/eu/situacao", Ct);
 
         // Assert
-        corpo.ShouldBe("""{"termo_publicado":false,"plano_vigente":false,"aderiu":false}""");
+        corpo.ShouldBe("""{"termo_publicado":false,"plano_vigente":false,"aderiu":false,"apenas_gestao":false}""");
     }
 
     /// <summary>A comissão também lê a própria situação: ela adere como qualquer membro, só não é barrada sem aderir.</summary>
@@ -109,9 +109,12 @@ public sealed class AdesaoEndpointsTests(ApiFactory fabrica)
 
         // Act
         var situacao = await comissao.Cliente.GetFromJsonAsync<SituacaoDaMinhaAdesaoDTO>($"{Rota}/eu/situacao", Json, Ct);
+        (await comissao.Cliente.PutAsJsonAsync($"{Rota}/apenas-gestao", new ApenasGestaoRequestDTO(true), Json, Ct)).EnsureSuccessStatusCode();
+        var soGestao = await comissao.Cliente.GetFromJsonAsync<SituacaoDaMinhaAdesaoDTO>($"{Rota}/eu/situacao", Json, Ct);
 
         // Assert
-        situacao.ShouldBe(new SituacaoDaMinhaAdesaoDTO(true, true, false));
+        situacao.ShouldBe(new SituacaoDaMinhaAdesaoDTO(true, true, false, false));
+        soGestao.ShouldBe(new SituacaoDaMinhaAdesaoDTO(true, true, false, true));
     }
 
     /// <summary>Sem turma na sessão não há situação: a política pede o vínculo ativo.</summary>

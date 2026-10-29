@@ -33,7 +33,8 @@ public sealed class AdesaoRepository(AppDbContext db, CifraDeCampo cifra) : IAde
             .Select(v => new SituacaoDaMinhaAdesao(
                 db.TermosDeAdesao.Any(),
                 db.PlanosDeCobranca.Any(p => p.Status == StatusDoPlano.Vigente),
-                db.Adesoes.Any(a => a.VinculoId == v.Id)
+                db.Adesoes.Any(a => a.VinculoId == v.Id),
+                v.ApenasGestao
             ))
             .FirstOrDefaultAsync(ct);
 

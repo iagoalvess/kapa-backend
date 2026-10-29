@@ -161,6 +161,24 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
         (await contexto.EmailsFila.AnyAsync(e => e.Para == "fulano@testes.local" && e.CorpoHtml.Contains(token), Ct)).ShouldBeTrue();
     }
 
+    /// <summary>Convite pessoal para quem já é membro ativo é recusado na criação, sem link nem e-mail.</summary>
+    [Fact]
+    public async Task Nominal_para_quem_ja_e_membro_devolve_409()
+    {
+        var formaturaId = await fabrica.CriarFormaturaQueConvida(Ct);
+        var presidente = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Presidente, Ct);
+        var comissao = await fabrica.NovoMembro(formaturaId, PapelNaFormatura.Comissao, Ct);
+        await using var contexto = fabrica.ContextoDe(null);
+        var email = await contexto.Users.Where(u => u.Id == comissao.UsuarioId).Select(u => u.Email!).SingleAsync(Ct);
+        var emailsAntes = await contexto.EmailsFila.CountAsync(e => e.Para == email, Ct);
+
+        var resposta = await presidente.Cliente.PostAsJsonAsync(Gestao, new CriarConviteRequestDTO(email.ToUpperInvariant(), null), Json, Ct);
+
+        resposta.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await resposta.Codigo(Ct)).ShouldBe("convite.ja_membro");
+        (await contexto.EmailsFila.CountAsync(e => e.Para == email, Ct)).ShouldBe(emailsAntes);
+    }
+
     /// <summary>A URL circula em grupo de WhatsApp: turma, instituição e papel, e mais nada.</summary>
     [Fact]
     public async Task Consulta_anonima_devolve_so_turma_instituicao_e_papel()
@@ -320,19 +338,24 @@ public sealed class ConviteEndpointsTests(ApiFactory fabrica)
         (await Aceitar(cliente, token)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
-    /// <summary>Quem recebeu o link encaminhado cria conta com o e-mail convidado, mas não o confirma.</summary>
+    /// <summary>
+    /// Conta nova, sem confirmar o e-mail: o link do convite pessoal só chegou àquela caixa, então o aceite entra e
+    /// confirma o e-mail (decisão de 29/10/2026).
+    /// </summary>
     [Fact]
-    public async Task Nominal_sem_email_confirmado_devolve_403()
+    public async Task Nominal_sem_email_confirmado_entra_e_confirma_o_email()
     {
         var email = $"convidado-{Guid.CreateVersion7():N}@testes.local";
         var token = await Semear(await fabrica.CriarFormaturaQueConvida(Ct), c => c.Email = email);
         var cliente = fabrica.CreateClient();
-        cliente.ComToken((await cliente.RegistrarComEmail(email, Ct)).AccessToken);
+        var sessao = await cliente.RegistrarComEmail(email, Ct);
+        cliente.ComToken(sessao.AccessToken);
 
         var resposta = await Aceitar(cliente, token);
 
-        resposta.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await resposta.Codigo(Ct)).ShouldBe("convite.email_nao_confirmado");
+        resposta.StatusCode.ShouldBe(HttpStatusCode.OK);
+        await using var contexto = fabrica.ContextoDe(null);
+        (await contexto.Users.Where(u => u.Email == email).Select(u => u.EmailConfirmed).SingleAsync(Ct)).ShouldBeTrue();
     }
 
     [Fact]

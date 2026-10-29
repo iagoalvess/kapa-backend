@@ -38,6 +38,11 @@ public interface IVinculoRepository
     /// <param name="formaturaId">Formatura pretendida.</param>
     Task<string?> ObterPapelAtivo(Guid usuarioId, Guid formaturaId, CancellationToken ct = default);
 
+    /// <summary>Se a conta deste e-mail já é membro ativo da turma — a quem um convite novo não serve.</summary>
+    /// <param name="formaturaId">Formatura da sessão.</param>
+    /// <param name="email">E-mail do convite; a comparação ignora maiúsculas, como a conta.</param>
+    Task<bool> ExisteAtivoComEmail(Guid formaturaId, string email, CancellationToken ct = default);
+
     /// <summary>
     /// Se o usuário é formando ativo da turma, a turma já publicou o termo e ele ainda não aderiu — quem o gate de
     /// adesão barra (Sprint 47, D18).

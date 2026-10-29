@@ -191,7 +191,8 @@ public sealed record MinhaAdesaoDTO(AdesaoDTO? Adesao, IReadOnlyList<string> Pen
 /// <param name="TermoPublicado">A turma publicou o termo — com ele, o formando que não aderiu fica barrado.</param>
 /// <param name="PlanoVigente">Há plano de cobrança vigente; sem ele, o termo ainda não pode ser aceito.</param>
 /// <param name="Aderiu">O próprio membro aderiu a alguma versão do termo.</param>
-public sealed record SituacaoDaMinhaAdesaoDTO(bool TermoPublicado, bool PlanoVigente, bool Aderiu);
+/// <param name="ApenasGestao">Da comissão, disse que vai apenas ajudar na gestão: o Início não cobra termo nem cadastro.</param>
+public sealed record SituacaoDaMinhaAdesaoDTO(bool TermoPublicado, bool PlanoVigente, bool Aderiu, bool ApenasGestao);
 
 /// <summary>Um membro no painel de adesões.</summary>
 /// <param name="UsuarioId">Membro.</param>

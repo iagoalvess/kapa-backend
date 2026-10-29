@@ -244,10 +244,10 @@ nossa, e o `trace_id` é o que o resolve.
 | Código | Status | Quando acontece |
 | --- | --- | --- |
 | <a id="convite.email_divergente"></a>`convite.email_divergente` | 403 | Este convite é pessoal e foi enviado para …. Entre com a conta desse e-mail para aceitar. |
-| <a id="convite.email_nao_confirmado"></a>`convite.email_nao_confirmado` | 403 | Confirme seu e-mail para aceitar este convite pessoal. O link de confirmação foi enviado para …. |
 | <a id="convite.esgotado"></a>`convite.esgotado` | 409 | Este convite acabou de atingir o limite de entradas. Peça um novo à comissão. |
 | <a id="convite.formatura_nao_contratada"></a>`convite.formatura_nao_contratada` | 403 | Formandos entram só com um plano contratado em dia. Antes disso, dá para montar a comissão. |
 | <a id="convite.invalido"></a>`convite.invalido` | 404 | Este convite não está mais disponível. Peça um novo à comissão. |
+| <a id="convite.ja_membro"></a>`convite.ja_membro` | 409 | Esta pessoa já faz parte da turma. Para mudar o papel dela, use a lista de membros. |
 | <a id="convite.ja_vinculado"></a>`convite.ja_vinculado` | 409 | Você já participa desta formatura. |
 | <a id="convite.link_so_para_formando"></a>`convite.link_so_para_formando` | 400 | O link da turma só convida formandos. Para a comissão, envie o convite por e-mail. |
 | <a id="convite.membro_desligado"></a>`convite.membro_desligado` | 403 | Você foi desligado desta formatura e o desligamento é definitivo. Fale com a comissão. |
@@ -322,6 +322,7 @@ Não vem do domínio: é o `GlobalExceptionHandler`, a rede de segurança para e
 | <a id="financeiro.despesa_nao_encontrada"></a>`financeiro.despesa_nao_encontrada` | 404 | Despesa não encontrada. |
 | <a id="financeiro.despesa_nao_prevista"></a>`financeiro.despesa_nao_prevista` | 409 | Esta despesa não está prevista para pagamento. |
 | <a id="financeiro.documento_nao_encontrado"></a>`financeiro.documento_nao_encontrado` | 400 | Documento não encontrado no acervo, ou visível apenas para a comissão. |
+| <a id="financeiro.fornecedor_documento_em_uso"></a>`financeiro.fornecedor_documento_em_uso` | 409 | A turma já tem um fornecedor com este CNPJ ou CPF. |
 | <a id="financeiro.fornecedor_em_uso"></a>`financeiro.fornecedor_em_uso` | 409 | Este fornecedor já tem despesa lançada. Desative o cadastro em vez de excluí-lo. |
 | <a id="financeiro.fornecedor_nao_encontrado"></a>`financeiro.fornecedor_nao_encontrado` | 400 / 404 | Fornecedor não encontrado. 404 ao abrir o fornecedor; 400, no campo `fornecedor_id`, ao lançar ou alterar uma despesa. |
 | <a id="financeiro.fornecedor_nome_em_uso"></a>`financeiro.fornecedor_nome_em_uso` | 409 | A turma já tem um fornecedor com este nome. |

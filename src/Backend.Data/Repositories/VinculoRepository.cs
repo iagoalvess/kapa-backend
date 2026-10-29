@@ -70,6 +70,18 @@ public sealed class VinculoRepository(AppDbContext db) : IVinculoRepository
             .FirstOrDefaultAsync(ct);
 
     /// <inheritdoc />
+    /// <remarks>Pelo <c>NormalizedEmail</c> do Identity, que é o e-mail em maiúsculas e tem índice.</remarks>
+    public Task<bool> ExisteAtivoComEmail(Guid formaturaId, string email, CancellationToken ct = default)
+    {
+        var normalizado = email.Trim().ToUpperInvariant();
+
+        return db.Vinculos.AnyAsync(
+            v => v.FormaturaId == formaturaId && v.Ativo && db.Users.Any(u => u.Id == v.UsuarioId && u.NormalizedEmail == normalizado),
+            ct
+        );
+    }
+
+    /// <inheritdoc />
     /// <remarks>Uma consulta: o vínculo ativo de papel Formando, a existência do termo e a da adesão, por <c>EXISTS</c>.</remarks>
     public Task<bool> FormandoSemAdesao(Guid usuarioId, Guid formaturaId, CancellationToken ct = default) =>
         db

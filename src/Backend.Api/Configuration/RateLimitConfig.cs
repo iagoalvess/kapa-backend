@@ -21,7 +21,12 @@ namespace Backend.Api.Configuration;
 /// </remarks>
 public static class RateLimitConfig
 {
-    /// <summary>Limite aplicado a todo endpoint que não pedir outro.</summary>
+    /// <summary>Limite aplicado a todo endpoint que não pedir outro: balde por usuário, com rajada.</summary>
+    /// <remarks>
+    /// Cada tela dispara de 10 a 30 consultas, e a janela fixa de 120 por minuto dava 429 a quem passava
+    /// por sete telas em um minuto (teste manual de 29/10/2026, B1). A rajada absorve a navegação rápida;
+    /// o ritmo sustentado continua em 120 por minuto.
+    /// </remarks>
     public const string Padrao = "padrao";
 
     /// <summary>Limite estreito, por IP, para as rotas de conta que disparam e-mail ou conferem senha atual.</summary>
@@ -148,6 +153,7 @@ public static class RateLimitConfig
     public static IServiceCollection AddRateLimit(this IServiceCollection services, IConfiguration configuration)
     {
         var porMinutoPadrao = configuration.GetValue($"{Secao}:PadraoPorMinuto", 120);
+        var rajadaPadrao = configuration.GetValue($"{Secao}:PadraoRajada", 400);
         var porMinutoAutenticacao = configuration.GetValue($"{Secao}:AutenticacaoPorMinuto", 10);
         var porMinutoWebhook = configuration.GetValue($"{Secao}:WebhookPorMinuto", 600);
         var porMinutoConvites = configuration.GetValue($"{Secao}:ConvitesPorMinuto", 20);
@@ -202,7 +208,7 @@ public static class RateLimitConfig
                 );
             };
 
-            opcoes.AddPolicy(Padrao, contexto => LimitarPor(Identificar(contexto), porMinutoPadrao));
+            opcoes.AddPolicy(Padrao, contexto => BaldePor(Identificar(contexto), rajadaPadrao, porMinutoPadrao));
 
             opcoes.AddPolicy(Autenticacao, contexto => LimitarPor($"auth:{Ip(contexto)}", porMinutoAutenticacao));
 

@@ -89,7 +89,10 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         (await vizinha.Cliente.DeleteAsync($"{Itens}/{item.Id}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
-    /// <summary>O detalhe do item traz as propostas da mais barata para a mais cara, contra o Postgres de verdade.</summary>
+    /// <summary>
+    /// O detalhe do item traz as propostas da mais barata para a mais cara, contra o Postgres de verdade, e a
+    /// lista conta quantas são (o DTO perdia o campo: teste manual de 29/10/2026, B4).
+    /// </summary>
     [Fact]
     public async Task O_detalhe_traz_as_propostas_da_mais_barata_para_a_mais_cara()
     {
@@ -100,6 +103,7 @@ public sealed class FestaEndpointsTests(ApiFactory fabrica)
         await Propor(presidente, item.Id, "Banda Y", 6_500_00, Ct);
 
         (await ObterDetalhe(presidente, item.Id, Ct)).Propostas.Select(p => p.Titulo).ShouldBe(["Banda Y", "Banda X"]);
+        (await Listar(presidente, Ct)).Single(i => i.Id == item.Id).QuantidadeDePropostas.ShouldBe(2);
     }
 
     /// <summary>Contratado o item, a escolha aconteceu: proposta para de aceitar escrita, e continua legível.</summary>

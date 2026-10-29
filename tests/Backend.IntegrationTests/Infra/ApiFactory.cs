@@ -191,6 +191,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     ["Criptografia:ChaveDeDados"] = ChaveDeDados,
                     ["Festa:SegredoDoConvite"] = SegredoDoConvite,
                     ["RateLimit:PadraoPorMinuto"] = "100000",
+                    ["RateLimit:PadraoRajada"] = "100000",
                     ["RateLimit:AutenticacaoPorMinuto"] = "100000",
                     ["RateLimit:CodigoPorMinuto"] = "100000",
                     ["Armazenamento:Provedor"] = "Local",

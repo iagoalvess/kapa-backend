@@ -65,6 +65,11 @@ public interface IFornecedorRepository
     /// <param name="exceto">Fornecedor que está sendo alterado.</param>
     Task<bool> ExisteComNome(string nome, Guid? exceto, CancellationToken ct = default);
 
+    /// <summary>Se a turma já tem um fornecedor com este CNPJ ou CPF, sem contar o informado.</summary>
+    /// <param name="documento">Documento, só dígitos.</param>
+    /// <param name="exceto">Fornecedor que está sendo alterado.</param>
+    Task<bool> ExisteComDocumento(string documento, Guid? exceto, CancellationToken ct = default);
+
     /// <summary>A categoria padrão do fornecedor; nula se ele não for da turma.</summary>
     /// <param name="id">Fornecedor.</param>
     Task<CategoriaDeDespesa?> ObterCategoria(Guid id, CancellationToken ct = default);

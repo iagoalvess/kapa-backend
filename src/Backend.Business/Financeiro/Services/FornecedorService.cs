@@ -1,4 +1,5 @@
 using Backend.Business.Abstractions;
+using Backend.Business.Common.Texto;
 using Backend.Business.Financeiro.Interfaces;
 using Backend.Business.Financeiro.Models;
 using FluentValidation;
@@ -53,6 +54,9 @@ public sealed class FornecedorService(
         if (await fornecedorRepository.ExisteComNome(dados.Nome.Trim(), null, ct))
             return NomeEmUso;
 
+        if (await DocumentoRepetido(dados, null, ct))
+            return DocumentoEmUso;
+
         var fornecedor = Fornecedor.Novo(dados);
 
         await fornecedorRepository.Adicionar(fornecedor, ct);
@@ -77,6 +81,9 @@ public sealed class FornecedorService(
 
         if (await fornecedorRepository.ExisteComNome(dados.Nome.Trim(), id, ct))
             return NomeEmUso;
+
+        if (await DocumentoRepetido(dados, id, ct))
+            return DocumentoEmUso;
 
         fornecedor.Aplicar(dados);
         await unitOfWork.SalvarAsync(ct);
@@ -108,5 +115,18 @@ public sealed class FornecedorService(
         return Result.Ok();
     }
 
+    /// <summary>Se outro fornecedor da turma já tem este documento. Sem documento, nada a comparar.</summary>
+    /// <remarks>
+    /// Compara só dígitos, como o cadastro grava. <c>ponytail:</c> sem índice único: dois cadastros no mesmo
+    /// instante passam; índice parcial em (formatura_id, documento) se isso aparecer.
+    /// </remarks>
+    private async Task<bool> DocumentoRepetido(DadosDoFornecedor dados, Guid? exceto, CancellationToken ct) =>
+        FormatosBrasileiros.SomenteDigitos(dados.Documento) is { Length: > 0 } documento
+        && await fornecedorRepository.ExisteComDocumento(documento, exceto, ct);
+
     private static Erro NomeEmUso => Erro.Conflito("financeiro.fornecedor_nome_em_uso", "A turma já tem um fornecedor com este nome.");
+
+    /// <summary>O mesmo CNPJ ou CPF em dois cadastros dividia despesas e relatórios entre eles (teste manual de 29/10/2026).</summary>
+    private static Erro DocumentoEmUso =>
+        Erro.Conflito("financeiro.fornecedor_documento_em_uso", "A turma já tem um fornecedor com este CNPJ ou CPF.");
 }

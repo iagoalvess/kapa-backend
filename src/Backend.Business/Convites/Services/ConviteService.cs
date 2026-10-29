@@ -76,6 +76,15 @@ public sealed class ConviteService(
     private static readonly Erro JaVinculado = Erro.Conflito("convite.ja_vinculado", "Você já participa desta formatura.");
 
     /// <summary>
+    /// Convite pessoal para quem já está na turma criava um link que o aceite recusa (teste manual de 29/10/2026).
+    /// Mudar o papel de um membro é pela tela de membros, não por convite novo.
+    /// </summary>
+    private static readonly Erro JaMembro = Erro.Conflito(
+        "convite.ja_membro",
+        "Esta pessoa já faz parte da turma. Para mudar o papel dela, use a lista de membros."
+    );
+
+    /// <summary>
     /// Presidente não entra por convite (revisão de segurança de 05/10/2026): entra como comissão e é promovido, e a
     /// promoção é confirmada no e-mail de quem promove. Pelo convite, a senha do presidente bastava para criar outro.
     /// </summary>
@@ -132,6 +141,9 @@ public sealed class ConviteService(
         var agora = DateTime.UtcNow;
         var email = dados.Email?.Trim();
         var nominal = email is not null;
+
+        if (nominal && await vinculoRepository.ExisteAtivoComEmail(formaturaId, email!, ct))
+            return JaMembro;
         var token = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
 
         var convite = new Convite
@@ -221,8 +233,11 @@ public sealed class ConviteService(
     /// sozinho enquanto o link valesse, e a remoção não serviria de nada.
     /// </para>
     /// <para>
-    /// Convite pessoal exige o e-mail da conta <b>igual e confirmado</b>. Só bater não prova nada:
-    /// quem recebe o link encaminhado cria uma conta com o e-mail convidado e entra no lugar do dono.
+    /// Convite pessoal exige o e-mail da conta <b>igual</b> ao do convite, e o aceite <b>confirma</b> esse e-mail: o
+    /// link só foi enviado àquela caixa, então quem o tem prova que a lê (decisão de 29/10/2026 — antes pedia a
+    /// confirmação separada, um segundo e-mail na porta de entrada da maioria dos formandos). O risco aceito é o do
+    /// dono que encaminha o próprio link: quem recebe entra com o e-mail dele, e o dono retoma a conta pelo
+    /// "esqueci a senha", que vai para a caixa dele.
     /// </para>
     /// <para>
     /// Desligado não volta por convite nenhum (decisão de 23/09/2026, junto com a saída do religar):
@@ -311,6 +326,9 @@ public sealed class ConviteService(
                     vinculo.Papel = convite.Papel;
                 }
 
+                if (convite.Email is not null && await usuarioRepository.ObterParaEdicao(usuarioId, tentativa) is { EmailConfirmed: false } usuario)
+                    usuario.EmailConfirmed = true;
+
                 await conviteRepository.RegistrarAceite(
                     new AceiteDeConvite
                     {
@@ -388,7 +406,7 @@ public sealed class ConviteService(
     private static bool AceitaEntrada(StatusDaFormatura status) => status == StatusDaFormatura.Ativa;
 
     /// <summary>
-    /// Confere que a conta é dona do e-mail do convite pessoal: o mesmo endereço, já confirmado.
+    /// Confere que a conta tem o e-mail do convite pessoal. A confirmação vem do próprio aceite.
     /// </summary>
     /// <remarks>
     /// O e-mail sai mascarado na recusa, para quem entrou com a conta errada saber qual usar.
@@ -407,12 +425,7 @@ public sealed class ConviteService(
                 $"Este convite é pessoal e foi enviado para {mascarado}. Entre com a conta desse e-mail para aceitar."
             );
 
-        return conta!.EmailConfirmado
-            ? null
-            : Erro.Proibido(
-                "convite.email_nao_confirmado",
-                $"Confirme seu e-mail para aceitar este convite pessoal. O link de confirmação foi enviado para {mascarado}."
-            );
+        return null;
     }
 
     /// <summary>Formando qualquer membro da gestão oferece; os demais papéis, só o Presidente.</summary>

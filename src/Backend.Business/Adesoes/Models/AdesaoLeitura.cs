@@ -125,7 +125,8 @@ public sealed record MinhaAdesao(AdesaoDetalhe? Adesao, IReadOnlyList<string> Pe
 /// <param name="TermoPublicado">A turma tem versão publicada do termo — é o que o gate da API exige (Sprint 47, D18).</param>
 /// <param name="PlanoVigente">Há plano de cobrança vigente: sem ele, o termo ainda não pode ser aceito.</param>
 /// <param name="Aderiu">O próprio vínculo aderiu a alguma versão do termo.</param>
-public sealed record SituacaoDaMinhaAdesao(bool TermoPublicado, bool PlanoVigente, bool Aderiu);
+/// <param name="ApenasGestao">Da comissão, disse que vai apenas ajudar a organizar, sem aderir (Sprint 54, P1).</param>
+public sealed record SituacaoDaMinhaAdesao(bool TermoPublicado, bool PlanoVigente, bool Aderiu, bool ApenasGestao);
 
 /// <summary>A adesão gravada, com o texto da versão aceita — o que a leitura e o PDF precisam.</summary>
 /// <param name="Adesao">Registro da adesão.</param>

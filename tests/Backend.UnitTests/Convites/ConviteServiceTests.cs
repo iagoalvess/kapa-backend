@@ -397,23 +397,6 @@ public sealed class ConviteServiceTests
         await _auth.DidNotReceiveWithAnyArgs().EmitirSessaoDeFormatura(default, default, default!, default!, default, default, Ct);
     }
 
-    /// <summary>E-mail igual não prova posse: sem confirmar, qualquer um com o link encaminhado entraria.</summary>
-    [Fact]
-    public async Task Nominal_com_email_nao_confirmado_devolve_403_sem_consumir_uso()
-    {
-        var convite = Link();
-        convite.Email = "ana@exemplo.com";
-        Existe(convite);
-        ContaCom("ana@exemplo.com", confirmado: false);
-
-        var resultado = await Aceitar();
-
-        var erro = resultado.Erros.ShouldHaveSingleItem();
-        erro.Codigo.ShouldBe("convite.email_nao_confirmado");
-        erro.Mensagem.ShouldContain("a*a@exemplo.com");
-        await _convites.DidNotReceiveWithAnyArgs().ConsumirUsoDeTodasAsFormaturas(default, default, Ct);
-    }
-
     /// <summary>
     /// Com a turma lotada, nenhum papel entra — a comissão também ocupa vaga.
     /// </summary>
@@ -567,10 +550,10 @@ public sealed class ConviteServiceTests
 
     private void Existe(Convite convite) => _convites.ObterPorHashDeTodasAsFormaturas(Hash("token"), Arg.Any<CancellationToken>()).Returns(convite);
 
-    private void ContaCom(string email, bool confirmado = true) =>
+    private void ContaCom(string email) =>
         _usuarios
             .ObterDetalhe(UsuarioId, Arg.Any<CancellationToken>())
-            .Returns(new UsuarioDetalhe(UsuarioId, "Conta", email, confirmado, true, [], DateTime.UtcNow, DateTime.UtcNow));
+            .Returns(new UsuarioDetalhe(UsuarioId, "Conta", email, true, true, [], DateTime.UtcNow, DateTime.UtcNow));
 
     private static Convite Link() => new() { TokenHash = Hash("token"), ExpiraEm = DateTime.UtcNow.AddDays(1) };
 
