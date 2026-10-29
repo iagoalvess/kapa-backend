@@ -237,7 +237,9 @@ public static class DependenciasBusiness
 
     private static IServiceCollection AdicionarServices(this IServiceCollection services)
     {
-        services.AddSingleton<ITokenService, TokenService>();
+        services.AddSingleton<TokenService>();
+        services.AddSingleton<ITokenService>(provedor => provedor.GetRequiredService<TokenService>());
+        services.AddSingleton<IEmissorDaPortaria>(provedor => provedor.GetRequiredService<TokenService>());
         services.AddSingleton<TentativasDeSenha>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IContaService, ContaService>();
@@ -266,6 +268,7 @@ public static class DependenciasBusiness
         services.AddScoped<IConviteDoEventoService, ConviteDoEventoService>();
         services.AddScoped<IGestaoDeConvitesService, GestaoDeConvitesService>();
         services.AddScoped<IPortariaService, Portaria>();
+        services.AddScoped<IAcessosDaPortariaService, AcessosDaPortaria>();
         services.AddScoped<IPainelDeConvitesService, PainelDeConvitesService>();
         services.AddScoped<IMesaService, MesaService>();
         services.AddScoped<DonosDeMesa>();

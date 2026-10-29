@@ -16,7 +16,11 @@ public sealed class CredenciaisValidator : AbstractValidator<Credenciais>
     {
         RuleFor(x => x.Email).EmailObrigatorio();
 
-        RuleFor(x => x.Senha).NotEmpty().WithMessage("A senha é obrigatória.");
+        RuleFor(x => x.Senha)
+            .NotEmpty()
+            .WithMessage("A senha é obrigatória.")
+            .MaximumLength(LimitesDaSenha.Maximo)
+            .WithMessage($"A senha deve ter no máximo {LimitesDaSenha.Maximo} caracteres.");
     }
 }
 
@@ -37,7 +41,11 @@ public sealed class RegistrarUsuarioValidator : AbstractValidator<RegistrarUsuar
 
         RuleFor(x => x.Email).EmailObrigatorio().MaximumLength(256).WithMessage("O e-mail deve ter no máximo 256 caracteres.");
 
-        RuleFor(x => x.Senha).NotEmpty().WithMessage("A senha é obrigatória.");
+        RuleFor(x => x.Senha)
+            .NotEmpty()
+            .WithMessage("A senha é obrigatória.")
+            .MaximumLength(LimitesDaSenha.Maximo)
+            .WithMessage($"A senha deve ter no máximo {LimitesDaSenha.Maximo} caracteres.");
 
         RuleFor(x => x.Aceites)
             .Must(aceites => aceites is not null && TipoDeDocumento.Todos.All(tipo => aceites.Any(a => TipoDeDocumento.Normalizar(a.Tipo) == tipo)))

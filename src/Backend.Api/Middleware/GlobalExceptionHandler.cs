@@ -1,6 +1,7 @@
 using Backend.Api.Configuration;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
 
 namespace Backend.Api.Middleware;
 
@@ -21,6 +22,9 @@ namespace Backend.Api.Middleware;
 /// <c>detail</c> é a mensagem para o usuário (o <c>MainController</c> a preenche nas falhas de
 /// negócio) e o front a exibe; o stack trace ali acabava na tela.
 /// </para>
+/// <para>
+/// No log vai o template da rota, não o caminho: convite, portaria e compra carregam o token nele.
+/// </para>
 /// </remarks>
 /// <param name="ambiente">Ambiente de execução, que decide se o detalhe técnico é exposto.</param>
 /// <param name="logger">Log estruturado.</param>
@@ -38,12 +42,16 @@ public sealed class GlobalExceptionHandler(IHostEnvironment ambiente, ILogger<Gl
 
         var (status, titulo) = ClassificadorDeExcecao.Classificar(exception);
 
+        var caminhoParaLog = httpContext.GetEndpoint() is RouteEndpoint rota
+            ? rota.RoutePattern.RawText ?? httpContext.Request.Path.Value
+            : httpContext.Request.Path.Value;
+
         logger.Log(
             status >= StatusCodes.Status500InternalServerError ? LogLevel.Error : LogLevel.Warning,
             exception,
             "Falha não tratada em {Metodo} {Caminho} (status {Status}).",
             httpContext.Request.Method,
-            httpContext.Request.Path,
+            caminhoParaLog,
             status
         );
 

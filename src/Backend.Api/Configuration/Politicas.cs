@@ -2,6 +2,7 @@ using Backend.Business.Assinaturas.Models;
 using Backend.Business.Auth.Services;
 using Backend.Business.Formaturas.Models;
 using Backend.Business.Usuarios.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Backend.Api.Configuration;
@@ -43,6 +44,19 @@ public static class Politicas
 
     /// <summary>Tesouraria e Comissão: extrato de qualquer formando, avisos e documentos.</summary>
     public const string Gestao = nameof(Gestao);
+
+    /// <summary>
+    /// A porta de um evento: a Gestão, ou o celular liberado pelo link da portaria (15/10/2026).
+    /// </summary>
+    /// <remarks>
+    /// Aceita os dois esquemas. A credencial da portaria só autentica aqui — no resto da API ela é anônima —, e o
+    /// <c>PortariaHandler</c> confere no banco, a cada requisição, que o acesso não foi cortado. Quem restringe ao
+    /// evento da credencial é o controller, pela claim <c>evento_id</c>.
+    /// </remarks>
+    public const string Portaria = nameof(Portaria);
+
+    /// <summary>O esquema de autenticação da credencial da portaria.</summary>
+    public const string EsquemaDaPortaria = "Portaria";
 
     /// <summary>
     /// Qualquer vínculo ativo na formatura selecionada: dashboard público e o próprio extrato.
@@ -125,11 +139,11 @@ public static class Politicas
     /// baixa, conferência de informe e o aviso de pagamento do formando.
     /// </summary>
     /// <remarks>
-    /// Revisão de 17/09/2026. Suspensa é a turma que deixou a assinatura da Kapa vencer, e até aqui
+    /// Revisão de 17/09/2026. Suspensa é a turma que deixou a assinatura do Kapa vencer, e até aqui
     /// isso travava também a baixa — mas o dinheiro dos formandos continua caindo na conta PIX da
-    /// comissão, porque a Kapa não é meio de pagamento (decisão de 14/09/2026). O efeito era o
+    /// comissão, porque o Kapa não é meio de pagamento (decisão de 14/09/2026). O efeito era o
     /// contrário do pretendido: quem pagou em dia seguia "vencido", com multa e juros correndo por
-    /// uma dívida que é da comissão com a Kapa, não dele com a turma.
+    /// uma dívida que é da comissão com o Kapa, não dele com a turma.
     /// <para>
     /// Registrar dinheiro que já entrou é escrituração do caixa da própria turma. O resto da suspensão
     /// continua valendo — plano, despesas, mural, convites e a régua seguem travados.
@@ -193,6 +207,15 @@ public static class Politicas
                 politica =>
                     politica.RequireAuthenticatedUser().ExigirPapel([.. PapelNaFormatura.Todos]).AddRequirements(new AdesaoNaFormaturaRequirement())
             )
+            .AddPolicy(
+                Portaria,
+                politica =>
+                    politica
+                        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, EsquemaDaPortaria)
+                        .RequireAuthenticatedUser()
+                        .RequireClaim(TokenService.ClaimDeFormatura)
+                        .AddRequirements(new PortariaRequirement())
+            )
             .AddPolicy(MembroAntesDaAdesao, politica => politica.RequireAuthenticatedUser().ExigirPapel([.. PapelNaFormatura.Todos]))
             .AddPolicy(
                 TitularDoProprioHistorico,
@@ -215,6 +238,7 @@ public static class Politicas
         services.AddScoped<IAuthorizationHandler, AdesaoNaFormaturaHandler>();
         services.AddScoped<IAuthorizationHandler, FormaturaEmStatusHandler>();
         services.AddScoped<IAuthorizationHandler, PlanoComModuloHandler>();
+        services.AddScoped<IAuthorizationHandler, PortariaHandler>();
 
         return services;
     }

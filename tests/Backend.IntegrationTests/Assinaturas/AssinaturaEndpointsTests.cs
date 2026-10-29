@@ -41,7 +41,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
 
         // Assert
         planos.ShouldNotBeNull();
-        planos.Single(p => p.Codigo == "premium").PrecoEmCentavos.ShouldBe(17900);
+        planos.Single(p => p.Codigo == "premium").PrecoEmCentavos.ShouldBe(13900);
         planos.Select(p => p.PrecoEmCentavos).ShouldBeInOrder();
     }
 
@@ -78,7 +78,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
         assinatura.ProximaCobrancaEm.ShouldBeNull();
     }
 
-    /// <summary>R$ 179,00 ida e volta: catálogo, provedor e leitura carregam 17900, nunca 179.0.</summary>
+    /// <summary>R$ 139,00 ida e volta: catálogo, provedor e leitura carregam 13900, nunca 139.0.</summary>
     [Fact]
     public async Task Valores_em_centavos_ponta_a_ponta()
     {
@@ -87,8 +87,8 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
 
         var checkout = (await (await Checkout(presidente)).Content.ReadFromJsonAsync<CheckoutDTO>(Json, Ct))!;
 
-        Fake.ObterSessao(checkout.Url.Split('/')[^1])!.Pedido.PrecoEmCentavos.ShouldBe(17900);
-        (await presidente.Cliente.GetFromJsonAsync<AssinaturaDTO>(Assinatura, Json, Ct))!.Plano.PrecoEmCentavos.ShouldBe(17900);
+        Fake.ObterSessao(checkout.Url.Split('/')[^1])!.Pedido.PrecoEmCentavos.ShouldBe(13900);
+        (await presidente.Cliente.GetFromJsonAsync<AssinaturaDTO>(Assinatura, Json, Ct))!.Plano.PrecoEmCentavos.ShouldBe(13900);
     }
 
     /// <summary>
@@ -284,7 +284,7 @@ public sealed class AssinaturaEndpointsTests(ApiFactory fabrica)
         var pagina = await navegador.GetStringAsync(checkout.Url, Ct);
         var pagamento = await navegador.PostAsync($"{checkout.Url}/pagar", null, Ct);
 
-        pagina.ShouldContain("R$ 179,00");
+        pagina.ShouldContain("R$ 139,00");
         pagamento.StatusCode.ShouldBe(HttpStatusCode.Redirect);
         pagamento.Headers.Location!.ToString().ShouldEndWith("/assinatura/retorno");
         (await StatusDa(formaturaId)).ShouldBe(StatusDaFormatura.Ativa);

@@ -47,7 +47,7 @@ public static class PacoteDeDados
     /// O suporte revisa o alcance do pedido e complementa os dados quando houver arquivos,
     /// compras avulsas ou registros técnicos pertinentes.
     /// </remarks>
-    /// <param name="dados">Tudo o que a Kapa guarda sobre o titular.</param>
+    /// <param name="dados">Tudo o que o Kapa guarda sobre o titular.</param>
     /// <param name="geradoEm">Momento da geração, em UTC, impresso no leia-me.</param>
     public static byte[] Gerar(MeusDados dados, DateTime geradoEm)
     {
@@ -186,7 +186,7 @@ public static class PacoteDeDados
     /// <param name="geradoEm">Momento da geração, em UTC.</param>
     private static string LeiaMe(MeusDados dados, DateTime geradoEm) =>
         $"""
-            Seus dados na Kapa
+            Seus dados no Kapa
             ==================
 
             Pacote gerado em {DataHora(geradoEm)} (UTC) para {dados.Conta.Email}.

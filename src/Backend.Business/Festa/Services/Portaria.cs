@@ -81,10 +81,13 @@ public sealed class Portaria(
     }
 
     /// <inheritdoc />
-    public async Task<Result<ConsultaNaPortaria>> Consultar(string codigo, CancellationToken ct = default)
+    public async Task<Result<ConsultaNaPortaria>> Consultar(string codigo, Guid? eventoId, CancellationToken ct = default)
     {
         if (await Ler(codigo, ct) is not { } gravado)
             return ErrosDoConvite.NaoEncontrado;
+
+        if (eventoId is { } daPortaria && daPortaria != gravado.Convite.EventoId)
+            return ErrosDoConvite.OutroEvento;
 
         var evento = await Evento(gravado.Convite.EventoId, ct);
 
@@ -132,7 +135,7 @@ public sealed class Portaria(
     }
 
     /// <inheritdoc />
-    public async Task<Result> Desfazer(Guid checkInId, Guid usuarioId, CancellationToken ct = default)
+    public async Task<Result> Desfazer(Guid checkInId, Guid usuarioId, Guid? eventoId, CancellationToken ct = default)
     {
         var naoEncontrada = Erro.NaoEncontrado("festa.entrada_nao_encontrada", "Entrada não encontrada.");
 
@@ -140,7 +143,11 @@ public sealed class Portaria(
             async token =>
             {
                 var checkIn = await convites.ObterCheckInParaEdicao(checkInId, token);
-                if (checkIn is null || await convites.Travar(checkIn.ConviteId, token) is not { } convite)
+                if (
+                    checkIn is null
+                    || await convites.Travar(checkIn.ConviteId, token) is not { } convite
+                    || (eventoId is { } daPortaria && daPortaria != convite.EventoId)
+                )
                     return Result.Falha(naoEncontrada);
 
                 var evento = await Evento(convite.EventoId, token);
@@ -183,6 +190,7 @@ public sealed class Portaria(
     public async Task<Result<ResultadoDaSincronizacao>> Sincronizar(
         IReadOnlyList<EntradaSemRede> entradas,
         Guid usuarioId,
+        Guid? eventoId,
         CancellationToken ct = default
     )
     {
@@ -194,7 +202,10 @@ public sealed class Portaria(
 
         foreach (var entrada in entradas)
         {
-            if (await Ler(entrada.Codigo, ct) is not { Convite.Valido: true, Preso: false } gravado)
+            if (
+                await Ler(entrada.Codigo, ct) is not { Convite.Valido: true, Preso: false } gravado
+                || (eventoId is { } daPortaria && daPortaria != gravado.Convite.EventoId)
+            )
             {
                 recusadas++;
                 continue;

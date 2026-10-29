@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Backend.Api.Configuration;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Auth.Services;
+using Backend.Business.Festa.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -127,6 +128,7 @@ public sealed class MatrizDePermissoesTests
         services.AddSingleton(vinculos);
         services.AddSingleton(Substitute.For<IFormaturaRepository>());
         services.AddSingleton(Substitute.For<IAssinaturaRepository>());
+        services.AddSingleton(Substitute.For<IAcessoDaPortariaRepository>());
         services.AddPoliticas();
 
         return services.BuildServiceProvider().CreateScope().ServiceProvider.GetRequiredService<IAuthorizationService>();

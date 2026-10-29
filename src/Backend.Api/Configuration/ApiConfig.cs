@@ -184,6 +184,8 @@ public static class ApiConfig
     /// <item><c>Referrer-Policy</c> — o caminho da API guarda ids de formatura e de parcela, e
     /// sem ela eles vazariam no <c>Referer</c> de qualquer link externo;</item>
     /// <item><c>X-Frame-Options: DENY</c> — nada da API é para ser embutido em página de terceiro.</item>
+    /// <item><c>Cache-Control: no-store</c> — a resposta carrega dado pessoal e token, e não pode ficar no cache de
+    /// disco nem no bfcache. A imagem da marca, que precisa de cache público, sobrescreve no próprio controller.</item>
     /// </list>
     /// <para>
     /// Sem CSP aqui: a API não serve HTML próprio. A da aplicação está no nginx do front, que é
@@ -201,6 +203,8 @@ public static class ApiConfig
                 cabecalhos["X-Content-Type-Options"] = "nosniff";
                 cabecalhos["Referrer-Policy"] = "strict-origin-when-cross-origin";
                 cabecalhos["X-Frame-Options"] = "DENY";
+
+                cabecalhos["Cache-Control"] = "no-store";
 
                 return proximo();
             }

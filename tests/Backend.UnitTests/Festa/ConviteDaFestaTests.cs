@@ -239,21 +239,29 @@ public sealed class ConviteDaFestaTests
         ConviteEmPdf.Gerar(convite, "https://kapa.app/ingresso/MED27-7QK4-ABCDEFGH").ShouldBe(pdf);
     }
 
-    /// <summary>A lista exportada traz o documento inteiro de quem vale — e nenhum de quem deixou de ser convidado.</summary>
+    /// <summary>A lista exportada traz só quem pode entrar, com o documento inteiro: o revogado e o sem nome ficam de fora (15/10/2026).</summary>
     [Fact]
-    public void Lista_da_portaria_nao_imprime_o_documento_do_convite_revogado()
+    public void Lista_da_portaria_exporta_so_os_convites_validos()
     {
         var evento = new EventoDoConvite(Guid.NewGuid(), TipoDeEvento.Festa, "Festa", new DateOnly(2027, 12, 11), new TimeOnly(22, 0), "Salão");
         var valido = ConviteDoEvento.Cortesia(evento.Id, "MED27-AAAA", new DadosDoConvidado("Carlos", TipoDeDocumento.Rg, "7654321", null));
         var transferido = ConviteDoEvento.Cortesia(evento.Id, "MED27-BBBB", new DadosDoConvidado("Maria", TipoDeDocumento.Cpf, "52998224725", null));
         transferido.Revogar("transferido para outro convidado", DateTime.UtcNow);
-        var linhas = new[] { new ConviteGravadoNaPortaria(valido, null, null, false), new ConviteGravadoNaPortaria(transferido, null, null, false) };
+        var semNome = ConviteDoEvento.Cortesia(evento.Id, "MED27-CCCC", new DadosDoConvidado("Pendente", null, null, null));
+        var linhas = new[]
+        {
+            new ConviteGravadoNaPortaria(valido, null, null, false),
+            new ConviteGravadoNaPortaria(transferido, null, null, false),
+            new ConviteGravadoNaPortaria(semNome, null, null, false),
+        };
 
         var texto = Encoding.Latin1.GetString(ConviteEmPdf.Lista("Medicina 2027", evento, linhas, Portaria.ParaPortaria));
 
         texto.ShouldContain("RG 7654321");
         texto.ShouldNotContain("529.982.247-25");
-        texto.ShouldContain("(Revogado:");
+        texto.ShouldNotContain("MED27-BBBB");
+        texto.ShouldNotContain("MED27-CCCC");
+        texto.ShouldNotContain("Revogado");
     }
 
     [Fact]

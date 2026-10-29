@@ -202,6 +202,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IFormaturaAtua
     /// <summary>Entradas validadas na portaria — uma linha por validação, desfeita ou não.</summary>
     public DbSet<CheckIn> CheckIns => Set<CheckIn>();
 
+    /// <summary>Pessoas de fora da turma liberadas para a portaria de um evento, por link (15/10/2026).</summary>
+    public DbSet<AcessoDaPortaria> AcessosDaPortaria => Set<AcessoDaPortaria>();
+
     /// <summary>Mesas do jantar: nome, lugares e o dono da mesa vendida (Sprint 27).</summary>
     public DbSet<Mesa> Mesas => Set<Mesa>();
 

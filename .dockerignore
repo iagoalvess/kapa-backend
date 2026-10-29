@@ -6,6 +6,10 @@
 .vs/
 .vscode/
 .idea/
-.env
+# Segredos: qualquer .env, inclusive o de produção e os *.env.local, e os
+# appsettings locais. O `.env` sozinho não cobria `.env.production`.
+.env*
+*.env.local
+appsettings.*.local.json
 docs/
 *.md

@@ -51,7 +51,7 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
 
         // Assert
         checkout.Url.ShouldStartWith("https://mp.testes/checkout/");
-        cobranca.Valor.ShouldBe(8900);
+        cobranca.Valor.ShouldBe(6900);
         primeiro.StatusCode.ShouldBe(HttpStatusCode.OK);
         repetido.StatusCode.ShouldBe(HttpStatusCode.OK);
         var assinatura = await Ler<AssinaturaDTO>(await presidente.GetAsync(Assinatura, Ct));
@@ -61,7 +61,7 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         var historico = await Ler<CobrancaDoPlanoDTO[]>(await presidente.GetAsync($"{Assinatura}/cobrancas", Ct));
         var pago = historico.ShouldHaveSingleItem();
         pago.Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Paga);
-        pago.ValorEmCentavos.ShouldBe(8900);
+        pago.ValorEmCentavos.ShouldBe(6900);
         (await StatusDa(formaturaId)).ShouldBe(StatusDaFormatura.Ativa);
     }
 
@@ -177,11 +177,11 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
 
         // Assert
         troca.Url.ShouldNotBeNull();
-        diferenca.Valor.ShouldBeInRange(8900, 9000);
+        diferenca.Valor.ShouldBeInRange(7000, 7100);
         antesDePagar.Plano.Codigo.ShouldBe("essencial");
         depois.Plano.Codigo.ShouldBe("premium");
         depois.VigenteAte.ShouldBe(antesDePagar.VigenteAte);
-        falso.ValorDaRecorrencia(recorrencia).ShouldBe(17900);
+        falso.ValorDaRecorrencia(recorrencia).ShouldBe(13900);
     }
 
     /// <summary>P4: a descida vale na próxima renovação, e a recorrência já cobra o preço novo nela.</summary>
@@ -203,7 +203,7 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         troca.Url.ShouldBeNull();
         aposATroca.Plano.Codigo.ShouldBe("premium");
         aposATroca.ProximoPlano!.Codigo.ShouldBe("essencial");
-        falso.ValorDaRecorrencia(recorrencia).ShouldBe(8900);
+        falso.ValorDaRecorrencia(recorrencia).ShouldBe(6900);
         renovada.Plano.Codigo.ShouldBe("essencial");
         renovada.ProximoPlano.ShouldBeNull();
     }
@@ -270,7 +270,7 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         depois.Pagamentos.ShouldHaveSingleItem().Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Estornada);
         depois.Assinatura!.Status.ShouldBe(nameof(StatusDaAssinatura.Vencida));
         depois.Status.ShouldBe(nameof(StatusDaFormatura.Suspensa));
-        falso.Estornos.ShouldHaveSingleItem().Valor.ShouldBe(17900);
+        falso.Estornos.ShouldHaveSingleItem().Valor.ShouldBe(13900);
         falso.Recorrencias[recorrencia].Situacao.ShouldBe(SituacaoDaRecorrencia.Cancelada);
         denovo.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await denovo.Codigo(Ct)).ShouldBe("estorno.cobranca_nao_paga");
@@ -311,7 +311,7 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         pedido.SolicitanteId.ShouldNotBe(Guid.Empty);
         pedido.EmailDoSolicitante.ShouldNotBeNullOrWhiteSpace();
         pedido.Motivo.ShouldBe("Não preciso mais do plano.");
-        pedido.ValorEmCentavos.ShouldBe(17900);
+        pedido.ValorEmCentavos.ShouldBe(13900);
         var cobranca = await db.CobrancasDaAssinatura.SingleAsync(c => c.Id == pedido.CobrancaId, Ct);
         cobranca.Situacao.ShouldBe(SituacaoDaCobrancaDoPlano.Paga);
         pedido.IdDoPagamento.ShouldBe(cobranca.IdDoPagamento);
@@ -404,8 +404,8 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         var assinatura = await Ler<AssinaturaDTO>(await presidente.GetAsync(Assinatura, Ct));
 
         // Assert
-        primeiro.ShouldBe(4450);
-        falso.ValorDaRecorrencia(recorrencia).ShouldBe(8900);
+        primeiro.ShouldBe(3450);
+        falso.ValorDaRecorrencia(recorrencia).ShouldBe(6900);
         assinatura.Status.ShouldBe(StatusDaAssinatura.Ativa);
         assinatura.Cupom!.Codigo.ShouldBe(codigo);
     }
@@ -436,7 +436,7 @@ public sealed class RecebimentoDosPlanosTests(ApiFactory fabrica)
         );
 
         // Assert
-        falso.Paginas.ShouldHaveSingleItem().Value.Valor.ShouldBe(154620);
+        falso.Paginas.ShouldHaveSingleItem().Value.Valor.ShouldBe(120060);
     }
 
     /// <summary>Um cupom gravado direto no banco, com código único por teste.</summary>

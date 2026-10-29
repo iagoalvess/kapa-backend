@@ -61,6 +61,23 @@ public sealed class TentativasDeSenha
     /// <param name="origem">IP de quem acertou.</param>
     public void Limpar(string conta, string? origem) => _falhas.TryRemove(Chave(conta, origem), out _);
 
+    /// <summary>
+    /// Esquece os erros de <b>todas</b> as origens de uma conta — o desbloqueio do suporte.
+    /// </summary>
+    /// <remarks>
+    /// O bloqueio é por conta + origem; o suporte não sabe de qual rede a pessoa tentou. Sem isto,
+    /// o "desbloquear" do painel limpava só o lockout do Identity, que o login nem incrementa.
+    /// </remarks>
+    /// <param name="conta">E-mail da conta, como o login o envia.</param>
+    public void LimparConta(string conta)
+    {
+        var prefixo = $"{conta.Trim().ToUpperInvariant()}|";
+
+        foreach (var chave in _falhas.Keys)
+            if (chave.StartsWith(prefixo, StringComparison.Ordinal))
+                _falhas.TryRemove(chave, out _);
+    }
+
     private void Varrer()
     {
         var agora = DateTime.UtcNow;

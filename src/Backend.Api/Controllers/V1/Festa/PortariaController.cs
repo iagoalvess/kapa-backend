@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Asp.Versioning;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Festa;
@@ -5,6 +6,7 @@ using Backend.Api.Extensions;
 using Backend.Business.Abstractions;
 using Backend.Business.Agenda.Models;
 using Backend.Business.Assinaturas.Models;
+using Backend.Business.Auth.Services;
 using Backend.Business.Festa.Interfaces;
 using Backend.Business.Festa.Models;
 using Mapster;
@@ -18,7 +20,8 @@ namespace Backend.Api.Controllers.V1.Festa;
 /// A porta da festa: a lista, a validação de entrada e a lista sem rede.
 /// </summary>
 /// <remarks>
-/// De qualquer membro da Gestão (P4); o formando recebe 403 em tudo. O limite é o padrão, por
+/// De qualquer membro da Gestão (P4) e do celular liberado pelo link da portaria (15/10/2026), que fica preso ao
+/// evento da credencial; o formando recebe 403 em tudo. O limite é o padrão, por
 /// usuário: a portaria não disputa a cota dos convidados abrindo o convite no Wi-Fi da casa. Convite
 /// de outra turma responde 404, nunca 403 (decisão 15).
 /// </remarks>
@@ -28,9 +31,12 @@ namespace Backend.Api.Controllers.V1.Festa;
 [ExigeModulo(Modulo.Festa)]
 [Route("api/v{version:apiVersion}/festa")]
 [EnableRateLimiting(RateLimitConfig.Padrao)]
-[Authorize(Policy = Politicas.Gestao)]
+[Authorize(Policy = Politicas.Portaria)]
 public sealed class PortariaController(IPortariaService portaria, IUsuarioAtual usuarioAtual) : MainController
 {
+    /// <summary>O evento da credencial da portaria; nulo para a Gestão, que abre qualquer evento.</summary>
+    private Guid? EventoDaCredencial => Guid.TryParse(User.FindFirstValue(TokenService.ClaimDeEvento), out var id) ? id : null;
+
     /// <summary>A lista do evento, com a faixa de contagem e a busca por nome ou código.</summary>
     /// <param name="eventoId">Evento da portaria; ausente é o evento único do tipo.</param>
     /// <param name="tipo">Festa (o padrão) ou colação.</param>
@@ -44,7 +50,7 @@ public sealed class PortariaController(IPortariaService portaria, IUsuarioAtual 
         [FromQuery] string? busca,
         CancellationToken ct,
         [FromQuery] TipoDeEvento tipo = TipoDeEvento.Festa
-    ) => Responder((await portaria.Listar(eventoId, tipo, busca, ct)).Map(lista => lista.Adapt<ListaDaPortariaDTO>()));
+    ) => Responder((await portaria.Listar(EventoDaCredencial ?? eventoId, tipo, busca, ct)).Map(lista => lista.Adapt<ListaDaPortariaDTO>()));
 
     /// <summary>A lista em PDF, com o documento inteiro — a que o salão pede.</summary>
     /// <param name="eventoId">Evento; ausente é o evento único do tipo.</param>
@@ -58,7 +64,7 @@ public sealed class PortariaController(IPortariaService portaria, IUsuarioAtual 
         [FromQuery] Guid? eventoId,
         CancellationToken ct,
         [FromQuery] TipoDeEvento tipo = TipoDeEvento.Festa
-    ) => Arquivo(await portaria.ListaEmPdf(eventoId, tipo, ct));
+    ) => Arquivo(await portaria.ListaEmPdf(EventoDaCredencial ?? eventoId, tipo, ct));
 
     /// <summary>Um convite como a portaria o vê: situação, entrada e se a validação está aberta.</summary>
     /// <param name="codigo">Código do convite ou token do QR.</param>
@@ -67,7 +73,7 @@ public sealed class PortariaController(IPortariaService portaria, IUsuarioAtual 
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Consultar(string codigo, CancellationToken ct) =>
-        Responder((await portaria.Consultar(codigo, ct)).Map(consulta => consulta.Adapt<ConsultaNaPortariaDTO>()));
+        Responder((await portaria.Consultar(codigo, EventoDaCredencial, ct)).Map(consulta => consulta.Adapt<ConsultaNaPortariaDTO>()));
 
     /// <summary>Valida a entrada.</summary>
     /// <remarks>
@@ -85,7 +91,9 @@ public sealed class PortariaController(IPortariaService portaria, IUsuarioAtual 
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> ValidarEntrada(string codigo, [FromBody] CheckInRequestDTO? requisicao, CancellationToken ct) =>
         Responder(
-            (await portaria.ValidarEntrada(codigo, requisicao?.EventoId, usuarioAtual.Id, ct)).Map(entrada => entrada.Adapt<EntradaNaPortariaDTO>())
+            (await portaria.ValidarEntrada(codigo, EventoDaCredencial ?? requisicao?.EventoId, usuarioAtual.Id, ct)).Map(entrada =>
+                entrada.Adapt<EntradaNaPortariaDTO>()
+            )
         );
 
     /// <summary>Desfaz uma entrada validada por engano.</summary>
@@ -96,7 +104,8 @@ public sealed class PortariaController(IPortariaService portaria, IUsuarioAtual 
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Desfazer(Guid id, CancellationToken ct) => Responder(await portaria.Desfazer(id, usuarioAtual.Id, ct));
+    public async Task<IActionResult> Desfazer(Guid id, CancellationToken ct) =>
+        Responder(await portaria.Desfazer(id, usuarioAtual.Id, EventoDaCredencial, ct));
 
     /// <summary>Sobe as entradas marcadas na lista sem rede. Nenhuma é descartada.</summary>
     /// <param name="requisicao">Entradas, com a hora e o aparelho de cada uma.</param>
@@ -112,7 +121,9 @@ public sealed class PortariaController(IPortariaService portaria, IUsuarioAtual 
             .ToList();
 
         return Responder(
-            (await portaria.Sincronizar(entradas, usuarioAtual.Id, ct)).Map(resultado => resultado.Adapt<ResultadoDaSincronizacaoDTO>())
+            (await portaria.Sincronizar(entradas, usuarioAtual.Id, EventoDaCredencial, ct)).Map(resultado =>
+                resultado.Adapt<ResultadoDaSincronizacaoDTO>()
+            )
         );
     }
 }

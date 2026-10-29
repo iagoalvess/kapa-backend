@@ -466,9 +466,15 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
     public Task<EntradaNaPortaria?> ObterEntradaAtiva(Guid conviteId, CancellationToken ct = default) =>
         (
             from checkIn in db.CheckIns.AsNoTracking()
-            join usuario in db.Users.AsNoTracking() on checkIn.ValidadoPorUsuarioId equals usuario.Id
             where checkIn.ConviteId == conviteId && checkIn.DesfeitoEm == null
-            select new EntradaNaPortaria(checkIn.Id, checkIn.ValidadoEm, usuario.Nome, usuario.Id)
+            select new EntradaNaPortaria(
+                checkIn.Id,
+                checkIn.ValidadoEm,
+                db.Users.Where(u => u.Id == checkIn.ValidadoPorUsuarioId).Select(u => u.Nome).FirstOrDefault()
+                    ?? db.AcessosDaPortaria.Where(a => a.Id == checkIn.ValidadoPorUsuarioId).Select(a => a.Nome + SufixoDaPortaria).FirstOrDefault()
+                    ?? string.Empty,
+                checkIn.ValidadoPorUsuarioId
+            )
         ).FirstOrDefaultAsync(ct);
 
     /// <inheritdoc />
@@ -507,6 +513,15 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
                 ct
             );
 
+    /// <summary>
+    /// O que segue o nome de quem validou quando foi a portaria terceirizada: "João (portaria)".
+    /// </summary>
+    /// <remarks>
+    /// Quem validou é um usuário ou um acesso da portaria — <c>validado_por_usuario_id</c> não tem chave estrangeira, e
+    /// as duas subconsultas resolvem o nome por um ou por outro.
+    /// </remarks>
+    private const string SufixoDaPortaria = " (portaria)";
+
     /// <summary>A formatura da sessão, que o SQL à mão precisa escrever — o carimbo do contexto não o alcança.</summary>
     private Guid FormaturaDaSessao() =>
         db.FormaturaAtualId ?? throw new InvalidOperationException("Escrita de convite sem formatura selecionada na sessão.");
@@ -541,9 +556,17 @@ public sealed class ConviteDoEventoRepository(AppDbContext db) : IConviteDoEvent
                 : null,
             Entrada = (
                 from checkIn in db.CheckIns
-                join validador in db.Users on checkIn.ValidadoPorUsuarioId equals validador.Id
                 where checkIn.ConviteId == convite.Id && checkIn.DesfeitoEm == null
-                select new EntradaNaPortaria(checkIn.Id, checkIn.ValidadoEm, validador.Nome, validador.Id)
+                select new EntradaNaPortaria(
+                    checkIn.Id,
+                    checkIn.ValidadoEm,
+                    db.Users.Where(u => u.Id == checkIn.ValidadoPorUsuarioId).Select(u => u.Nome).FirstOrDefault()
+                        ?? db.AcessosDaPortaria.Where(a => a.Id == checkIn.ValidadoPorUsuarioId)
+                            .Select(a => a.Nome + SufixoDaPortaria)
+                            .FirstOrDefault()
+                        ?? string.Empty,
+                    checkIn.ValidadoPorUsuarioId
+                )
             ).FirstOrDefault(),
             Repetida = db.CheckIns.Any(checkIn => checkIn.ConviteId == convite.Id && checkIn.Motivo == CheckIn.DuplicadaOffline),
             Preso =

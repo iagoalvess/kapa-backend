@@ -278,6 +278,7 @@ Não vem do domínio: é o `GlobalExceptionHandler`, a rede de segurança para e
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
+| <a id="festa.acesso_nao_encontrado"></a>`festa.acesso_nao_encontrado` | 404 | Acesso da portaria não encontrado nesta turma. |
 | <a id="festa.convite_nao_encontrado"></a>`festa.convite_nao_encontrado` | 404 | Convite não encontrado. Genérico de propósito: código inexistente, assinatura adulterada, convite revogado, convite ainda "a definir" (sem convidado, não há ingresso) e convite de outra turma respondem igual na página pública. |
 | <a id="festa.convite_preso"></a>`festa.convite_preso` | 409 | Convite de pacote preso: o formando tem parcela vencida além da carência. Volta a valer ao regularizar ou quando a comissão libera (Sprint 47, D24). |
 | <a id="festa.convite_revogado"></a>`festa.convite_revogado` | 409 | O convite foi revogado (estorno, cancelamento, transferência ou reemissão); a mensagem traz o motivo. |
@@ -286,6 +287,7 @@ Não vem do domínio: é o `GlobalExceptionHandler`, a rede de segurança para e
 | <a id="festa.documento_nao_encontrado"></a>`festa.documento_nao_encontrado` | 400 | Documento não encontrado no acervo, ou visível apenas para a comissão. |
 | <a id="festa.documento_obrigatorio"></a>`festa.documento_obrigatorio` | 400 | Depois do fechamento da lista, o convite precisa de nome e documento. |
 | <a id="festa.entrada_nao_encontrada"></a>`festa.entrada_nao_encontrada` | 404 | Entrada da portaria não encontrada. |
+| <a id="festa.evento_encerrado"></a>`festa.evento_encerrado` | 409 | A validação deste evento já fechou: não dá para liberar ninguém nem gerar link para a portaria dele. |
 | <a id="festa.evento_incompleto"></a>`festa.evento_incompleto` | 409 | A festa precisa estar na agenda com data, hora e local antes de qualquer convite sair (P6). |
 | <a id="festa.evento_sem_convite"></a>`festa.evento_sem_convite` | 400 | Só a festa e a colação têm cota de convites. |
 | <a id="festa.fora_da_janela"></a>`festa.fora_da_janela` | 409 | Fora do horário da portaria: a validação vale de 6 h antes a 12 h depois do evento (P7). |
@@ -296,11 +298,14 @@ Não vem do domínio: é o `GlobalExceptionHandler`, a rede de segurança para e
 | <a id="festa.item_nao_cancelado"></a>`festa.item_nao_cancelado` | 409 | Este item não está cancelado. |
 | <a id="festa.item_nao_encontrado"></a>`festa.item_nao_encontrado` | 404 | Item da festa não encontrado. |
 | <a id="festa.ja_validado"></a>`festa.ja_validado` | 409 | O convite já entrou. `dados` traz `check_in_id`, `validado_em`, `validado_por` e `validado_por_usuario_id` — é informação para a portaria, não erro. |
+| <a id="festa.link_da_portaria_invalido"></a>`festa.link_da_portaria_invalido` | 404 | O link da portaria não vale: já foi aberto, foi cortado, não existe ou o evento acabou. A mesma resposta para todos os casos (endpoint anônimo). |
 | <a id="festa.lista_fechada"></a>`festa.lista_fechada` | 409 | A lista de convidados fechou 24 h antes do evento; agora só a comissão altera o nome. |
 | <a id="festa.mesa_com_dono"></a>`festa.mesa_com_dono` | 409 | A mesa já é de um formando: solte o dono antes de excluir. |
 | <a id="festa.mesa_nao_encontrada"></a>`festa.mesa_nao_encontrada` | 404 | Mesa não encontrada. |
 | <a id="festa.mesa_reservada"></a>`festa.mesa_reservada` | 409 | Mesa reservada não tem dono: atribuir dono a ela, ou reservar uma mesa com dono (Sprint 27, P3). |
 | <a id="festa.mesas_alem_do_pedido"></a>`festa.mesas_alem_do_pedido` | 409 | O formando já tem no mapa todas as mesas que os pedidos confirmados do opcional Mesa dão direito (Sprint 27, decisão 6). |
+| <a id="festa.nome_longo"></a>`festa.nome_longo` | 400 | O nome de quem fica na portaria passa de 60 caracteres. |
+| <a id="festa.nome_obrigatorio"></a>`festa.nome_obrigatorio` | 400 | Informe o nome de quem vai ficar na porta. |
 | <a id="festa.outro_evento"></a>`festa.outro_evento` | 409 | O convite é de outro evento da turma — não é código inválido (decisão 13). |
 | <a id="festa.pedido_sem_convite"></a>`festa.pedido_sem_convite` | 409 | O pedido não é de convite extra. |
 | <a id="festa.proposta_nao_encontrada"></a>`festa.proposta_nao_encontrada` | 404 | Proposta não encontrada. |

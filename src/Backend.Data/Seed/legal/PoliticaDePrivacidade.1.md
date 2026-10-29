@@ -1,28 +1,15 @@
-# Política de Privacidade da Kapa
+# Política de Privacidade do Kapa
 
-Esta Política explica quais dados pessoais a Kapa usa, para quê, com quem compartilha e como você exerce seus direitos. Ela segue a Lei Geral de Proteção de Dados (Lei nº 13.709/2018, a "LGPD").
-
-## Em resumo
-
-Este resumo ajuda a leitura, mas não substitui o texto completo: em caso de dúvida, vale o que está nas seções abaixo.
-
-- Coletamos o necessário para a sua conta e para a organização da formatura. Não pedimos data de nascimento, localização nem contatos do celular (seção 3).
-- Os dados de pagamento do cartão são digitados no Mercado Pago e não passam pela Kapa (seção 3).
-- O CPF, os documentos dos convidados e as observações sobre eles são guardados com criptografia (seções 3 e 13).
-- Cada formando vê só os próprios dados. A comissão vê o cadastro e o extrato dos formandos, com o CPF escondido em parte (seção 5).
-- **A Kapa não vende dados** e não os compartilha para publicidade (seção 6).
-- Alguns fornecedores da Kapa ficam fora do Brasil, principalmente nos Estados Unidos (seção 7).
-- Formando nunca recebe e-mail de propaganda da Kapa. Membros da comissão só recebem se aceitarem (seção 4).
-- Você pode pedir acesso, correção, exclusão e cópia dos seus dados (seção 10).
+Esta Política explica quais dados pessoais o Kapa usa, para quê, com quem compartilha e como você exerce seus direitos. Ela segue a Lei Geral de Proteção de Dados (Lei nº 13.709/2018, a "LGPD").
 
 ## Palavras que usamos
 
 - **Dado pessoal:** qualquer informação que identifique você, como nome, e-mail ou CPF.
+- **Dado sensível:** dado pessoal sobre saúde, religião, origem racial ou étnica, entre outros que a LGPD protege de forma especial (art. 5º, II).
 - **Controlador:** quem decide para que os dados são usados.
 - **Operador:** quem usa os dados em nome do controlador, seguindo as instruções dele.
-- **Encarregado (DPO):** a pessoa de contato para assuntos de privacidade.
 - **Base legal:** o motivo, previsto na LGPD, que permite usar um dado.
-- **Criptografia:** técnica que embaralha o dado guardado, de forma que só o sistema da Kapa consegue lê-lo.
+- **Criptografia:** técnica que embaralha o dado guardado, de forma que só o sistema do Kapa consegue lê-lo.
 - **Mascarado:** mostrado só em parte, como um CPF exibido como `***.456.789-**`.
 - **Anonimizar:** trocar os dados que identificam você por marcadores, de forma que não seja mais possível saber quem era.
 
@@ -30,23 +17,22 @@ Este resumo ajuda a leitura, mas não substitui o texto completo: em caso de dú
 
 A plataforma Kapa é operada por **KAPA FORMATURAS INOVA SIMPLES (I.S.)**, CNPJ nº **69.334.998/0001-67**.
 
-- **Suporte e pedidos sobre dados pessoais:** suporte@kapaformaturas.com.br
-- **Encarregado de Dados (DPO):** contato@kapaformaturas.com.br
+- **Suporte, dúvidas e pedidos sobre dados pessoais:** suporte@kapaformaturas.com.br
 
-## 2. Dois responsáveis: a Kapa e a comissão da sua formatura
+## 2. Dois responsáveis: o Kapa e a comissão da sua formatura
 
-Na Kapa, os dados pessoais têm dois responsáveis diferentes, conforme o uso:
+No Kapa, os dados pessoais têm dois responsáveis diferentes, conforme o uso:
 
-- **A Kapa é a controladora** dos dados da sua conta (nome, e-mail, senha), dos registros de acesso e dos registros de aceite destes documentos. Também dos dados de contratação e pagamento da assinatura da plataforma.
+- **O Kapa é o controlador** dos dados da sua conta (nome, e-mail, senha), dos registros de acesso e dos registros de aceite destes documentos. Também dos dados de contratação e pagamento da assinatura da plataforma.
 - **A comissão da sua formatura é a controladora** dos dados usados para organizar a formatura. São eles: cadastro na turma, adesão, cobranças, pagamentos, despesas, convidados, vendas da loja da turma, avisos e documentos. Nesse caso, a **Kapa é operadora**: usa esses dados em nome da comissão, seguindo as instruções dela e esta Política.
 
-Pedidos sobre os dados da formatura podem ser feitos à comissão ou à Kapa. Se você falar com a Kapa, encaminhamos o pedido e ajudamos a comissão a responder.
+Pedidos sobre os dados da formatura podem ser feitos à comissão ou ao Kapa. Se você falar com o Kapa, encaminhamos o pedido e ajudamos a comissão a responder.
 
 ## 3. Dados que coletamos
 
 ### Sua conta
 
-- **Dados de conta:** nome, e-mail e senha. A senha é guardada de forma que nem a Kapa consegue lê-la (hash irreversível).
+- **Dados de conta:** nome, e-mail e senha. A senha é guardada de forma que nem o Kapa consegue lê-la (hash irreversível).
 - **Entrada com Google (opcional):** se você escolher entrar com Google, recebemos do Google o identificador da sua conta Google, o nome e o e-mail, só para confirmar que é você. Não acessamos contatos, agenda, telefone, fotos ou arquivos, e não guardamos a foto do perfil. Você pode ter também uma senha no Kapa, e remover a autorização no Google não exclui sua conta Kapa.
 
 ### A formatura
@@ -63,24 +49,46 @@ Quem tem convites para os eventos da turma (o formando, a comissão ou quem comp
 - o e-mail, para o convite chegar direto ao convidado;
 - observações para a comissão, como restrição alimentar ou necessidade de acessibilidade.
 
-As observações podem revelar informação de saúde: informe só o necessário para organizar o evento. Documento, e-mail e observações são guardados com criptografia. Quem informa os dados de um convidado declara que ele sabe e concorda.
+As observações podem revelar informação de saúde, que é dado sensível: informe só o necessário para organizar o evento. Documento, e-mail e observações são guardados com criptografia. Quem informa os dados de um convidado declara que ele sabe e concorda.
 
 ### Pagamentos
 
-- **Modo manual (PIX na chave da comissão):** a Kapa não recebe dados de bancos. Registramos o que o formando informa ao avisar que pagou (data, valor e, se ele quiser, o comprovante) e o que a tesouraria confirma.
-- **Modo automático (Mercado Pago da turma):** a Kapa envia ao Mercado Pago nome, e-mail e CPF de quem paga, para criar a cobrança. Recebemos dele a situação do pagamento, o meio usado e o número de parcelas do cartão.
-- **Cartão:** os dados do cartão são digitados no formulário do próprio Mercado Pago e não passam pelos servidores da Kapa.
-- **Compradores da loja da turma:** quem compra convites avulsos informa nome, e-mail e CPF, e os dados de cada convidado. O pagamento é feito na conta Mercado Pago da turma, que recebe esses dados de quem paga. A Kapa registra a compra, o aceite desta Política no momento da compra (versão, data, endereço IP e navegador) e os pedidos de cancelamento.
-- **Conta de recebimento da turma:** a chave PIX, o nome do titular e a cidade da conta, informados pela comissão. No modo automático, a chave de acesso à conta Mercado Pago da turma, guardada com criptografia. Quando a chave PIX é um CPF, e-mail ou telefone, ela é dado pessoal do titular da conta e aparece para os membros da turma, que precisam dela para pagar.
+O dinheiro nunca passa por uma conta do Kapa. Os dados que usamos dependem de quem paga e de como.
 
-### Registros
+**Parcelas da formatura, modo manual (PIX na chave da comissão)**
 
-- **Registros de aceite:** a versão aceita destes documentos, data e hora, endereço IP e navegador. É o que comprova seu aceite. No aceite do termo de adesão da turma e dos aditivos, ficam registrados também o nome e o CPF do formando naquele momento. Fica ainda uma impressão digital (hash) do texto aceito, que prova qual texto foi assinado.
+1. A comissão cadastra a conta onde a turma recebe: a chave PIX, o nome do titular e a cidade.
+2. Para cada parcela, a plataforma mostra ao formando um código PIX (QR Code e "copia e cola") montado com esses dados.
+3. O formando paga pelo aplicativo do banco dele, direto na conta da comissão. O Kapa não vê essa transação e não recebe nenhum dado do banco.
+4. Se quiser, o formando avisa na plataforma que pagou, informando a data, o valor e, opcionalmente, o comprovante.
+5. A tesouraria confere o extrato do banco e confirma o pagamento. Registramos quem confirmou e quando.
+
+**Parcelas da formatura, modo automático (Mercado Pago da turma)**
+
+1. A comissão conecta a conta Mercado Pago da turma. Guardamos, com criptografia, a chave de acesso que o Mercado Pago entrega nessa conexão.
+2. Quando o formando escolhe pagar, o Kapa cria a cobrança na conta Mercado Pago da turma. Para isso, envia ao Mercado Pago **só o e-mail do formando**, o valor e a identificação da parcela. Nome e CPF não são enviados.
+3. No PIX, o código é gerado pelo Mercado Pago. No cartão, o formando digita os dados no formulário do próprio Mercado Pago, dentro da página; o Kapa recebe apenas um código que representa o cartão e não revela o número.
+4. O dinheiro cai direto na conta Mercado Pago da turma. O Mercado Pago informa ao Kapa a situação do pagamento, o meio usado e o número de parcelas do cartão, e a parcela passa a constar como paga.
+
+**Loja da turma (compra de convites avulsos)**
+
+1. O comprador, formando ou não, informa nome, e-mail, CPF e os dados de cada convidado, e confirma que leu esta Política. Registramos a versão lida, a data, o endereço IP e o navegador.
+2. O Kapa cria a cobrança na conta Mercado Pago da turma, enviando o **nome e o e-mail** do comprador. O CPF não é enviado.
+3. O pagamento é feito por PIX ou cartão, no Mercado Pago, da mesma forma que nas parcelas.
+4. Quando o Mercado Pago informa o CPF de quem efetivamente pagou, guardamos esse CPF com criptografia, para identificar revenda irregular de convites e fraude.
+5. Os pedidos de cancelamento da compra também ficam registrados.
+
+**Assinatura do Kapa**
+
+O Presidente paga o plano da formatura por PIX ou cartão, no Mercado Pago, que é o provedor de pagamentos do Kapa. Enviamos ao Mercado Pago o e-mail de quem paga e recebemos a situação de cada pagamento, que usamos para manter o plano e emitir as notas fiscais.
+
+**Chave PIX como dado pessoal.** Quando a chave PIX da turma é um CPF, e-mail ou telefone, ela é dado pessoal do titular da conta e aparece para os membros da turma, que precisam dela para pagar.
+
+### Registros de aceite e de uso
+
+- **Aceite destes documentos do Kapa (Termos de Uso e esta Política):** a versão aceita, a data e a hora, o endereço IP e o navegador. É o que comprova o seu aceite.
+- **Assinatura do termo de adesão da turma e dos aditivos:** o termo de adesão **não é um documento do Kapa**: é o contrato entre o formando e a comissão, escrito pela comissão, com os valores e as regras da formatura. Quando o formando assina, registramos o nome e o CPF dele naquele momento, a versão do termo, a data e a hora, o endereço IP, o navegador e uma impressão digital (hash) do texto, que prova qual texto foi assinado. Esses registros pertencem à formatura, e a controladora deles é a comissão (seção 2).
 - **Registros de acesso e uso:** endereço IP, data e hora de acesso, navegador e as ações feitas na plataforma (por exemplo, "cobrança criada" ou "membro removido").
-
-### Lista de espera do site
-
-Nome, e-mail, instituição, curso, semestre de formatura, papel na turma e tamanho da turma de quem pede para ser avisado do lançamento.
 
 ### O que não coletamos
 
@@ -93,21 +101,38 @@ Nome, e-mail, instituição, curso, semestre de formatura, papel na turma e tama
 
 ## 4. Para que usamos os dados e com qual base legal
 
-Cada uso tem um motivo previsto na LGPD. O artigo da lei aparece entre parênteses.
+Cada uso tem um motivo, chamado base legal, previsto na LGPD. As bases usadas pelo Kapa estão no art. 7º da lei:
 
-- **Criar e manter sua conta e confirmar que é você ao entrar, inclusive pela entrada com Google:** para cumprir o contrato com você (art. 7º, V).
-- **Organizar a formatura (cadastro, adesão, cobranças, confirmação de pagamentos, despesas, caixa e prestação de contas):** para cumprir o contrato entre o formando e a comissão (art. 7º, V), sob controle da comissão.
-- **Gerar o PIX das parcelas, ou as cobranças no Mercado Pago da turma, e registrar os pagamentos:** para cumprir o contrato entre o formando e a comissão (art. 7º, V), sob controle da comissão.
-- **Registrar as compras da loja da turma e os convidados, e controlar a entrada no evento:** para cumprir o contrato entre o comprador e a comissão (art. 7º, V), sob controle da comissão.
-- **Gerar o resumo do termo de adesão por inteligência artificial:** interesse legítimo de facilitar a leitura do termo (art. 7º, IX). O que vai para a inteligência artificial é o texto do termo, não dados de formandos.
-- **Cobrar a assinatura da Kapa e emitir notas fiscais:** para cumprir o contrato (art. 7º, V) e a obrigação legal de emitir nota (art. 7º, II).
-- **Guardar registros de acesso:** obrigação legal (Marco Civil da Internet, art. 15).
-- **Registrar e comprovar seu aceite a estes documentos e as operações financeiras da turma:** para defender direitos, inclusive na Justiça (art. 7º, VI).
-- **Mostrar à turma números gerais, como saldo em caixa e adimplência da turma:** interesse legítimo na transparência da gestão da formatura (art. 7º, IX). Nenhum formando vê dados individuais de outro.
-- **Enviar lembretes de vencimento e avisos sobre a conta e a formatura:** para cumprir o contrato (art. 7º, V).
-- **Prevenir fraudes, proteger a plataforma e melhorar o serviço:** interesse legítimo (art. 7º, IX). Você pode se opor.
-- **Enviar novidades e ofertas da própria Kapa:** só com seu consentimento (art. 7º, I), dado no cadastro numa caixa que vem desmarcada. Dá para deixar de receber quando quiser, pelo link presente em toda mensagem. Só membros de comissão recebem; formandos, nunca.
-- **Avisar do lançamento quem entrou na lista de espera:** com o consentimento dado ao entrar na lista (art. 7º, I).
+- **inciso I:** consentimento do titular;
+- **inciso II:** cumprimento de obrigação legal ou regulatória;
+- **inciso V:** execução de contrato do qual o titular é parte, ou de procedimentos preliminares a ele, a pedido do titular;
+- **inciso VI:** exercício regular de direitos em processo judicial, administrativo ou arbitral;
+- **inciso IX:** interesse legítimo do controlador ou de terceiro, respeitados os direitos e as liberdades do titular.
+
+Para dados sensíveis, a base é a do art. 11. Nos usos ligados à formatura, a base é a da comissão, que é a controladora; o Kapa atua como operador (seção 2).
+
+**Sua conta e o Kapa**
+
+- **Criar e manter sua conta e confirmar que é você ao entrar, inclusive pela entrada com Google:** execução do contrato com você, que são os Termos de Uso (art. 7º, V).
+- **Enviar e-mails sobre a sua conta, a sua formatura, cobranças e pagamentos, inclusive os lembretes de vencimento:** execução do contrato (art. 7º, V).
+- **Cobrar a assinatura do Kapa:** execução do contrato (art. 7º, V).
+- **Emitir as notas fiscais da assinatura:** obrigação legal (art. 7º, II).
+- **Guardar os registros de acesso à plataforma por 6 meses:** obrigação legal (art. 7º, II), imposta pelo art. 15 do Marco Civil da Internet.
+- **Registrar e guardar o seu aceite aos Termos de Uso e a esta Política:** exercício regular de direitos, para comprovar o aceite se for preciso (art. 7º, VI).
+- **Prevenir fraudes, proteger a plataforma e melhorar o serviço:** interesse legítimo (art. 7º, IX). Você pode se opor a esse uso (seção 10).
+- **Gerar o resumo do termo de adesão por inteligência artificial:** interesse legítimo de facilitar a leitura do termo (art. 7º, IX). Vai para a inteligência artificial só o texto do termo, nunca dados de formandos.
+- **Enviar novidades e ofertas do próprio Kapa:** consentimento (art. 7º, I), dado no cadastro numa caixa que vem desmarcada. Dá para deixar de receber quando quiser, pelo link presente em toda mensagem. Só membros de comissão recebem; formandos, nunca.
+**A formatura (controladora: a comissão)**
+
+- **Organizar a formatura: cadastro, cobranças, confirmação de pagamentos, despesas, caixa e prestação de contas:** execução do contrato entre o formando e a comissão, que é o termo de adesão (art. 7º, V).
+- **Gerar o PIX das parcelas ou as cobranças no Mercado Pago da turma, e registrar os pagamentos:** execução do mesmo contrato (art. 7º, V).
+- **Registrar a assinatura do termo de adesão e dos aditivos, com nome e CPF:** execução do contrato (art. 7º, V) e exercício regular de direitos, para comprovar a adesão se for preciso (art. 7º, VI).
+- **Guardar os registros financeiros da formatura depois do encerramento:** exercício regular de direitos, para a prestação de contas e a defesa em eventual disputa (art. 7º, VI).
+- **Mostrar à turma números gerais, como o saldo em caixa e a adimplência:** interesse legítimo na transparência da gestão da formatura (art. 7º, IX). Nenhum formando vê dados individuais de outro.
+- **Registrar as compras da loja da turma:** execução do contrato de compra entre o comprador e a comissão (art. 7º, V).
+- **Guardar o CPF de quem pagou uma compra da loja, quando o Mercado Pago o informa:** interesse legítimo de prevenir revenda irregular de convites e fraude (art. 7º, IX).
+- **Nome, documento e e-mail dos convidados, para emitir os convites e controlar a entrada no evento:** interesse legítimo da comissão na organização e na segurança do evento (art. 7º, IX). O convidado não é parte do contrato; por isso, a base não é a execução de contrato.
+- **Observações sobre convidados que revelem saúde, como restrição alimentar ou necessidade de acessibilidade:** consentimento específico e destacado para essa finalidade (art. 11, I), que quem informa a observação declara ter obtido do convidado ou do responsável por ele.
 
 ## 5. Quem vê seus dados dentro da formatura
 
@@ -119,17 +144,17 @@ Cada uso tem um motivo previsto na LGPD. O artigo da lei aparece entre parêntes
 
 ## 6. Com quem compartilhamos
 
-A Kapa **não vende** dados pessoais e não os compartilha para publicidade. Compartilhamos dados só com os fornecedores abaixo, para que o serviço funcione, e com autoridades quando a lei exige.
+O Kapa **não vende** dados pessoais e não os compartilha para publicidade. Compartilhamos dados só com os fornecedores abaixo, para que o serviço funcione, e com autoridades quando a lei exige.
 
-- **Mercado Pago:** cobra a assinatura da Kapa. Quando a comissão conecta a conta da turma, cria nela as cobranças das parcelas e as vendas da loja. Recebe nome, e-mail e CPF de quem paga e os dados da cobrança. Nas cobranças da turma, o dinheiro vai direto para a conta dela, e o Mercado Pago também decide sobre esses dados como controlador, conforme a política dele.
-- **Cloudflare:** publica o site e o aplicativo, guarda os arquivos enviados e gerados (fotos, comprovantes, documentos, relatórios), verifica que não é um robô e guarda a lista de espera.
+- **Mercado Pago:** cobra a assinatura do Kapa. Quando a comissão conecta a conta da turma, cria nela as cobranças das parcelas e as vendas da loja. Recebe do Kapa o e-mail de quem paga (nas compras da loja, também o nome) e os dados da cobrança; os dados do cartão são digitados direto no formulário dele. Nas cobranças da turma, o dinheiro vai direto para a conta dela, e o Mercado Pago também decide sobre esses dados como controlador, conforme a política dele.
+- **Cloudflare:** publica o site e o aplicativo, guarda os arquivos enviados e gerados (fotos, comprovantes, documentos, relatórios).
 - **MillionSend:** envia os e-mails da plataforma. Recebe nome e e-mail do destinatário e o conteúdo da mensagem.
 - **Grafana Cloud:** guarda registros técnicos de funcionamento e de erro do sistema, que podem conter endereço IP e identificadores internos.
-- **OpenRouter:** fornece os modelos de inteligência artificial que geram o resumo do termo de adesão. Recebe só o texto do termo escrito pela comissão, que pode conter razão social, CNPJ, endereço e nomes dos membros da comissão. Não recebe nenhum dado de formando: nem nome, CPF, e-mail ou identificador. A Kapa pede ao OpenRouter que use só provedores que não guardam o texto nem o usam para treinar seus modelos.
-- **Railway:** executa a aplicação e guarda o banco de dados, em servidores nos Estados Unidos. Recebe todos os dados da plataforma; CPF, documentos e observações de convidados já chegam com a criptografia da Kapa.
+- **OpenRouter:** fornece os modelos de inteligência artificial que geram o resumo do termo de adesão. Recebe só o texto do termo escrito pela comissão, que pode conter razão social, CNPJ, endereço e nomes dos membros da comissão. Não recebe nenhum dado de formando: nem nome, CPF, e-mail ou identificador. O Kapa pede ao OpenRouter que use só provedores que não guardam o texto nem o usam para treinar seus modelos.
+- **Railway:** executa a aplicação e guarda o banco de dados, em servidores nos Estados Unidos. Recebe todos os dados da plataforma; CPF, documentos e observações de convidados já chegam com a criptografia do Kapa.
 - **Autoridades públicas:** quando a lei ou uma ordem judicial exigir.
 
-Esses fornecedores são operadores: usam os dados só para prestar o serviço contratado pela Kapa, com obrigações de sigilo e segurança. A Kapa continua responsável por eles (LGPD, art. 42). A lista atualizada fica publicada na plataforma e pode ser pedida ao Encarregado.
+Esses fornecedores são operadores: usam os dados só para prestar o serviço contratado pelo Kapa, com obrigações de sigilo e segurança. O Kapa continua responsável por eles (LGPD, art. 42). A lista atualizada fica publicada na plataforma e pode ser pedida ao suporte.
 
 ## 7. Dados fora do Brasil
 
@@ -143,13 +168,12 @@ Essas transferências seguem o art. 33 da LGPD e são protegidas pelas cláusula
 
 ## 8. Cookies
 
-A Kapa usa só **cookies essenciais**: o cookie de sessão, que mantém você conectado e não pode ser lido por scripts da página (HttpOnly). Não usamos cookies de publicidade nem ferramentas de análise de terceiros.
+O Kapa usa só **cookies essenciais**: o cookie de sessão, que mantém você conectado e não pode ser lido por scripts da página (HttpOnly). Não usamos cookies de publicidade nem ferramentas de análise de terceiros.
 
-Três funções carregam código de outras empresas, que pode gravar seus próprios cookies ou identificadores, necessários para funcionar com segurança:
+Duas funções carregam código de outras empresas, que pode gravar seus próprios cookies ou identificadores, necessários para funcionar com segurança:
 
 - **pagamento por cartão:** o formulário do Mercado Pago, que identifica o aparelho para prevenir fraude;
-- **entrada com Google:** o botão do Google, carregado só nas telas de entrada e cadastro do aplicativo;
-- **lista de espera do site:** a verificação contra robôs da Cloudflare (Turnstile).
+- **entrada com Google:** o botão do Google, carregado só nas telas de entrada e cadastro do aplicativo.
 
 Se isso mudar, esta Política será atualizada antes.
 
@@ -162,11 +186,10 @@ Se isso mudar, esta Política será atualizada antes.
   - a turma encerrada é guardada por 5 anos e depois eliminada;
   - a turma suspensa por falta de pagamento é encerrada depois de 12 meses;
   - a turma descartada pela comissão antes de contratar é eliminada em 30 dias.
-- **Dados de pagamento da assinatura da Kapa:** 5 anos, por exigência fiscal.
-- **Registros de aceite:** enquanto a conta existir e, depois, pelo tempo necessário para defender direitos. Os registros de adesão ao termo da turma e aos aditivos guardam nome e CPF do formando. Eles ficam junto dos registros financeiros da formatura, mesmo depois da exclusão da conta.
-- **Lista de espera:** 12 meses.
-- **Compras da loja:** junto dos registros financeiros da formatura. Os documentos dos convidados seguem o prazo abaixo.
-- **Dados de convidados:** documento, e-mail e observações são eliminados 30 dias depois do evento. O nome fica como histórico da formatura.
+- **Dados de pagamento da assinatura do Kapa:** 5 anos, por exigência fiscal.
+- **Aceite dos Termos de Uso e desta Política:** enquanto a conta existir e, depois, pelo tempo necessário para defender direitos.
+- **Assinaturas do termo de adesão e dos aditivos (com nome e CPF do formando):** junto dos registros financeiros da formatura, durante a formatura e por 5 anos depois do encerramento, mesmo que a conta seja excluída.- **Compras da loja (dados do comprador, CPF de quem pagou e pagamento):** junto dos registros financeiros da formatura, durante a formatura e por 5 anos depois do encerramento.
+- **Dados de convidados, inclusive os informados numa compra da loja:** documento, e-mail e observações são eliminados 30 dias depois do evento. O nome fica como histórico da formatura.
 
 ### Exclusão de conta
 
@@ -200,7 +223,7 @@ A confirmação ou o acesso simplificado são providenciados imediatamente; a de
 - **Confirmação de pagamentos:** no modo manual, é feita pela tesouraria da turma. No modo automático, segue a confirmação do Mercado Pago, sem análise de perfil.
 - **Resumo do termo de adesão:** é gerado automaticamente por inteligência artificial, sem revisão de uma pessoa, e só ajuda a leitura. Vale o texto completo do termo, e o resumo não faz parte do que você aceita.
 
-Se discordar de uma cobrança ou de uma confirmação, fale com a comissão da sua formatura ou com o suporte da Kapa.
+Se discordar de uma cobrança ou de uma confirmação, fale com a comissão da sua formatura ou com o suporte do Kapa.
 
 ## 12. Menores de idade
 
@@ -212,12 +235,12 @@ Convidados da festa podem ser menores de idade. Os dados deles são informados p
 
 Protegemos seus dados com medidas técnicas e de organização, entre elas:
 
-- conexão protegida por criptografia (TLS) entre o seu aparelho e a Kapa;
+- conexão protegida por criptografia (TLS) entre o seu aparelho e o Kapa;
 - senhas e tokens de sessão guardados de forma que não podem ser lidos (hash);
 - CPF guardado com criptografia e mostrado mascarado para a comissão;
 - documentos e observações dos convidados, e a chave de acesso ao Mercado Pago da turma, guardados com criptografia;
 - sessão em cookie que scripts da página não conseguem ler;
-- código extra enviado por e-mail na entrada do Presidente e da equipe da Kapa;
+- código extra enviado por e-mail na entrada do Presidente e da equipe do Kapa;
 - confirmação por link no e-mail para trocar a chave PIX, conectar o Mercado Pago ou nomear um novo Presidente;
 - dados de cada formatura separados e acesso controlado pelo papel de cada pessoa;
 - registro das operações financeiras sensíveis, como confirmações de pagamento, baixas manuais, trocas da chave PIX e mudanças de papel.

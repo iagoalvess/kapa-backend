@@ -155,7 +155,7 @@ public sealed class SegurancaDaApiTests(ApiFactory fabrica)
 
     /// <summary>
     /// As rotas públicas legítimas, por prefixo: sessão, ciclo de conta, vitrine, loja pública,
-    /// convite por token, webhooks assinados, ferramentas de desenvolvimento e o health check.
+    /// convite por token, o link da portaria (15/10/2026), webhooks assinados, ferramentas de desenvolvimento e o health check.
     /// </summary>
     private static bool AnonimaPermitida(string rota)
     {
@@ -175,6 +175,7 @@ public sealed class SegurancaDaApiTests(ApiFactory fabrica)
         "/api/v{version:apiVersion}/loja/",
         "/api/v{version:apiVersion}/convites/",
         "/api/v{version:apiVersion}/festa/convites/",
+        "/api/v{version:apiVersion}/festa/portaria/acessos/ativar",
         "/api/v{version:apiVersion}/webhooks/",
         "/api/v{version:apiVersion}/mercado-pago/retorno",
         "/api/v{version:apiVersion}/provedor-fake/",

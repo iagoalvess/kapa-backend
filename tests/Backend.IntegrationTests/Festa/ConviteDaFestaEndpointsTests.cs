@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -467,6 +468,51 @@ public sealed class ConviteDaFestaEndpointsTests(ApiFactory fabrica)
         var linhas = await contexto.CheckIns.Where(c => c.ConviteId == cenario.ConviteId).ToListAsync(Ct);
         linhas.Count.ShouldBe(2);
         linhas.Count(c => c.DesfeitoEm == null).ShouldBe(1);
+    }
+
+    /// <summary>
+    /// 15/10/2026: quem fica na porta entra por link, sem conta. O link vale uma vez, a credencial só abre a portaria
+    /// do evento, valida em nome da pessoa e para na hora em que a Gestão corta.
+    /// </summary>
+    [Fact]
+    public async Task Link_da_portaria_libera_um_celular_que_so_valida_o_proprio_evento_ate_ser_cortado()
+    {
+        var cenario = await ComConviteNomeado();
+        var gestao = cenario.Cenario.Turma.Presidente.Cliente;
+        var festaId = cenario.Cenario.FestaId!.Value;
+        const string Acessos = "/api/v1/festa/portaria/acessos";
+
+        var peloFormando = await cenario.Cenario.Formando.Cliente.PostAsJsonAsync(Acessos, new AcessoDaPortariaRequestDTO(festaId, "João"), Json, Ct);
+        var liberacao = await gestao.PostAsJsonAsync(Acessos, new AcessoDaPortariaRequestDTO(festaId, "João"), Json, Ct);
+        peloFormando.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        liberacao.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var acesso = (await liberacao.Content.ReadFromJsonAsync<AcessoDaPortariaDTO>(Json, Ct))!;
+        acesso.Situacao.ShouldBe(SituacaoDoAcesso.Aguardando);
+
+        var anonimo = fabrica.CreateClient();
+        var ativacao = await anonimo.PostAsJsonAsync($"{Acessos}/ativar", new AtivacaoDaPortariaRequestDTO(acesso.Token), Json, Ct);
+        var deNovo = await anonimo.PostAsJsonAsync($"{Acessos}/ativar", new AtivacaoDaPortariaRequestDTO(acesso.Token), Json, Ct);
+        ativacao.StatusCode.ShouldBe(HttpStatusCode.OK);
+        deNovo.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var credencial = (await ativacao.Content.ReadFromJsonAsync<CredencialDaPortariaDTO>(Json, Ct))!;
+        credencial.Evento.Id.ShouldBe(festaId);
+
+        var portaria = fabrica.CreateClient();
+        portaria.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", credencial.Token);
+
+        (await portaria.GetAsync("/api/v1/formaturas/atual", Ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await portaria.GetAsync($"{Acessos}?evento_id={festaId}", Ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await portaria.GetAsync($"/api/v1/festa/portaria?evento_id={Guid.NewGuid()}", Ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await CheckIn(portaria, cenario.Codigo, Guid.NewGuid())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var segunda = await CheckIn(portaria, cenario.Codigo);
+        segunda.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await segunda.Content.ReadAsStringAsync(Ct)).ShouldContain("por João (portaria)");
+
+        (await gestao.DeleteAsync($"{Acessos}/{acesso.Id}", Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await portaria.GetAsync("/api/v1/festa/portaria", Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        await using var contexto = fabrica.ContextoDe(cenario.Cenario.Turma.FormaturaId);
+        (await contexto.CheckIns.SingleAsync(c => c.ConviteId == cenario.ConviteId, Ct)).ValidadoPorUsuarioId.ShouldBe(acesso.Id);
     }
 
     /// <summary>Decisão 12: dois mesários, o mesmo convite, o mesmo instante — uma linha só.</summary>

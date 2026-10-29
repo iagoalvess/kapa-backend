@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Backend.Api.Analytics;
 using Backend.Api.Configuration;
 using Backend.Api.DTOs.Admin;
 using Backend.Api.DTOs.Comum;
@@ -154,6 +155,7 @@ public sealed class AdminController(IAdminService adminService, IUsuarioAtual us
     /// <param name="ano">Ano.</param>
     /// <param name="mes">Mês, de 1 a 12.</param>
     [HttpGet("suporte/pagamentos")]
+    [RegistrarEvento("admin.pagamentos_exportados")]
     [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]

@@ -18,7 +18,7 @@ namespace Backend.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "unaccent");
@@ -2210,6 +2210,75 @@ namespace Backend.Data.Migrations
                         .HasDatabaseName("ix_eventos_usuario_id_ocorrido_em");
 
                     b.ToTable("eventos", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Business.Festa.Models.AcessoDaPortaria", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AtivadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ativado_em");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid>("CriadoPorUsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criado_por_usuario_id");
+
+                    b.Property<Guid>("EventoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evento_id");
+
+                    b.Property<Guid>("FormaturaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("formatura_id");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("nome");
+
+                    b.Property<DateTime?>("RevogadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revogado_em");
+
+                    b.Property<string>("Token")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("token");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_acessos_da_portaria");
+
+                    b.HasIndex("EventoId")
+                        .HasDatabaseName("ix_acessos_da_portaria_evento_id");
+
+                    b.HasIndex("FormaturaId")
+                        .HasDatabaseName("ix_acessos_da_portaria_formatura_id");
+
+                    b.HasIndex("Token")
+                        .IsUnique()
+                        .HasDatabaseName("ix_acessos_da_portaria_token")
+                        .HasFilter("token IS NOT NULL");
+
+                    b.ToTable("acessos_da_portaria", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Business.Festa.Models.CheckIn", b =>
@@ -5257,6 +5326,23 @@ namespace Backend.Data.Migrations
                         .HasForeignKey("VinculoId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_respostas_de_enquetes_vinculos_vinculo_id");
+                });
+
+            modelBuilder.Entity("Backend.Business.Festa.Models.AcessoDaPortaria", b =>
+                {
+                    b.HasOne("Backend.Business.Agenda.Models.EventoDaTurma", null)
+                        .WithMany()
+                        .HasForeignKey("EventoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_acessos_da_portaria_eventos_da_turma_evento_id");
+
+                    b.HasOne("Backend.Business.Formaturas.Models.Formatura", null)
+                        .WithMany()
+                        .HasForeignKey("FormaturaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_acessos_da_portaria_formaturas_formatura_id");
                 });
 
             modelBuilder.Entity("Backend.Business.Festa.Models.CheckIn", b =>

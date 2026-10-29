@@ -110,3 +110,29 @@ public sealed class CheckInMapping : IEntityTypeConfiguration<CheckIn>
         builder.HasOne<Formatura>().WithMany().HasForeignKey(c => c.FormaturaId).OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+/// <summary>Mapeamento dos acessos da portaria terceirizada.</summary>
+/// <remarks>
+/// O token é único enquanto existe — some na ativação. O <c>xmin</c> faz dois celulares abrindo o mesmo link
+/// no mesmo segundo terminarem com um só liberado.
+/// </remarks>
+public sealed class AcessoDaPortariaMapping : IEntityTypeConfiguration<AcessoDaPortaria>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<AcessoDaPortaria> builder)
+    {
+        builder.ToTable("acessos_da_portaria");
+
+        builder.HasKey(a => a.Id);
+        builder.ComTokenDeConcorrencia();
+
+        builder.Property(a => a.Nome).IsRequired().HasMaxLength(60);
+        builder.Property(a => a.Token).HasMaxLength(64);
+
+        builder.HasIndex(a => a.Token).IsUnique().HasFilter("token IS NOT NULL");
+        builder.HasIndex(a => a.EventoId);
+
+        builder.HasOne<EventoDaTurma>().WithMany().HasForeignKey(a => a.EventoId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Formatura>().WithMany().HasForeignKey(a => a.FormaturaId).OnDelete(DeleteBehavior.Restrict);
+    }
+}

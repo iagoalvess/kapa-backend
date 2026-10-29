@@ -117,49 +117,55 @@ public static class AuthConfig
     {
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(opcoes =>
-            {
-                opcoes.MapInboundClaims = false;
-
-                opcoes.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidIssuer = jwt.Emissor,
-                    ValidateAudience = true,
-                    ValidAudience = jwt.Audiencia,
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.ChaveSecreta)),
-                    ValidateLifetime = true,
-                    ClockSkew = TimeSpan.FromSeconds(30),
-                    NameClaimType = JwtRegisteredClaimNames.Name,
-                    RoleClaimType = TokenService.ClaimDePerfil,
-                };
-
-                opcoes.Events = new JwtBearerEvents
-                {
-                    OnChallenge = contexto =>
-                    {
-                        contexto.HandleResponse();
-                        return EscreverProblema(
-                            contexto.HttpContext,
-                            StatusCodes.Status401Unauthorized,
-                            "auth.nao_autenticado",
-                            "Autenticação necessária."
-                        );
-                    },
-                    OnForbidden = contexto =>
-                        EscreverProblema(
-                            contexto.HttpContext,
-                            StatusCodes.Status403Forbidden,
-                            "auth.sem_permissao",
-                            "Você não tem permissão para esta operação."
-                        ),
-                };
-            });
+            .AddJwtBearer(opcoes => Configurar(opcoes, jwt, jwt.Audiencia))
+            .AddJwtBearer(Politicas.EsquemaDaPortaria, opcoes => Configurar(opcoes, jwt, TokenService.AudienciaDaPortaria(jwt.Audiencia)));
 
         services.AddSingleton<IAuthorizationMiddlewareResultHandler, RespostaDeAutorizacao>();
 
         return services;
+    }
+
+    /// <summary>
+    /// O mesmo JWT Bearer para os dois esquemas — o da sessão e o da portaria —, mudando só a audiência.
+    /// </summary>
+    /// <remarks>
+    /// A audiência é o que separa os dois: a credencial da portaria não passa no esquema padrão, então para todo
+    /// endpoint que não pede o esquema dela, quem a apresenta é anônimo.
+    /// </remarks>
+    private static void Configurar(JwtBearerOptions opcoes, JwtSettings jwt, string audiencia)
+    {
+        opcoes.MapInboundClaims = false;
+
+        opcoes.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwt.Emissor,
+            ValidateAudience = true,
+            ValidAudience = audiencia,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.ChaveSecreta)),
+            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            NameClaimType = JwtRegisteredClaimNames.Name,
+            RoleClaimType = TokenService.ClaimDePerfil,
+        };
+
+        opcoes.Events = new JwtBearerEvents
+        {
+            OnChallenge = contexto =>
+            {
+                contexto.HandleResponse();
+                return EscreverProblema(contexto.HttpContext, StatusCodes.Status401Unauthorized, "auth.nao_autenticado", "Autenticação necessária.");
+            },
+            OnForbidden = contexto =>
+                EscreverProblema(
+                    contexto.HttpContext,
+                    StatusCodes.Status403Forbidden,
+                    "auth.sem_permissao",
+                    "Você não tem permissão para esta operação."
+                ),
+        };
     }
 
     /// <summary>

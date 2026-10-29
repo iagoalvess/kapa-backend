@@ -117,18 +117,19 @@ public static class SeedDePlanos
     /// só — a turma cabe em 60? —, e o Premium se vende pelos diferenciais (as mesas entraram entre eles em 29/09/2026), não por um
     /// pedaço do necessário que foi retirado do Essencial.
     /// <para>
-    /// Preços e limites da Sprint 51 (06/10/2026): R$ 89 até 60 e R$ 179 até 200. A maioria das turmas tem de 20 a 60
-    /// formandos — o Essencial cobre quase todas, e acima de 200 é exceção.
+    /// Preços de 21/10/2026: R$ 69 até 60 e R$ 139 até 200, abaixo dos R$ 89/R$ 179 da Sprint 51 — o corte baixa a
+    /// barreira da turma típica (20 a 60 formandos), e o cupom de lançamento segue como desconto da primeira
+    /// cobrança. Acima de 200 é exceção.
     /// </para>
     /// </remarks>
     private static readonly Pacote[] Pacotes =
     [
-        new("essencial", "Essencial", "Cobrar a turma, pagar os fornecedores e fechar o caixa.", 8900, 60, ModulosDoEssencial, false),
+        new("essencial", "Essencial", "Cobrar a turma, pagar os fornecedores e fechar o caixa.", 6900, 60, ModulosDoEssencial, false),
         new(
             "premium",
             "Premium",
             "Turma grande, com mural, régua de cobrança e prestação de contas.",
-            17900,
+            13900,
             200,
             [.. ModulosDoEssencial, .. DiferenciaisDoPremium],
             true
@@ -155,8 +156,8 @@ public static class SeedDePlanos
 
     /// <summary>O mesmo pacote nos dois ciclos.</summary>
     /// <remarks>
-    /// O anual cobra doze meses menos o desconto, arredondado para real cheio: R$ 854,40 vira
-    /// R$ 854,00 — preço de vitrine não tem centavo quebrado. O preço cheio guardado é o dos doze
+    /// O anual cobra doze meses menos o desconto, arredondado para real cheio: R$ 662,40 vira
+    /// R$ 662,00 — preço de vitrine não tem centavo quebrado. O preço cheio guardado é o dos doze
     /// meses avulsos, que é de onde o card tira o valor riscado e a porcentagem.
     /// </remarks>
     /// <param name="pacote">O pacote.</param>

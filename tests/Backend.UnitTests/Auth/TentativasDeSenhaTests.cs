@@ -18,4 +18,24 @@ public sealed class TentativasDeSenhaTests
         tentativas.Bloqueada("ana@turma.dev", "10.0.0.1").ShouldBeTrue();
         tentativas.Bloqueada("ana@turma.dev", "10.0.0.2").ShouldBeFalse();
     }
+
+    /// <summary>O desbloqueio do suporte limpa todas as origens da conta, e só dela.</summary>
+    [Fact]
+    public void Desbloqueio_limpa_todas_as_origens_da_conta()
+    {
+        var tentativas = new TentativasDeSenha();
+
+        for (var i = 0; i < TentativasDeSenha.Maximo; i++)
+        {
+            tentativas.RegistrarFalha("ana@turma.dev", "10.0.0.1");
+            tentativas.RegistrarFalha("ana@turma.dev", "10.0.0.2");
+            tentativas.RegistrarFalha("bia@turma.dev", "10.0.0.1");
+        }
+
+        tentativas.LimparConta("Ana@Turma.dev");
+
+        tentativas.Bloqueada("ana@turma.dev", "10.0.0.1").ShouldBeFalse();
+        tentativas.Bloqueada("ana@turma.dev", "10.0.0.2").ShouldBeFalse();
+        tentativas.Bloqueada("bia@turma.dev", "10.0.0.1").ShouldBeTrue();
+    }
 }

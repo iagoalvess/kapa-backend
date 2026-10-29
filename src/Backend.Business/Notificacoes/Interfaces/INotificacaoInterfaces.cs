@@ -36,7 +36,7 @@ public interface ICanalDeNotificacao
 public interface IReguaService
 {
     /// <summary>As formaturas que a régua percorre: só as <c>Ativa</c>, e com o módulo Avisos no plano.</summary>
-    /// <remarks>Suspensa ou encerrada não dispara: turma inadimplente com a Kapa não cobra os próprios alunos em nome da plataforma.</remarks>
+    /// <remarks>Suspensa ou encerrada não dispara: turma inadimplente com o Kapa não cobra os próprios alunos em nome da plataforma.</remarks>
     Task<IReadOnlyList<FormaturaParaRegua>> ListarFormaturas(CancellationToken ct = default);
 
     /// <summary>

@@ -5,6 +5,7 @@ using System.Text;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
 using Backend.Business.Auth.Settings;
+using Backend.Business.Festa.Interfaces;
 using Backend.Business.Usuarios.Models;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -19,7 +20,7 @@ namespace Backend.Business.Auth.Services;
 /// Registrado como singleton: a chave de assinatura é derivada uma vez no construtor em vez de
 /// a cada login. <see cref="JsonWebTokenHandler"/> é seguro para uso concorrente.
 /// </remarks>
-public sealed class TokenService : ITokenService
+public sealed class TokenService : ITokenService, IEmissorDaPortaria
 {
     /// <summary>Nome da claim que carrega os perfis. Precisa bater com o <c>RoleClaimType</c> configurado na API.</summary>
     public const string ClaimDePerfil = "role";
@@ -107,6 +108,42 @@ public sealed class TokenService : ITokenService
         };
 
         return new AccessTokenGerado(_handler.CreateToken(descritor), expiraEm);
+    }
+
+    /// <summary>A audiência da credencial da portaria — outra, para o esquema padrão da API recusá-la.</summary>
+    /// <param name="audiencia">Audiência da API.</param>
+    public static string AudienciaDaPortaria(string audiencia) => $"{audiencia}/portaria";
+
+    /// <summary>Claim com o evento da credencial da portaria.</summary>
+    public const string ClaimDeEvento = "evento_id";
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Mesma chave, audiência própria: o <c>JwtBearer</c> padrão recusa o token, então ele não abre nada além das
+    /// rotas que pedem o esquema da portaria. Sem <c>role</c> e sem <c>papel</c> — quem autoriza confere o acesso no
+    /// banco (<c>PortariaHandler</c>).
+    /// </remarks>
+    public string Emitir(Guid acessoId, string nome, Guid formaturaId, Guid eventoId, DateTime expiraEm)
+    {
+        var agora = DateTime.UtcNow;
+
+        var descritor = new SecurityTokenDescriptor
+        {
+            Issuer = _settings.Emissor,
+            Audience = AudienciaDaPortaria(_settings.Audiencia),
+            Subject = new ClaimsIdentity([
+                new Claim(JwtRegisteredClaimNames.Sub, acessoId.ToString()),
+                new Claim(JwtRegisteredClaimNames.Name, nome),
+                new Claim(ClaimDeFormatura, formaturaId.ToString()),
+                new Claim(ClaimDeEvento, eventoId.ToString()),
+            ]),
+            IssuedAt = agora,
+            NotBefore = agora,
+            Expires = expiraEm,
+            SigningCredentials = _credenciaisDeAssinatura,
+        };
+
+        return _handler.CreateToken(descritor);
     }
 
     /// <inheritdoc />

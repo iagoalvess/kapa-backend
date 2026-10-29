@@ -1,22 +1,10 @@
-# Termos de Uso da Kapa
+# Termos de Uso do Kapa
 
 Estes Termos explicam as regras para usar a plataforma Kapa, operada por **KAPA FORMATURAS INOVA SIMPLES (I.S.)**, CNPJ nº **69.334.998/0001-67** ("Kapa", "nós").
 
 Ao criar uma conta, você declara que leu, entendeu e concorda com estes Termos e com a Política de Privacidade, que faz parte deles. Se não concordar, não use a plataforma.
 
-Estes Termos são um contrato de adesão: valem igualmente para todas as pessoas que usam a Kapa.
-
-## Em resumo
-
-Este resumo ajuda a leitura, mas não substitui o texto completo: em caso de dúvida, vale o que está nas seções abaixo.
-
-- A Kapa é uma ferramenta para a comissão organizar a formatura. Quem organiza a formatura e decide sobre o dinheiro é a comissão (seção 2).
-- **O dinheiro da turma nunca passa por uma conta da Kapa.** Ele vai direto para a conta da comissão ou para a conta Mercado Pago da turma (seção 5).
-- Valores, parcelas, multas e regras de cancelamento são definidos pela comissão no termo de adesão da turma. A Kapa limita a multa a 2% e os juros a 1% ao mês (seção 5).
-- O plano da formatura é pago pelo Presidente e se renova sozinho até ser cancelado. Há um plano gratuito, sem formandos (seção 6).
-- Quem contrata como consumidor pode desistir em até 7 dias e receber tudo de volta (seção 7).
-- Cada formando vê só o próprio extrato. A turma inteira vê apenas números gerais, como o saldo em caixa (seção 8).
-- A plataforma é só para maiores de 18 anos (seção 3).
+Estes Termos são um contrato de adesão: valem igualmente para todas as pessoas que usam o Kapa.
 
 ## Palavras que usamos
 
@@ -29,14 +17,15 @@ Este resumo ajuda a leitura, mas não substitui o texto completo: em caso de dú
 ## 1. Quem somos e como falar com a gente
 
 - **Suporte:** suporte@kapaformaturas.com.br
-- **Assuntos jurídicos, privacidade e Encarregado de Dados (LGPD):** contato@kapaformaturas.com.br
+- **Assuntos jurídicos:** contato@kapaformaturas.com.br
+- **Pedidos sobre dados pessoais:** suporte@kapaformaturas.com.br, como explica a Política de Privacidade.
 - **Atendimento:** segunda a sexta-feira, das 8h às 18h (horário de Brasília). Respondemos em até 5 dias úteis.
 
-A Kapa nunca pede sua senha por e-mail, telefone ou mensagem.
+O Kapa nunca pede sua senha por e-mail, telefone ou mensagem.
 
-## 2. O que é a Kapa
+## 2. O que é o Kapa
 
-A Kapa é um software online (SaaS) para organizar a formatura de uma turma. Com ela, a comissão pode:
+O Kapa é um software online (SaaS) para organizar a formatura de uma turma. Com ele, a comissão pode:
 
 - cadastrar a formatura, convidar os formandos e colher a assinatura de cada um no termo de adesão e nos aditivos;
 - definir parcelas, pacotes e itens extras e cobrar os formandos (seção 5);
@@ -50,15 +39,15 @@ Antes de assinar o termo de adesão, o formando vê um resumo do termo feito por
 
 Algumas funções dependem do plano contratado (seção 6).
 
-A Kapa fornece a **ferramenta**. Organizar a formatura, contratar fornecedores, realizar os eventos e cuidar do dinheiro da turma são responsabilidades da comissão.
+O Kapa fornece a **ferramenta**. Organizar a formatura, contratar fornecedores, realizar os eventos e cuidar do dinheiro da turma são responsabilidades da comissão.
 
 ## 3. Cadastro e conta
 
-Para usar a Kapa, você cria uma conta com nome, e-mail e senha. Você se compromete a informar dados verdadeiros e a mantê-los atualizados.
+Para usar o Kapa, você cria uma conta com nome, e-mail e senha. Você se compromete a informar dados verdadeiros e a mantê-los atualizados.
 
 A plataforma é só para **maiores de 18 anos** com plena capacidade civil. Ao criar a conta, você declara ter 18 anos ou mais. Contas de menores de 18 anos são encerradas assim que identificadas.
 
-Seu acesso é pessoal e intransferível. Você deve manter sua senha em segredo e responde pelo que for feito na sua conta. A exceção é o uso indevido causado por falha de segurança da Kapa. Se suspeitar que alguém acessou sua conta, troque a senha e avise o suporte na hora.
+Seu acesso é pessoal e intransferível. Você deve manter sua senha em segredo e responde pelo que for feito na sua conta. A exceção é o uso indevido causado por falha de segurança do Kapa. Se suspeitar que alguém acessou sua conta, troque a senha e avise o suporte na hora.
 
 Uma mesma conta pode participar de mais de uma formatura, com um papel diferente em cada uma.
 
@@ -66,7 +55,7 @@ Uma mesma conta pode participar de mais de uma formatura, com um papel diferente
 
 Cada formatura é um espaço separado: o que é lançado em uma turma não aparece em outra. Dentro da formatura, cada pessoa tem um papel, que define o que ela pode fazer:
 
-- **Presidente:** administra a formatura, a assinatura da Kapa, o modo de cobrança da turma, os membros e os papéis. É o único que pode desligar um formando, e pode fazer tudo o que os outros papéis fazem.
+- **Presidente:** administra a formatura, a assinatura do Kapa, o modo de cobrança da turma, os membros e os papéis. É o único que pode desligar um formando, e pode fazer tudo o que os outros papéis fazem.
 - **Tesoureiro:** configura cobranças, confirma pagamentos, lança despesas e fornecedores, faz baixas manuais e renegociações e decide os pedidos de cancelamento.
 - **Comissão:** consulta o extrato dos formandos, organiza a festa e publica avisos e documentos.
 - **Formando:** acompanha o próprio extrato, as próprias cobranças e os números gerais da turma.
@@ -86,7 +75,7 @@ Remover um membro tira o acesso dele à formatura, mas mantém o histórico fina
 
 ## 5. Dinheiro da turma e pagamentos
 
-**O dinheiro da turma nunca entra numa conta da Kapa.** A Kapa não é banco nem instituição de pagamento. Ela:
+**O dinheiro da turma nunca entra numa conta do Kapa.** O Kapa não é banco nem instituição de pagamento. Ele:
 
 - não recebe, não guarda e não repassa dinheiro dos formandos ou dos compradores da loja;
 - não cobra porcentagem sobre esses valores;
@@ -100,15 +89,15 @@ Cada turma escolhe um dos dois modos, e nunca usa os dois ao mesmo tempo.
 
 - A comissão informa a chave PIX da conta onde quer receber.
 - Para cada parcela, a plataforma gera um código PIX (QR Code e "copia e cola") com a chave, o valor e a identificação da parcela.
-- O formando paga direto nessa conta. A Kapa não tem acesso a ela.
+- O formando paga direto nessa conta. O Kapa não tem acesso a ela.
 - **Quem confirma o pagamento é a tesouraria**, olhando o extrato do banco. O formando pode avisar na plataforma que pagou, e a parcela fica como paga depois dessa confirmação.
 
 **Modo automático (Mercado Pago da turma).**
 
-- A comissão conecta a conta Mercado Pago da turma à Kapa, autorizando no próprio site do Mercado Pago.
-- A Kapa cria as cobranças das parcelas, por PIX ou por cartão de crédito em até 12 vezes.
+- A comissão conecta a conta Mercado Pago da turma ao Kapa, autorizando no próprio site do Mercado Pago.
+- O Kapa cria as cobranças das parcelas, por PIX ou por cartão de crédito em até 12 vezes.
 - O pagamento cai direto na conta Mercado Pago da turma, e a parcela fica paga sozinha quando o Mercado Pago confirma.
-- Para isso, a Kapa guarda uma chave de acesso à conta, protegida por criptografia. Ela é usada só para criar cobranças, ver se foram pagas e, quando a comissão pede, devolver um pagamento a quem pagou.
+- Para isso, o Kapa guarda uma chave de acesso à conta, protegida por criptografia. Ela é usada só para criar cobranças, ver se foram pagas e, quando a comissão pede, devolver um pagamento a quem pagou.
 - A comissão pode desconectar a conta quando quiser.
 
 No modo automático, a taxa do cartão pode ser paga pela turma ou repassada ao formando, num percentual definido pela comissão. Quando há repasse, o formando vê o valor com e sem o acréscimo antes de escolher como pagar.
@@ -128,21 +117,31 @@ A situação das parcelas na plataforma segue as confirmações da tesouraria ou
 
 ### Loja pública da turma
 
-A comissão pode vender convites avulsos a outras pessoas numa página pública. **Quem vende é a turma, não a Kapa:** o comprador paga na conta Mercado Pago da turma, e trocas, cancelamentos e devoluções são tratados com a comissão. A Kapa fornece a página e registra os pedidos.
+A comissão pode vender convites avulsos a outras pessoas numa página pública. **Quem vende é a turma, não o Kapa:** o comprador paga na conta Mercado Pago da turma, e trocas, cancelamentos e devoluções seguem a regra abaixo. O Kapa fornece a página e registra os pedidos.
 
-### Valores, multas e cancelamentos
+### Valores, multas e juros
 
 Valores, parcelas, vencimentos, multas, juros, pacotes, itens extras e regras de cancelamento são definidos pela comissão no termo de adesão e nos aditivos. Eles são contratos entre o formando e a comissão, separados destes Termos.
 
 A plataforma limita a **multa por atraso a 2%** e os **juros a 1% ao mês**. Exemplo: numa parcela de R$ 200 paga com um mês de atraso, o acréscimo máximo é de R$ 4 de multa mais R$ 2 de juros.
 
-Os pedidos de cancelamento são decididos pela comissão, na plataforma.
+### Cancelamentos e devoluções: sempre com a comissão
 
-### Devoluções
+**Todo cancelamento e toda devolução de dinheiro ligados à formatura são tratados com a comissão da turma, e não com o Kapa.** Isso vale tanto para o formando quanto para quem não é formando:
 
-A Kapa não devolve dinheiro de formandos nem de compradores. Quando há cancelamento, estorno ou reembolso, a plataforma registra o valor "a devolver", e quem devolve é a comissão. A única devolução feita pela própria Kapa é a da assinatura dela (seção 7).
+- **Formando:** cancelar a adesão, um pacote ou um item extra, e receber de volta o que for devido.
+- **Comprador da loja da turma (formando ou não):** cancelar ou trocar uma compra de convites, e receber de volta o que for devido.
 
-## 6. Assinatura da Kapa, planos, preços e renovação
+Como funciona:
+
+1. A pessoa faz o pedido de cancelamento na plataforma ou fala direto com a comissão.
+2. A comissão analisa e decide, seguindo o termo de adesão, os aditivos ou as regras da loja. O Kapa não decide cancelamentos.
+3. Se houver valor a devolver, ele fica registrado na plataforma como "a devolver".
+4. **Quem devolve o dinheiro é a comissão**, porque o dinheiro está na conta da turma. Quando o pagamento foi feito pelo Mercado Pago da turma, a comissão pode pedir pela plataforma que o Mercado Pago estorne o valor para quem pagou.
+
+Dúvidas ou discordâncias sobre um cancelamento ou uma devolução devem ser resolvidas com a comissão. O Kapa não guarda o dinheiro da turma e não faz essas devoluções. A única devolução feita pelo próprio Kapa é a da assinatura dela (seção 7).
+
+## 6. Assinatura do Kapa, planos, preços e renovação
 
 Para usar a plataforma, a formatura precisa de um plano, contratado e pago pelo Presidente.
 
@@ -151,7 +150,7 @@ Para usar a plataforma, a formatura precisa de um plano, contratado e pago pelo 
 
 Planos, preços, limites e ciclos são mostrados antes da contratação. Pode haver cupom de desconto, aplicado só à primeira cobrança.
 
-A assinatura é paga por PIX ou cartão de crédito, no ambiente do Mercado Pago, que é o provedor de pagamentos da Kapa. Os dados do cartão não passam pelos servidores da Kapa. A nota fiscal sai em nome do Presidente.
+A assinatura é paga por PIX ou cartão de crédito, no ambiente do Mercado Pago, que é o provedor de pagamentos do Kapa. Os dados do cartão não passam pelos servidores do Kapa. A nota fiscal sai em nome do Presidente.
 
 **Renovação:** a assinatura se renova sozinha ao fim de cada ciclo, pelo mesmo período e pelo preço em vigor, até ser cancelada. Mudanças de preço são avisadas com pelo menos 30 dias de antecedência e só valem a partir da renovação seguinte. Você pode cancelar antes disso.
 
@@ -172,23 +171,23 @@ Cancelar a assinatura não exclui a conta de ninguém, e excluir a sua conta nã
 
 ## 8. Transparência dentro da turma
 
-A proposta da Kapa é dar transparência à gestão da formatura. Por isso, todos os membros ativos da turma veem números gerais, como o saldo em caixa e a adimplência da turma.
+A proposta do Kapa é dar transparência à gestão da formatura. Por isso, todos os membros ativos da turma veem números gerais, como o saldo em caixa e a adimplência da turma.
 
 O extrato de cada formando aparece só para ele mesmo e para a comissão. Formandos não veem dados individuais uns dos outros.
 
 ## 9. Comunicações
 
-A Kapa envia e-mails sobre sua conta, sua formatura, cobranças e pagamentos, inclusive os lembretes de vencimento e de atraso que a comissão escolhe ligar.
+O Kapa envia e-mails sobre sua conta, sua formatura, cobranças e pagamentos, inclusive os lembretes de vencimento e de atraso que a comissão escolhe ligar.
 
-- O texto desses lembretes é fixo, escrito pela Kapa, e a comissão não o edita.
+- O texto desses lembretes é fixo, escrito pelo Kapa, e a comissão não o edita.
 - Eles nunca mostram a outros formandos quem está em atraso.
 - Esses e-mails fazem parte do serviço e não podem ser desligados enquanto você participar de uma formatura.
 
-Novidades e ofertas da própria Kapa só vão para quem aceitou recebê-las no cadastro. Dá para deixar de receber quando quiser, pelo link presente nas mensagens.
+Novidades e ofertas do próprio Kapa só vão para quem aceitou recebê-las no cadastro. Dá para deixar de receber quando quiser, pelo link presente nas mensagens.
 
-## 10. Uso aceitável
+## 10. Usos proibidos
 
-É proibido:
+Ao usar o Kapa, é proibido:
 
 - usar a plataforma para fraude, lavagem de dinheiro ou qualquer atividade ilegal;
 - cadastrar cobranças falsas ou lançar informações financeiras falsas;
@@ -200,23 +199,23 @@ Novidades e ofertas da própria Kapa só vão para quem aceitou recebê-las no c
 - informar dados de outras pessoas, como convidados, sem que elas saibam;
 - violar direitos autorais, de imagem ou de privacidade de outras pessoas.
 
-Conteúdo ilegal ou ofensivo pode ser denunciado pelo link "Denunciar este aviso", no próprio aviso, ou pelo e-mail de suporte, dizendo onde ele está. A Kapa analisa a denúncia e pode remover o conteúdo, avisando quem o publicou.
+Conteúdo ilegal ou ofensivo pode ser denunciado pelo link "Denunciar este aviso", no próprio aviso, ou pelo e-mail de suporte, dizendo onde ele está. O Kapa analisa a denúncia e pode remover o conteúdo, avisando quem o publicou.
 
 Quem descumprir estas regras está sujeito às medidas da seção 13 e responde pelos danos comprovados.
 
 ## 11. Propriedade intelectual
 
-A Kapa dá a você uma licença para usar a plataforma enquanto durar sua relação conosco, só para organizar formaturas. A licença é pessoal, intransferível, não exclusiva e pode ser revogada. Não é permitido revender, sublicenciar ou explorar a plataforma comercialmente.
+O Kapa dá a você uma licença para usar a plataforma enquanto durar sua relação conosco, só para organizar formaturas. A licença é pessoal, intransferível, não exclusiva e pode ser revogada. Não é permitido revender, sublicenciar ou explorar a plataforma comercialmente.
 
-Marca, software, layout e conteúdos da Kapa são protegidos por lei e pertencem à Kapa ou a quem os licenciou para ela.
+Marca, software, layout e conteúdos do Kapa são protegidos por lei e pertencem ao Kapa ou a quem os licenciou para ele.
 
 As informações e os arquivos que você e sua comissão colocam na plataforma continuam sendo de vocês e são tratados conforme a Política de Privacidade.
 
-Depoimentos, fotos da turma ou avaliações só são usados em materiais da Kapa com uma autorização específica, destacada e que pode ser revogada. Aceitar estes Termos não dá essa autorização.
+Depoimentos, fotos da turma ou avaliações só são usados em materiais do Kapa com uma autorização específica, destacada e que pode ser revogada. Aceitar estes Termos não dá essa autorização.
 
 ## 12. Responsabilidades
 
-A Kapa responde, na forma da lei, pelos serviços que presta. A Kapa não responde por:
+O Kapa responde, na forma da lei, pelos serviços que presta. O Kapa não responde por:
 
 - decisões da comissão sobre o dinheiro da turma, a contratação de fornecedores ou a realização dos eventos;
 - a exatidão do que os usuários lançam, inclusive a chave PIX de recebimento, as confirmações de pagamento e as baixas manuais;
@@ -231,7 +230,7 @@ Nada nestes Termos tira ou limita direitos que a lei garante a você.
 
 ## 13. Suspensão e encerramento
 
-A Kapa pode aplicar advertência, suspensão ou encerramento da conta, de forma proporcional ao caso, quando houver:
+O Kapa pode aplicar advertência, suspensão ou encerramento da conta, de forma proporcional ao caso, quando houver:
 
 - fraude;
 - descumprimento destes Termos;
@@ -240,7 +239,7 @@ A Kapa pode aplicar advertência, suspensão ou encerramento da conta, de forma 
 
 Fora das situações urgentes (fraude, risco de dano ou ordem legal), você é avisado antes e tem prazo para responder ou corrigir a situação.
 
-Se a Kapa encerrar a assinatura sem culpa da comissão, devolve o valor proporcional ao período não usado. Se a plataforma for descontinuada, avisamos com pelo menos 30 dias de antecedência, com a possibilidade de exportar os dados da formatura.
+Se o Kapa encerrar a assinatura sem culpa da comissão, devolve o valor proporcional ao período não usado. Se a plataforma for descontinuada, avisamos com pelo menos 30 dias de antecedência, com a possibilidade de exportar os dados da formatura.
 
 Você pode pedir a exclusão da sua conta a qualquer momento pelo suporte@kapaformaturas.com.br. O pedido é analisado com a comissão quando envolver dados da formatura. Encerramos o acesso e eliminamos os dados que não precisam mais ser tratados. Registros contratuais, financeiros e outros dados podem ser conservados com fundamento legal, pelo prazo necessário e com acesso restrito, como explica a Política de Privacidade.
 
@@ -254,12 +253,12 @@ Quando sair uma nova versão, você será levado a lê-la e aceitá-la no próxi
 
 ## 15. Privacidade
 
-Como a Kapa trata dados pessoais está explicado na Política de Privacidade, que faz parte destes Termos.
+Como o Kapa trata dados pessoais está explicado na Política de Privacidade, que faz parte destes Termos.
 
 ## 16. Lei aplicável e foro
 
 Estes Termos seguem a lei brasileira, em especial o Código de Defesa do Consumidor, o Código Civil, o Marco Civil da Internet e a Lei Geral de Proteção de Dados.
 
-Disputas são resolvidas no foro do domicílio do consumidor. Quando a relação não for de consumo, no foro da sede da Kapa.
+Disputas são resolvidas no foro do domicílio do consumidor. Quando a relação não for de consumo, no foro da sede do Kapa.
 
-Você também pode registrar reclamações no consumidor.gov.br. Isso não substitui o atendimento da Kapa nem a via judicial.
+Você também pode registrar reclamações no consumidor.gov.br. Isso não substitui o atendimento do Kapa nem a via judicial.

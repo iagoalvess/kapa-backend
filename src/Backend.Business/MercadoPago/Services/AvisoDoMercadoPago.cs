@@ -61,10 +61,9 @@ public sealed class AvisoDoMercadoPago(
         if (!mercadoPago.AvisoAutentico(assinatura, idDaRequisicao, idDoRecurso))
         {
             logger.LogWarning(
-                "Aviso do Mercado Pago com assinatura inválida recusado (data.id {IdDoRecurso}, x-request-id {IdDaRequisicao}, x-signature {Assinatura}).",
+                "Aviso do Mercado Pago com assinatura inválida recusado (data.id {IdDoRecurso}, x-request-id {IdDaRequisicao}).",
                 idDoRecurso,
-                idDaRequisicao,
-                assinatura
+                idDaRequisicao
             );
             return Result.Falha(Erro.NaoAutenticado("pagamento.aviso_nao_autentico", "Assinatura inválida."));
         }

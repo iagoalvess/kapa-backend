@@ -7,6 +7,7 @@ using Backend.Business.Assinaturas.Models;
 using Backend.Business.Assinaturas.Services;
 using Backend.Business.Auth.Interfaces;
 using Backend.Business.Auth.Models;
+using Backend.Business.Auth.Services;
 using Backend.Business.Common.Datas;
 using Backend.Business.Common.Texto;
 using Backend.Business.Eventos.Interfaces;
@@ -57,6 +58,7 @@ namespace Backend.Business.Admin.Services;
 /// <param name="emails">E-mails da assinatura.</param>
 /// <param name="eventos">Trilha de auditoria.</param>
 /// <param name="userManager">API do Identity, para levantar o bloqueio por tentativas.</param>
+/// <param name="tentativas">Senhas erradas por conta + origem, o bloqueio que o login usa de fato.</param>
 /// <param name="estorno">A devolução do pagamento do plano, a mesma da desistência pelo Presidente.</param>
 /// <param name="unitOfWork">Fronteira transacional.</param>
 /// <param name="logger">Log estruturado.</param>
@@ -70,6 +72,7 @@ public sealed class AdminService(
     EmailsDeAssinatura emails,
     IEventoRepository eventos,
     UserManager<Usuario> userManager,
+    TentativasDeSenha tentativas,
     EstornoDaAssinatura estorno,
     IUnitOfWork unitOfWork,
     ILogger<AdminService> logger
@@ -422,6 +425,10 @@ public sealed class AdminService(
     /// contra força bruta e expira sozinho; desativar é decisão administrativa, e se desfaz na
     /// gestão de usuários, que tem tela própria.
     /// </para>
+    /// <para>
+    /// O login conta senha errada por conta + origem em <see cref="TentativasDeSenha"/>, não pelo lockout do
+    /// Identity; limpar só o lockout deixava o desbloqueio sem efeito.
+    /// </para>
     /// </remarks>
     /// <param name="conta">Conta alvo.</param>
     private async Task<Result> Levantar(UsuarioDetalhe conta, CancellationToken ct)
@@ -433,6 +440,8 @@ public sealed class AdminService(
 
         await userManager.SetLockoutEndDateAsync(usuario, null);
         await userManager.ResetAccessFailedCountAsync(usuario);
+
+        tentativas.LimparConta(conta.Email);
 
         return Result.Ok();
     }

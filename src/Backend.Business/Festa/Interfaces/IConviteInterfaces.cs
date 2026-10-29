@@ -159,7 +159,8 @@ public interface IPortariaService
 
     /// <summary>Um convite como a portaria o vê: situação, entrada e se a janela está aberta.</summary>
     /// <param name="codigo">Código digitado ou token lido do QR.</param>
-    Task<Result<ConsultaNaPortaria>> Consultar(string codigo, CancellationToken ct = default);
+    /// <param name="eventoId">O evento da credencial da portaria; convite de outro evento responde <c>festa.outro_evento</c>. Nulo aceita qualquer um.</param>
+    Task<Result<ConsultaNaPortaria>> Consultar(string codigo, Guid? eventoId, CancellationToken ct = default);
 
     /// <summary>
     /// Valida a entrada — uma instrução só, com todas as garantias dentro (decisão 15).
@@ -176,14 +177,21 @@ public interface IPortariaService
     /// <summary>Desfaz uma entrada validada por engano. A linha fica, marcada como desfeita (decisão 6).</summary>
     /// <param name="checkInId">Entrada.</param>
     /// <param name="usuarioId">Quem desfaz.</param>
-    Task<Result> Desfazer(Guid checkInId, Guid usuarioId, CancellationToken ct = default);
+    /// <param name="eventoId">O evento da credencial da portaria; entrada de outro evento não é encontrada. Nulo aceita qualquer um.</param>
+    Task<Result> Desfazer(Guid checkInId, Guid usuarioId, Guid? eventoId, CancellationToken ct = default);
 
     /// <summary>
     /// Sobe as entradas marcadas sem rede — e nenhuma é descartada (decisão 16).
     /// </summary>
     /// <param name="entradas">O que o aparelho marcou.</param>
     /// <param name="usuarioId">Quem sincroniza.</param>
-    Task<Result<ResultadoDaSincronizacao>> Sincronizar(IReadOnlyList<EntradaSemRede> entradas, Guid usuarioId, CancellationToken ct = default);
+    /// <param name="eventoId">O evento da credencial da portaria; entrada de outro evento conta como recusada. Nulo aceita qualquer um.</param>
+    Task<Result<ResultadoDaSincronizacao>> Sincronizar(
+        IReadOnlyList<EntradaSemRede> entradas,
+        Guid usuarioId,
+        Guid? eventoId,
+        CancellationToken ct = default
+    );
 }
 
 /// <summary>

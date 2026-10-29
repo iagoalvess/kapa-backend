@@ -26,7 +26,7 @@ public static class ConviteEmPdf
     private const float LadoDoQr = 220;
 
     /// <summary>Proporção das colunas da lista: convidado, documento, código, de quem, situação.</summary>
-    private static readonly (float, bool)[] ColunasDaLista = [(26, false), (19, false), (13, false), (20, false), (22, false)];
+    private static readonly (float, bool)[] ColunasDaLista = [(32, false), (22, false), (16, false), (30, false)];
 
     /// <summary>O convite de uma pessoa.</summary>
     /// <param name="convite">O convite como a página pública o mostra — documento já mascarado.</param>
@@ -55,17 +55,14 @@ public static class ConviteEmPdf
     /// </summary>
     /// <remarks>
     /// É a lista que o salão pede e a que a portaria confere se o QR ou a rede falharem. Por nome, e
-    /// com a situação de cada convite no instante da geração — a mesma da tela.
-    /// <para>
-    /// O revogado continua na lista — é como a portaria reconhece o print antigo de um convite
-    /// transferido —, mas <b>sem o documento</b>: quem deixou de ser convidado não tem por que ter o
-    /// número impresso no papel que circula na porta.
-    /// </para>
+    /// <b>só com quem pode entrar</b> no instante da geração (15/10/2026): no papel, "está na lista" tem
+    /// de bastar. Revogado, preso por atraso, sem nome e quem já entrou ficam de fora — quem não está
+    /// na lista não entra, e o porteiro não precisa ler situação nenhuma.
     /// </remarks>
     /// <param name="turma">Nome da turma.</param>
     /// <param name="evento">Evento.</param>
     /// <param name="linhas">Convites, com o documento decifrado.</param>
-    /// <param name="paraPortaria">Como a portaria lê cada convite — a situação sai dali, igual à da tela.</param>
+    /// <param name="paraPortaria">Como a portaria lê cada convite — quem entra sai dali, igual à tela.</param>
     public static byte[] Lista(
         string turma,
         EventoDoConvite evento,
@@ -74,31 +71,28 @@ public static class ConviteEmPdf
     )
     {
         var agora = DataUtils.ParaExibicao(DateTime.UtcNow);
-        var ordenadas = linhas
-            .OrderBy(linha => linha.Convite.NomeDoConvidado is null)
-            .ThenBy(linha => linha.Convite.NomeDoConvidado, StringComparer.CurrentCultureIgnoreCase)
+        var validos = linhas
+            .Where(linha => paraPortaria(linha).Situacao is SituacaoNaPortaria.Valido)
+            .OrderBy(linha => linha.Convite.NomeDoConvidado, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(linha => linha.Convite.Codigo, StringComparer.Ordinal)
             .ToList();
-        var validos = ordenadas.Count(linha => linha.Convite.Valido);
 
         return new DocumentoPdf(OrientacaoDaPagina.Paisagem)
             .Capa(
                 "Lista da portaria",
                 $"{turma} · {evento.Titulo} · {Quando(evento)}{(evento.Local is { } local ? $" · {local}" : string.Empty)}",
-                $"Gerada em {agora.ToString("dd/MM/yyyy 'às' HH:mm", CultureInfo.InvariantCulture)} — {validos} convites válidos. Confira nome e documento com foto."
+                $"Gerada em {agora.ToString("dd/MM/yyyy 'às' HH:mm", CultureInfo.InvariantCulture)} — {validos.Count} convites válidos. Confira nome e documento com foto."
             )
             .Tabela(
                 ColunasDaLista,
-                ["Convidado", "Documento", "Código", "Convidado de", "Situação"],
-                ordenadas.Select(linha =>
+                ["Convidado", "Documento", "Código", "Convidado de"],
+                validos.Select(linha =>
                     new[]
                     {
-                        linha.Convite.NomeDoConvidado ?? "(a definir)",
-                        (linha.Convite.Valido ? DocumentoDoConvidado.Inteiro(linha.Convite.TipoDoDocumento, linha.Convite.NumeroDoDocumento) : null)
-                            ?? "—",
+                        linha.Convite.NomeDoConvidado ?? string.Empty,
+                        DocumentoDoConvidado.Inteiro(linha.Convite.TipoDoDocumento, linha.Convite.NumeroDoDocumento) ?? "—",
                         linha.Convite.Codigo,
                         linha.ConvidadoDe ?? "Cortesia da turma",
-                        Situacao(paraPortaria(linha)),
                     }
                 )
             )
@@ -114,16 +108,6 @@ public static class ConviteEmPdf
 
         return [.. dados.ModuleMatrix.Select(linha => (IReadOnlyList<bool>)[.. linha.Cast<bool>()])];
     }
-
-    private static string Situacao(ConviteNaPortaria convite) =>
-        convite.Situacao switch
-        {
-            SituacaoNaPortaria.Validado when convite.Entrada is { } entrada =>
-                $"Entrou às {DataUtils.ParaExibicao(entrada.ValidadoEm).ToString("HH'h'mm", CultureInfo.InvariantCulture)}",
-            SituacaoNaPortaria.Revogado => $"Revogado: {convite.MotivoDaRevogacao}",
-            SituacaoNaPortaria.SemTitular => "Pendente: sem nome ou documento",
-            _ => "Válido",
-        };
 
     private static string Quando(EventoDoConvite evento) =>
         $"{evento.Data.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}{(evento.Hora is { } hora ? $", {hora.ToString("HH'h'mm", CultureInfo.InvariantCulture)}" : string.Empty)}";

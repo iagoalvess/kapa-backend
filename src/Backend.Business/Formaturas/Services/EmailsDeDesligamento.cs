@@ -16,7 +16,7 @@ namespace Backend.Business.Formaturas.Services;
 /// <c>EmailsDeAdesao</c>: uma implementação, e o teste a constrói com um <c>IEmailService</c> substituto.
 /// <para>
 /// A mensagem de quem sai diz o que foi cancelado <b>e</b> o que não volta: a devolução, se houver, é
-/// combinada com a comissão, porque o dinheiro nunca passou pela Kapa (P2 de 17/09/2026). É a
+/// combinada com a comissão, porque o dinheiro nunca passou pelo Kapa (P2 de 17/09/2026). É a
 /// pergunta que a pessoa faz em seguida, e ela precisa da resposta antes de escrever de volta.
 /// </para>
 /// </remarks>

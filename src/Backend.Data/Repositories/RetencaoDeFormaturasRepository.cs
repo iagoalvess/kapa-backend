@@ -44,6 +44,7 @@ public sealed class RetencaoDeFormaturasRepository(AppDbContext db) : IRetencaoD
         typeof(Enquete),
         typeof(PropostaDoItem),
         typeof(CheckIn),
+        typeof(AcessoDaPortaria),
         typeof(ConviteDoEvento),
         typeof(ValorADevolver),
         typeof(SolicitacaoDeCancelamento),

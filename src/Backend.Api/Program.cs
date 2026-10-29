@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// O cabeçalho "Server: Kestrel" só diz ao atacante qual runtime está atrás da borda.
+builder.WebHost.ConfigureKestrel(opcoes => opcoes.AddServerHeader = false);
+
 builder.AddObservabilidade("backend-api");
 
 builder.Services.AddData(builder.Configuration);

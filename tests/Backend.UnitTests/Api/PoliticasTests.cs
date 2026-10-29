@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Backend.Api.Configuration;
 using Backend.Business.Assinaturas.Interfaces;
 using Backend.Business.Auth.Services;
+using Backend.Business.Festa.Interfaces;
 using Backend.Business.Formaturas.Interfaces;
 using Backend.Business.Formaturas.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -36,6 +37,7 @@ public sealed class PoliticasTests
         services.AddSingleton(Substitute.For<IVinculoRepository>());
         services.AddSingleton(formaturas);
         services.AddSingleton(Substitute.For<IAssinaturaRepository>());
+        services.AddSingleton(Substitute.For<IAcessoDaPortariaRepository>());
         services.AddPoliticas();
 
         if (politicaDeUsuario is not null)

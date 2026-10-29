@@ -31,7 +31,11 @@ public sealed class RedefinirSenhaValidator : AbstractValidator<RedefinirSenha>
 
         RuleFor(x => x.Token).NotEmpty().WithMessage("O link de redefinição está incompleto.");
 
-        RuleFor(x => x.NovaSenha).NotEmpty().WithMessage("A nova senha é obrigatória.");
+        RuleFor(x => x.NovaSenha)
+            .NotEmpty()
+            .WithMessage("A nova senha é obrigatória.")
+            .MaximumLength(LimitesDaSenha.Maximo)
+            .WithMessage($"A senha deve ter no máximo {LimitesDaSenha.Maximo} caracteres.");
     }
 }
 
@@ -43,11 +47,17 @@ public sealed class AlterarSenhaValidator : AbstractValidator<AlterarSenha>
     /// <summary>Registra as regras de validação.</summary>
     public AlterarSenhaValidator()
     {
-        RuleFor(x => x.SenhaAtual).NotEmpty().WithMessage("A senha atual é obrigatória.");
+        RuleFor(x => x.SenhaAtual)
+            .NotEmpty()
+            .WithMessage("A senha atual é obrigatória.")
+            .MaximumLength(LimitesDaSenha.Maximo)
+            .WithMessage($"A senha atual deve ter no máximo {LimitesDaSenha.Maximo} caracteres.");
 
         RuleFor(x => x.NovaSenha)
             .NotEmpty()
             .WithMessage("A nova senha é obrigatória.")
+            .MaximumLength(LimitesDaSenha.Maximo)
+            .WithMessage($"A nova senha deve ter no máximo {LimitesDaSenha.Maximo} caracteres.")
             .NotEqual(x => x.SenhaAtual)
             .WithMessage("A nova senha deve ser diferente da atual.");
     }

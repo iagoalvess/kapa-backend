@@ -32,6 +32,7 @@ using Backend.Data.Context;
 using Backend.Data.Criptografia;
 using Backend.Data.Repositories;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -83,6 +84,9 @@ public static class DependenciasData
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         services.AddDataProtection().SetApplicationName(NomeDaAplicacaoNaProtecao).PersistKeysToDbContext<AppDbContext>();
+        services
+            .AddOptions<KeyManagementOptions>()
+            .Configure<CifraDeCampo>((opcoes, cifra) => opcoes.XmlEncryptor = new CifraDasChavesDeProtecao(cifra));
 
         return services.AdicionarRepositorios().AdicionarProvedorDeAssinatura(configuration);
     }
@@ -167,6 +171,7 @@ public static class DependenciasData
         services.AddScoped<IPedidoRepository, PedidoRepository>();
         services.AddScoped<ISolicitacaoDeCancelamentoRepository, SolicitacaoDeCancelamentoRepository>();
         services.AddScoped<IConviteDoEventoRepository, ConviteDoEventoRepository>();
+        services.AddScoped<IAcessoDaPortariaRepository, AcessoDaPortariaRepository>();
         services.AddScoped<ICompraDeConviteRepository, CompraDeConviteRepository>();
         services.AddScoped<IPendenciasDaTurmaRepository, PendenciasDaTurmaRepository>();
         services.AddScoped<IMesaRepository, MesaRepository>();

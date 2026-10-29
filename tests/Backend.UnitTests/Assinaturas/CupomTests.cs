@@ -9,10 +9,10 @@ namespace Backend.UnitTests.Assinaturas;
 public sealed class CupomTests
 {
     [Theory]
-    [InlineData(8900, 50, 4450)]
-    [InlineData(17900, 10, 16110)]
+    [InlineData(6900, 50, 3450)]
+    [InlineData(13900, 10, 12510)]
     [InlineData(999, 50, 500)]
-    [InlineData(85400, 15, 72590)]
+    [InlineData(66200, 15, 56270)]
     public void O_desconto_arredonda_a_favor_da_turma(long cheio, int percentual, long esperado) =>
         Cupom.ComDesconto(cheio, percentual).ShouldBe(esperado);
 

@@ -67,6 +67,11 @@ public static class ObservabilidadeConfig
         });
     }
 
+    /// <summary>Rastreamento e métricas via OTLP, quando há coletor configurado.</summary>
+    /// <remarks>
+    /// Convite, portaria e link de compra carregam o token no próprio caminho; nessas rotas o span leva o template
+    /// (<c>{token}</c>) no lugar da URL. A query string o OpenTelemetry já redige por padrão.
+    /// </remarks>
     private static void AddTelemetria(this IHostApplicationBuilder builder, string nomeDoServico)
     {
         var coletor = builder.Configuration[VariavelDoColetor];
@@ -88,8 +93,25 @@ public static class ObservabilidadeConfig
             {
                 rastreamento
                     .AddAspNetCoreInstrumentation(opcoes =>
-                        opcoes.Filter = contexto => !contexto.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase)
-                    )
+                    {
+                        opcoes.Filter = contexto => !contexto.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase);
+
+                        opcoes.EnrichWithHttpResponse = (atividade, resposta) =>
+                        {
+                            if (
+                                atividade.GetTagItem("http.route") is string rota
+                                && (rota.Contains("{token}", StringComparison.Ordinal) || rota.Contains("{codigo}", StringComparison.Ordinal))
+                            )
+                            {
+                                var endereco = $"{resposta.HttpContext.Request.Scheme}://{resposta.HttpContext.Request.Host}{rota}";
+
+                                atividade.SetTag("url.path", rota);
+                                atividade.SetTag("http.target", rota);
+                                atividade.SetTag("url.full", endereco);
+                                atividade.SetTag("http.url", endereco);
+                            }
+                        };
+                    })
                     .AddHttpClientInstrumentation()
                     .AddSource("Npgsql");
 
