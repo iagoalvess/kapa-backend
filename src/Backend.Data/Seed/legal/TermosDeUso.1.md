@@ -1,6 +1,6 @@
 # Termos de Uso do Kapa
 
-Estes Termos explicam as regras para usar a plataforma Kapa, operada por **KAPA FORMATURAS INOVA SIMPLES (I.S.)**, CNPJ nº **69.334.998/0001-67** ("Kapa", "nós").
+Estes Termos explicam as regras para usar a plataforma Kapa, operada por **KAPA FORMATURAS INOVA SIMPLES (I.S.)**, CNPJ nº **69.334.998/0001-67**, com sede na **Rua Carlos Alves, 16, São José, Belo Horizonte/MG, CEP 31275-120** ("Kapa", "nós").
 
 Ao criar uma conta, você declara que leu, entendeu e concorda com estes Termos e com a Política de Privacidade, que faz parte deles. Se não concordar, não use a plataforma.
 

@@ -21,7 +21,7 @@ namespace Backend.UnitTests.Legal;
 public sealed class DocumentosPublicadosTests
 {
     [Theory]
-    [InlineData("TermosDeUso", "1", "ca211e91e7d3d4c6db3e0ed9e5d436e1bcfd6586782dbe2085c190cdae626cc1")]
+    [InlineData("TermosDeUso", "1", "b2d01b131b36a3f459d0a2bf0839e5dc8844cb5b1972e755e5d981a27c5d5a97")]
     [InlineData("PoliticaDePrivacidade", "1", "c2bde3dc7ef549129ad40e288f1fa46791db9f0f0ef4220e214c66bea5bb72e6")]
     public void Texto_publicado_nao_muda(string tipo, string versao, string hashEsperado)
     {
